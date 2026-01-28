@@ -3,8 +3,7 @@
 // Uses agency-specific API endpoints
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 // Types
 export type AgencyConversationJob = {
@@ -124,7 +123,7 @@ export type AgencyConversationDetail = {
  * @param filter - 'all', 'unread', or 'archived' (default: 'all')
  */
 export function useAgencyConversations(
-  filter: "all" | "unread" | "archived" = "all"
+  filter: "all" | "unread" | "archived" = "all",
 ) {
   return useQuery({
     queryKey: ["agency-conversations", filter],
@@ -137,7 +136,7 @@ export function useAgencyConversations(
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch agency conversations: ${response.statusText}`
+          `Failed to fetch agency conversations: ${response.statusText}`,
         );
       }
 
@@ -228,7 +227,7 @@ export function useAgencySendMessage() {
             message_text: text,
             message_type: type,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -261,12 +260,12 @@ export function useAgencyArchiveConversation() {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(
-          `Failed to toggle archive status: ${response.statusText}`
+          `Failed to toggle archive status: ${response.statusText}`,
         );
       }
 
@@ -302,13 +301,13 @@ export function useAgencyMarkComplete() {
           body: JSON.stringify({
             completion_notes: completionNotes || "",
           }),
-        }
+        },
       );
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          error.error || `Failed to mark complete: ${response.statusText}`
+          error.error || `Failed to mark complete: ${response.statusText}`,
         );
       }
 
@@ -351,7 +350,7 @@ export function useAgencySubmitReview() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          error.error || `Failed to submit review: ${response.statusText}`
+          error.error || `Failed to submit review: ${response.statusText}`,
         );
       }
 

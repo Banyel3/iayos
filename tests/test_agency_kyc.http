@@ -1,0 +1,101 @@
+### Test Agency KYC Process
+# Test agency account: testagency@iayos.com / TestAgency123!
+# Account ID: 85, Agency ID: 12
+
+@baseUrl = http://localhost:8000
+@agencyEmail = testagency@iayos.com
+@agencyPassword = TestAgency123!
+
+### 1. Login as agency
+# @name agencyLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+    "email": "{{agencyEmail}}",
+    "password": "{{agencyPassword}}"
+}
+
+### 2. Get Agency KYC Status
+GET {{baseUrl}}/api/agency/status
+Cookie: access={{agencyLogin.response.body.access}}
+
+### 3. Validate Business Permit Document
+POST {{baseUrl}}/api/agency/kyc/validate-document
+Cookie: access={{agencyLogin.response.body.access}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+BUSINESS_PERMIT
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="test_id.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_id.jpg
+------WebKitFormBoundary--
+
+### 4. Validate Rep ID Front Document (should detect face)
+POST {{baseUrl}}/api/agency/kyc/validate-document
+Cookie: access={{agencyLogin.response.body.access}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+REP_ID_FRONT
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="test_id_face.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_id_face.jpg
+------WebKitFormBoundary--
+
+### 5. Full Agency KYC Upload
+POST {{baseUrl}}/api/agency/upload
+Cookie: access={{agencyLogin.response.body.access}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="businessName"
+
+Test Agency Services Updated
+------WebKitFormBoundary
+Content-Disposition: form-data; name="businessDesc"
+
+Professional staffing and recruitment agency
+------WebKitFormBoundary
+Content-Disposition: form-data; name="rep_id_type"
+
+PHILSYS_ID
+------WebKitFormBoundary
+Content-Disposition: form-data; name="business_permit"; filename="permit.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_id.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="rep_front"; filename="rep_front.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_id_face.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="rep_back"; filename="rep_back.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_id.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="address_proof"; filename="address.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_nbi.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="auth_letter"; filename="auth.jpg"
+Content-Type: image/jpeg
+
+< ../apps/backend/scripts/testing/test_nbi.jpg
+------WebKitFormBoundary--
+
+### 6. Check Agency KYC Status After Upload
+GET {{baseUrl}}/api/agency/status
+Cookie: access={{agencyLogin.response.body.access}}

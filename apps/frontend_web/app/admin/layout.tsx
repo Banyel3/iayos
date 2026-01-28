@@ -13,8 +13,21 @@ export default async function AdminLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
-  // Use internal Docker network for server-side requests
-  const serverApiUrl = process.env.SERVER_API_URL || "http://backend:8000";
+  // Helper to ensure URL has protocol
+  const ensureProtocol = (url: string | undefined): string | undefined => {
+    if (!url) return undefined;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `https://${url}`;
+  };
+
+  // Use SERVER_API_URL for server-side requests
+  // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
+  const isProduction =
+    process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+  const serverApiUrl =
+    ensureProtocol(process.env.SERVER_API_URL) ||
+    ensureProtocol(process.env.NEXT_PUBLIC_API_URL) ||
+    (isProduction ? "https://api.iayos.online" : "http://localhost:8000");
 
   // Server-side validate session with backend to avoid client-only cookie checks
   try {

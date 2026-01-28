@@ -3,6 +3,9 @@
 // Ported from React Native mobile app
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/api/config";
+
+const API_BASE_URL = API_BASE;
 
 export type Conversation = {
   id: number;
@@ -45,12 +48,12 @@ export type ConversationsResponse = {
  * @param filter - 'all', 'unread', or 'archived'
  */
 export function useConversations(
-  filter: "all" | "unread" | "archived" = "all"
+  filter: "all" | "unread" | "archived" = "all",
 ) {
   return useQuery({
     queryKey: ["conversations", filter],
     queryFn: async (): Promise<ConversationsResponse> => {
-      const url = `http://localhost:8000/api/profiles/conversations?filter=${filter}`;
+      const url = `${API_BASE_URL}/api/profiles/conversations?filter=${filter}`;
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -58,7 +61,7 @@ export function useConversations(
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch conversations: ${response.statusText}`
+          `Failed to fetch conversations: ${response.statusText}`,
         );
       }
 
@@ -119,16 +122,16 @@ export function useArchiveConversation() {
       archive: boolean;
     }) => {
       console.log(
-        `[useArchiveConversation] ${archive ? "Archiving" : "Unarchiving"} conversation ${conversationId}`
+        `[useArchiveConversation] ${archive ? "Archiving" : "Unarchiving"} conversation ${conversationId}`,
       );
 
       // Call backend toggle archive endpoint
       const response = await fetch(
-        `http://localhost:8000/api/profiles/conversations/${conversationId}/toggle-archive`,
+        `${API_BASE_URL}/api/profiles/conversations/${conversationId}/toggle-archive`,
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {

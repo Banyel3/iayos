@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -95,8 +96,8 @@ export default function AgencyBackjobDetailPage({
     try {
       // Fetch backjob status
       const backjobResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}/backjob-status`,
-        { credentials: "include" }
+        `${API_BASE}/api/jobs/${jobId}/backjob-status`,
+        { credentials: "include" },
       );
       if (backjobResponse.ok) {
         const data = await backjobResponse.json();
@@ -104,10 +105,9 @@ export default function AgencyBackjobDetailPage({
       }
 
       // Fetch job details
-      const jobResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}`,
-        { credentials: "include" }
-      );
+      const jobResponse = await fetch(`${API_BASE}/api/jobs/${jobId}`, {
+        credentials: "include",
+      });
       if (jobResponse.ok) {
         const jobData = await jobResponse.json();
         setJob({
@@ -133,7 +133,7 @@ export default function AgencyBackjobDetailPage({
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}/backjob/mark-complete`,
+        `${API_BASE}/api/jobs/${jobId}/backjob/mark-complete`,
         {
           method: "POST",
           credentials: "include",
@@ -141,9 +141,9 @@ export default function AgencyBackjobDetailPage({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            notes: completionNotes || "Backjob work completed"
+            notes: completionNotes || "Backjob work completed",
           }),
-        }
+        },
       );
 
       if (response.ok) {
@@ -151,7 +151,9 @@ export default function AgencyBackjobDetailPage({
         setCompletionNotes("");
         // Refresh data
         await fetchBackjobDetails();
-        alert("Backjob marked as complete! Client will be notified to verify and approve.");
+        alert(
+          "Backjob marked as complete! Client will be notified to verify and approve.",
+        );
       } else {
         const error = await response.json();
         alert(error.error || "Failed to mark backjob complete");
@@ -272,7 +274,7 @@ export default function AgencyBackjobDetailPage({
                   </p>
                 </div>
               )}
-              
+
               {/* Phase 2: Agency can mark complete after client confirms started */}
               {dispute.backjob_started && !dispute.worker_marked_complete && (
                 <Button
@@ -283,7 +285,7 @@ export default function AgencyBackjobDetailPage({
                   Mark Backjob Complete
                 </Button>
               )}
-              
+
               {/* Phase 3: Waiting for client approval */}
               {dispute.worker_marked_complete && !dispute.client_confirmed && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
@@ -480,7 +482,9 @@ export default function AgencyBackjobDetailPage({
           {/* Timeline */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Backjob Workflow Timeline</CardTitle>
+              <CardTitle className="text-base">
+                Backjob Workflow Timeline
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -488,45 +492,53 @@ export default function AgencyBackjobDetailPage({
                 <div className="flex items-start gap-3">
                   <div className="w-3 h-3 bg-blue-500 rounded-full mt-1.5" />
                   <div>
-                    <p className="font-medium text-gray-900">Backjob Requested</p>
+                    <p className="font-medium text-gray-900">
+                      Backjob Requested
+                    </p>
                     <p className="text-sm text-gray-500">
                       {formatDate(dispute.opened_date)}
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Step 2: Client confirmed work started */}
                 {dispute.backjob_started && (
                   <div className="flex items-start gap-3">
                     <div className="w-3 h-3 bg-green-500 rounded-full mt-1.5" />
                     <div>
-                      <p className="font-medium text-gray-900">Work Started (Client Confirmed)</p>
+                      <p className="font-medium text-gray-900">
+                        Work Started (Client Confirmed)
+                      </p>
                       <p className="text-sm text-gray-500">
                         {formatDate(dispute.backjob_started_at)}
                       </p>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Step 3: Agency marked complete */}
                 {dispute.worker_marked_complete && (
                   <div className="flex items-start gap-3">
                     <div className="w-3 h-3 bg-amber-500 rounded-full mt-1.5" />
                     <div>
-                      <p className="font-medium text-gray-900">Marked Complete (Agency)</p>
+                      <p className="font-medium text-gray-900">
+                        Marked Complete (Agency)
+                      </p>
                       <p className="text-sm text-gray-500">
                         {formatDate(dispute.worker_marked_complete_at)}
                       </p>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Step 4: Client confirmed completion */}
                 {dispute.resolved_date && (
                   <div className="flex items-start gap-3">
                     <div className="w-3 h-3 bg-green-600 rounded-full mt-1.5" />
                     <div>
-                      <p className="font-medium text-gray-900">Completed & Verified</p>
+                      <p className="font-medium text-gray-900">
+                        Completed & Verified
+                      </p>
                       <p className="text-sm text-gray-500">
                         {formatDate(dispute.resolved_date)}
                       </p>
@@ -629,8 +641,8 @@ export default function AgencyBackjobDetailPage({
               setCurrentImageIndex(
                 Math.min(
                   dispute.evidence_images.length - 1,
-                  currentImageIndex + 1
-                )
+                  currentImageIndex + 1,
+                ),
               );
             }}
             disabled={currentImageIndex === dispute.evidence_images.length - 1}

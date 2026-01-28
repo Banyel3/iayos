@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -109,7 +110,7 @@ export default function AuditLogsPage() {
       if (searchTerm) params.append("search", searchTerm);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/audit-logs?${params.toString()}`,
+        `${API_BASE}/api/adminpanel/settings/audit-logs?${params.toString()}`,
         {
           credentials: "include",
         },

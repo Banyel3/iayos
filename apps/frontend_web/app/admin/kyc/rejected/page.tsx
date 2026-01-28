@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import {
   Card,
   CardContent,
@@ -41,7 +42,7 @@ export default function RejectedKYCPage() {
   const [rejectedKYC, setRejectedKYC] = useState<RejectedKYC[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
-    "all"
+    "all",
   );
   const [resubmissionFilter, setResubmissionFilter] = useState<
     "all" | "allowed" | "not_allowed" | "resubmitted"
@@ -58,10 +59,10 @@ export default function RejectedKYCPage() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/logs?action=Rejected&limit=500",
+        `${API_BASE}/api/adminpanel/kyc/logs?action=Rejected&limit=500`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -193,7 +194,7 @@ export default function RejectedKYCPage() {
                 <div className="text-2xl font-bold">
                   {
                     rejectedKYC.filter(
-                      (r) => r.resubmissionAllowed && !r.hasResubmitted
+                      (r) => r.resubmissionAllowed && !r.hasResubmitted,
                     ).length
                   }
                 </div>
@@ -275,7 +276,7 @@ export default function RejectedKYCPage() {
                         | "all"
                         | "allowed"
                         | "not_allowed"
-                        | "resubmitted"
+                        | "resubmitted",
                     )
                   }
                   className="px-3 py-2 border rounded-md"
@@ -354,7 +355,7 @@ export default function RejectedKYCPage() {
                             <p className="text-muted-foreground">Submitted</p>
                             <p className="font-medium">
                               {new Date(
-                                record.submissionDate
+                                record.submissionDate,
                               ).toLocaleDateString()}
                             </p>
                           </div>
@@ -362,7 +363,7 @@ export default function RejectedKYCPage() {
                             <p className="text-muted-foreground">Rejected</p>
                             <p className="font-medium">
                               {new Date(
-                                record.rejectionDate
+                                record.rejectionDate,
                               ).toLocaleDateString()}
                             </p>
                           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -107,8 +108,8 @@ export default function TicketDetailPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/tickets/${ticketId}`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/support/tickets/${ticketId}`,
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -129,7 +130,7 @@ export default function TicketDetailPage() {
     setSending(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/tickets/${ticketId}/reply`,
+        `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/reply`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -138,7 +139,7 @@ export default function TicketDetailPage() {
             message: replyMessage,
             is_internal_note: isInternalNote,
           }),
-        }
+        },
       );
 
       if (response.ok) {
@@ -157,13 +158,13 @@ export default function TicketDetailPage() {
   const handleUpdateStatus = async (newStatus: string) => {
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/tickets/${ticketId}/status`,
+        `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ status: newStatus }),
-        }
+        },
       );
       fetchTicketDetail();
     } catch (error) {
@@ -174,13 +175,13 @@ export default function TicketDetailPage() {
   const handleUpdatePriority = async (newPriority: string) => {
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/tickets/${ticketId}/priority`,
+        `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/priority`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ priority: newPriority }),
-        }
+        },
       );
       fetchTicketDetail();
     } catch (error) {
@@ -194,13 +195,13 @@ export default function TicketDetailPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/tickets/${ticketId}/close`,
+        `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/close`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ resolution_note: resolution }),
-        }
+        },
       );
       fetchTicketDetail();
     } catch (error) {

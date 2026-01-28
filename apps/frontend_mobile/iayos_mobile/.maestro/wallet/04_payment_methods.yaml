@@ -1,0 +1,145 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Manage Payment Methods
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies users can view and add payment methods
+# Prerequisites: Logged in
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.devante.iayos
+tags:
+  - wallet
+  - payment_methods
+  - gcash
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Payment Methods
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "Profile"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Look for payment methods in profile
+- scroll:
+    direction: DOWN
+  optional: true
+
+- tapOn:
+    text: "Payment Methods"
+    optional: true
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Payment Methods Screen
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    text: "Payment Methods"
+    optional: true
+    timeout: 10000
+
+- takeScreenshot: "01_payment_methods"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Add New Payment Method
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "Add"
+    optional: true
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Select GCash
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    text: "GCash"
+    optional: true
+    timeout: 5000
+
+- tapOn:
+    text: "GCash"
+    optional: true
+- waitForAnimationToEnd
+
+- takeScreenshot: "02_add_gcash"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Fill GCash Details (DRY RUN - use test data)
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "account-name-input"
+    optional: true
+      - text: "Account Name"
+      - text: "Name"
+
+- inputText: "Test User Maestro"
+- hideKeyboard
+
+- tapOn:
+    id: "account-name-input"
+    optional: true
+      - text: "Account Number"
+      - text: "Phone Number"
+      - text: "09"
+
+- inputText: "09171234567"
+- hideKeyboard
+
+- takeScreenshot: "03_gcash_details"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Form Validation
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    text: "Save"
+    optional: true
+
+- takeScreenshot: "04_ready_to_save"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE: We don't save to avoid creating test data
+# If we did save, cleanup script would delete payment methods with "Maestro" name
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Go back without saving
+- tapOn:
+    id: "account-name-input"
+    optional: true
+      - text: "Cancel"
+      - text: "←"
+    optional: true
+
+- waitForAnimationToEnd

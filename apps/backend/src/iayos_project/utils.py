@@ -98,3 +98,56 @@ def upload_agency_doc(file, file_name, user_id):
         public=False,
         custom_name=file_name
     )
+
+
+def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str:
+    """
+    Generate a signed URL for accessing private files.
+    
+    Args:
+        bucket: Supabase storage bucket name
+        path: File path within the bucket
+        expires_in: URL validity in seconds (default: 1 hour)
+    
+    Returns:
+        Signed URL string, or None if failed
+    """
+    if not settings.STORAGE:
+        print("❌ Storage not configured")
+        return None
+    
+    try:
+        result = settings.STORAGE.storage().from_(bucket).create_signed_url(path, expires_in)
+        if result and 'signedURL' in result:
+            return result['signedURL']
+        elif result and 'error' in result:
+            print(f"❌ Signed URL error: {result['error']}")
+            return None
+        return None
+    except Exception as e:
+        print(f"❌ Signed URL exception: {e}")
+        return None
+
+
+def delete_storage_file(bucket: str, path: str) -> bool:
+    """
+    Delete a file from Supabase storage.
+    
+    Args:
+        bucket: Supabase storage bucket name  
+        path: File path within the bucket
+    
+    Returns:
+        True if deleted successfully, False otherwise
+    """
+    if not settings.STORAGE:
+        print("❌ Storage not configured")
+        return False
+    
+    try:
+        result = settings.STORAGE.storage().from_(bucket).remove([path])
+        print(f"🗑️ Deleted file: {bucket}/{path}")
+        return True
+    except Exception as e:
+        print(f"❌ Delete file exception: {e}")
+        return False

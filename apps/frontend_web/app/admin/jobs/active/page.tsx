@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +68,7 @@ export default function ActiveJobsPage() {
     try {
       setIsLoading(true);
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=20&status=IN_PROGRESS`,
+        `${API_BASE}/api/adminpanel/jobs/listings?page=${page}&page_size=20&status=IN_PROGRESS`,
         {
           credentials: "include",
         },

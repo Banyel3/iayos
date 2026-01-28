@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
+import { API_BASE } from "@/lib/api/config";
 
 interface SearchResult {
   id: string;
@@ -116,19 +117,19 @@ export default function UserSearchModal({
       // Search across all three user types
       const [clientsRes, workersRes, agenciesRes] = await Promise.all([
         fetch(
-          `http://localhost:8000/api/adminpanel/users/clients?search=${encodeURIComponent(query)}&page_size=5`,
+          `${API_BASE}/api/adminpanel/users/clients?search=${encodeURIComponent(query)}&page_size=5`,
           {
             credentials: "include",
           },
         ),
         fetch(
-          `http://localhost:8000/api/adminpanel/users/workers?search=${encodeURIComponent(query)}&page_size=5`,
+          `${API_BASE}/api/adminpanel/users/workers?search=${encodeURIComponent(query)}&page_size=5`,
           {
             credentials: "include",
           },
         ),
         fetch(
-          `http://localhost:8000/api/adminpanel/users/agencies?search=${encodeURIComponent(query)}&page_size=5`,
+          `${API_BASE}/api/adminpanel/users/agencies?search=${encodeURIComponent(query)}&page_size=5`,
           {
             credentials: "include",
           },

@@ -14,8 +14,8 @@ import { redirect } from "next/navigation";
  */
 
 // Feature flags - match the middleware settings
-const ENABLE_WORKER_WEB_UI = false; // Set to true to allow workers on web
-const ENABLE_CLIENT_WEB_UI = false; // Set to true to allow clients on web
+const ENABLE_WORKER_WEB_UI = true; // Set to true to allow workers on web
+const ENABLE_CLIENT_WEB_UI = true; // Set to true to allow clients on web
 
 export default async function DashboardLayout({
   children,
@@ -28,8 +28,20 @@ export default async function DashboardLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
-  // Use internal Docker network for server-side requests
-  const serverApiUrl = process.env.SERVER_API_URL || "http://backend:8000";
+  // Helper to ensure URL has protocol
+  const ensureProtocol = (url: string | undefined): string | undefined => {
+    if (!url) return undefined;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `https://${url}`;
+  };
+
+  // Use SERVER_API_URL for server-side requests
+  // In Docker: http://backend:8000
+  // On Vercel: https://api.iayos.online (shared domain with frontend for cookies)
+  const serverApiUrl =
+    ensureProtocol(process.env.SERVER_API_URL) ||
+    ensureProtocol(process.env.NEXT_PUBLIC_API_URL) ||
+    "https://api.iayos.online";
 
   try {
     // Validate session with backend
@@ -53,7 +65,7 @@ export default async function DashboardLayout({
     const profileType = (user?.profile_data?.profileType || "").toUpperCase();
 
     console.log(
-      `[DASHBOARD LAYOUT] User: ${user?.email}, accountType=${accountType}, role=${role}, profileType=${profileType}`
+      `[DASHBOARD LAYOUT] User: ${user?.email}, accountType=${accountType}, role=${role}, profileType=${profileType}`,
     );
 
     // Admin users should use admin dashboard
@@ -71,7 +83,7 @@ export default async function DashboardLayout({
     // Worker web access check
     if (profileType === "WORKER" && !ENABLE_WORKER_WEB_UI) {
       console.log(
-        "[DASHBOARD LAYOUT] Blocking WORKER - redirecting to /mobile-only"
+        "[DASHBOARD LAYOUT] Blocking WORKER - redirecting to /mobile-only",
       );
       redirect("/mobile-only");
     }
@@ -79,7 +91,7 @@ export default async function DashboardLayout({
     // Client web access check
     if (profileType === "CLIENT" && !ENABLE_CLIENT_WEB_UI) {
       console.log(
-        "[DASHBOARD LAYOUT] Blocking CLIENT - redirecting to /mobile-only"
+        "[DASHBOARD LAYOUT] Blocking CLIENT - redirecting to /mobile-only",
       );
       redirect("/mobile-only");
     }

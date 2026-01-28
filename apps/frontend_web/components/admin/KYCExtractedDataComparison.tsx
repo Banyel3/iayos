@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
+import { API_BASE } from "@/lib/api/config";
 import {
   Brain,
   CheckCircle,
@@ -117,8 +118,8 @@ export default function KYCExtractedDataComparison({
       setError(null);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/kyc/${kycId}/extracted-data`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/kyc/${kycId}/extracted-data`,
+        { credentials: "include" },
       );
 
       if (!response.ok) {

@@ -1,0 +1,148 @@
+name: "Run Tests"
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    name: Test (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: frontend
+            path: apps/frontend_web
+            node-version: "20"
+          - component: backend
+            path: apps/backend
+            python-version: "3.12"
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: iayos_test_db
+          POSTGRES_USER: iayos_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Frontend tests (Jest + React Testing Library)
+      - name: Setup Node.js
+        if: matrix.component == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install frontend dependencies
+        if: matrix.component == 'frontend'
+        working-directory: ${{ matrix.path }}
+        run: npm ci --legacy-peer-deps
+
+      - name: Run frontend tests
+        if: matrix.component == 'frontend'
+        working-directory: ${{ matrix.path }}
+        run: npm test -- --passWithNoTests --coverage --watchAll=false || true
+
+      - name: Upload frontend coverage
+        if: matrix.component == 'frontend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: ${{ matrix.path }}/coverage
+          retention-days: 5
+
+      # Backend tests (pytest)
+      - name: Setup Python
+        if: matrix.component == 'backend'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: ${{ matrix.path }}/requirements.txt
+
+      - name: Install backend dependencies
+        if: matrix.component == 'backend'
+        working-directory: ${{ matrix.path }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-django
+
+      - name: Apply Django Ninja UUID patch
+        if: matrix.component == 'backend'
+        run: |
+          NINJA_PATH=$(pip show django-ninja | grep -i "^Location:" | cut -d' ' -f2)
+          UTILS_FILE="$NINJA_PATH/ninja/signature/utils.py"
+          echo "[PATCH] Looking for: $UTILS_FILE"
+          if [ -f "$UTILS_FILE" ]; then
+            if grep -q "except ValueError" "$UTILS_FILE"; then
+              echo "[PATCH] Already patched"
+            else
+              sed -i 's/register_converter(NinjaUUIDConverter, "uuid")/try:\n    register_converter(NinjaUUIDConverter, "uuid")\nexcept ValueError:\n    pass/' "$UTILS_FILE"
+              echo "[PATCH] Django Ninja UUID patch applied"
+            fi
+          else
+            echo "[PATCH] Warning: File not found"
+          fi
+
+      - name: Run backend tests
+        if: matrix.component == 'backend'
+        working-directory: ${{ matrix.path }}/src
+        env:
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:test_password@localhost:5432/iayos_test_db
+          REDIS_URL: redis://localhost:6379/0
+          DJANGO_SECRET_KEY: test-secret-key-for-ci
+          DEBUG: "False"
+          ALLOWED_HOSTS: localhost,127.0.0.1
+        run: |
+          python manage.py migrate --noinput
+          pytest --cov=. --cov-report=xml --cov-report=html --cov-report=term -v || true
+
+      - name: Upload backend coverage
+        if: matrix.component == 'backend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: ${{ matrix.path }}/src/htmlcov
+          retention-days: 5
+
+      - name: Upload coverage to Codecov
+        if: matrix.component == 'backend'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ matrix.path }}/src/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false

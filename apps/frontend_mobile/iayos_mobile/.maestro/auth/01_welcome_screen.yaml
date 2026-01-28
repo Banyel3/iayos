@@ -1,0 +1,31 @@
+# Test: Welcome Screen Display
+# Verifies that the welcome screen loads correctly on app launch
+
+appId: com.devante.iayos
+tags:
+  - auth
+  - welcome
+
+---
+# Launch app fresh
+- launchApp:
+    clearState: true
+
+# Wait for welcome screen to load
+- waitForAnimationToEnd
+
+# Verify welcome screen elements are visible
+- assertVisible:
+    id: "welcome-screen"
+    optional: false
+
+- assertVisible:
+    id: "welcome-get-started-button"
+    optional: false
+
+- assertVisible:
+    id: "welcome-login-button"
+    optional: false
+
+# Take screenshot for verification
+- takeScreenshot: "welcome_screen"

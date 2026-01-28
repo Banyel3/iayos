@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -45,8 +46,6 @@ const WorkerProfileViewPage = () => {
     total_count: totalReviews,
     total_pages: totalReviewPages,
   } = useWorkerReviews(workerId, reviewsPage, 5);
-  const [isLoadingWorker, setIsLoadingWorker] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Fetch worker profile by ID
   useEffect(() => {
@@ -63,14 +62,14 @@ const WorkerProfileViewPage = () => {
 
         try {
           const locationResponse = await fetch(
-            "http://localhost:8000/api/accounts/location/me",
+            `${API_BASE}/api/accounts/location/me`,
             {
               method: "GET",
               headers: {
                 "Content-Type": "application/json",
               },
               credentials: "include",
-            }
+            },
           );
 
           if (locationResponse.ok) {
@@ -81,13 +80,13 @@ const WorkerProfileViewPage = () => {
               console.log(
                 "✅ Got client location from profile:",
                 userLatitude,
-                userLongitude
+                userLongitude,
               );
             }
           }
         } catch (locError) {
           console.log(
-            "Client location not available from profile, will try browser location"
+            "Client location not available from profile, will try browser location",
           );
         }
 
@@ -100,14 +99,14 @@ const WorkerProfileViewPage = () => {
                   timeout: 5000,
                   enableHighAccuracy: false,
                 });
-              }
+              },
             );
             userLatitude = position.coords.latitude;
             userLongitude = position.coords.longitude;
             console.log(
               "✅ Got client location from browser:",
               userLatitude,
-              userLongitude
+              userLongitude,
             );
           } catch (geoError) {
             console.log("Browser location not available");
@@ -115,7 +114,7 @@ const WorkerProfileViewPage = () => {
         }
 
         // Build URL with location parameters if available
-        let url = `http://localhost:8000/api/accounts/users/workers/${workerId}`;
+        let url = `${API_BASE}/api/accounts/users/workers/${workerId}`;
         if (userLatitude !== null && userLongitude !== null) {
           url += `?latitude=${userLatitude}&longitude=${userLongitude}`;
         }
@@ -468,7 +467,7 @@ const WorkerProfileViewPage = () => {
                         <button
                           onClick={() =>
                             setReviewsPage(
-                              Math.min(totalReviewPages, reviewsPage + 1)
+                              Math.min(totalReviewPages, reviewsPage + 1),
                             )
                           }
                           disabled={reviewsPage === totalReviewPages}

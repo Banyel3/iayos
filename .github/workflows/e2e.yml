@@ -1,0 +1,394 @@
+name: "E2E Tests"
+
+on:
+  schedule:
+    # Run E2E tests nightly at 3:00 AM UTC to catch integration issues
+    - cron: "0 3 * * *"
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e:
+    name: E2E Tests (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+        # Add webkit (Safari) if needed: browser: [chromium, firefox, webkit]
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: iayos_e2e_db
+          POSTGRES_USER: iayos_user
+          POSTGRES_PASSWORD: e2e_test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Setup Node.js for frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Setup Python for backend
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: apps/backend/requirements.txt
+
+      # Install backend dependencies and start server
+      - name: Install backend dependencies
+        working-directory: apps/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Apply Django Ninja UUID patch
+        run: |
+          NINJA_PATH=$(pip show django-ninja | grep -i "^Location:" | cut -d' ' -f2)
+          UTILS_FILE="$NINJA_PATH/ninja/signature/utils.py"
+          echo "[PATCH] Looking for: $UTILS_FILE"
+          if [ -f "$UTILS_FILE" ]; then
+            if grep -q "except ValueError" "$UTILS_FILE"; then
+              echo "[PATCH] Already patched"
+            else
+              sed -i 's/register_converter(NinjaUUIDConverter, "uuid")/try:\n    register_converter(NinjaUUIDConverter, "uuid")\nexcept ValueError:\n    pass/' "$UTILS_FILE"
+              echo "[PATCH] Django Ninja UUID patch applied"
+            fi
+          else
+            echo "[PATCH] Warning: File not found"
+          fi
+
+      - name: Run database migrations
+        working-directory: apps/backend/src
+        env:
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db
+          REDIS_URL: redis://localhost:6379/0
+          DJANGO_SECRET_KEY: e2e-test-secret-key
+          DEBUG: "True"
+          ALLOWED_HOSTS: localhost,127.0.0.1
+        run: python manage.py migrate --noinput
+
+      - name: Create test users
+        working-directory: apps/backend/src
+        env:
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db
+          REDIS_URL: redis://localhost:6379/0
+          DJANGO_SECRET_KEY: e2e-test-secret-key
+        run: |
+          python manage.py shell <<EOF
+          from accounts.models import Accounts, Profile, WorkerProfile, ClientProfile
+          from django.contrib.auth.hashers import make_password
+          from datetime import date
+
+          # Create test client
+          client_account = Accounts.objects.create(
+              email='client@test.com',
+              password=make_password('Test123!'),
+              isVerified=True
+          )
+          client_profile = Profile.objects.create(
+              accountFK=client_account,
+              profileType='CLIENT',
+              firstName='Test',
+              lastName='Client',
+              contactNum='09123456789',
+              birthDate=date(1990, 1, 1)
+          )
+          ClientProfile.objects.create(
+              profileID=client_profile,
+              description='Test client for E2E testing',
+              totalJobsPosted=0
+          )
+
+          # Create test worker
+          worker_account = Accounts.objects.create(
+              email='worker@test.com',
+              password=make_password('Test123!'),
+              isVerified=True
+          )
+          worker_profile = Profile.objects.create(
+              accountFK=worker_account,
+              profileType='WORKER',
+              firstName='Test',
+              lastName='Worker',
+              contactNum='09987654321',
+              birthDate=date(1995, 6, 15)
+          )
+          WorkerProfile.objects.create(
+              profileID=worker_profile,
+              description='Test worker for E2E testing'
+          )
+
+          print('Test users created successfully')
+          EOF
+
+      - name: Start backend server
+        working-directory: apps/backend/src
+        env:
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db
+          REDIS_URL: redis://localhost:6379/0
+          DJANGO_SECRET_KEY: e2e-test-secret-key
+          DEBUG: "True"
+          ALLOWED_HOSTS: localhost,127.0.0.1
+        run: |
+          python manage.py runserver 8000 &
+          echo $! > backend.pid
+          sleep 5
+
+      # Install frontend dependencies and build
+      - name: Install frontend dependencies
+        working-directory: apps/frontend_web
+        run: npm ci --legacy-peer-deps
+
+      - name: Build frontend
+        working-directory: apps/frontend_web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: npm run build
+
+      - name: Start frontend server
+        working-directory: apps/frontend_web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: |
+          npm run start &
+          echo $! > frontend.pid
+          sleep 10
+
+      # Install Playwright browsers
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # Run Playwright tests
+      - name: Run Playwright E2E tests
+        working-directory: apps/frontend_web
+        env:
+          BASE_URL: http://localhost:3000
+          API_URL: http://localhost:8000
+        run: npx playwright test --project=${{ matrix.browser }} --reporter=html,json
+
+      # Upload test results
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: apps/frontend_web/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results-${{ matrix.browser }}
+          path: apps/frontend_web/test-results/
+          retention-days: 7
+
+      # Cleanup
+      - name: Stop servers
+        if: always()
+        run: |
+          if [ -f apps/backend/src/backend.pid ]; then
+            kill $(cat apps/backend/src/backend.pid) || true
+          fi
+          if [ -f apps/frontend_web/frontend.pid ]; then
+            kill $(cat apps/frontend_web/frontend.pid) || true
+          fi
+
+      # Upload screenshots on failure
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshots-${{ matrix.browser }}
+          path: apps/frontend_web/test-results/**/screenshots/
+          retention-days: 7
+
+  # Create GitHub issues for test failures
+  create-issues:
+    name: Create Issues for Failed Tests
+    runs-on: ubuntu-latest
+    needs: e2e
+    if: failure()
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-results-*
+          path: test-results
+          merge-multiple: true
+
+      - name: Parse test results and create issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Find all JSON result files
+            const resultsDir = 'test-results';
+            let testResults = [];
+
+            try {
+              const files = fs.readdirSync(resultsDir, { recursive: true });
+              for (const file of files) {
+                if (file.endsWith('results.json')) {
+                  const filePath = path.join(resultsDir, file);
+                  const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+                  // Extract failed tests
+                  if (data.suites) {
+                    for (const suite of data.suites) {
+                      if (suite.specs) {
+                        for (const spec of suite.specs) {
+                          if (spec.tests) {
+                            for (const test of spec.tests) {
+                              if (test.status === 'failed' || test.status === 'timedOut') {
+                                testResults.push({
+                                  title: spec.title,
+                                  file: spec.file,
+                                  error: test.results?.[0]?.error?.message || 'Unknown error',
+                                  browser: test.projectName || 'unknown',
+                                  duration: test.results?.[0]?.duration || 0
+                                });
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.log('Error reading test results:', error);
+            }
+
+            // Create issues for failed tests
+            for (const failure of testResults) {
+              const issueTitle = `[E2E Failure] ${failure.title}`;
+              const issueBody = `
+            ## 🔴 E2E Test Failed
+
+            **Test Name:** ${failure.title}
+            **Browser:** ${failure.browser}
+            **File:** \`${failure.file}\`
+            **Duration:** ${Math.round(failure.duration / 1000)}s
+
+            ### Error Message
+            \`\`\`
+            ${failure.error}
+            \`\`\`
+
+            ### Context
+            - **Workflow:** ${context.workflow}
+            - **Run ID:** ${context.runId}
+            - **Branch:** ${context.ref.replace('refs/heads/', '')}
+            - **Commit:** ${context.sha.substring(0, 7)}
+            - **Triggered by:** ${context.actor}
+
+            ### Links
+            - [Workflow Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+            - [View Screenshots](${context.payload.repository.html_url}/actions/runs/${context.runId}#artifacts)
+            - [Playwright Report](${context.payload.repository.html_url}/actions/runs/${context.runId})
+
+            ### Reproduction Steps
+            1. Checkout commit \`${context.sha.substring(0, 7)}\`
+            2. Run: \`cd apps/frontend_web && npx playwright test ${failure.file}\`
+            3. View report: \`npx playwright show-report\`
+
+            ---
+            *This issue was automatically created by the E2E test workflow.*
+            `;
+
+              // Check if issue already exists
+              const existingIssues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: 'e2e-failure',
+                per_page: 100
+              });
+
+              const isDuplicate = existingIssues.data.some(issue =>
+                issue.title === issueTitle
+              );
+
+              if (!isDuplicate) {
+                // Create new issue
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueTitle,
+                  body: issueBody,
+                  labels: ['e2e-failure', 'bug', 'automated', failure.browser],
+                  assignees: ['Banyel3']
+                });
+
+                console.log(`Created issue: ${issueTitle}`);
+              } else {
+                console.log(`Issue already exists: ${issueTitle}`);
+
+                // Add comment to existing issue
+                const existingIssue = existingIssues.data.find(issue =>
+                  issue.title === issueTitle
+                );
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existingIssue.number,
+                  body: `🔄 **Test failed again**\n\n` +
+                        `- **Run:** [#${context.runId}](${context.payload.repository.html_url}/actions/runs/${context.runId})\n` +
+                        `- **Commit:** ${context.sha.substring(0, 7)}\n` +
+                        `- **Browser:** ${failure.browser}\n` +
+                        `- **Date:** ${new Date().toISOString()}`
+                });
+              }
+            }
+
+            if (testResults.length === 0) {
+              console.log('No failed tests found in results');
+            } else {
+              console.log(`Processed ${testResults.length} failed test(s)`);
+            }

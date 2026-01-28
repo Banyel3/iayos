@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import {
   Card,
   CardContent,
@@ -42,8 +43,8 @@ export default function SupportPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/support/tickets/stats",
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/support/tickets/stats`,
+        { credentials: "include" },
       );
       const data = await response.json();
 

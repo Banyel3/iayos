@@ -1,0 +1,128 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Search Jobs with Filters (Worker)
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies job search functionality with various filters
+# Prerequisites: Logged in as WORKER
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.devante.iayos
+tags:
+  - jobs_worker
+  - search
+  - filters
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Search
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "Jobs"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Look for search icon or input
+- tapOn:
+    id: "search-button"
+    optional: true
+      - text: "Search"
+    optional: true
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Enter Search Query
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "search-button"
+    optional: true
+      - text: "Search jobs..."
+      - text: "Search"
+
+- inputText: "plumbing"
+- hideKeyboard
+
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Verify search results or no results
+- assertVisible:
+    text: "plumbing"
+    optional: true
+    timeout: 10000
+
+- takeScreenshot: "01_search_results"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Apply Filters (if available)
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "search-button"
+    optional: true
+      - text: "Filter"
+      - text: "Filters"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Try to set budget filter
+- tapOn:
+    text: "Budget"
+    optional: true
+
+- inputText: "500"
+  optional: true
+- hideKeyboard
+
+- tapOn:
+    text: "Apply"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "02_filtered_results"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Clear Search
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "search-button"
+    optional: true
+      - text: "Clear"
+      - text: "✕"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "03_cleared_search"

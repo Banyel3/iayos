@@ -135,11 +135,22 @@ class BucketInterface:
 
             if response.status_code == 200:
                 data = response.json()
-                # Construct full signed URL
-                signed_path = data.get('signedURL')
-                if signed_path:
-                    full_signed_url = f"{self.url}/storage/v1/object/sign/{self.bucket_name}/{signed_path}"
-                    return {'signedURL': full_signed_url, 'error': None}
+                # Supabase returns signedURL which is just the token parameter
+                # e.g., "?token=eyJ..." - NOT a full path
+                signed_url_or_token = data.get('signedURL')
+                if signed_url_or_token:
+                    # Check if it's already a full URL (shouldn't happen but be safe)
+                    if signed_url_or_token.startswith('http'):
+                        return {'signedURL': signed_url_or_token, 'error': None}
+                    # Check if it's a full path already (to prevent double path)
+                    elif '/object/sign/' in signed_url_or_token:
+                        # It's a relative path with token, just prepend base URL
+                        full_signed_url = f"{self.url}/storage/v1{signed_url_or_token}"
+                        return {'signedURL': full_signed_url, 'error': None}
+                    # It's just the token or relative path, construct the full URL
+                    else:
+                        full_signed_url = f"{self.url}/storage/v1/object/sign/{self.bucket_name}/{path}{signed_url_or_token}"
+                        return {'signedURL': full_signed_url, 'error': None}
 
             error_msg = response.json() if response.text else {'message': 'Failed to create signed URL'}
             return {'error': error_msg, 'signedURL': None}

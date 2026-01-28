@@ -42,3 +42,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Detox E2E test artifacts
+e2e/artifacts/*
+!e2e/artifacts/.gitkeep
+e2e/reports/*
+!e2e/reports/.gitkeep

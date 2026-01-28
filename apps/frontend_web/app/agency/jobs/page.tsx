@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
@@ -110,7 +111,7 @@ export default function AgencyJobsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedJobForReject, setSelectedJobForReject] = useState<Job | null>(
-    null
+    null,
   );
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedJobForAssignment, setSelectedJobForAssignment] =
@@ -153,20 +154,19 @@ export default function AgencyJobsPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?invite_status=PENDING`,
+        `${API_BASE}/api/agency/jobs?invite_status=PENDING`,
         {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch pending invites: ${response.statusText}`
+          `Failed to fetch pending invites: ${response.statusText}`,
         );
       }
 
@@ -175,7 +175,7 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching pending invites:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to load pending invites"
+        err instanceof Error ? err.message : "Failed to load pending invites",
       );
     } finally {
       setLoading(false);
@@ -187,16 +187,14 @@ export default function AgencyJobsPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
       // Fetch both ACTIVE and IN_PROGRESS jobs - we'll filter by employee assignment
       const [activeResponse, inProgressResponse] = await Promise.all([
         fetch(
-          `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
+          `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
           {
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-          }
+          },
         ),
         fetch(`${apiUrl}/api/agency/jobs?status=IN_PROGRESS`, {
           credentials: "include",
@@ -206,7 +204,7 @@ export default function AgencyJobsPage() {
 
       if (!activeResponse.ok) {
         throw new Error(
-          `Failed to fetch accepted jobs: ${activeResponse.statusText}`
+          `Failed to fetch accepted jobs: ${activeResponse.statusText}`,
         );
       }
 
@@ -218,10 +216,10 @@ export default function AgencyJobsPage() {
       // Accepted = ACTIVE jobs without employees + IN_PROGRESS jobs without employees
       // (IN_PROGRESS without employees is a data inconsistency we need to handle)
       const unassignedActiveJobs = (activeData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID
+        (job: Job) => !job.assignedEmployeeID,
       );
       const unassignedInProgressJobs = (inProgressData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID
+        (job: Job) => !job.assignedEmployeeID,
       );
 
       // Combine and deduplicate by jobID
@@ -231,14 +229,14 @@ export default function AgencyJobsPage() {
       ];
       const uniqueJobs = allUnassigned.filter(
         (job, index, self) =>
-          index === self.findIndex((j) => j.jobID === job.jobID)
+          index === self.findIndex((j) => j.jobID === job.jobID),
       );
 
       setAcceptedJobs(uniqueJobs);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to load accepted jobs"
+        err instanceof Error ? err.message : "Failed to load accepted jobs",
       );
     } finally {
       setLoading(false);
@@ -248,20 +246,19 @@ export default function AgencyJobsPage() {
   const fetchInProgressJobs = async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=IN_PROGRESS`,
+        `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch in-progress jobs: ${response.statusText}`
+          `Failed to fetch in-progress jobs: ${response.statusText}`,
         );
       }
 
@@ -269,7 +266,7 @@ export default function AgencyJobsPage() {
       // Only show IN_PROGRESS jobs that have an assigned employee
       // Jobs without employees should appear in Accepted tab instead
       const jobsWithEmployees = (data.jobs || []).filter(
-        (job: Job) => job.assignedEmployeeID
+        (job: Job) => job.assignedEmployeeID,
       );
       setInProgressJobs(jobsWithEmployees);
     } catch (err) {
@@ -282,20 +279,19 @@ export default function AgencyJobsPage() {
   const fetchCompletedJobs = async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=COMPLETED`,
+        `${API_BASE}/api/agency/jobs?status=COMPLETED`,
         {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch completed jobs: ${response.statusText}`
+          `Failed to fetch completed jobs: ${response.statusText}`,
         );
       }
 
@@ -311,20 +307,19 @@ export default function AgencyJobsPage() {
   const fetchCancelledJobs = async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=CANCELLED`,
+        `${API_BASE}/api/agency/jobs?status=CANCELLED`,
         {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch cancelled jobs: ${response.statusText}`
+          `Failed to fetch cancelled jobs: ${response.statusText}`,
         );
       }
 
@@ -339,8 +334,7 @@ export default function AgencyJobsPage() {
 
   const fetchEmployees = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/agency/employees`, {
+      const response = await fetch(`${API_BASE}/api/agency/employees`, {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
@@ -367,16 +361,15 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${jobId}/accept`,
+        `${API_BASE}/api/agency/jobs/${jobId}/accept`,
         {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -387,7 +380,7 @@ export default function AgencyJobsPage() {
         if (errorMessage.includes("escrow payment")) {
           throw new Error(
             "This job invitation cannot be accepted yet. The client has not completed the payment. " +
-              "Please wait for the client to complete their GCash/payment transaction."
+              "Please wait for the client to complete their GCash/payment transaction.",
           );
         }
 
@@ -398,7 +391,8 @@ export default function AgencyJobsPage() {
 
       // Show success message
       setSuccessMessage(
-        result.message || "Invitation accepted successfully! Job is now active."
+        result.message ||
+          "Invitation accepted successfully! Job is now active.",
       );
 
       // Scroll to top to show success message
@@ -406,13 +400,13 @@ export default function AgencyJobsPage() {
 
       // Remove from pending invites list and refresh accepted jobs
       setPendingInvites((prevInvites) =>
-        prevInvites.filter((job) => job.jobID !== jobId)
+        prevInvites.filter((job) => job.jobID !== jobId),
       );
       await fetchAcceptedJobs();
     } catch (err) {
       console.error("Error accepting invitation:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to accept invitation"
+        err instanceof Error ? err.message : "Failed to accept invitation",
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
@@ -432,9 +426,8 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
+        `${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
         {
           method: "POST",
           credentials: "include",
@@ -442,7 +435,7 @@ export default function AgencyJobsPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ rejection_reason: reason }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -454,7 +447,7 @@ export default function AgencyJobsPage() {
 
       // Show success message
       setSuccessMessage(
-        result.message || "Invitation rejected. Client has been refunded."
+        result.message || "Invitation rejected. Client has been refunded.",
       );
 
       // Scroll to top to show success message
@@ -462,7 +455,7 @@ export default function AgencyJobsPage() {
 
       // Remove from pending invites list
       setPendingInvites((prevInvites) =>
-        prevInvites.filter((job) => job.jobID !== selectedJobForReject.jobID)
+        prevInvites.filter((job) => job.jobID !== selectedJobForReject.jobID),
       );
 
       // Close modal
@@ -477,7 +470,7 @@ export default function AgencyJobsPage() {
   const handleAssignEmployees = async (
     employeeIds: number[],
     primaryContactId: number,
-    notes: string
+    notes: string,
   ) => {
     if (!selectedJobForAssignment) return;
     if (!employeeIds || employeeIds.length === 0) {
@@ -488,10 +481,8 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
+        `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
         {
           method: "POST",
           credentials: "include",
@@ -503,7 +494,7 @@ export default function AgencyJobsPage() {
             primary_contact_id: primaryContactId,
             assignment_notes: notes?.trim() || "",
           }),
-        }
+        },
       );
 
       const responseData = await response.json().catch(() => null as unknown);
@@ -534,7 +525,7 @@ export default function AgencyJobsPage() {
       // Show success message
       const count = employeeIds.length;
       setSuccessMessage(
-        `${count} employee${count > 1 ? "s" : ""} successfully assigned to "${selectedJobForAssignment.title}"! Job is now In Progress.`
+        `${count} employee${count > 1 ? "s" : ""} successfully assigned to "${selectedJobForAssignment.title}"! Job is now In Progress.`,
       );
 
       // Scroll to top to show success message

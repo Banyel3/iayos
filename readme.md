@@ -1,5 +1,7 @@
 # 🛠️ iAyos Marketplace Platform
 
+[![Deploy Backend](https://github.com/Banyel3/iayos/actions/workflows/deploy-backend.yml/badge.svg)](https://github.com/Banyel3/iayos/actions/workflows/deploy-backend.yml)
+
 iAyos is a niche marketplace platform connecting freelance blue-collar workers and small home-based businesses with clients seeking services like home construction, repair, and mechanical work. Think of it as a specialized version of Fiverr or Upwork, focused on practical, hands-on services.
 
 The platform provides:

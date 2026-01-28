@@ -4,21 +4,36 @@
 
 echo "[PATCH] Applying Django Ninja UUID converter fix..."
 
-NINJA_FILE="/usr/local/lib/python3.12/site-packages/ninja/signature/utils.py"
+# Find the actual ninja installation path using pip show
+NINJA_LOCATION=$(pip show django-ninja 2>/dev/null | grep "Location:" | cut -d' ' -f2)
+
+if [ -z "$NINJA_LOCATION" ]; then
+    echo "[PATCH] WARNING: django-ninja not installed, skipping patch"
+    exit 0
+fi
+
+NINJA_FILE="${NINJA_LOCATION}/ninja/signature/utils.py"
+
+if [ ! -f "$NINJA_FILE" ]; then
+    echo "[PATCH] WARNING: Django Ninja utils.py not found at $NINJA_FILE, skipping patch"
+    exit 0
+fi
 
 if [ ! -f "$NINJA_FILE" ]; then
     echo "[PATCH] ERROR: Django Ninja utils.py not found at $NINJA_FILE"
     exit 1
 fi
 
+echo "[PATCH] Found Django Ninja at: $NINJA_FILE"
+
 # Create backup
 cp "$NINJA_FILE" "${NINJA_FILE}.bak"
 
 # Use Python to do the patch reliably with correct indentation
-python3 << 'EOF'
+python3 << EOF
 import re
 
-NINJA_FILE = "/usr/local/lib/python3.12/site-packages/ninja/signature/utils.py"
+NINJA_FILE = "$NINJA_FILE"
 
 with open(NINJA_FILE, 'r') as f:
     content = f.read()
@@ -42,3 +57,4 @@ else:
 EOF
 
 echo "[PATCH] Django Ninja patch complete"
+

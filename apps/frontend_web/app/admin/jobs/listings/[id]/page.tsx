@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/api/config";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +40,7 @@ export default function JobDetailPage() {
     try {
       setLoading(true);
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/jobs/listings/${jobId}`,
+        `${API_BASE}/api/adminpanel/jobs/listings/${jobId}`,
         {
           credentials: "include",
         },

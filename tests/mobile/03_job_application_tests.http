@@ -1,0 +1,158 @@
+# ================================================================
+# MOBILE JOB APPLICATION TEST SUITE
+# Tests: Apply, View Applications, Withdraw, Accept/Reject
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### SETUP: Login as Client
+### ================================================================
+# @name clientLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testclient@example.com",
+    "password": "Test1234!"
+}
+
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 1: Get My Applications (Worker)
+### ================================================================
+# @name getMyApplications
+GET {{baseUrl}}/api/mobile/jobs/applications/my
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 2: Apply to a Job
+### Note: Replace job ID with valid available job
+### ================================================================
+# @name applyToJob
+POST {{baseUrl}}/api/mobile/jobs/1/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "proposal_message": "I am an experienced worker and would like to help with this job. I have 5 years of experience in this field.",
+    "proposed_rate": 1500
+}
+
+### ================================================================
+### TEST 3: Apply Without Proposal (Should Fail)
+### Expected: 400 Bad Request
+### ================================================================
+# @name applyWithoutProposal
+POST {{baseUrl}}/api/mobile/jobs/2/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "proposed_rate": 1500
+}
+
+### ================================================================
+### TEST 4: Get Application Detail
+### Note: Replace application ID with valid ID
+### ================================================================
+# @name getApplicationDetail
+GET {{baseUrl}}/api/mobile/applications/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 5: Withdraw Application
+### Note: Can only withdraw PENDING applications
+### ================================================================
+# @name withdrawApplication
+POST {{baseUrl}}/api/mobile/applications/1/withdraw
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 6: Get Job Applications (Client View)
+### ================================================================
+# @name getJobApplicationsClient
+GET {{baseUrl}}/api/mobile/jobs/1/applications
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 7: Accept Application (Client)
+### Note: Replace job_id and application_id with valid IDs
+### ================================================================
+# @name acceptApplication
+POST {{baseUrl}}/api/mobile/jobs/1/applications/1/accept
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 8: Reject Application (Client)
+### ================================================================
+# @name rejectApplication
+POST {{baseUrl}}/api/mobile/jobs/1/applications/2/reject
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "reason": "Found another worker who is a better fit for this job."
+}
+
+### ================================================================
+### TEST 9: Apply to Own Job (Should Fail - Self-hiring)
+### Expected: 403 Forbidden
+### ================================================================
+# @name applyToOwnJob
+POST {{baseUrl}}/api/mobile/jobs/1/apply
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "proposal_message": "Testing self-application prevention",
+    "proposed_rate": 1000
+}
+
+### ================================================================
+### TEST 10: Apply Twice to Same Job (Should Fail)
+### Expected: 400 Bad Request
+### ================================================================
+# @name applyTwice
+POST {{baseUrl}}/api/mobile/jobs/1/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "proposal_message": "Second application attempt",
+    "proposed_rate": 2000
+}
+
+### ================================================================
+### TEST 11: Accept/Reject Invite Job (Worker)
+### ================================================================
+# @name acceptInvite
+POST {{baseUrl}}/api/jobs/1/accept-invite
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 12: Reject Invite Job (Worker)
+### ================================================================
+# @name rejectInvite
+POST {{baseUrl}}/api/jobs/1/reject-invite
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "reason": "I am not available during the requested time."
+}

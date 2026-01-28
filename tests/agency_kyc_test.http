@@ -1,0 +1,116 @@
+### Agency KYC API Endpoint Tests
+### Run these tests to verify endpoints don't return 500 or "Not allowed" errors
+### Requires: Backend running on localhost:8000, VS Code REST Client extension
+
+@baseUrl = http://localhost:8000
+@adminEmail = admin@example.com
+@adminPassword = Admin123!
+
+### ========================================
+### 1. Login to get session cookie
+### ========================================
+
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### ========================================
+### 2. Get Agency Status (should not 500)
+### ========================================
+
+# @name agencyStatus
+GET {{baseUrl}}/api/agency/status
+Cookie: {{login.response.headers.Set-Cookie}}
+
+### Expected: 200 with status OR 404 if no agency
+### NOT: 500 or Method Not Allowed
+
+### ========================================
+### 3. Get Agency KYC Autofill Data
+### ========================================
+
+# @name kycAutofill  
+GET {{baseUrl}}/api/agency/kyc/autofill
+Cookie: {{login.response.headers.Set-Cookie}}
+
+### Expected: 200 with extracted data OR 404 if no KYC submitted
+### NOT: 500 or Method Not Allowed
+
+### ========================================
+### 4. Test KYC Upload (multipart form)
+### ========================================
+
+# @name kycUpload
+# NOTE: This requires actual files. In real test, use files:
+# POST {{baseUrl}}/api/agency/upload
+# Cookie: {{login.response.headers.Set-Cookie}}
+# Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+# 
+# ------WebKitFormBoundary7MA4YWxkTrZu0gW
+# Content-Disposition: form-data; name="businessName"
+# 
+# Test Agency Inc
+# ... (more fields)
+
+### ========================================
+### 5. Test KYC Confirm endpoint 
+### ========================================
+
+# @name kycConfirm
+POST {{baseUrl}}/api/agency/kyc/confirm
+Cookie: {{login.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{
+  "business_name": "Test Agency Inc",
+  "business_type": "CORPORATION",
+  "business_address": "123 Test Street, Manila",
+  "permit_number": "BP-2024-001",
+  "tin": "123-456-789-000",
+  "rep_full_name": "John Doe",
+  "rep_id_type": "PHILSYS_ID",
+  "rep_id_number": "1234-5678-9012-3456",
+  "rep_birth_date": "1990-01-15",
+  "rep_address": "456 Sample Ave, Quezon City",
+  "edited_fields": ["business_name"]
+}
+
+### Expected: 200 with success OR 400/404 if no pending KYC
+### NOT: 500 or Method Not Allowed
+
+### ========================================
+### 6. Verify endpoint routes exist
+### ========================================
+
+# @name healthCheck
+GET {{baseUrl}}/health/live
+
+### Expected: 200 OK
+
+### ========================================
+### 7. Test with invalid auth (should 401, not 500)
+### ========================================
+
+# @name noAuthTest
+GET {{baseUrl}}/api/agency/status
+
+### Expected: 401 Unauthorized
+### NOT: 500 Internal Server Error
+
+### ========================================
+### SUMMARY OF EXPECTED RESPONSES
+### ========================================
+###
+### Endpoint                     | Valid Auth Response | No Auth Response
+### -----------------------------|---------------------|------------------
+### GET /api/agency/status       | 200 or 404          | 401
+### GET /api/agency/kyc/autofill | 200 or 404          | 401
+### POST /api/agency/upload      | 200 or 400          | 401
+### POST /api/agency/kyc/confirm | 200 or 400          | 401
+###
+### NONE should return 500 or 405 Method Not Allowed

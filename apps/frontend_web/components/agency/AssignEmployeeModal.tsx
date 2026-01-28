@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, User, Briefcase, AlertCircle, CheckCircle } from "lucide-react";
+import { API_BASE } from "@/lib/api/config";
 
 interface Employee {
   employeeId: number;
@@ -38,8 +39,6 @@ interface AssignEmployeeModalProps {
   onAssign: (employeeId: number, notes: string) => Promise<void>;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-
 export default function AssignEmployeeModal({
   isOpen,
   onClose,
@@ -48,7 +47,7 @@ export default function AssignEmployeeModal({
   onAssign,
 }: AssignEmployeeModalProps) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(
-    null
+    null,
   );
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,7 +62,7 @@ export default function AssignEmployeeModal({
         try {
           const response = await fetch(
             `${API_BASE}/api/agency/employees/${employee.employeeId}/workload`,
-            { credentials: "include" }
+            { credentials: "include" },
           );
 
           if (response.ok) {
@@ -76,7 +75,7 @@ export default function AssignEmployeeModal({
         } catch (error) {
           console.error(
             `Failed to fetch workload for employee ${employee.employeeId}:`,
-            error
+            error,
           );
         }
       });

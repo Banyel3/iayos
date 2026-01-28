@@ -137,7 +137,7 @@ export default function ProfileScreen() {
     const paymentHelper = paymentVerified
       ? profileMetrics.payment_method_verified_at
         ? `Verified ${new Date(
-            profileMetrics.payment_method_verified_at
+            profileMetrics.payment_method_verified_at,
           ).toLocaleDateString()}`
         : "Wallet ready"
       : "Add funds to verify";
@@ -242,7 +242,7 @@ export default function ProfileScreen() {
                 <Image
                   source={{
                     uri: getAbsoluteMediaUrl(
-                      user.profile_data.profileImg
+                      user.profile_data.profileImg,
                     ) as string,
                   }}
                   style={styles.avatarImage}
@@ -293,7 +293,7 @@ export default function ProfileScreen() {
                   } else {
                     Alert.alert(
                       "Profile Not Found",
-                      "Your worker profile ID is not available. Please try logging in again."
+                      "Your worker profile ID is not available. Please try logging in again.",
                     );
                   }
                 }}
@@ -339,7 +339,7 @@ export default function ProfileScreen() {
                           style: "default",
                           onPress: () => switchProfile.mutate("CLIENT"),
                         },
-                      ]
+                      ],
                     );
                   }}
                   disabled={switchProfile.isPending}
@@ -409,7 +409,7 @@ export default function ProfileScreen() {
                             style: "default",
                             onPress: () => createClient.mutate(),
                           },
-                        ]
+                        ],
                       );
                     }}
                     disabled={createClient.isPending}
@@ -448,7 +448,7 @@ export default function ProfileScreen() {
                         style: "default",
                         onPress: () => switchProfile.mutate("WORKER"),
                       },
-                    ]
+                    ],
                   );
                 }}
                 disabled={switchProfile.isPending}
@@ -515,7 +515,7 @@ export default function ProfileScreen() {
                           style: "default",
                           onPress: () => createWorker.mutate(),
                         },
-                      ]
+                      ],
                     );
                   }}
                   disabled={createWorker.isPending}
@@ -768,6 +768,7 @@ export default function ProfileScreen() {
             style={styles.logoutButton}
             onPress={handleLogout}
             activeOpacity={0.8}
+            testID="profile-logout-button"
           >
             <Ionicons name="log-out-outline" size={22} color={Colors.error} />
             <Text style={styles.logoutText}>Logout</Text>

@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,11 +48,11 @@ export default function CategoryManagementPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null
+    null,
   );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
-    null
+    null,
   );
   const [reassignCategoryId, setReassignCategoryId] = useState("");
 
@@ -76,10 +77,10 @@ export default function CategoryManagementPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/categories",
+        `${API_BASE}/api/adminpanel/settings/categories`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: CategoriesResponse = await response.json();
 
@@ -101,14 +102,14 @@ export default function CategoryManagementPage() {
       filtered = filtered.filter(
         (cat) =>
           cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          cat.description?.toLowerCase().includes(searchTerm.toLowerCase())
+          cat.description?.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
     // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter((cat) =>
-        statusFilter === "active" ? cat.is_active : !cat.is_active
+        statusFilter === "active" ? cat.is_active : !cat.is_active,
       );
     }
 
@@ -167,8 +168,8 @@ export default function CategoryManagementPage() {
     try {
       const url =
         modalMode === "add"
-          ? "http://localhost:8000/api/adminpanel/settings/categories"
-          : `http://localhost:8000/api/adminpanel/settings/categories/${selectedCategory?.id}`;
+          ? `${API_BASE}/api/adminpanel/settings/categories`
+          : `${API_BASE}/api/adminpanel/settings/categories/${selectedCategory?.id}`;
 
       const method = modalMode === "add" ? "POST" : "PUT";
 
@@ -185,7 +186,7 @@ export default function CategoryManagementPage() {
         alert(
           modalMode === "add"
             ? "Category created successfully!"
-            : "Category updated successfully!"
+            : "Category updated successfully!",
         );
         setShowModal(false);
         fetchCategories();
@@ -201,13 +202,13 @@ export default function CategoryManagementPage() {
   const handleToggleStatus = async (category: Category) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/categories/${category.id}`,
+        `${API_BASE}/api/adminpanel/settings/categories/${category.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ is_active: !category.is_active }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -235,7 +236,7 @@ export default function CategoryManagementPage() {
     }
 
     try {
-      const url = `http://localhost:8000/api/adminpanel/settings/categories/${categoryToDelete.id}`;
+      const url = `${API_BASE}/api/adminpanel/settings/categories/${categoryToDelete.id}`;
       const params = reassignCategoryId
         ? `?reassign_to=${reassignCategoryId}`
         : "";
@@ -391,7 +392,7 @@ export default function CategoryManagementPage() {
                 value={statusFilter}
                 onChange={(e) =>
                   setStatusFilter(
-                    e.target.value as "all" | "active" | "inactive"
+                    e.target.value as "all" | "active" | "inactive",
                   )
                 }
                 className="px-4 h-12 rounded-xl border border-gray-200 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
@@ -692,7 +693,7 @@ export default function CategoryManagementPage() {
                       <option value="">Select category...</option>
                       {categories
                         .filter(
-                          (c) => c.id !== categoryToDelete.id && c.is_active
+                          (c) => c.id !== categoryToDelete.id && c.is_active,
                         )
                         .map((cat) => (
                           <option key={cat.id} value={cat.id}>

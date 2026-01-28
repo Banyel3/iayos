@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { API_URL } from "@/lib/api-config";
+import { API_BASE } from "@/lib/api/config";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -187,12 +187,12 @@ const Login = () => {
 
       if (accountType === "agency") {
         console.log(
-          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard"
+          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard",
         );
         router.replace("/agency/dashboard"); // Use replace instead of push
       } else if (role === "ADMIN") {
         console.log(
-          "🔐 Login Page: Admin user detected, redirecting to admin panel"
+          "🔐 Login Page: Admin user detected, redirecting to admin panel",
         );
         router.replace("/admin/dashboard");
       } else {
@@ -201,7 +201,7 @@ const Login = () => {
       }
     } else if (!authLoading && isAuthenticated && !user) {
       console.log(
-        "⚠️ Login Page: Authenticated but no user data - staying on login"
+        "⚠️ Login Page: Authenticated but no user data - staying on login",
       );
     } else if (!authLoading && !isAuthenticated) {
       console.log("ℹ️ Login Page: Not authenticated - showing login form");
@@ -237,7 +237,7 @@ const Login = () => {
   const handleGoogle = async () => {
     try {
       // Redirect to Django Allauth Google OAuth
-      window.location.href = `${API_URL}/auth/google/login/`;
+      window.location.href = `${API_BASE}/auth/google/login/`;
     } catch (error) {
       console.error("Google login error:", error);
     }
@@ -254,41 +254,55 @@ const Login = () => {
       setRateLimitTime(0);
 
       // Fetch fresh user data to get the role
-      const userResponse = await fetch(`${API_URL}/api/accounts/me`, {
+      const userResponse = await fetch(`${API_BASE}/api/accounts/me`, {
         credentials: "include",
       });
 
       if (userResponse.ok) {
         const userData = await userResponse.json();
 
-        // Prefer authoritative accountType from backend (set in /me)
+        // Check if user is a worker or client - redirect to download app
+        const backendRole = (userData.role || "").toString().toUpperCase();
         const accountType = (userData.accountType || "")
           .toString()
           .toLowerCase();
+
+        // Workers and Clients must use mobile app
+        if (backendRole === "WORKER" || backendRole === "CLIENT") {
+          console.log(
+            `⚠️ ${backendRole} login detected - redirecting to download app`,
+          );
+          // Logout immediately
+          await fetch(`${API_BASE}/api/accounts/logout`, {
+            method: "POST",
+            credentials: "include",
+          });
+          router.replace("/auth/download-app");
+          return;
+        }
+
+        // Agency users
         if (accountType === "agency") {
           console.log(
-            "🏢 Account type 'agency' detected, redirecting to agency dashboard"
+            "🏢 Account type 'agency' detected, redirecting to agency dashboard",
           );
           sessionStorage.setItem("last_login_redirect", Date.now().toString());
           router.replace("/agency/dashboard");
-        } else {
-          // Fallback to role-based redirect (role may be ADMIN)
-          const backendRole = (userData.role || "").toString().toUpperCase();
-          if (backendRole === "ADMIN") {
-            console.log("🔐 Admin login, redirecting to admin panel");
-            sessionStorage.setItem(
-              "last_login_redirect",
-              Date.now().toString()
-            );
-            router.replace("/admin/dashboard");
-          } else {
-            console.log("👤 User login, redirecting to dashboard");
-            sessionStorage.setItem(
-              "last_login_redirect",
-              Date.now().toString()
-            );
-            router.replace("/dashboard");
-          }
+        }
+        // Admin users
+        else if (backendRole === "ADMIN") {
+          console.log("🔐 Admin login, redirecting to admin panel");
+          sessionStorage.setItem("last_login_redirect", Date.now().toString());
+          router.replace("/admin/dashboard");
+        }
+        // Unknown role - should not happen
+        else {
+          console.log("⚠️ Unknown role, redirecting to download app");
+          await fetch(`${API_BASE}/api/accounts/logout`, {
+            method: "POST",
+            credentials: "include",
+          });
+          router.replace("/auth/download-app");
         }
       } else {
         // Fallback to regular dashboard if can't fetch user data
@@ -324,10 +338,10 @@ const Login = () => {
                 />
               </Link>
               <Link
-                href="/auth/register"
+                href="/auth/register/agency"
                 className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
               >
-                Don&apos;t have an account? Sign up
+                Register as Agency
               </Link>
             </div>
           </div>
@@ -376,7 +390,7 @@ const Login = () => {
                     className="h-8 w-auto mx-auto mb-4"
                   />
                   <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
-                    Welcome back
+                    Welcome back {'<3'}
                   </h1>
                   <p className="font-inter text-sm text-gray-600">
                     Sign in to continue
@@ -519,7 +533,7 @@ const Login = () => {
 
                 {/* Google Sign In Button */}
                 <a
-                  href="http://localhost:8000/api/accounts/auth/google/login"
+                  href={`${API_BASE}/api/accounts/auth/google/login`}
                   className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
                 >
                   <Image
@@ -534,12 +548,12 @@ const Login = () => {
 
                 <div className="mt-4 text-center">
                   <p className="text-xs font-inter text-gray-600">
-                    Don&apos;t have an account?{" "}
+                    Looking to hire workers?{" "}
                     <Link
-                      href="/auth/register"
+                      href="/auth/register/agency"
                       className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                     >
-                      Sign up
+                      Register as Agency
                     </Link>
                   </p>
                 </div>
@@ -558,7 +572,7 @@ const Login = () => {
                     height={60}
                     className="h-16 w-auto mx-auto mb-6"
                   />
-                  <h1 className="text-4xl font-bold mb-4">Welcome back</h1>
+                  <h1 className="text-4xl font-bold mb-4">Welcome back {'<3'}</h1>
                   <p className="text-xl mb-8 opacity-90">
                     Sign in to your account and continue your journey
                   </p>
@@ -623,7 +637,7 @@ const Login = () => {
                       Sign in to your account
                     </h2>
                     <p className="text-gray-600">
-                      Welcome back! Please enter your details
+                      Welcome back {'<3'}! Please enter your details
                     </p>
                   </div>
 
@@ -768,7 +782,7 @@ const Login = () => {
 
                   {/* Google Sign In Button (Desktop) */}
                   <a
-                    href={`${API_URL}/auth/google/login/`}
+                    href={`${API_BASE}/auth/google/login/`}
                     className="flex items-center justify-center w-full h-12 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
                     aria-label="Continue with Google"
                   >
@@ -782,16 +796,28 @@ const Login = () => {
                     <span className="text-sm">Continue with Google</span>
                   </a>
 
-                  <div className="mt-6 text-center">
-                    <p className="text-sm font-inter text-gray-600">
-                      Don&apos;t have an account?{" "}
-                      <Link
-                        href="/auth/register"
-                        className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                      >
-                        Sign up
+                  <div className="mt-6 text-center space-y-4">
+                    {/* Worker/Client App Download */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm font-inter text-blue-900 mb-2">
+                        <strong>
+                          Are you looking to get something done or looking for
+                          work as a freelance worker?
+                        </strong>
+                      </p>
+                      <p className="text-xs text-blue-700 mb-3">
+                        Download our mobile app to get started
+                      </p>
+                      <Link href="/auth/download-app">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          📱 Download Mobile App
+                        </Button>
                       </Link>
-                    </p>
+                    </div>
                   </div>
                 </div>
               </div>

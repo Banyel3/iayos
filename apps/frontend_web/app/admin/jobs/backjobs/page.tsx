@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +81,7 @@ export default function BackJobsPage() {
   const fetchStats = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/jobs/disputes/stats",
+        `${API_BASE}/api/adminpanel/jobs/disputes/stats`,
         {
           credentials: "include",
         },
@@ -97,7 +98,7 @@ export default function BackJobsPage() {
   const fetchDisputes = async () => {
     try {
       setIsLoading(true);
-      let url = `http://localhost:8000/api/adminpanel/jobs/disputes?page=${page}&page_size=20`;
+      let url = `${API_BASE}/api/adminpanel/jobs/disputes?page=${page}&page_size=20`;
       if (statusFilter !== "all") url += `&status=${statusFilter}`;
       if (priorityFilter !== "all") url += `&priority=${priorityFilter}`;
 

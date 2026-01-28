@@ -12,40 +12,79 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='jobposting',
+        # Rename JobPosting model to Job
+        migrations.RenameModel(
+            old_name='JobPosting',
+            new_name='Job',
+        ),
+        # Rename primary key field
+        migrations.RenameField(
+            model_name='job',
+            old_name='jobPostingID',
+            new_name='jobID',
+        ),
+        # Add new fields
+        migrations.AddField(
+            model_name='job',
+            name='completedAt',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name='job',
+            name='cancellationReason',
+            field=models.TextField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name='job',
+            name='assignedWorkerID',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='assigned_jobs', to='accounts.workerprofile'),
+        ),
+        # Update table name
+        migrations.AlterModelOptions(
+            name='job',
+            options={'ordering': ['-createdAt']},
+        ),
+        migrations.AlterModelTable(
+            name='job',
+            table='jobs',
+        ),
+        # Update foreign key related names
+        migrations.AlterField(
+            model_name='job',
             name='categoryID',
+            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='jobs', to='accounts.specializations'),
         ),
-        migrations.RemoveField(
-            model_name='jobposting',
+        migrations.AlterField(
+            model_name='job',
             name='clientID',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='jobs', to='accounts.clientprofile'),
         ),
-        migrations.CreateModel(
-            name='Job',
-            fields=[
-                ('jobID', models.BigAutoField(primary_key=True, serialize=False)),
-                ('title', models.CharField(max_length=200)),
-                ('description', models.TextField()),
-                ('budget', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('location', models.CharField(max_length=255)),
-                ('expectedDuration', models.CharField(blank=True, max_length=100, null=True)),
-                ('urgency', models.CharField(choices=[('LOW', 'Low - Flexible timing'), ('MEDIUM', 'Medium - Within a week'), ('HIGH', 'High - ASAP')], default='MEDIUM', max_length=10)),
-                ('preferredStartDate', models.DateField(blank=True, null=True)),
-                ('materialsNeeded', models.JSONField(blank=True, default=list)),
-                ('status', models.CharField(choices=[('ACTIVE', 'Active'), ('IN_PROGRESS', 'In Progress'), ('COMPLETED', 'Completed'), ('CANCELLED', 'Cancelled')], default='ACTIVE', max_length=15)),
-                ('completedAt', models.DateTimeField(blank=True, null=True)),
-                ('cancellationReason', models.TextField(blank=True, null=True)),
-                ('createdAt', models.DateTimeField(auto_now_add=True)),
-                ('updatedAt', models.DateTimeField(auto_now=True)),
-                ('assignedWorkerID', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='assigned_jobs', to='accounts.workerprofile')),
-                ('categoryID', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='jobs', to='accounts.specializations')),
-                ('clientID', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='jobs', to='accounts.clientprofile')),
-            ],
-            options={
-                'db_table': 'jobs',
-                'ordering': ['-createdAt'],
-            },
+        # Rename JobPostingPhoto to JobPhoto
+        migrations.RenameModel(
+            old_name='JobPostingPhoto',
+            new_name='JobPhoto',
         ),
+        # Rename the foreign key field in JobPhoto
+        migrations.RenameField(
+            model_name='jobphoto',
+            old_name='jobPostingID',
+            new_name='jobID',
+        ),
+        # Update JobPhoto table name and options
+        migrations.AlterModelOptions(
+            name='jobphoto',
+            options={'ordering': ['-uploadedAt']},
+        ),
+        migrations.AlterModelTable(
+            name='jobphoto',
+            table='job_photos',
+        ),
+        # Remove fileSize field (if it was in original JobPostingPhoto but not in new JobPhoto)
+        migrations.RemoveField(
+            model_name='jobphoto',
+            name='fileSize',
+        ),
+        # Update foreign key relationships for other models
         migrations.AlterField(
             model_name='conversation',
             name='relatedJobPosting',
@@ -56,6 +95,7 @@ class Migration(migrations.Migration):
             name='relatedJobPosting',
             field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='accounts.job'),
         ),
+        # Create JobLog model
         migrations.CreateModel(
             name='JobLog',
             fields=[
@@ -72,23 +112,7 @@ class Migration(migrations.Migration):
                 'ordering': ['-createdAt'],
             },
         ),
-        migrations.CreateModel(
-            name='JobPhoto',
-            fields=[
-                ('photoID', models.BigAutoField(primary_key=True, serialize=False)),
-                ('photoURL', models.CharField(max_length=255)),
-                ('fileName', models.CharField(blank=True, max_length=255, null=True)),
-                ('uploadedAt', models.DateTimeField(auto_now_add=True)),
-                ('jobID', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='photos', to='accounts.job')),
-            ],
-            options={
-                'db_table': 'job_photos',
-                'ordering': ['-uploadedAt'],
-            },
-        ),
-        migrations.DeleteModel(
-            name='JobPostingPhoto',
-        ),
+        # Add indexes for Job model
         migrations.AddIndex(
             model_name='job',
             index=models.Index(fields=['clientID', '-createdAt'], name='jobs_clientI_03c7a0_idx'),
@@ -109,9 +133,7 @@ class Migration(migrations.Migration):
             model_name='job',
             index=models.Index(fields=['assignedWorkerID', 'status'], name='jobs_assigne_cc625f_idx'),
         ),
-        migrations.DeleteModel(
-            name='JobPosting',
-        ),
+        # Add indexes for JobLog model
         migrations.AddIndex(
             model_name='joblog',
             index=models.Index(fields=['jobID', '-createdAt'], name='job_logs_jobID_i_b5c46a_idx'),

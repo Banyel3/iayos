@@ -1,0 +1,218 @@
+# ================================================================
+# MOBILE KYC TEST SUITE
+# Tests: KYC Status, Document Validation, Upload, Autofill, Confirm
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 1: Get KYC Status
+### ================================================================
+# @name getKYCStatus
+GET {{baseUrl}}/api/accounts/kyc-status
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 2: Get KYC Application History
+### ================================================================
+# @name getKYCHistory
+GET {{baseUrl}}/api/accounts/kyc/history
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 3: Validate Front ID Document
+### Document Type: FRONTID (requires face detection)
+### ================================================================
+# @name validateFrontID
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+FRONTID
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 4: Validate Back ID Document
+### Document Type: BACKID (no face detection)
+### ================================================================
+# @name validateBackID
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+BACKID
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="id_back.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_back.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 5: Validate Clearance Document
+### Document Type: CLEARANCE (no face detection)
+### ================================================================
+# @name validateClearance
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+CLEARANCE
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="clearance.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/clearance.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 6: Validate Selfie
+### Document Type: SELFIE (requires face detection)
+### ================================================================
+# @name validateSelfie
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+SELFIE
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="selfie.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/selfie.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 7: Validate Invalid Document Type (Should Fail)
+### Expected: 400 with error message about valid types
+### ================================================================
+# @name validateInvalidType
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+BUSINESS_PERMIT
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="permit.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/permit.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 8: Validate Missing File (Should Fail)
+### Expected: Error - No file provided
+### ================================================================
+# @name validateMissingFile
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="document_type"
+
+FRONTID
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 9: Full KYC Upload
+### ================================================================
+# @name fullKYCUpload
+POST {{baseUrl}}/api/accounts/upload/kyc
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="IDType"
+
+PHILSYS_ID
+------WebKitFormBoundary
+Content-Disposition: form-data; name="clearanceType"
+
+NBI
+------WebKitFormBoundary
+Content-Disposition: form-data; name="frontID"; filename="id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="backID"; filename="id_back.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_back.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="clearance"; filename="clearance.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/clearance.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="selfie"; filename="selfie.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/selfie.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 10: Get KYC Autofill Data
+### Returns AI-extracted fields from documents
+### ================================================================
+# @name getKYCAutofill
+GET {{baseUrl}}/api/accounts/kyc/autofill
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 11: Confirm KYC Data
+### User confirms/edits extracted data
+### ================================================================
+# @name confirmKYCData
+POST {{baseUrl}}/api/accounts/kyc/confirm
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "full_name": "Juan Dela Cruz",
+    "birth_date": "1990-05-15",
+    "address": "123 Main Street, Zamboanga City",
+    "id_number": "1234-5678-9012-3456"
+}
+
+### ================================================================
+### TEST 12: Face Service Status Check
+### ================================================================
+# @name faceServiceStatus
+GET {{baseUrl}}/api/accounts/face-service-status
+Authorization: Bearer {{workerToken}}

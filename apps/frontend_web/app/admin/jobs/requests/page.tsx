@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Sidebar } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -71,7 +72,7 @@ export default function JobRequestsPage() {
       setIsLoading(true);
       const statusParam = statusFilter ? `&status=${statusFilter}` : "";
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=100${statusParam}`,
+        `${API_BASE}/api/adminpanel/jobs/listings?page=${page}&page_size=100${statusParam}`,
         {
           credentials: "include",
         },

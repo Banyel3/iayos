@@ -1,0 +1,238 @@
+# ================================================================
+# MOBILE PAYMENT TEST SUITE
+# Tests: Wallet, Escrow, Deposits, Withdrawals, Payment Methods
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### SETUP: Login as Client
+### ================================================================
+# @name clientLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testclient@example.com",
+    "password": "Test1234!"
+}
+
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ================================================================
+### WALLET TESTS
+### ================================================================
+
+### TEST 1: Get Wallet Balance (Worker)
+### ================================================================
+# @name getWorkerWalletBalance
+GET {{baseUrl}}/api/mobile/wallet/balance
+Authorization: Bearer {{workerToken}}
+
+### TEST 2: Get Wallet Balance (Client)
+### ================================================================
+# @name getClientWalletBalance
+GET {{baseUrl}}/api/mobile/wallet/balance
+Authorization: Bearer {{clientToken}}
+
+### TEST 3: Get Pending Earnings (Worker)
+### ================================================================
+# @name getPendingEarnings
+GET {{baseUrl}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{workerToken}}
+
+### TEST 4: Get Wallet Transactions
+### ================================================================
+# @name getWalletTransactions
+GET {{baseUrl}}/api/mobile/wallet/transactions
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### PAYMENT METHODS TESTS
+### ================================================================
+
+### TEST 5: Get Payment Methods
+### ================================================================
+# @name getPaymentMethods
+GET {{baseUrl}}/api/mobile/payment-methods
+Authorization: Bearer {{workerToken}}
+
+### TEST 6: Add GCash Payment Method
+### ================================================================
+# @name addGCashMethod
+POST {{baseUrl}}/api/mobile/payment-methods
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "method_type": "GCASH",
+    "account_number": "09171234567",
+    "account_name": "Juan Dela Cruz"
+}
+
+### TEST 7: Set Primary Payment Method
+### ================================================================
+# @name setPrimaryMethod
+POST {{baseUrl}}/api/mobile/payment-methods/1/set-primary
+Authorization: Bearer {{workerToken}}
+
+### TEST 8: Delete Payment Method
+### ================================================================
+# @name deletePaymentMethod
+DELETE {{baseUrl}}/api/mobile/payment-methods/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### DEPOSIT TESTS
+### ================================================================
+
+### TEST 9: Initiate Wallet Deposit (Xendit Invoice)
+### ================================================================
+# @name initiateDeposit
+POST {{baseUrl}}/api/mobile/wallet/deposit
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "amount": 1000,
+    "payment_method": "GCASH"
+}
+
+### TEST 10: Create Xendit Invoice
+### ================================================================
+# @name createXenditInvoice
+POST {{baseUrl}}/api/mobile/payments/xendit/invoice
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "amount": 500,
+    "description": "Wallet deposit",
+    "payment_type": "DEPOSIT"
+}
+
+### ================================================================
+### ESCROW PAYMENT TESTS
+### ================================================================
+
+### TEST 11: Create Escrow Payment for Job
+### ================================================================
+# @name createEscrowPayment
+POST {{baseUrl}}/api/mobile/payments/escrow
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "job_id": 1,
+    "amount": 1500,
+    "payment_method": "WALLET"
+}
+
+### TEST 12: Get Payment Status
+### ================================================================
+# @name getPaymentStatus
+GET {{baseUrl}}/api/mobile/payments/status/1
+Authorization: Bearer {{clientToken}}
+
+### TEST 13: Get Payment History
+### ================================================================
+# @name getPaymentHistory
+GET {{baseUrl}}/api/mobile/payments/history
+Authorization: Bearer {{clientToken}}
+
+### TEST 14: Get Payment Receipt
+### ================================================================
+# @name getPaymentReceipt
+GET {{baseUrl}}/api/mobile/payments/receipt/1
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### WITHDRAWAL TESTS
+### ================================================================
+
+### TEST 15: Initiate Withdrawal (Worker)
+### Requires valid GCash payment method
+### ================================================================
+# @name initiateWithdrawal
+POST {{baseUrl}}/api/mobile/wallet/withdraw
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "amount": 500,
+    "payment_method_id": 1,
+    "notes": "Weekly earnings withdrawal"
+}
+
+### TEST 16: Withdrawal Without Payment Method (Should Fail)
+### Expected: 400 Bad Request
+### ================================================================
+# @name withdrawWithoutMethod
+POST {{baseUrl}}/api/mobile/wallet/withdraw
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "amount": 500
+}
+
+### TEST 17: Withdrawal Exceeding Balance (Should Fail)
+### Expected: 400 Bad Request
+### ================================================================
+# @name withdrawExceedingBalance
+POST {{baseUrl}}/api/mobile/wallet/withdraw
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "amount": 999999999,
+    "payment_method_id": 1
+}
+
+### ================================================================
+### EARNINGS TESTS
+### ================================================================
+
+### TEST 18: Get Earnings Summary
+### ================================================================
+# @name getEarningsSummary
+GET {{baseUrl}}/api/accounts/earnings/summary
+Authorization: Bearer {{workerToken}}
+
+### TEST 19: Get Earnings History
+### ================================================================
+# @name getEarningsHistory
+GET {{baseUrl}}/api/accounts/earnings/history
+Authorization: Bearer {{workerToken}}
+
+### TEST 20: Get Job Earnings
+### ================================================================
+# @name getJobEarnings
+GET {{baseUrl}}/api/jobs/1/earnings
+Authorization: Bearer {{workerToken}}
+
+### TEST 21: Get Job Payment Status
+### ================================================================
+# @name getJobPaymentStatus
+GET {{baseUrl}}/api/jobs/1/payment-status
+Authorization: Bearer {{clientToken}}
+
+### TEST 22: Get Payment Timeline
+### ================================================================
+# @name getPaymentTimeline
+GET {{baseUrl}}/api/jobs/1/payment-timeline
+Authorization: Bearer {{clientToken}}

@@ -1,0 +1,61 @@
+# Maestro E2E Test Configuration for iAyos Mobile
+# Documentation: https://maestro.mobile.dev/
+
+appId: com.devante.iayos
+
+# Flow inclusion patterns - include all test suites in subdirectories
+# Using "*/*" pattern to include all yaml files from all subdirectories
+flows:
+  - "*/*"
+
+# Environment variables for tests
+env:
+  API_URL: "https://api.iayos.online"
+  # Test user credentials (must exist in production database)
+  WORKER_EMAIL: "worker.test@iayos.com"
+  WORKER_PASSWORD: "Test1234!"
+  CLIENT_EMAIL: "client.test@iayos.com"
+  CLIENT_PASSWORD: "Test1234!"
+
+# Global settings - available test suite tags
+tags:
+  # Authentication
+  - auth
+  - login
+  - register
+  - logout
+  # Jobs - Worker
+  - jobs_worker
+  - browse
+  - search
+  - applications
+  - save
+  # Jobs - Client
+  - jobs_client
+  - create
+  - my_jobs
+  - workers
+  # Wallet & Payments
+  - wallet
+  - deposit
+  - withdraw
+  - payment_methods
+  - payment
+  # KYC
+  - kyc
+  - verification
+  # Profile
+  - profile
+  - edit
+  - avatar
+  - dual_profile
+  # Test categories
+  - smoke
+  - critical
+  - partial
+
+# Retry failed assertions
+retryDepth: 3
+
+# Default timeout for waitFor commands (ms)
+waitTimeout: 10000

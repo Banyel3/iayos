@@ -34,15 +34,25 @@ const TempDashboard = () => {
   const [selectedType, setSelectedType] = useState<UserProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect agency users to agency dashboard
+  // Redirect special user types (admin, agency) to their dashboards
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
       const accountType = (user.accountType || "").toString().toLowerCase();
       const role = (user.role || "").toString().toUpperCase();
 
+      // Admin users should go to admin dashboard
+      if (role === "ADMIN") {
+        console.log(
+          "🔐 Dashboard: Admin user detected, redirecting to admin panel",
+        );
+        router.replace("/admin/dashboard");
+        return;
+      }
+
+      // Agency users should go to agency dashboard
       if (accountType === "agency" || role === "AGENCY") {
         console.log(
-          "🏢 Dashboard: Agency user detected, redirecting to agency dashboard"
+          "🏢 Dashboard: Agency user detected, redirecting to agency dashboard",
         );
         router.replace("/agency/dashboard");
         return;

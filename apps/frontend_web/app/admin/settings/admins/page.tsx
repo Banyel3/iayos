@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,10 +129,10 @@ export default function AdminManagementPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/admins",
+        `${API_BASE}/api/adminpanel/settings/admins`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: AdminsResponse = await response.json();
 
@@ -214,8 +215,8 @@ export default function AdminManagementPage() {
     try {
       const url =
         modalMode === "add"
-          ? "http://localhost:8000/api/adminpanel/settings/admins"
-          : `http://localhost:8000/api/adminpanel/settings/admins/${selectedAdmin?.id}/permissions`;
+          ? `${API_BASE}/api/adminpanel/settings/admins`
+          : `${API_BASE}/api/adminpanel/settings/admins/${selectedAdmin?.id}/permissions`;
 
       const method = modalMode === "add" ? "POST" : "PUT";
 
@@ -246,7 +247,7 @@ export default function AdminManagementPage() {
         alert(
           modalMode === "add"
             ? "Admin created successfully!"
-            : "Admin updated successfully!"
+            : "Admin updated successfully!",
         );
         setShowModal(false);
         fetchAdmins();
@@ -268,13 +269,13 @@ export default function AdminManagementPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/admins/${admin.id}`,
+        `${API_BASE}/api/adminpanel/settings/admins/${admin.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ is_active: !admin.is_active }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -303,7 +304,7 @@ export default function AdminManagementPage() {
     if (!adminToDelete) return;
 
     try {
-      const url = `http://localhost:8000/api/adminpanel/settings/admins/${adminToDelete.id}`;
+      const url = `${API_BASE}/api/adminpanel/settings/admins/${adminToDelete.id}`;
       const params = reassignAdminId ? `?reassign_to=${reassignAdminId}` : "";
 
       const response = await fetch(url + params, {
@@ -487,7 +488,7 @@ export default function AdminManagementPage() {
                         <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(
-                              admin.role
+                              admin.role,
                             )}`}
                           >
                             {ROLES[admin.role].label}
@@ -694,7 +695,7 @@ export default function AdminManagementPage() {
                   <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-4">
                     {ALL_PERMISSIONS.map((permission) => {
                       const isChecked = formData.permissions.includes(
-                        permission.id
+                        permission.id,
                       );
                       const isDisabled =
                         permission.id === "manage_admins" &&

@@ -1,0 +1,301 @@
+name: Health Check Monitoring
+
+on:
+  # Run every 5 minutes
+  schedule:
+    - cron: "*/5 * * * *"
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: Check Application Health
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check backend health (liveness)
+        id: backend_live
+        continue-on-error: true
+        run: |
+          echo "Checking backend liveness..."
+
+          BACKEND_URL="${{ secrets.BACKEND_URL || 'https://iayos-backend.onrender.com' }}"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${BACKEND_URL}/health/live")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ Backend is alive"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Backend liveness check failed (HTTP $HTTP_CODE)"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Check backend readiness
+        id: backend_ready
+        continue-on-error: true
+        run: |
+          echo "Checking backend readiness..."
+
+          BACKEND_URL="${{ secrets.BACKEND_URL || 'https://iayos-backend.onrender.com' }}"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${BACKEND_URL}/health/ready")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ Backend is ready"
+            echo "status=success" >> $GITHUB_OUTPUT
+
+            # Parse database and cache status
+            DB_STATUS=$(echo "$BODY" | jq -r '.checks.database // "unknown"')
+            CACHE_STATUS=$(echo "$BODY" | jq -r '.checks.cache // "unknown"')
+
+            echo "Database: $DB_STATUS"
+            echo "Cache: $CACHE_STATUS"
+          else
+            echo "❌ Backend readiness check failed (HTTP $HTTP_CODE)"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Check frontend availability
+        id: frontend_check
+        continue-on-error: true
+        run: |
+          echo "Checking frontend availability..."
+
+          FRONTEND_URL="${{ secrets.FRONTEND_URL || 'https://iayos.vercel.app' }}"
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL")
+
+          echo "HTTP Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 301 ] || [ "$HTTP_CODE" -eq 302 ]; then
+            echo "✅ Frontend is accessible"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Frontend check failed (HTTP $HTTP_CODE)"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Check database connectivity
+        id: database_check
+        continue-on-error: true
+        run: |
+          echo "Checking database connectivity..."
+
+          BACKEND_URL="${{ secrets.BACKEND_URL || 'https://iayos-backend.onrender.com' }}"
+
+          RESPONSE=$(curl -s "${BACKEND_URL}/health/ready")
+          DB_STATUS=$(echo "$RESPONSE" | jq -r '.checks.database // false')
+
+          if [ "$DB_STATUS" = "true" ]; then
+            echo "✅ Database is connected"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Database connection failed"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Check Redis connectivity
+        id: redis_check
+        continue-on-error: true
+        run: |
+          echo "Checking Redis connectivity..."
+
+          BACKEND_URL="${{ secrets.BACKEND_URL || 'https://iayos-backend.onrender.com' }}"
+
+          RESPONSE=$(curl -s "${BACKEND_URL}/health/ready")
+          CACHE_STATUS=$(echo "$RESPONSE" | jq -r '.checks.cache // false')
+
+          if [ "$CACHE_STATUS" = "true" ]; then
+            echo "✅ Redis is connected"
+            echo "status=success" >> $GITHUB_OUTPUT
+          elif [ "$CACHE_STATUS" = "null" ]; then
+            echo "⚠️ Redis status unknown (not critical)"
+            echo "status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Redis connection failed"
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate health report
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "        iAyos Health Check Report        "
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+
+          # Backend Status
+          if [ "${{ steps.backend_live.outputs.status }}" = "success" ]; then
+            echo "✅ Backend Liveness: HEALTHY"
+          else
+            echo "❌ Backend Liveness: FAILED"
+          fi
+
+          if [ "${{ steps.backend_ready.outputs.status }}" = "success" ]; then
+            echo "✅ Backend Readiness: HEALTHY"
+          else
+            echo "❌ Backend Readiness: FAILED"
+          fi
+
+          # Frontend Status
+          if [ "${{ steps.frontend_check.outputs.status }}" = "success" ]; then
+            echo "✅ Frontend: ACCESSIBLE"
+          else
+            echo "❌ Frontend: FAILED"
+          fi
+
+          # Database Status
+          if [ "${{ steps.database_check.outputs.status }}" = "success" ]; then
+            echo "✅ Database: CONNECTED"
+          else
+            echo "❌ Database: DISCONNECTED"
+          fi
+
+          # Redis Status
+          if [ "${{ steps.redis_check.outputs.status }}" = "success" ]; then
+            echo "✅ Redis Cache: CONNECTED"
+          elif [ "${{ steps.redis_check.outputs.status }}" = "warning" ]; then
+            echo "⚠️ Redis Cache: UNKNOWN"
+          else
+            echo "❌ Redis Cache: DISCONNECTED"
+          fi
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Send Slack notification on failure
+        if: |
+          failure() &&
+          (steps.backend_live.outputs.status == 'failure' ||
+           steps.backend_ready.outputs.status == 'failure' ||
+           steps.database_check.outputs.status == 'failure')
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            FAILED_CHECKS=""
+
+            if [ "${{ steps.backend_live.outputs.status }}" = "failure" ]; then
+              FAILED_CHECKS="${FAILED_CHECKS}\n❌ Backend Liveness"
+            fi
+
+            if [ "${{ steps.backend_ready.outputs.status }}" = "failure" ]; then
+              FAILED_CHECKS="${FAILED_CHECKS}\n❌ Backend Readiness"
+            fi
+
+            if [ "${{ steps.database_check.outputs.status }}" = "failure" ]; then
+              FAILED_CHECKS="${FAILED_CHECKS}\n❌ Database Connection"
+            fi
+
+            if [ "${{ steps.frontend_check.outputs.status }}" = "failure" ]; then
+              FAILED_CHECKS="${FAILED_CHECKS}\n⚠️ Frontend Accessibility"
+            fi
+
+            MESSAGE="🚨 *iAyos Health Check FAILED*\n\nFailed checks:${FAILED_CHECKS}\n\nTime: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>"
+
+            curl -X POST "$SLACK_WEBHOOK_URL" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"${MESSAGE}\"}"
+
+            echo "📨 Slack notification sent"
+          else
+            echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping notification"
+          fi
+
+      - name: Create GitHub Issue on critical failure
+        if: |
+          failure() &&
+          (steps.backend_live.outputs.status == 'failure' ||
+           steps.database_check.outputs.status == 'failure')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const timestamp = new Date().toISOString();
+            const failedChecks = [];
+
+            if ('${{ steps.backend_live.outputs.status }}' === 'failure') {
+              failedChecks.push('Backend Liveness');
+            }
+            if ('${{ steps.backend_ready.outputs.status }}' === 'failure') {
+              failedChecks.push('Backend Readiness');
+            }
+            if ('${{ steps.database_check.outputs.status }}' === 'failure') {
+              failedChecks.push('Database Connection');
+            }
+
+            const title = `🚨 Health Check Failure: ${failedChecks.join(', ')}`;
+            const body = `## Health Check Failed
+
+            **Timestamp:** ${timestamp}
+
+            **Failed Checks:**
+            ${failedChecks.map(check => `- ❌ ${check}`).join('\n')}
+
+            **Action Required:**
+            1. Check backend logs in Render dashboard
+            2. Verify database connectivity
+            3. Check service status
+            4. Review recent deployments
+
+            **Workflow Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+
+            This issue was automatically created by the health check workflow.
+            `;
+
+            // Check if there's already an open issue for health check failures
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'health-check,automated'
+            });
+
+            if (issues.data.length === 0) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['health-check', 'automated', 'critical']
+              });
+
+              console.log('✅ GitHub issue created');
+            } else {
+              // Add comment to existing issue
+              const issue = issues.data[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `## Another Health Check Failure\n\n${body}`
+              });
+
+              console.log('✅ Comment added to existing issue #' + issue.number);
+            }
+
+      - name: Record successful health check
+        if: success()
+        run: |
+          echo "✅ All health checks passed successfully"
+          echo "System is healthy and operational"

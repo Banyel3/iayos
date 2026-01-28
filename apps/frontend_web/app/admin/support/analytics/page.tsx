@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -76,8 +77,8 @@ export default function SupportAnalyticsPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/statistics?range=${dateRange}`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/support/statistics?range=${dateRange}`,
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -398,7 +399,7 @@ export default function SupportAnalyticsPage() {
                   {(stats.tickets_by_category ?? []).map((item) => {
                     const total = (stats.tickets_by_category ?? []).reduce(
                       (sum, i) => sum + i.count,
-                      0
+                      0,
                     );
                     const percentage =
                       total > 0 ? ((item.count / total) * 100).toFixed(1) : "0";
@@ -497,7 +498,7 @@ export default function SupportAnalyticsPage() {
                 {(stats.response_time_trend ?? []).map((item, index) => {
                   const maxTime = Math.max(
                     ...(stats.response_time_trend ?? []).map((t) => t.time),
-                    1
+                    1,
                   );
                   const height = (item.time / maxTime) * 100;
                   return (

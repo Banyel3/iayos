@@ -1,0 +1,87 @@
+{
+  "activeListing": {
+    "id": 1,
+    "title": "Fix Leaking Kitchen Faucet",
+    "description": "Kitchen sink faucet has been leaking for 3 days. Water drips constantly even when closed. Need immediate repair to prevent water waste and potential damage to cabinet.",
+    "category_id": 3,
+    "category": "Plumbing",
+    "budget": 1500,
+    "location": "123 Main St, Tetuan, Zamboanga City",
+    "urgency_level": "HIGH",
+    "status": "ACTIVE",
+    "jobType": "LISTING",
+    "clientID": 2,
+    "materials_needed": ["Pipe wrench", "Teflon tape", "Replacement washers"]
+  },
+  "inviteJob": {
+    "id": 2,
+    "title": "Install 2 Ceiling Fans",
+    "description": "Need professional electrician to install ceiling fans in both bedrooms. Fans already purchased. Will provide ladder and tools if needed.",
+    "category_id": 1,
+    "category": "Electrical",
+    "budget": 2500,
+    "location": "456 Test Ave, Guiwan, Zamboanga City",
+    "urgency_level": "MEDIUM",
+    "status": "ACTIVE",
+    "jobType": "INVITE",
+    "clientID": 2,
+    "assignedWorker": 1,
+    "invite_status": "PENDING"
+  },
+  "teamJob": {
+    "id": 3,
+    "title": "Complete Home Renovation",
+    "description": "Major home renovation project requiring multiple skilled workers. Kitchen remodel, bathroom upgrade, and electrical rewiring needed.",
+    "category_id": 2,
+    "category": "Carpentry",
+    "budget": 150000,
+    "location": "789 Business St, Camino Nuevo, Zamboanga City",
+    "urgency_level": "LOW",
+    "status": "ACTIVE",
+    "jobType": "LISTING",
+    "is_team_job": true,
+    "total_workers_needed": 5,
+    "clientID": 2,
+    "skill_slots": [
+      {
+        "specialization_id": 2,
+        "specialization_name": "Carpentry",
+        "workers_needed": 2,
+        "budget_allocated": 60000,
+        "filled_count": 0
+      },
+      {
+        "specialization_id": 1,
+        "specialization_name": "Electrical",
+        "workers_needed": 2,
+        "budget_allocated": 50000,
+        "filled_count": 0
+      },
+      {
+        "specialization_id": 3,
+        "specialization_name": "Plumbing",
+        "workers_needed": 1,
+        "budget_allocated": 40000,
+        "filled_count": 0
+      }
+    ]
+  },
+  "completedJob": {
+    "id": 4,
+    "title": "Fix Broken Door Lock",
+    "description": "Front door lock is jammed. Cannot lock properly. Need locksmith to repair or replace.",
+    "category_id": 2,
+    "category": "Carpentry",
+    "budget": 800,
+    "location": "111 Test Lane, Tetuan, Zamboanga City",
+    "urgency_level": "HIGH",
+    "status": "COMPLETED",
+    "jobType": "LISTING",
+    "clientID": 2,
+    "workerID": 1,
+    "clientMarkedComplete": true,
+    "workerMarkedComplete": true,
+    "clientReviewed": true,
+    "workerReviewed": true
+  }
+}

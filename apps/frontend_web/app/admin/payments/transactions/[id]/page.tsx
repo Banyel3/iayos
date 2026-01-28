@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,8 +78,8 @@ export default function TransactionDetailPage() {
   const fetchDetail = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/${transactionId}/detail`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/transactions/${transactionId}/detail`,
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -106,13 +107,13 @@ export default function TransactionDetailPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/${transactionId}/release-escrow`,
+        `${API_BASE}/api/adminpanel/transactions/${transactionId}/release-escrow`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason: releaseNote }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to release escrow");
@@ -136,7 +137,7 @@ export default function TransactionDetailPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/${transactionId}/refund`,
+        `${API_BASE}/api/adminpanel/transactions/${transactionId}/refund`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -146,7 +147,7 @@ export default function TransactionDetailPage() {
             reason: refundReason,
             refund_to: refundTo,
           }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to process refund");
@@ -274,7 +275,7 @@ export default function TransactionDetailPage() {
                       <p className="text-sm text-gray-600 mb-1">Created</p>
                       <p className="font-semibold text-gray-900">
                         {new Date(
-                          detail.transaction.created_at
+                          detail.transaction.created_at,
                         ).toLocaleString()}
                       </p>
                     </div>
@@ -319,7 +320,7 @@ export default function TransactionDetailPage() {
                         <p className="text-sm text-green-700">
                           Released on:{" "}
                           {new Date(
-                            detail.escrow_details.released_at
+                            detail.escrow_details.released_at,
                           ).toLocaleString()}
                         </p>
                       </div>

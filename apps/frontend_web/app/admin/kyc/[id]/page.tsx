@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -98,11 +99,11 @@ function combineKYCData(data: any): KYCRecord[] {
   if (data.agency_kyc && Array.isArray(data.agency_kyc)) {
     data.agency_kyc.forEach((agencyKyc: any) => {
       const agency = data.agencies?.find(
-        (a: any) => a.agencyID === agencyKyc.agencyID
+        (a: any) => a.agencyID === agencyKyc.agencyID,
       );
       const files =
         data.files?.filter(
-          (f: any) => f.agencyKycID === agencyKyc.agencyKycID
+          (f: any) => f.agencyKycID === agencyKyc.agencyKycID,
         ) || [];
 
       if (agency) {
@@ -166,10 +167,9 @@ export default function KYCDetailPage() {
       setError(null);
 
       // Fetch all KYC data
-      const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/all",
-        { credentials: "include" }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch KYC data: ${response.status}`);
@@ -227,15 +227,12 @@ export default function KYCDetailPage() {
         return;
       }
 
-      const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/review",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        credentials: "include",
+      });
 
       console.log("Signed URLs response status:", response.status);
 
@@ -320,13 +317,13 @@ export default function KYCDetailPage() {
         : "/api/adminpanel/kyc/approve";
 
       const kycId = parseInt(
-        record.id.replace("kyc_", "").replace("agency_", "")
+        record.id.replace("kyc_", "").replace("agency_", ""),
       );
       const body = isAgency
         ? { agencyKycID: kycId, notes }
         : { kycID: kycId, notes };
 
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -366,13 +363,13 @@ export default function KYCDetailPage() {
         : "/api/adminpanel/kyc/reject";
 
       const kycId = parseInt(
-        record.id.replace("kyc_", "").replace("agency_", "")
+        record.id.replace("kyc_", "").replace("agency_", ""),
       );
       const body = isAgency
         ? { agencyKycID: kycId, notes }
         : { kycID: kycId, notes };
 
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -528,7 +525,7 @@ export default function KYCDetailPage() {
                 className="mt-3"
                 onClick={() =>
                   router.push(
-                    `/admin/users/${record.userType === "worker" ? "workers" : "clients"}/${record.userId}`
+                    `/admin/users/${record.userType === "worker" ? "workers" : "clients"}/${record.userId}`,
                   )
                 }
               >

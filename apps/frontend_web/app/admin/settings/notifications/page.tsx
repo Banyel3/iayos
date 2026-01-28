@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,10 +63,10 @@ export default function NotificationTemplatesPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/notifications",
+        `${API_BASE}/api/adminpanel/settings/notifications`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: TemplatesResponse = await response.json();
 
@@ -103,13 +104,13 @@ export default function NotificationTemplatesPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/notifications/${selectedTemplate.id}`,
+        `${API_BASE}/api/adminpanel/settings/notifications/${selectedTemplate.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(formData),
-        }
+        },
       );
 
       const data = await response.json();
@@ -143,7 +144,7 @@ export default function NotificationTemplatesPage() {
   const handleInsertVariable = (variable: string) => {
     // Insert at cursor position in body_text
     const textarea = document.getElementById(
-      "body_text"
+      "body_text",
     ) as HTMLTextAreaElement;
     if (textarea) {
       const start = textarea.selectionStart;
@@ -159,7 +160,7 @@ export default function NotificationTemplatesPage() {
         textarea.focus();
         textarea.setSelectionRange(
           start + variable.length + 4,
-          start + variable.length + 4
+          start + variable.length + 4,
         );
       }, 0);
     }

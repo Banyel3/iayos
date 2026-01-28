@@ -1,45 +1,36 @@
 """
-Monkey patch for Django Ninja UUID converter conflict with Django 5.x
+Fix for Django Ninja UUID converter conflict with Django 5.x/6.x
 
-Issue: Django Ninja 1.3.0 tries to register a UUID converter that Django 5.x already provides
-Solution: Prevent ninja from registering the converter by checking if it already exists
+Issue: Django Ninja 1.3.0 tries to register a UUID converter, but Django 5.x/6.x 
+       already has 'uuid' in DEFAULT_CONVERTERS. Django raises ValueError.
 
-This must be imported BEFORE ninja_extra in settings.py INSTALLED_APPS
+Solution: Remove 'uuid' from DEFAULT_CONVERTERS before Django Ninja loads.
+          Django Ninja will register its version in REGISTERED_CONVERTERS.
+          Both converters are functionally equivalent, so this is safe.
+
+This must be imported BEFORE any Django apps are loaded (top of settings.py)
 """
 
-import sys
 from django.urls import converters
 
 
 def patch_ninja_uuid_converter():
     """
-    Patch Django Ninja's UUID converter registration to prevent conflicts
-    with Django 5.x's built-in UUID converter
+    Remove 'uuid' from DEFAULT_CONVERTERS to prevent conflict with Django Ninja.
+    
+    Django Ninja will add its UUID converter to REGISTERED_CONVERTERS, which
+    takes precedence over DEFAULT_CONVERTERS in get_converters().
     """
-    # Only patch if ninja hasn't been imported yet
-    if 'ninja.signature.utils' not in sys.modules:
-        # Store original register_converter function
-        original_register_converter = converters.register_converter
+    if 'uuid' in converters.DEFAULT_CONVERTERS:
+        # Store original for reference (in case needed later)
+        _original_uuid_converter = converters.DEFAULT_CONVERTERS.pop('uuid')
         
-        def safe_register_converter(converter, *args, **kwargs):
-            """
-            Wrapper that prevents re-registration of existing converters
-            """
-            # Get converter name (first arg or 'name' kwarg)
-            name = args[0] if args else kwargs.get('name')
-            
-            # Check if converter already registered
-            if name and name in converters.get_converters():
-                # Skip registration silently (already exists)
-                return
-            
-            # Register new converter
-            return original_register_converter(converter, *args, **kwargs)
+        # Clear the get_converters cache so it picks up the change
+        converters.get_converters.cache_clear()
         
-        # Replace with safe version
-        converters.register_converter = safe_register_converter
-        
-        print("[PATCH] Django Ninja UUID converter conflict resolved")
+        print(f"[PATCH] Removed 'uuid' from DEFAULT_CONVERTERS - Django Ninja can now register its version")
+    else:
+        print("[PATCH] 'uuid' not in DEFAULT_CONVERTERS - no action needed")
 
 
 # Apply patch immediately on import

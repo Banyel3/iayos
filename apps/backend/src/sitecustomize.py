@@ -9,39 +9,37 @@ import sys
 def patch_django_converters():
     """
     Monkey patch django.urls.converters.register_converter to prevent
-    Django Ninja from registering UUID converter that Django already has.
-    
-    This must execute before any Django or Ninja imports.
+    Django Ninja from registering a UUID converter that Django already has.
+    Runs at interpreter startup via sitecustomize so it precedes all imports.
     """
     # Only patch once
-    if hasattr(sys, '_django_ninja_patched'):
+    if hasattr(sys, "_django_ninja_patched"):
         return
-    
+
     try:
+        from django import urls
         from django.urls import converters
-        
-        # Store original
+
         _original_register = converters.register_converter
-        
+
         def patched_register_converter(converter, type_name):
-            """Safe wrapper that prevents duplicate registrations"""
-            # Check if already registered
-            existing = converters.get_converters()
-            if type_name in existing:
-                # Silently skip duplicate registration
-                print(f"[PATCH] Skipped duplicate converter registration: {type_name}")
-                return
-            
-            # Register new converter
-            return _original_register(converter, type_name)
-        
-        # Apply patch
+            """Safe wrapper that ignores duplicate converter registration"""
+            try:
+                return _original_register(converter, type_name)
+            except ValueError as exc:
+                if "already registered" in str(exc):
+                    print(f"[SITEPATCH] Skipping already registered converter: {type_name}")
+                    return
+                raise
+
+        # Patch both django.urls.converters and django.urls module-level reference
         converters.register_converter = patched_register_converter
+        urls.register_converter = patched_register_converter
         sys._django_ninja_patched = True
-        print("[PATCH] Django Ninja UUID converter patch applied successfully")
-        
+        print("[SITEPATCH] Django URL converter patch applied at startup")
+
     except ImportError:
-        # Django not installed yet, patch will be applied later
+        # Django not installed yet; nothing to patch
         pass
 
 

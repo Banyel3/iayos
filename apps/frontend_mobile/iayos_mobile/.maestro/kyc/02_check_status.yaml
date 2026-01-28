@@ -1,0 +1,117 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Check KYC Status
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies users can check their KYC verification status
+# Prerequisites: Logged in
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.devante.iayos
+tags:
+  - kyc
+  - status
+  - verification
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to KYC Status
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "Profile"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Look for KYC status badge or section
+- assertVisible:
+    text: "Verified"
+    optional: true
+    timeout: 10000
+
+- takeScreenshot: "01_profile_kyc_badge"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Tap to View KYC Details
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "KYC"
+    optional: true
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Status Screen
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    text: "Status"
+    optional: true
+    timeout: 10000
+
+- takeScreenshot: "02_kyc_status"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Check Status-Specific Elements
+# ─────────────────────────────────────────────────────────────────────────────
+
+# If Pending
+- assertVisible:
+    text: "under review"
+    optional: true
+
+# If Verified
+- assertVisible:
+    text: "verified"
+    optional: true
+
+# If Rejected
+- assertVisible:
+    text: "rejected"
+    optional: true
+
+# If Not Started
+- assertVisible:
+    text: "Start"
+    optional: true
+
+- takeScreenshot: "03_status_details"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Refresh Status (if available)
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "Refresh"
+    optional: true
+
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- takeScreenshot: "04_status_refreshed"

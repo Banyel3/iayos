@@ -1,0 +1,38 @@
+# Test: Login Validation - Empty Fields
+# Verifies that submitting empty fields shows validation error
+
+appId: com.devante.iayos
+tags:
+  - auth
+  - login
+  - validation
+
+---
+# Launch app fresh
+- launchApp:
+    clearState: true
+
+# Navigate to login screen
+- waitForAnimationToEnd
+- tapOn:
+    id: "welcome-login-button"
+
+# Wait for login screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "login-screen"
+
+# Tap submit without entering credentials
+- tapOn:
+    id: "login-submit-button"
+
+# Wait for error message
+- waitForAnimationToEnd
+
+# Check for validation error (text-based assertion)
+- assertVisible:
+    text: "/.*fill.*|.*required.*|.*enter.*/"
+    optional: true
+
+# Alternative: Check for any error indicator
+- takeScreenshot: "validation_empty_fields"

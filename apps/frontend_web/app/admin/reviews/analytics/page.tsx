@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ export default function AnalyticsPage() {
   const fetchStatistics = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/statistics`,
+        `${API_BASE}/api/adminpanel/app-reviews/statistics`,
         { credentials: "include" },
       );
 
@@ -67,7 +68,7 @@ export default function AnalyticsPage() {
   const fetchTrends = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/trends?period=${period}`,
+        `${API_BASE}/api/adminpanel/app-reviews/trends?period=${period}`,
         { credentials: "include" },
       );
 

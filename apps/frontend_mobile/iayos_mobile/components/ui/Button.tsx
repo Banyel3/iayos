@@ -9,7 +9,7 @@
  * - Icon support (left/right)
  */
 
-import React from 'react';
+import React from "react";
 import {
   TouchableOpacity,
   Text,
@@ -18,12 +18,24 @@ import {
   ViewStyle,
   TextStyle,
   View,
-} from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
+} from "react-native";
+import * as Haptics from "expo-haptics";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
-type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger"
+  | "success";
+type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps {
   // Content
@@ -49,13 +61,16 @@ interface ButtonProps {
   // Custom styles
   style?: ViewStyle;
   textStyle?: TextStyle;
+
+  // Testing
+  testID?: string;
 }
 
 export default function Button({
   children,
   onPress,
-  variant = 'primary',
-  size = 'md',
+  variant = "primary",
+  size = "md",
   fullWidth = false,
   disabled = false,
   loading = false,
@@ -64,8 +79,8 @@ export default function Button({
   hapticFeedback = true,
   style,
   textStyle,
+  testID,
 }: ButtonProps) {
-
   const handlePress = () => {
     if (hapticFeedback && !disabled && !loading) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -76,7 +91,7 @@ export default function Button({
   // Get variant styles
   const getVariantStyles = (): { container: ViewStyle; text: TextStyle } => {
     switch (variant) {
-      case 'primary':
+      case "primary":
         return {
           container: {
             backgroundColor: Colors.primary,
@@ -87,7 +102,7 @@ export default function Button({
           },
         };
 
-      case 'secondary':
+      case "secondary":
         return {
           container: {
             backgroundColor: Colors.backgroundSecondary,
@@ -99,10 +114,10 @@ export default function Button({
           },
         };
 
-      case 'outline':
+      case "outline":
         return {
           container: {
-            backgroundColor: 'transparent',
+            backgroundColor: "transparent",
             borderWidth: 2,
             borderColor: Colors.primary,
           },
@@ -111,17 +126,17 @@ export default function Button({
           },
         };
 
-      case 'ghost':
+      case "ghost":
         return {
           container: {
-            backgroundColor: 'transparent',
+            backgroundColor: "transparent",
           },
           text: {
             color: Colors.primary,
           },
         };
 
-      case 'danger':
+      case "danger":
         return {
           container: {
             backgroundColor: Colors.error,
@@ -132,7 +147,7 @@ export default function Button({
           },
         };
 
-      case 'success':
+      case "success":
         return {
           container: {
             backgroundColor: Colors.success,
@@ -154,7 +169,7 @@ export default function Button({
   // Get size styles
   const getSizeStyles = (): { container: ViewStyle; text: TextStyle } => {
     switch (size) {
-      case 'sm':
+      case "sm":
         return {
           container: {
             height: 40,
@@ -165,7 +180,7 @@ export default function Button({
           },
         };
 
-      case 'md':
+      case "md":
         return {
           container: {
             height: 48,
@@ -176,11 +191,11 @@ export default function Button({
           },
         };
 
-      case 'lg':
+      case "lg":
         return {
           container: {
             height: 56,
-            paddingHorizontal: Spacing['2xl'],
+            paddingHorizontal: Spacing["2xl"],
           },
           text: {
             fontSize: Typography.fontSize.lg,
@@ -204,6 +219,7 @@ export default function Button({
       onPress={handlePress}
       disabled={isDisabled}
       activeOpacity={0.7}
+      testID={testID}
       style={[
         styles.container,
         variantStyles.container,
@@ -215,7 +231,11 @@ export default function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' || variant === 'danger' ? Colors.white : Colors.primary}
+          color={
+            variant === "primary" || variant === "danger"
+              ? Colors.white
+              : Colors.primary
+          }
           size="small"
         />
       ) : (
@@ -243,24 +263,24 @@ export default function Button({
 const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
   },
   fullWidth: {
-    width: '100%',
+    width: "100%",
   },
   disabled: {
     opacity: 0.5,
   },
   content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   text: {
     fontWeight: Typography.fontWeight.semiBold,
-    textAlign: 'center',
+    textAlign: "center",
   },
   iconLeft: {
     marginRight: Spacing.sm,
