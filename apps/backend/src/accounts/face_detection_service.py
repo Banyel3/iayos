@@ -41,9 +41,10 @@ logger = logging.getLogger(__name__)
 # External Face API service URL
 FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
-# Request timeout (Face API cold start can take ~10-15s on Render free tier)
-# Increased from 30s to 45s to accommodate worst-case cold starts
-FACE_API_TIMEOUT = int(os.getenv("FACE_API_TIMEOUT", "45"))
+# Request timeout for Face API detection calls
+# 30s is sufficient - warm service responds in <5s, cold start unlikely to recover in longer timeout
+# Pre-warming on startup handles cold start delays
+FACE_API_TIMEOUT = int(os.getenv("FACE_API_TIMEOUT", "30"))
 
 # Health check timeout (shorter, used for keep-alive pings)
 FACE_API_HEALTH_TIMEOUT = int(os.getenv("FACE_API_HEALTH_TIMEOUT", "10"))

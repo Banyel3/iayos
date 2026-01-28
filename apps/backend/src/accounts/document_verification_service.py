@@ -756,15 +756,19 @@ class DocumentVerificationService:
             - count: number of faces
             - confidence: highest face confidence
             - skipped: bool if detection was skipped
+        
+        NOTE: Health check removed to save 10s. Pre-warming on startup ensures
+        service is ready. Let detection fail directly if service is down.
         """
-        if not self._check_face_api_available():
-            logger.warning("Face API not available, skipping face detection")
+        # Skip face detection if explicitly disabled (text-only documents)
+        if self.skip_face_service:
+            logger.info("Face detection disabled for this document type")
             return {
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
                 "skipped": True,
-                "reason": "Face API service not available"
+                "reason": "Face detection disabled for text-only documents"
             }
         
         try:
@@ -787,7 +791,7 @@ class DocumentVerificationService:
             # Call Face API detection endpoint using shared HTTP client for connection pooling
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
             
-            # Use shared client if available (connection pooling + 45s timeout for cold start)
+            # Use shared client if available (connection pooling + 30s timeout)
             if _use_shared_client:
                 client = get_http_client()
                 response = client.post(
@@ -1049,15 +1053,28 @@ class DocumentVerificationService:
             
             print(f"   📝 Running pytesseract with config: {custom_config}")
             
-            # Get detailed data including confidence
+            # Get detailed data including confidence - single Tesseract call for both text and confidence
+            # OPTIMIZATION: Previously ran image_to_data() AND image_to_string() (10-30s each)
+            # Now we extract text from image_to_data() output, saving 5-15 seconds
             data = pytesseract.image_to_data(processed, config=custom_config, output_type=pytesseract.Output.DICT)
             
             # Calculate average confidence of detected words
             confidences = [int(c) for c in data['conf'] if int(c) > 0]
             avg_confidence = sum(confidences) / len(confidences) if confidences else 0
             
-            # Get plain text
-            text = pytesseract.image_to_string(processed, config=custom_config)
+            # Build text from image_to_data output (avoids second Tesseract call)
+            # Reconstruct text by joining words, preserving line breaks via block/line numbers
+            words_by_line = {}
+            for i, word in enumerate(data['text']):
+                if word.strip():
+                    line_num = (data['block_num'][i], data['par_num'][i], data['line_num'][i])
+                    if line_num not in words_by_line:
+                        words_by_line[line_num] = []
+                    words_by_line[line_num].append(word)
+            
+            # Join words within lines, then join lines with newlines
+            lines = [' '.join(words) for _, words in sorted(words_by_line.items())]
+            text = '\n'.join(lines)
             
             print(f"   📝 Tesseract extracted {len(text)} chars, avg_confidence={avg_confidence:.1f}%")
             
