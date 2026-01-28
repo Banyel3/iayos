@@ -17,14 +17,6 @@ on:
   # Manual trigger for on-demand releases
   workflow_dispatch:
     inputs:
-      build_type:
-        description: "Build type (development = Detox-ready, production = App Store)"
-        required: true
-        default: "development"
-        type: choice
-        options:
-          - development
-          - production
       version_type:
         description: "Version bump type"
         required: true
@@ -187,7 +179,7 @@ jobs:
           cd ${{ github.workspace }}
           git fetch --tags
           
-          TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}${{ github.event.inputs.build_type == 'development' && '-dev' || '' }}"
+          TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}"
           TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
           
           MAX_INCREMENT=10
@@ -265,17 +257,12 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          BUILD_PROFILE="${{ github.event.inputs.build_type || 'production' }}"
+          BUILD_PROFILE="production"
           
           echo "🏗️ LOCAL BUILD with profile: $BUILD_PROFILE"
           echo "✅ No EAS cloud credits consumed - building locally!"
           
-          if [ "$BUILD_PROFILE" = "development" ]; then
-            echo "📱 Development build - includes expo-dev-client for Detox E2E testing"
-            echo "⚠️  This APK will work with your live backend at api.iayos.online"
-          else
-            echo "📦 Production build - ready for app store distribution"
-          fi
+          echo "📦 Production build - ready for app store distribution"
           
           # Run local build (outputs APK directly, no cloud needed!)
           # The --local flag builds on this runner instead of EAS servers
@@ -442,17 +429,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.commit_version.outputs.tag_name }}
-          name: iAyos Mobile v${{ steps.commit_version.outputs.final_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}${{ github.event.inputs.build_type == 'development' && ' [Development Build]' || '' }}
+          name: iAyos Mobile v${{ steps.commit_version.outputs.final_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
             ## iAyos Mobile App Release v${{ steps.commit_version.outputs.final_version }}
 
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
-            **Build Profile:** ${{ github.event.inputs.build_type || 'production' }}
+            **Build Profile:** production
             **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'Newly Built' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
 
-            ${{ github.event.inputs.build_type == 'development' && '### 🔧 Development Build\n\nThis build includes:\n- ✅ expo-dev-client for Detox E2E testing\n- ✅ Connected to live backend: api.iayos.online\n- ✅ Ready for automated testing in CI/CD\n- ⚠️ **For testing only** - not optimized for production\n\n> Use this APK with the Detox E2E test workflow' || '### 📦 Production Build\n\nOptimized release ready for:\n- ✅ App Store distribution\n- ✅ Production deployment\n- ✅ End users' }}
+            ### 📦 Production Build
+
+            Optimized release ready for:
+            - ✅ App Store distribution
+            - ✅ Production deployment
+            - ✅ End users
 
             ### Changes
             See commit history for detailed changes.
@@ -477,7 +469,7 @@ jobs:
           if [ "${{ steps.analyze.outputs.should_release }}" == "true" ]; then
             echo "✅ **Version:** ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
-            echo "🏗️ **Profile:** ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
+            echo "🏗️ **Profile:** production" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.local_build }}" == "true" ]; then
@@ -497,15 +489,6 @@ jobs:
             else
               echo "🏗️ **Build:** Newly built" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
-              if [ "${{ github.event.inputs.build_type }}" == "development" ]; then
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "### 🔧 Development Build Features" >> $GITHUB_STEP_SUMMARY
-                echo "- ✅ Includes expo-dev-client for Detox testing" >> $GITHUB_STEP_SUMMARY
-                echo "- ✅ Connected to live backend (api.iayos.online)" >> $GITHUB_STEP_SUMMARY
-                echo "- ✅ Ready for E2E testing workflow" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "**Next Step:** Use this release in the Detox E2E Tests workflow" >> $GITHUB_STEP_SUMMARY
-              fi
             fi
           else
             echo "⏭️ No mobile release needed - no relevant changes detected" >> $GITHUB_STEP_SUMMARY
