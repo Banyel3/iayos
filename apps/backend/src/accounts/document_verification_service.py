@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Face API configuration (InsightFace microservice)
 # Set FACE_API_URL environment variable to point to your Face API service
 import os
-FACE_API_URL = os.getenv("FACE_API_URL", "http://localhost:8000")
+FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
 # Tesseract is imported conditionally to handle environments where it's not installed
 try:
