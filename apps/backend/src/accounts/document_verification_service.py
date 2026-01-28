@@ -226,7 +226,7 @@ FACE_REQUIRED_DOCUMENTS = [
 # Minimum requirements
 MIN_RESOLUTION = 400  # Minimum width or height in pixels (lowered from 640 for testing)
 MIN_FACE_SIZE_RATIO = 0.05  # Face must be at least 5% of image area
-MAX_BLUR_THRESHOLD = 100  # Laplacian variance threshold (lower = more blur)
+MAX_BLUR_THRESHOLD = 50  # Lowered from 100 for leniency on REP IDs  # Laplacian variance threshold (lower = more blur)
 MIN_CONFIDENCE_FACE = 0.40  # Minimum confidence for face detection (lowered for ID photos with small/faded faces)
 
 

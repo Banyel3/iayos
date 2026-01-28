@@ -231,12 +231,19 @@ const AgencyKYCPage = () => {
     setIsValidatingPermit(false);
 
     if (!result.valid) {
-      setPermitValidationError(result.error || "Document validation failed");
+      // Get error message from AI rejection details or fallback
+      const errorMessage = result.error || 
+        result.details?.ai_rejection_message ||
+        (result.details?.ai_rejection_reason === 'MISSING_REQUIRED_TEXT'
+          ? 'Could not verify business permit. Please ensure the document shows required text (Business, Permit, City/Municipality) clearly.'
+          : result.details?.ai_rejection_reason === 'IMAGE_TOO_BLURRY'
+          ? 'Image is too blurry. Please upload a clearer photo.'
+          : 'Document validation failed. Please try again with a clearer image.');
+      setPermitValidationError(errorMessage);
       showToast({
         type: "error",
         title: "Document Validation Failed",
-        message:
-          result.error || "Please upload a clear photo of your business permit",
+        message: errorMessage,
       });
       setPermitPreview("");
       return;
@@ -245,7 +252,10 @@ const AgencyKYCPage = () => {
     setBusinessPermit(f);
     // Store file hash for later upload
     if (result.file_hash) {
-      setFileHashes((prev) => ({ ...prev, BUSINESS_PERMIT: result.file_hash! }));
+      setFileHashes((prev) => ({
+        ...prev,
+        BUSINESS_PERMIT: result.file_hash!,
+      }));
     }
 
     showToast({
@@ -280,15 +290,21 @@ const AgencyKYCPage = () => {
     setIsValidatingRepFront(false);
 
     if (!result.valid) {
-      setRepFrontValidationError(
-        result.error || "Face not detected in ID photo",
-      );
+      // Get error message from AI rejection details or fallback
+      const errorMessage = result.error || 
+        result.details?.ai_rejection_message ||
+        (result.details?.ai_rejection_reason === 'MISSING_REQUIRED_TEXT' 
+          ? 'Could not verify document authenticity. Please ensure the document shows required text clearly.'
+          : result.details?.ai_rejection_reason === 'NO_FACE_DETECTED'
+          ? 'No face detected in ID document. Please upload a clear photo of your ID showing your face.'
+          : result.details?.ai_rejection_reason === 'IMAGE_TOO_BLURRY'
+          ? 'Image is too blurry. Please upload a clearer photo.'
+          : 'Validation failed. Please try again with a clearer image.');
+      setRepFrontValidationError(errorMessage);
       showToast({
         type: "error",
         title: "ID Validation Failed",
-        message:
-          result.error ||
-          "Please upload a clear photo of your ID with your face visible",
+        message: errorMessage,
       });
       // Clear preview on failure
       setRepFrontPreview("");
@@ -344,12 +360,19 @@ const AgencyKYCPage = () => {
     setIsValidatingRepBack(false);
 
     if (!result.valid) {
-      setRepBackValidationError(result.error || "ID back validation failed");
+      // Get error message from AI rejection details or fallback
+      const errorMessage = result.error || 
+        result.details?.ai_rejection_message ||
+        (result.details?.ai_rejection_reason === 'IMAGE_TOO_BLURRY'
+          ? 'Image is too blurry. Please upload a clearer photo.'
+          : result.details?.ai_rejection_reason === 'RESOLUTION_TOO_LOW'
+          ? 'Image resolution is too low. Please upload a higher quality image.'
+          : 'ID back validation failed. Please try again with a clearer image.');
+      setRepBackValidationError(errorMessage);
       showToast({
         type: "error",
         title: "ID Validation Failed",
-        message:
-          result.error || "Please upload a clear photo of the back of your ID",
+        message: errorMessage,
       });
       // Clear preview on failure
       setRepBackPreview("");
