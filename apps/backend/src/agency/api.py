@@ -2,6 +2,7 @@ from ninja import Router, Form
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from . import services, schemas
+from .fast_upload_service import upload_agency_kyc_fast, extract_ocr_for_autofill
 import logging
 
 router = Router()
@@ -10,39 +11,72 @@ logger = logging.getLogger(__name__)
 
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
 def upload_agency_kyc(request):
-    """Upload agency KYC documents. Expects multipart/form-data. Files are read from request.FILES to avoid bytes validation errors."""
+    """
+    Upload agency KYC documents to Supabase (FAST - no AI validation).
+    
+    AI validation already happened in per-step validation (/kyc/validate-document).
+    This endpoint ONLY uploads files to storage and saves to database.
+    
+    Request: multipart/form-data with:
+    - business_permit, rep_front, rep_back (required files)
+    - address_proof, auth_letter (optional files)
+    - file_hashes: JSON object mapping document_type -> file_hash from validation
+    - rep_id_type: ID type for rep front (PHILSYS_ID, etc.)
+    - business_type: Business type (SOLE_PROPRIETORSHIP, etc.)
+    
+    Response time: ~5-10 seconds (vs 25-45s with AI validation)
+    """
     try:
         # Get account ID from authenticated user
         account_id = request.auth.accountID
-        businessName = request.POST.get("businessName")
-        businessDesc = request.POST.get("businessDesc")
-        rep_id_type = request.POST.get("rep_id_type", "PHILSYS_ID")  # Default to PhilSys ID
-        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")  # Business type for OCR filtering
+        business_name = request.POST.get("businessName")
+        business_desc = request.POST.get("businessDesc")
+        rep_id_type = request.POST.get("rep_id_type", "PHILSYS_ID")
+        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
+        
+        # Get file hashes from validation step (JSON string)
+        import json
+        file_hashes_json = request.POST.get("file_hashes", "{}")
+        try:
+            file_hashes = json.loads(file_hashes_json)
+        except json.JSONDecodeError:
+            file_hashes = {}
         
         class Payload:
-            def __init__(self, accountID, businessName=None, businessDesc=None, rep_id_type=None, business_type=None):
+            def __init__(self, accountID, businessName=None, businessDesc=None, rep_id_type=None, business_type=None, file_hashes=None):
                 self.accountID = accountID
                 self.businessName = businessName
                 self.businessDesc = businessDesc
                 self.rep_id_type = rep_id_type
                 self.business_type = business_type
+                self.file_hashes = file_hashes or {}
 
-        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc, rep_id_type=rep_id_type, business_type=business_type)
+        payload = Payload(
+            accountID=account_id,
+            businessName=business_name,
+            businessDesc=business_desc,
+            rep_id_type=rep_id_type,
+            business_type=business_type,
+            file_hashes=file_hashes
+        )
 
-        # Read uploaded files from request.FILES (Django's UploadedFile objects)
+        # Read uploaded files from request.FILES
         business_permit = request.FILES.get("business_permit")
         rep_front = request.FILES.get("rep_front")
         rep_back = request.FILES.get("rep_back")
         address_proof = request.FILES.get("address_proof")
         auth_letter = request.FILES.get("auth_letter")
 
-        result = services.upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
+        # Call optimized upload service (skips AI validation)
+        result = services.upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
 
         return result
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"Error in upload_agency_kyc: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return Response({"error": "Internal server error"}, status=500)
 
 
@@ -59,6 +93,54 @@ def agency_kyc_status(request):
         return Response({"error": "Internal server error"}, status=500)
 
 
+@router.post("/kyc/extract-ocr", auth=cookie_auth)
+def extract_ocr_from_documents(request):
+    """
+    Extract OCR text from uploaded documents for business form autofill.
+    
+    This endpoint runs AFTER validation and provides extracted data for
+    the Business Description Forms where users can edit the OCR text.
+    
+    Request: multipart/form-data with:
+    - business_permit: Business permit image (required for business name/address)
+    - rep_id_front: Representative ID front (optional, for rep name/ID number)
+    - business_type: Business type (SOLE_PROPRIETORSHIP, etc.)
+    
+    Response:
+    - extracted_data: dict with business_name, business_address, rep_name, etc.
+    - confidence: float (0-1) for OCR quality
+    
+    Response time: ~3-5 seconds for OCR processing
+    """
+    try:
+        account_id = request.auth.accountID
+        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
+        
+        # Get uploaded documents
+        business_permit = request.FILES.get("business_permit")
+        rep_id_front = request.FILES.get("rep_id_front")
+        
+        if not business_permit:
+            return Response({"error": "Business permit is required for OCR extraction"}, status=400)
+        
+        # Run OCR extraction service
+        result = services.extract_ocr_for_autofill(
+            business_permit=business_permit,
+            rep_id_front=rep_id_front,
+            business_type=business_type
+        )
+        
+        return result
+        
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"Error in extract_ocr_from_documents: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "OCR extraction failed. Please fill the form manually."}, status=500)
+
+
 # ============================================
 # KYC AI VERIFICATION ENDPOINTS
 # ============================================
@@ -66,20 +148,21 @@ def agency_kyc_status(request):
 @router.post("/kyc/validate-document", auth=cookie_auth)
 def validate_agency_document(request):
     """
-    Per-step validation for agency KYC uploads.
+    Per-step validation for agency KYC uploads with Redis caching.
     Validates document quality (resolution, blur) and face detection (for rep ID).
     
-    Face detection uses CompreFace API (external service) - lightweight HTTP calls.
-    If CompreFace is unavailable, documents are marked for manual review.
+    Results are cached in Redis for 5 minutes to avoid re-validation during upload.
     
     Request: multipart/form-data with:
     - file: The document to validate
     - document_type: BUSINESS_PERMIT, REP_ID_FRONT, REP_ID_BACK, ADDRESS_PROOF, AUTH_LETTER
+    - rep_id_type: (optional) ID type for REP_ID_FRONT (PHILSYS_ID, DRIVERS_LICENSE, etc.)
     
     Response:
     - valid: bool - whether document passes validation
     - error: str - user-friendly error message if invalid
     - details: dict - validation details (resolution, quality_score, face_detected, etc.)
+    - file_hash: str - SHA-256 hash for cache key (returned to frontend)
     """
     try:
         # Get uploaded file first (fast operation)
@@ -104,19 +187,34 @@ def validate_agency_document(request):
                 return {
                     "valid": True,
                     "error": None,
-                    "details": {"skipped": True, "reason": "PDF files skip image validation"}
+                    "details": {"skipped": True, "reason": "PDF files skip image validation"},
+                    "file_hash": None
                 }
             return Response({"valid": False, "error": "Only JPEG and PNG images are supported for validation"}, status=400)
         
         # Read file data
         file_data = file.read()
         
-        # Get optional rep_id_type for type-specific OCR (unified naming from mobile app)
+        # Generate file hash for caching
+        from .validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
+        file_hash = generate_file_hash(file_data)
+        
+        # Check cache first
+        cached_result = get_cached_validation(file_hash, document_type)
+        if cached_result:
+            print(f"✅ [CACHE HIT] Using cached validation for {document_type}")
+            return {
+                "valid": cached_result.get('ai_status') != 'FAILED',
+                "error": cached_result.get('ai_rejection_message'),
+                "details": cached_result,
+                "file_hash": file_hash,
+                "cached": True
+            }
+        
+        # Get optional rep_id_type for type-specific OCR
         rep_id_type = request.POST.get("rep_id_type", "").upper()
         
-        # Determine if face detection is required
-        # Face required for representative ID (front and back)
-        # Face required for representative ID (front only)
+        # Determine if face detection is required (front ID only)
         require_face = document_type in ['REP_ID_FRONT']
         
         # Map to verification service document type
@@ -131,21 +229,49 @@ def validate_agency_document(request):
         
         print(f"🔍 [AGENCY] Validating {document_type} as {verification_doc_type}, require_face={require_face}")
         
-        # Import and run validation - InsightFace is pre-warmed so this is fast
+        # Import and run validation
         try:
             from accounts.document_verification_service import DocumentVerificationService
+            from django.utils import timezone
             service = DocumentVerificationService()
             
-            # Run quick validation (resolution + blur + face)
-            result = service.validate_document_quick(
+            # Run full validation (face detection + quality checks)
+            result = service.verify_document(
                 file_data=file_data,
                 document_type=verification_doc_type,
-                require_face=require_face
+                file_name=f"{document_type}.jpg"
             )
-            return result
+            
+            # Prepare result for caching
+            validation_data = {
+                'ai_status': result.status.value,
+                'face_detected': result.face_detected,
+                'face_count': result.face_count,
+                'face_confidence': result.details.get('face_detection', {}).get('confidence', 0) if result.details else 0,
+                'quality_score': result.quality_score,
+                'ai_confidence_score': result.confidence_score,
+                'ai_warnings': result.warnings or [],
+                'ai_details': result.details or {},
+                'ai_rejection_reason': result.rejection_reason.value if result.rejection_reason else None,
+                'ai_rejection_message': result.details.get('message') if result.details else None,
+            }
+            
+            # Cache the result
+            cache_validation_result(file_hash, document_type, validation_data)
+            
+            # Return response
+            return {
+                "valid": result.status.value != 'FAILED',
+                "error": validation_data.get('ai_rejection_message'),
+                "details": validation_data,
+                "file_hash": file_hash,
+                "cached": False
+            }
             
         except Exception as init_error:
             print(f"⚠️ DocumentVerificationService error: {init_error}")
+            import traceback
+            traceback.print_exc()
             # Return valid with manual review flag if AI service fails
             return {
                 "valid": True,
