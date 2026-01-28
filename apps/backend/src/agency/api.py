@@ -231,8 +231,48 @@ def validate_agency_document(request):
         
         # Import and run validation
         try:
-            from accounts.document_verification_service import DocumentVerificationService
+            from accounts.document_verification_service import DocumentVerificationService, TEXT_ONLY_DOCUMENTS, should_auto_reject
             from django.utils import timezone
+            
+            # TEXT-ONLY DOCUMENTS: Use lightweight validation path (no face detection service)
+            # This prevents InsightFace cold-start timeout for permits, clearances, etc.
+            if document_type in ['BUSINESS_PERMIT', 'ADDRESS_PROOF', 'AUTH_LETTER']:
+                print(f"📄 [AGENCY] Using fast text-only validation for {document_type}")
+                # Skip face service initialization entirely
+                service = DocumentVerificationService(skip_face_service=True)
+                result = service.validate_text_only_document(
+                    file_data=file_data,
+                    document_type=verification_doc_type,
+                    skip_keyword_check=True  # Just verify readable text, allow manual review
+                )
+                
+                # Prepare result for caching (text-only format)
+                validation_data = {
+                    'ai_status': 'PASSED' if result.get('valid') else 'FAILED',
+                    'face_detected': False,
+                    'face_count': 0,
+                    'face_confidence': 0,
+                    'quality_score': result.get('details', {}).get('quality_score', 0),
+                    'ai_confidence_score': result.get('details', {}).get('ocr_confidence', 0),
+                    'ai_warnings': result.get('details', {}).get('warnings', []),
+                    'ai_details': result.get('details', {}),
+                    'ai_rejection_reason': None,
+                    'ai_rejection_message': result.get('error'),
+                    'text_only_validation': True,
+                }
+                
+                # Cache the result
+                cache_validation_result(file_hash, document_type, validation_data)
+                
+                return {
+                    "valid": result.get('valid', False),
+                    "error": result.get('error'),
+                    "details": validation_data,
+                    "file_hash": file_hash,
+                    "cached": False
+                }
+            
+            # ID DOCUMENTS: Full validation with face detection
             service = DocumentVerificationService()
             
             # Run full validation (face detection + quality checks)
@@ -243,7 +283,6 @@ def validate_agency_document(request):
             )
             
             # Get proper rejection message using should_auto_reject
-            from accounts.document_verification_service import should_auto_reject
             _, rejection_message = should_auto_reject(result)
             
             # Prepare result for caching
