@@ -143,6 +143,161 @@ def extract_ocr_from_documents(request):
         return Response({"error": "OCR extraction failed. Please fill the form manually."}, status=500)
 
 
+@router.post("/kyc/autofill-business", auth=cookie_auth)
+def autofill_business_from_ocr(request):
+    """
+    Extract and return BUSINESS-related fields from business permit OCR.
+
+    Used in Agency KYC Step 3 (Business Information) to auto-populate:
+    - business_name, business_address, business_type
+    - permit_number, dti_number, sec_number, tin
+    - permit_issue_date, permit_expiry_date
+
+    Request: multipart/form-data with:
+    - business_permit: Business permit image (required)
+    - business_type: Business type hint (SOLE_PROPRIETORSHIP, PARTNERSHIP, CORPORATION, COOPERATIVE)
+
+    Response:
+    - success: bool
+    - fields: dict with business fields
+    - confidence: float (0-1) for OCR quality
+    """
+    try:
+        from .kyc_extraction_parser import get_agency_kyc_parser
+        from accounts.document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        from django.utils import timezone
+
+        business_permit = request.FILES.get("business_permit")
+        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
+
+        if not business_permit:
+            return Response({"success": False, "error": "Business permit is required"}, status=400)
+
+        print("📝 [AUTOFILL-BUSINESS] Extracting business data from permit...")
+
+        business_permit.seek(0)
+        permit_bytes = business_permit.read()
+
+        doc_service = DocumentVerificationService(skip_face_service=True)
+        permit_img = Image.open(io.BytesIO(permit_bytes))
+        ocr_result = doc_service._extract_text(permit_img)
+        ocr_text = ocr_result.get("text", "")
+
+        print(
+            f"   📄 Business permit OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}"
+        )
+
+        parser = get_agency_kyc_parser()
+        parsed_business = parser.parse_ocr_text(ocr_text, "BUSINESS_PERMIT")
+
+        fields = {
+            "business_name": parsed_business.business_name.value or "",
+            "business_address": parsed_business.business_address.value or "",
+            "business_type": business_type,
+            "permit_number": parsed_business.permit_number.value or "",
+            "dti_number": parsed_business.dti_number.value or "",
+            "sec_number": parsed_business.sec_number.value or "",
+            "tin": parsed_business.tin.value or "",
+            "permit_issue_date": parsed_business.permit_issue_date.value or "",
+            "permit_expiry_date": parsed_business.permit_expiry_date.value or "",
+        }
+
+        print(
+            f"✅ [AUTOFILL-BUSINESS] Extracted: name='{fields['business_name'][:30]}...', dti={fields['dti_number']}, permit={fields['permit_number']}"
+        )
+
+        return {
+            "success": True,
+            "fields": fields,
+            "confidence": parsed_business.overall_confidence,
+            "extracted_at": timezone.now().isoformat(),
+        }
+
+    except Exception as e:
+        print(f"❌ [AUTOFILL-BUSINESS] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": "Failed to extract business data"}, status=500)
+
+
+@router.post("/kyc/autofill-id", auth=cookie_auth)
+def autofill_id_from_ocr(request):
+    """
+    Extract and return REPRESENTATIVE ID fields from ID document OCR.
+
+    Used in Agency KYC Step 4 (Representative ID) to auto-populate:
+    - rep_full_name, rep_id_number, rep_id_type
+    - rep_birth_date, rep_address
+
+    Also usable in Mobile KYC for ID autofill.
+
+    Request: multipart/form-data with:
+    - id_front: ID front image (required)
+    - id_type: ID type hint (PHILSYS_ID, DRIVERS_LICENSE, PASSPORT, etc.)
+
+    Response:
+    - success: bool
+    - fields: dict with ID fields
+    - confidence: float (0-1) for OCR quality
+    """
+    try:
+        from .kyc_extraction_parser import get_agency_kyc_parser
+        from accounts.document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        from django.utils import timezone
+
+        id_front = request.FILES.get("id_front")
+        id_type = request.POST.get("id_type", "PHILSYS_ID")
+
+        if not id_front:
+            return Response({"success": False, "error": "ID front image is required"}, status=400)
+
+        print(f"📝 [AUTOFILL-ID] Extracting ID data (type: {id_type})...")
+
+        id_front.seek(0)
+        id_bytes = id_front.read()
+
+        doc_service = DocumentVerificationService(skip_face_service=True)
+        id_img = Image.open(io.BytesIO(id_bytes))
+        ocr_result = doc_service._extract_text(id_img)
+        ocr_text = ocr_result.get("text", "")
+
+        print(
+            f"   🪪 ID OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}"
+        )
+
+        parser = get_agency_kyc_parser()
+        parsed_id = parser.parse_ocr_text(ocr_text, id_type.upper())
+
+        fields = {
+            "rep_full_name": parsed_id.rep_full_name.value or "",
+            "rep_id_number": parsed_id.rep_id_number.value or "",
+            "rep_id_type": id_type,
+            "rep_birth_date": parsed_id.rep_birth_date.value or "",
+            "rep_address": parsed_id.rep_address.value or "",
+        }
+
+        print(
+            f"✅ [AUTOFILL-ID] Extracted: name='{fields['rep_full_name']}', id_num={fields['rep_id_number']}"
+        )
+
+        return {
+            "success": True,
+            "fields": fields,
+            "confidence": parsed_id.overall_confidence,
+            "extracted_at": timezone.now().isoformat(),
+        }
+
+    except Exception as e:
+        print(f"❌ [AUTOFILL-ID] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": "Failed to extract ID data"}, status=500)
+
+
 # ============================================
 # KYC AI VERIFICATION ENDPOINTS
 # ============================================
