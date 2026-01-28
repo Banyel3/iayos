@@ -110,7 +110,8 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		
 		# Define which documents require OCR keyword validation
 		# BUSINESS_PERMIT requires OCR to extract and validate business keywords
-		ocr_required_docs = ['BUSINESS_PERMIT']
+		# REP_ID_FRONT requires OCR to extract representative name, ID number, etc.
+		ocr_required_docs = ['BUSINESS_PERMIT', 'REP_ID_FRONT']
 
 		for key, file in files_map.items():
 			if not file:
@@ -223,10 +224,18 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 						failure_messages.append(ai_rejection_message)
 						print(f"   ❌ Face detection FAILED for {key}")
 				
-				# OCR results (for business permit)
+				# OCR results (for business permit and representative ID)
 				if key in ocr_required_docs:
 					ocr_text = verification_result.extracted_text[:2000] if verification_result.extracted_text else None
 					ocr_confidence = ai_details.get('ocr', {}).get('confidence', 0)
+					
+					# Debug: Log OCR extraction results
+					if ocr_text:
+						text_preview = ocr_text[:200].replace('\n', ' ')
+						print(f"   📝 OCR extracted from {key}: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
+						print(f"      Preview: {text_preview}...")
+					else:
+						print(f"   ⚠️  NO OCR text extracted from {key} (verification_result.extracted_text was None or empty)")
 					
 					# Check keyword validation for business permit
 					keyword_check = ai_details.get('keyword_check', {})
@@ -325,10 +334,16 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		
 		# Trigger Agency KYC extraction to populate auto-fill data
 		try:
+			print(f"🚀 [TRIGGER] Calling extraction service for AgencyKYC {kyc_record.agencyKycID}")
+			print(f"   Business type: {business_type}")
+			print(f"   Files uploaded: {len(uploaded_files)}")
 			from .kyc_extraction_service import trigger_agency_kyc_extraction_after_upload
 			trigger_agency_kyc_extraction_after_upload(kyc_record, business_type)
+			print(f"✅ [TRIGGER] Extraction service completed successfully")
 		except Exception as ext_error:
-			print(f"⚠️  Agency KYC extraction failed (non-blocking): {str(ext_error)}")
+			print(f"❌ [TRIGGER] Agency KYC extraction FAILED: {str(ext_error)}")
+			import traceback
+			traceback.print_exc()
 			# Don't fail KYC upload if extraction fails - admin can still verify manually
 		
 		return {
