@@ -119,10 +119,12 @@ DOCUMENT_KEYWORDS = {
         ["POLICE", "PNP", "PHILIPPINE NATIONAL POLICE"],
         ["CLEARANCE", "CERTIFICATE"],
     ],
-    # Business Permit (for agencies)
+    # Business Permit (for agencies) - includes Mayor's Permit AND DTI Business Registration
     "BUSINESS_PERMIT": [
-        ["BUSINESS", "MAYOR", "PERMIT", "LICENSE"],
-        ["CITY", "MUNICIPALITY", "BARANGAY"],
+        # Must match at least one from this group
+        ["BUSINESS", "MAYOR", "PERMIT", "LICENSE", "DTI", "TRADE", "INDUSTRY", "CERTIFICATE"],
+        # Must match at least one from this group (location OR DTI registration keywords)
+        ["CITY", "MUNICIPALITY", "BARANGAY", "REGION", "REGISTRATION", "CERTIFIES", "ZAMBOANGA"],
     ],
     
     # ============ GOVERNMENT IDs ============
