@@ -227,7 +227,7 @@ FACE_REQUIRED_DOCUMENTS = [
 MIN_RESOLUTION = 400  # Minimum width or height in pixels (lowered from 640 for testing)
 MIN_FACE_SIZE_RATIO = 0.05  # Face must be at least 5% of image area
 MAX_BLUR_THRESHOLD = 100  # Laplacian variance threshold (lower = more blur)
-MIN_CONFIDENCE_FACE = 0.85  # Minimum confidence for face detection
+MIN_CONFIDENCE_FACE = 0.40  # Minimum confidence for face detection (lowered for ID photos with small/faded faces)
 
 
 class DocumentVerificationService:

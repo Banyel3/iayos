@@ -105,8 +105,8 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		verification_service = DocumentVerificationService()
 		
 		# Define which documents require face detection
-		# REP_ID_FRONT and REP_ID_BACK require face detection (representative ID)
-		face_required_docs = ['REP_ID_FRONT', 'REP_ID_BACK']
+		# Only REP_ID_FRONT requires face detection - back of IDs don't have faces
+		face_required_docs = ['REP_ID_FRONT']
 		
 		# Define which documents require OCR keyword validation
 		# BUSINESS_PERMIT requires OCR to extract and validate business keywords
