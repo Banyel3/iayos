@@ -24,17 +24,81 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Face API configuration (InsightFace microservice)
-# Set FACE_API_URL environment variable to point to your Face API service
 import os
 FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
-# Tesseract is imported conditionally to handle environments where it's not installed
+# Tesseract is imported conditionally
 try:
     import pytesseract
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
     logger.warning("pytesseract not installed - OCR verification disabled")
+
+# Import pdf2image for PDF support
+try:
+    from pdf2image import convert_from_bytes
+    PDF_SUPPORT_AVAILABLE = True
+except ImportError:
+    PDF_SUPPORT_AVAILABLE = False
+    logger.warning("pdf2image not installed - PDF verification disabled")
+
+# ... (inside DocumentVerificationService methods)
+
+    def _load_image_from_bytes(self, file_data: bytes) -> Optional[Image.Image]:
+        """
+        Load image from bytes, converting PDF to image if necessary
+        Returns None if loading fails
+        """
+        try:
+            # Try loading as standard image first
+            image = Image.open(io.BytesIO(file_data))
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            return image
+        except Exception:
+            # Failed as image, try as PDF
+            if PDF_SUPPORT_AVAILABLE:
+                try:
+                    # Convert first page of PDF to image
+                    images = convert_from_bytes(file_data, first_page=1, last_page=1)
+                    if images:
+                        return images[0].convert('RGB')
+                except Exception as pdf_error:
+                    logger.warning(f"Failed to load as PDF: {pdf_error}")
+            
+            return None
+
+    def verify_document(
+        self, 
+        file_data: bytes, 
+        document_type: str,
+        file_name: str = ""
+    ) -> VerificationResult:
+        """
+        Verify a single document
+        """
+        logger.info(f"🔍 Starting verification for document: {document_type} ({file_name})")
+        
+        warnings = []
+        details = {}
+        
+        try:
+            # Load image (supports PDF)
+            image = self._load_image_from_bytes(file_data)
+            
+            if not image:
+                return VerificationResult(
+                    status=VerificationStatus.FAILED,
+                    rejection_reason=RejectionReason.UNREADABLE_DOCUMENT,
+                    details={"error": "Could not load file. Please ensure it is a valid Image or PDF."},
+                    warnings=["File format not supported or file is corrupted"]
+                )
+            
+            width, height = image.size
+            details["resolution"] = f"{width}x{height}"
+            logger.info(f"   Image loaded: {width}x{height}, mode={image.mode}")
+
 
 
 class VerificationStatus(Enum):

@@ -77,6 +77,7 @@ pandas>=2.0.0  # Required for ML dataset statistics endpoint
 pytesseract>=0.3.10  # Python wrapper for Tesseract OCR
 Pillow>=10.0.0  # Image processing for quality checks
 scipy>=1.11.0  # Image processing (blur detection via Laplacian)
+pdf2image>=1.17.0  # Convert PDF to image for OCR
 
 # Face Detection - Moved to separate Face API service
 # insightface>=0.7.3  # Removed
