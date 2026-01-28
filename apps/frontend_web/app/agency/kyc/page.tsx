@@ -33,6 +33,9 @@ const AgencyKYCPage = () => {
   // Hydration fix
   const [isMounted, setIsMounted] = useState(false);
 
+  // Loading state for initial status fetch (prevents flicker)
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [businessName, setBusinessName] = useState("");
   const [businessDesc, setBusinessDesc] = useState("");
@@ -103,11 +106,15 @@ const AgencyKYCPage = () => {
     // If authenticated, fetch agency KYC status to prevent duplicate submissions
     const fetchStatus = async () => {
       try {
+        setIsLoadingStatus(true);
         const res = await fetch(`${API_BASE}/api/agency/status`, {
           method: "GET",
           credentials: "include",
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          setIsLoadingStatus(false);
+          return;
+        }
         const data = await res.json().catch(() => ({}));
         const status = data?.status || data?.kycStatus || null;
         if (status) {
@@ -121,6 +128,8 @@ const AgencyKYCPage = () => {
         }
       } catch (err) {
         console.error("Failed to fetch agency kyc status", err);
+      } finally {
+        setIsLoadingStatus(false);
       }
     };
 
@@ -1642,17 +1651,17 @@ const AgencyKYCPage = () => {
             {renderProgressBar()}
 
             <div className="relative bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-              {(isSubmitting || isNavigating) && (
+              {(isSubmitting || isNavigating || isLoadingStatus) && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 rounded-2xl">
                   <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
                   <div className="text-blue-700 font-medium text-base">
-                    {isNavigating ? "Loading..." : "Uploading your documents..."}
+                    {isLoadingStatus ? "Loading status..." : isNavigating ? "Loading..." : "Uploading your documents..."}
                   </div>
                 </div>
               )}
               <div
                 className={
-                  (isSubmitting || isNavigating)
+                  (isSubmitting || isNavigating || isLoadingStatus)
                     ? "opacity-50 pointer-events-none select-none"
                     : ""
                 }
