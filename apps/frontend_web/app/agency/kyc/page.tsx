@@ -96,16 +96,13 @@ const AgencyKYCPage = () => {
   const [permitValidationError, setPermitValidationError] = useState<
     string | null
   >(null);
-  
+
   // File hashes from validation (for cached upload)
   const [fileHashes, setFileHashes] = useState<Record<string, string>>({});
-  
+
   // OCR extraction state
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
   const [ocrExtracted, setOcrExtracted] = useState(false);
-  
-  // OCR extraction state
-  const [isExtractingOCR, setIsExtractingOCR] = useState(false);
   const [ocrExtractedData, setOcrExtractedData] = useState<any>(null);
 
   useEffect(() => {
@@ -144,7 +141,6 @@ const AgencyKYCPage = () => {
       }
     };
 
-
     if (!isLoading && isAuthenticated) fetchStatus();
   }, [isAuthenticated, isLoading, router]);
 
@@ -154,7 +150,6 @@ const AgencyKYCPage = () => {
   }, []);
 
   // Early returns moved to bottom to prevent Hook execution mismatch
-
 
   const validateFile = (file: File) => {
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
@@ -175,6 +170,7 @@ const AgencyKYCPage = () => {
     error?: string;
     warning?: string;
     details?: any;
+    file_hash?: string;
   }> => {
     try {
       const formData = new FormData();
@@ -202,7 +198,8 @@ const AgencyKYCPage = () => {
       return data;
     } catch (error) {
       console.error("AI validation error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       return { valid: false, error: `Validation failed: ${errorMessage}` };
     }
   };
@@ -223,33 +220,34 @@ const AgencyKYCPage = () => {
     const err = validateFile(f);
     if (err)
       return showToast({ type: "error", title: "Invalid file", message: err });
-    
+
     // Show preview immediately
     handleFilePreview(f, setPermitPreview);
     setPermitValidationError(null);
-    
+
     // Run AI validation
     setIsValidatingPermit(true);
     const result = await validateDocumentWithAI(f, "BUSINESS_PERMIT");
     setIsValidatingPermit(false);
-    
+
     if (!result.valid) {
       setPermitValidationError(result.error || "Document validation failed");
       showToast({
         type: "error",
         title: "Document Validation Failed",
-        message: result.error || "Please upload a clear photo of your business permit",
+        message:
+          result.error || "Please upload a clear photo of your business permit",
       });
       setPermitPreview("");
       return;
     }
-    
+
     setBusinessPermit(f);
     // Store file hash for later upload
     if (result.file_hash) {
-      setFileHashes(prev => ({ ...prev, BUSINESS_PERMIT: result.file_hash }));
+      setFileHashes((prev) => ({ ...prev, BUSINESS_PERMIT: result.file_hash! }));
     }
-    
+
     showToast({
       type: "success",
       title: "Document Validated",
@@ -300,7 +298,7 @@ const AgencyKYCPage = () => {
     setRepIDFront(f);
     // Store file hash for later upload
     if (result.file_hash) {
-      setFileHashes(prev => ({ ...prev, REP_ID_FRONT: result.file_hash }));
+      setFileHashes((prev) => ({ ...prev, REP_ID_FRONT: result.file_hash! }));
     }
 
     // Check if face detection was skipped (CompreFace unavailable) - show warning
@@ -378,8 +376,6 @@ const AgencyKYCPage = () => {
     }
   };
 
-
-
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     type: "front" | "back" | "permit" | "address" | "authLetter",
@@ -418,7 +414,8 @@ const AgencyKYCPage = () => {
       showToast({
         type: "warning",
         title: "Missing Documents",
-        message: "Please upload Business Permit and Representative ID Front for OCR extraction",
+        message:
+          "Please upload Business Permit and Representative ID Front for OCR extraction",
       });
       return;
     }
@@ -457,7 +454,8 @@ const AgencyKYCPage = () => {
         showToast({
           type: "success",
           title: "OCR Extracted",
-          message: "Business data autofilled successfully! Please review and edit if needed.",
+          message:
+            "Business data autofilled successfully! Please review and edit if needed.",
         });
         setOcrExtracted(true);
         setCurrentStep(3); // Move to form step
@@ -465,7 +463,8 @@ const AgencyKYCPage = () => {
         showToast({
           type: "warning",
           title: "Low Confidence",
-          message: "OCR extraction completed with low confidence. Please fill the form manually.",
+          message:
+            "OCR extraction completed with low confidence. Please fill the form manually.",
         });
         setOcrExtracted(true);
         setCurrentStep(3); // Still move to form
@@ -513,7 +512,7 @@ const AgencyKYCPage = () => {
       formData.append("rep_front", repIDFront as Blob);
       formData.append("rep_back", repIDBack as Blob);
       formData.append("business_permit", businessPermit as Blob);
-      
+
       // Add file hashes for optimized upload (skips AI re-validation)
       if (Object.keys(fileHashes).length > 0) {
         formData.append("file_hashes_json", JSON.stringify(fileHashes));
@@ -943,12 +942,13 @@ const AgencyKYCPage = () => {
             </label>
             <label
               htmlFor="repFront"
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${repFrontValidationError
-                ? "border-red-400 bg-red-50"
-                : repIDFront
-                  ? "border-green-400"
-                  : "border-gray-300 hover:border-blue-500"
-                } ${isValidatingRepFront ? "opacity-60 pointer-events-none" : ""}`}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
+                repFrontValidationError
+                  ? "border-red-400 bg-red-50"
+                  : repIDFront
+                    ? "border-green-400"
+                    : "border-gray-300 hover:border-blue-500"
+              } ${isValidatingRepFront ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepFront ? (
                 <div className="flex flex-col items-center">
@@ -1015,12 +1015,13 @@ const AgencyKYCPage = () => {
             </label>
             <label
               htmlFor="repBack"
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${repBackValidationError
-                ? "border-red-400 bg-red-50"
-                : repIDBack
-                  ? "border-green-400"
-                  : "border-gray-300 hover:border-blue-500"
-                } ${isValidatingRepBack ? "opacity-60 pointer-events-none" : ""}`}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
+                repBackValidationError
+                  ? "border-red-400 bg-red-50"
+                  : repIDBack
+                    ? "border-green-400"
+                    : "border-gray-300 hover:border-blue-500"
+              } ${isValidatingRepBack ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepBack ? (
                 <div className="flex flex-col items-center">
@@ -1083,14 +1084,31 @@ const AgencyKYCPage = () => {
       <div className="flex justify-end gap-2 mt-8">
         <Button
           onClick={handleExtractOCR}
-          disabled={isExtractingOCR || !businessPermit || !repIDFront || !repIDBack}
+          disabled={
+            isExtractingOCR || !businessPermit || !repIDFront || !repIDBack
+          }
           className="bg-blue-500 text-white"
         >
           {isExtractingOCR ? (
             <>
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <svg
+                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
               </svg>
               Extracting Data...
             </>
@@ -1101,8 +1119,6 @@ const AgencyKYCPage = () => {
       </div>
     </div>
   );
-
-
 
   const getStatusBadge = () => {
     const status = agencyKycStatus?.toUpperCase();
@@ -1188,8 +1204,10 @@ const AgencyKYCPage = () => {
                   ✨ OCR Extraction Complete
                 </h3>
                 <p className="text-xs text-green-800">
-                  Business data has been automatically extracted from your documents and autofilled below. 
-                  Please review for accuracy and edit any fields if needed. Confidence scores are shown for each field.
+                  Business data has been automatically extracted from your
+                  documents and autofilled below. Please review for accuracy and
+                  edit any fields if needed. Confidence scores are shown for
+                  each field.
                 </p>
               </div>
             </div>
@@ -1210,8 +1228,10 @@ const AgencyKYCPage = () => {
               </h2>
               <div className="space-y-4">
                 {AGENCY_KYC_FIELD_CONFIG.filter(
-                  (f) => f.section === "business" &&
-                    (!f.applicableBusinessTypes || f.applicableBusinessTypes.includes(businessType)),
+                  (f) =>
+                    f.section === "business" &&
+                    (!f.applicableBusinessTypes ||
+                      f.applicableBusinessTypes.includes(businessType)),
                 ).map((field) => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1228,10 +1248,11 @@ const AgencyKYCPage = () => {
                           handleOcrFieldChange(field.key, e.target.value)
                         }
                         placeholder={field.placeholder}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editedFields.has(field.key)
-                          ? "border-yellow-400 bg-yellow-50"
-                          : "border-gray-300"
-                          }`}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                          editedFields.has(field.key)
+                            ? "border-yellow-400 bg-yellow-50"
+                            : "border-gray-300"
+                        }`}
                       />
                       {hasAutofillData && (
                         <div className="absolute right-2 top-2">
@@ -1279,10 +1300,11 @@ const AgencyKYCPage = () => {
                             handleOcrFieldChange(field.key, e.target.value);
                             setRepIdType(e.target.value);
                           }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${editedFields.has(field.key)
-                            ? "border-yellow-400 bg-yellow-50"
-                            : "border-gray-300"
-                            }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${
+                            editedFields.has(field.key)
+                              ? "border-yellow-400 bg-yellow-50"
+                              : "border-gray-300"
+                          }`}
                         >
                           {field.options?.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -1298,10 +1320,11 @@ const AgencyKYCPage = () => {
                             handleOcrFieldChange(field.key, e.target.value)
                           }
                           placeholder={field.placeholder}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editedFields.has(field.key)
-                            ? "border-yellow-400 bg-yellow-50"
-                            : "border-gray-300"
-                            }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                            editedFields.has(field.key)
+                              ? "border-yellow-400 bg-yellow-50"
+                              : "border-gray-300"
+                          }`}
                         />
                       )}
                       {hasAutofillData && field.type !== "select" && (
@@ -1366,8 +1389,18 @@ const AgencyKYCPage = () => {
                   </>
                 ) : (
                   <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
                     </svg>
                     Submit & Upload Documents
                   </>
@@ -1619,10 +1652,11 @@ const AgencyKYCPage = () => {
               router.push("/agency/dashboard");
             }}
             disabled={isNavigating}
-            className={`px-6 py-3 rounded-full font-semibold transition-colors ${isRejected
-              ? "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-              : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              }`}
+            className={`px-6 py-3 rounded-full font-semibold transition-colors ${
+              isRejected
+                ? "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            }`}
           >
             {isRejected ? "Back to Dashboard" : "Go to Dashboard"}
           </button>
@@ -1670,13 +1704,17 @@ const AgencyKYCPage = () => {
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 rounded-2xl">
                   <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
                   <div className="text-blue-700 font-medium text-base">
-                    {isLoadingStatus ? "Loading status..." : isNavigating ? "Loading..." : "Uploading your documents..."}
+                    {isLoadingStatus
+                      ? "Loading status..."
+                      : isNavigating
+                        ? "Loading..."
+                        : "Uploading your documents..."}
                   </div>
                 </div>
               )}
               <div
                 className={
-                  (isSubmitting || isNavigating || isLoadingStatus)
+                  isSubmitting || isNavigating || isLoadingStatus
                     ? "opacity-50 pointer-events-none select-none"
                     : ""
                 }
