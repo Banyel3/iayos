@@ -1,18 +1,18 @@
 # InsightFace Microservice Dockerfile
-# Optimized for low memory usage (~300-400MB)
+# Multi-stage build to minimize final image size
 
-FROM python:3.11-slim
+# =====================
+# Stage 1: Build stage
+# =====================
+FROM python:3.11-slim AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies for InsightFace
+# Install build dependencies (needed for InsightFace C++ extensions)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
+    build-essential \
+    g++ \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (for caching)
@@ -26,6 +26,29 @@ RUN python -c "from insightface.app import FaceAnalysis; \
     app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider']); \
     app.prepare(ctx_id=-1, det_size=(320, 320)); \
     print('Model downloaded successfully')"
+
+# =====================
+# Stage 2: Runtime stage
+# =====================
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies only (no build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy pre-downloaded InsightFace models
+COPY --from=builder /root/.insightface /root/.insightface
 
 # Copy application code
 COPY main.py .
