@@ -55,58 +55,28 @@ WORKDIR /app/apps/frontend_web
 RUN npm run build
 
 # ============================================
-# Stage 4: Flutter Base Image
+# Stage 4-6: Flutter Disabled
 # ============================================
-FROM debian:bookworm-slim AS flutter-base
+# Flutter mobile build is disabled to speed up Render deploys.
+# Mobile APKs are built separately via GitHub Actions CI/CD.
+# To enable Flutter build, uncomment the stages below.
+#
+# FROM debian:bookworm-slim AS flutter-base
+# RUN apt-get update && apt-get install -y curl git unzip xz-utils zip libglu1-mesa && rm -rf /var/lib/apt/lists/*
+# ENV FLUTTER_VERSION=3.24.5
+# ENV FLUTTER_HOME=/opt/flutter
+# ENV PATH="$FLUTTER_HOME/bin:$PATH"
+# RUN git clone https://github.com/flutter/flutter.git -b stable --depth 1 $FLUTTER_HOME \
+#     && flutter precache --android && flutter config --no-analytics && flutter doctor -v
+#
+# FROM flutter-base AS mobile-builder
+# COPY apps/frontend_mobile/iayos_mobile ./apps/frontend_mobile/iayos_mobile
+# WORKDIR /app/apps/frontend_mobile/iayos_mobile
+# RUN flutter pub get && flutter build apk --release --split-per-abi
+#
+# FROM scratch AS mobile-production
+# COPY --from=mobile-builder /app/apps/frontend_mobile/iayos_mobile/build/app/outputs/flutter-apk/*.apk /
 
-# Install Flutter dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    unzip \
-    xz-utils \
-    zip \
-    libglu1-mesa \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Flutter SDK
-ENV FLUTTER_VERSION=3.24.5
-ENV FLUTTER_HOME=/opt/flutter
-ENV PATH="$FLUTTER_HOME/bin:$PATH"
-
-RUN git clone https://github.com/flutter/flutter.git -b stable --depth 1 $FLUTTER_HOME \
-    && flutter precache --android \
-    && flutter config --no-analytics \
-    && flutter doctor -v
-
-WORKDIR /app
-
-# ============================================
-# Stage 5: Flutter Mobile Build (Android APK)
-# ============================================
-FROM flutter-base AS mobile-builder
-
-# Copy Flutter mobile app source
-COPY apps/frontend_mobile/iayos_mobile ./apps/frontend_mobile/iayos_mobile
-
-WORKDIR /app/apps/frontend_mobile/iayos_mobile
-
-# Get Flutter dependencies
-RUN flutter pub get
-
-# Build Android APK (release mode)
-RUN flutter build apk --release --split-per-abi
-
-# ============================================
-# Stage 6: Flutter Mobile Production
-# ============================================
-FROM scratch AS mobile-production
-
-# Copy built APKs to a scratch image for extraction
-COPY --from=mobile-builder /app/apps/frontend_mobile/iayos_mobile/build/app/outputs/flutter-apk/*.apk /
-
-# Note: This stage outputs APK files that can be extracted with:
-# docker build --target mobile-production --output type=local,dest=./output .
 
 # ============================================
 # Stage 7: Python Backend Base (Secure Alpine)
@@ -118,7 +88,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/.local/bin:$PATH"
+    PATH="/app/venv/bin:$PATH"
 
 # Create non-root user early for security
 RUN addgroup -g 1001 -S appgroup \
@@ -127,44 +97,45 @@ RUN addgroup -g 1001 -S appgroup \
 WORKDIR /app/backend
 
 # ============================================
-# Stage 8: Backend Dependencies (Secure)
+# Stage 8: Backend Dependencies (Debian-based for TensorFlow)
 # ============================================
-FROM backend-base AS backend-deps
+FROM python:3.12-slim AS backend-deps
 
-# Install build dependencies and cleanup
-RUN apk add --no-cache --virtual .build-deps \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    musl-dev \
-    postgresql-dev \
-    python3-dev \
+    g++ \
+    make \
+    libpq-dev \
     libffi-dev \
-    openssl-dev \
+    libssl-dev \
     cargo \
-    rust \
-    && apk add --no-cache \
+    rustc \
     postgresql-client \
-    libpq \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file
 COPY apps/backend/requirements.txt .
 
-# Install Python dependencies with security checks
-# Note: --user installs to ~/.local (root's home is /root), so we use --prefix instead
-RUN --mount=type=cache,target=/root/.cache/pip \
-    mkdir -p /app/.local \
-    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
-    && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
-    && apk del .build-deps \
-    && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
-    && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+# Install Python dependencies using virtualenv (reliable isolation)
+# FIXED: virtualenv ensures ALL packages install to /app/venv (no system escapes)
+RUN python -m venv /app/venv \
+    && /app/venv/bin/pip install --upgrade 'pip>=25.3' setuptools wheel \
+    && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
+    && /app/venv/bin/pip check \
+    && echo '✅ All dependencies installed to virtualenv' \
+    && /app/venv/bin/python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" \
+    && find /app/venv -name "*.pyc" -delete 2>/dev/null || true \
+    && find /app/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # ============================================
 # Stage 9: Backend Builder
 # ============================================
 FROM backend-deps AS backend-builder
 
-# Copy backend source
+WORKDIR /app/backend
+
+# Copy backend source to /app/backend
 COPY apps/backend .
 
 # ============================================
@@ -238,105 +209,134 @@ EXPOSE 3000
 CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 
 # ============================================
-# Stage 13: Backend Development (Secure)
+# Stage 13: Backend Development (Debian-based)
 # ============================================
-FROM backend-base AS backend-development
+# Note: Using Debian-slim for consistent Python package availability
+FROM python:3.12-slim AS backend-development
 
-# Install development dependencies with cleanup
-# Added: tesseract-ocr for OCR verification of KYC documents
-RUN apk add --no-cache --virtual .build-deps \
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOME="/app"
+
+# Create non-root user
+RUN groupadd -g 1001 appgroup \
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
+
+# Install development dependencies
+# - tesseract-ocr for KYC document verification
+# Note: Removed OpenCV/InsightFace deps (moved to Face API service)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    musl-dev \
-    postgresql-dev \
-    python3-dev \
-    libffi-dev \
-    openssl-dev \
-    cargo \
-    rust \
-    && apk add --no-cache \
+    libpq-dev \
     postgresql-client \
-    libpq \
-    dcron \
-    su-exec \
-    # Tesseract OCR for KYC document verification
+    cron \
     tesseract-ocr \
-    tesseract-ocr-data-eng \
-    # Additional image processing dependencies
-    jpeg-dev \
-    zlib-dev \
+    tesseract-ocr-eng \
+    libjpeg-dev \
+    zlib1g-dev \
     libpng-dev \
-    # curl for CompreFace health checks
-    curl
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/apps/backend
 
-# Install Python dependencies with security
+# Install Python dependencies
 COPY apps/backend/requirements.txt ./
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apk del .build-deps
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
 
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
 RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
 
-# Copy backend source (mounted in dev)
-COPY --chown=appuser:appgroup apps/backend .
-
 # Give appuser ownership of working directory
 RUN chown -R appuser:appgroup /app
 
 # Setup cron job for payment buffer release (runs every hour)
-# Note: cron runs as root, but executes Django command which accesses app files
-RUN echo "0 * * * * cd /app/apps/backend/src && /usr/local/bin/python manage.py release_pending_payments >> /var/log/cron.log 2>&1" > /etc/crontabs/root \
+RUN echo "0 * * * * cd /app/apps/backend/src && /usr/local/bin/python manage.py release_pending_payments >> /var/log/cron.log 2>&1" > /etc/cron.d/payment-release \
+    && chmod 0644 /etc/cron.d/payment-release \
+    && crontab /etc/cron.d/payment-release \
     && touch /var/log/cron.log \
     && chmod 0644 /var/log/cron.log
-
-# Note: We don't switch to non-root user here because cron needs root
-# The docker-compose command uses su-exec to run Django as appuser
 
 EXPOSE 8000
 
 # Default dev command (compose overrides)
 CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
-
 # ============================================
-# Stage 14: Backend Production (LAST - for Render)
+# Stage 14: Backend Production (Debian-based)
 # ============================================
 # This MUST be the last stage for Render to build it by default
-FROM python:3.12-alpine AS backend-production
+# Using Debian-slim for consistent Python package availability
+FROM python:3.12-slim AS backend-production
 
 # Set secure environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/.local/bin:$PATH" \
-    PYTHONPATH="/app/.local/lib/python3.12/site-packages:$PYTHONPATH"
+    PATH="/app/venv/bin:$PATH" \
+    HOME="/app"
 
-# Create non-root user
-RUN addgroup -g 1001 -S appgroup \
-    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appgroup appuser
+# Create non-root user (Debian syntax)
+RUN groupadd -g 1001 appgroup \
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
 
-# Install only runtime dependencies
-RUN apk add --no-cache \
+# Install only runtime dependencies (Debian syntax)
+# - tesseract-ocr for KYC document verification
+# Note: Removed OpenCV/InsightFace deps (moved to Face API service)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
-    libpq \
-    libffi \
-    openssl \
-    && rm -rf /var/cache/apk/*
+    libpq5 \
+    libffi8 \
+    libssl3 \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libleptonica-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
 
-# Copy Python dependencies from deps stage
-COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
+# Copy virtualenv from deps stage (contains all Python dependencies)
+COPY --from=backend-deps --chown=appuser:appgroup /app/venv /app/venv
 
 # Copy application code with proper ownership (includes start.sh)
 COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
 # Make start.sh executable (it's already copied from backend-builder)
-RUN chmod +x /app/backend/start.sh
+# CRITICAL: Fix Windows line endings (CRLF) if present
+RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
+
+# CRITICAL: Verify all dependencies are accessible at build time
+# Virtualenv PATH ensures python finds all packages automatically
+RUN python << 'EOF'
+import sys
+try:
+    # Test all critical dependencies and their transitive deps
+    import django
+    print(f'✅ django: {django.__version__}')
+    
+    import psycopg2
+    print('✅ psycopg2: OK')
+    
+    import packaging
+    print(f'✅ packaging: {packaging.__version__}')
+    
+    import pytesseract
+    print('✅ pytesseract: OK')
+    
+    import PIL
+    print(f'✅ pillow: {PIL.__version__}')
+    
+    print('🎉 ALL DEPENDENCIES VERIFIED')
+    print('✅ Build verification PASSED')
+except ImportError as e:
+    print(f'❌ IMPORT FAILED: {e}')
+    sys.exit(1)
+EOF
 
 # Switch to non-root user
 USER appuser

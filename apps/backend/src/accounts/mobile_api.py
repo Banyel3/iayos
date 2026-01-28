@@ -4442,3 +4442,120 @@ def set_primary_payment_method(request, method_id: int):
 #endregion
 
 #endregion
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAESTRO E2E TEST CLEANUP
+# ══════════════════════════════════════════════════════════════════════════════
+# This endpoint cleans up test data created by Maestro E2E tests
+# ONLY works in non-production environments for safety
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mobile_router.delete("/test/cleanup-maestro-data")
+def cleanup_maestro_test_data(request):
+    """
+    Clean up test data created by Maestro E2E tests.
+    
+    Deletes:
+    - Jobs with title containing '[TEST]' or 'MAESTRO'
+    - Payment methods with name containing 'Maestro'
+    - Saved jobs from test users (worker.test@iayos.com, client.test@iayos.com)
+    - Job applications from test users
+    
+    SECURITY: Only works in non-production environments.
+    """
+    import os
+    from django.conf import settings
+    from django.db import transaction as db_transaction
+    
+    # Safety check - only allow in non-production
+    env = os.environ.get('DJANGO_ENV', 'development')
+    debug = getattr(settings, 'DEBUG', False)
+    api_url = os.environ.get('API_URL', '')
+    
+    # Block cleanup in production
+    if env == 'production' or (not debug and 'api.iayos.online' in api_url):
+        return Response(
+            {"error": "Cleanup not allowed in production environment"},
+            status=403
+        )
+    
+    try:
+        from .models import (
+            Job, JobApplication, SavedJob, UserPaymentMethod, 
+            Accounts, Profile
+        )
+        
+        cleanup_stats = {
+            'jobs_deleted': 0,
+            'applications_deleted': 0,
+            'saved_jobs_deleted': 0,
+            'payment_methods_deleted': 0,
+        }
+        
+        # Test user emails
+        test_emails = [
+            'worker.test@iayos.com',
+            'client.test@iayos.com',
+            'test@maestro.test',
+        ]
+        
+        with db_transaction.atomic():
+            # 1. Delete test jobs (by title pattern)
+            test_jobs = Job.objects.filter(
+                title__icontains='[TEST]'
+            ) | Job.objects.filter(
+                title__icontains='MAESTRO'
+            ) | Job.objects.filter(
+                description__icontains='MAESTRO_TEST'
+            )
+            cleanup_stats['jobs_deleted'] = test_jobs.count()
+            test_jobs.delete()
+            
+            # 2. Get test user accounts
+            test_accounts = Accounts.objects.filter(email__in=test_emails)
+            
+            if test_accounts.exists():
+                # 3. Delete job applications from test users
+                for account in test_accounts:
+                    profile = Profile.objects.filter(accountFK=account).first()
+                    if profile and hasattr(profile, 'workerprofile'):
+                        apps = JobApplication.objects.filter(
+                            workerID=profile.workerprofile
+                        )
+                        cleanup_stats['applications_deleted'] += apps.count()
+                        apps.delete()
+                
+                # 4. Delete saved jobs from test users
+                for account in test_accounts:
+                    profile = Profile.objects.filter(accountFK=account).first()
+                    if profile:
+                        saved = SavedJob.objects.filter(worker=profile)
+                        cleanup_stats['saved_jobs_deleted'] += saved.count()
+                        saved.delete()
+            
+            # 5. Delete test payment methods (by name pattern)
+            test_payment_methods = UserPaymentMethod.objects.filter(
+                accountName__icontains='Maestro'
+            ) | UserPaymentMethod.objects.filter(
+                accountName__icontains='Test User Maestro'
+            )
+            cleanup_stats['payment_methods_deleted'] = test_payment_methods.count()
+            test_payment_methods.delete()
+        
+        print(f"🧹 Maestro test cleanup completed: {cleanup_stats}")
+        
+        return {
+            'success': True,
+            'message': 'Test data cleaned up successfully',
+            'stats': cleanup_stats
+        }
+        
+    except Exception as e:
+        print(f"❌ Maestro cleanup error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Cleanup failed: {str(e)}"},
+            status=500
+        )

@@ -1,0 +1,18 @@
+# MediaPipe Face Detection Microservice
+# Lightweight - fits in Render free tier (~150MB)
+
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Image processing
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Face detection dependencies
+# MediaPipe needs OpenCV, using headless to avoid X11 issues
+opencv-python-headless>=4.8.0
+mediapipe==0.10.9
+# Protobuf compatibility is critical for MediaPipe
+protobuf>=3.20.0,<4.25.0

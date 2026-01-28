@@ -495,9 +495,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Initialize auth on mount
+  // Initialize auth on mount with E2E mode bypass and timeout
+  // E2E_MODE: Skip auth check entirely so app becomes ready immediately for Detox
+  // Timeout: If backend is unreachable, app still becomes interactive
   useEffect(() => {
-    checkAuth();
+    let isMounted = true;
+    const AUTH_TIMEOUT_MS = 5000; // 5 seconds max for auth check (reduced for faster E2E)
+    const isE2EMode = process.env.EXPO_PUBLIC_E2E_MODE === "true";
+
+    const initializeAuth = async () => {
+      // E2E Mode: Skip auth check entirely - app becomes ready immediately
+      if (isE2EMode) {
+        console.log("🧪 E2E Mode: Skipping auth check for Detox testing");
+        setIsLoading(false);
+        return;
+      }
+
+      // Create a timeout promise that resolves (not rejects) to allow app to continue
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          if (isMounted) {
+            console.warn(
+              "⏰ Auth check timeout - continuing without authentication",
+            );
+            setIsLoading(false);
+          }
+          resolve();
+        }, AUTH_TIMEOUT_MS);
+      });
+
+      // Race between auth check and timeout
+      await Promise.race([
+        checkAuth().catch((err) => {
+          console.warn("Auth check failed:", err);
+          if (isMounted) setIsLoading(false);
+        }),
+        timeoutPromise,
+      ]);
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const isAuthenticated = !!user;

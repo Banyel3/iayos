@@ -35,6 +35,12 @@ def process_kyc_extraction(kyc_record: kyc) -> Optional[KYCExtractedData]:
         
         # Get KYC files with OCR text - prioritize FRONTID
         kyc_files = kycFiles.objects.filter(kycID=kyc_record)
+        logger.info(f"   📁 Found {kyc_files.count()} KYC files")
+        
+        # Debug: Show all files
+        for kf in kyc_files:
+            ocr_length = len(kf.ocr_text) if kf.ocr_text else 0
+            logger.info(f"      File: {kf.idType or 'UNKNOWN'} - OCR text: {ocr_length} chars")
         
         # Find the best file with OCR text (prefer FRONTID for name/address extraction)
         best_file = None
@@ -57,14 +63,19 @@ def process_kyc_extraction(kyc_record: kyc) -> Optional[KYCExtractedData]:
                     document_type = kf.idType.upper() if kf.idType else "UNKNOWN"
         
         if not best_ocr_text:
-            logger.warning(f"   ⚠️ No OCR text found for KYC {kyc_record.kycID}")
+            logger.warning(f"   ❌ CRITICAL: No OCR text found for KYC {kyc_record.kycID}")
+            logger.warning(f"      This means OCR extraction during upload failed or was skipped.")
+            logger.warning(f"      Files uploaded: {[kf.idType or 'UNKNOWN' for kf in kyc_files]}")
             return None
         
         logger.info(f"   📝 Found OCR text ({len(best_ocr_text)} chars) from {document_type}")
+        logger.info(f"   📝 OCR text preview (first 200 chars): {best_ocr_text[:200].replace(chr(10), ' ')}")
         
         # Parse OCR text
         parser = get_kyc_parser()
+        logger.info(f"   🔧 Parsing OCR text with KYCExtractionParser...")
         parsed_data = parser.parse_ocr_text(best_ocr_text, document_type)
+        logger.info(f"   📊 Parser results: confidence={parsed_data.overall_confidence:.2f}, full_name={parsed_data.full_name.value}")
         
         # Get or create extraction record
         extracted, created = KYCExtractedData.objects.get_or_create(
@@ -208,17 +219,58 @@ def get_kyc_autofill_data_for_user(user) -> Dict[str, Any]:
         }
 
 
-def trigger_kyc_extraction_after_upload(kyc_record: kyc) -> None:
+def trigger_kyc_extraction_after_upload(kyc_record: kyc, face_match_result: Optional[Dict[str, Any]] = None) -> None:
     """
     Trigger extraction processing after KYC upload completes.
     Called from upload_kyc_document() after files are saved.
     
     Args:
         kyc_record: The KYC record that was just uploaded
+        face_match_result: Optional face match result from Azure Face API (contains similarity score)
     """
     try:
         logger.info(f"🚀 [KYC EXTRACTION] Triggering extraction for KYC {kyc_record.kycID}")
-        process_kyc_extraction(kyc_record)
+        extracted = process_kyc_extraction(kyc_record)
+        
+        # Store face match score if available
+        if extracted and face_match_result:
+            _store_face_match_score(extracted, face_match_result)
+            
     except Exception as e:
         logger.error(f"❌ [KYC EXTRACTION] Failed to trigger extraction: {str(e)}")
         # Don't raise - extraction failure shouldn't block KYC upload
+
+
+def _store_face_match_score(extracted: KYCExtractedData, face_match_result: Dict[str, Any]) -> None:
+    """
+    Store face match score from face verification in KYCExtractedData record.
+    
+    Args:
+        extracted: The KYCExtractedData record to update
+        face_match_result: Result dict from verify_face_match() containing:
+            - match: bool - whether faces matched
+            - similarity: float - similarity score 0-1
+            - skipped: bool - whether face matching was skipped
+            - method: str - "insightface", "azure", or "local_only"
+    """
+    try:
+        if face_match_result.get('skipped'):
+            # Face matching was skipped - don't update
+            logger.info(f"   ⏭️ Face matching was skipped, not storing score")
+            return
+        
+        similarity = face_match_result.get('similarity', 0)
+        method = face_match_result.get('method', 'unknown')
+        
+        # Mark as completed if a proper verification method was used
+        # InsightFace and Azure both provide verified face matching
+        is_verified = method in ('insightface', 'azure')
+        
+        extracted.face_match_score = similarity
+        extracted.face_match_completed = is_verified
+        extracted.save(update_fields=['face_match_score', 'face_match_completed'])
+        
+        logger.info(f"   ✅ Stored face match score: {similarity:.2f} (method={method}, verified={is_verified})")
+        
+    except Exception as e:
+        logger.error(f"   ❌ Failed to store face match score: {str(e)}")

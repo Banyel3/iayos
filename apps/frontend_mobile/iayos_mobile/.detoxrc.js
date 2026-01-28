@@ -49,7 +49,9 @@ module.exports = {
         "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
       build:
         "cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug --no-daemon -q",
-      reversePorts: [8081],
+      // Port 8081: Metro bundler, Port 8000: Backend API
+      // ADB reverse allows emulator to reach host machine services via localhost
+      reversePorts: [8081, 8000],
     },
     "android.release": {
       type: "android.apk",

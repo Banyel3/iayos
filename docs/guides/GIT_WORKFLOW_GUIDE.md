@@ -704,10 +704,10 @@ git push -u origin feature/mobile-payment-integration
 
 ```
 Total 0 (delta 0), reused 0 (delta 0), pack-reused 0
-remote: 
+remote:
 remote: Create a pull request for 'feature/mobile-payment-integration' on GitHub by visiting:
 remote:      https://github.com/Banyel3/iayos/pull/new/feature/mobile-payment-integration
-remote: 
+remote:
 To https://github.com/Banyel3/iayos.git
  * [new branch]      feature/mobile-payment-integration -> feature/mobile-payment-integration
 branch 'feature/mobile-payment-integration' set up to track 'origin/feature/mobile-payment-integration'.

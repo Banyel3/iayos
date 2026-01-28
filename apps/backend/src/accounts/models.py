@@ -787,6 +787,19 @@ class KYCExtractedData(models.Model):
     )
     
     # ============================================================
+    # FACE MATCH SCORE (from Azure Face API)
+    # ============================================================
+    face_match_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Face similarity score between ID and selfie (0-1) from Azure Face API"
+    )
+    face_match_completed = models.BooleanField(
+        default=False,
+        help_text="Whether face matching was completed (True = Azure returned result)"
+    )
+    
+    # ============================================================
     # USER-CONFIRMED FIELDS
     # ============================================================
     confirmed_full_name = models.CharField(

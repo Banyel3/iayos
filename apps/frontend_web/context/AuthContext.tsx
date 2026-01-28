@@ -133,10 +133,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (!response.ok) {
+        // Read error detail from response
+        const errorData = await response.json().catch(() => ({}));
+        let errorMessage = "Login failed";
+
+        // Handle structured error: {"error": [{"message": "..."}]}
+        if (Array.isArray(errorData.error) && errorData.error.length > 0) {
+          errorMessage = errorData.error[0].message || errorMessage;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+
         // Login failed - ensure everything is cleared
         setUser(null);
         clearAllAuthCaches();
-        throw new Error("Login failed");
+        throw new Error(errorMessage);
       }
 
       // Get the login response which includes tokens

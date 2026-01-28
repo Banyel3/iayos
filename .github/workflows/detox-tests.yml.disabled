@@ -1,7 +1,15 @@
-name: Mobile E2E Tests
+# Detox E2E Tests - Can use APK from GitHub Releases
+#
+# This workflow can test in two modes:
+# 1. Use pre-built APK from GitHub release (RECOMMENDED - fast, reliable)
+# 2. Build from source (requires expo-dev-client setup)
+#
+# See: apps/frontend_mobile/iayos_mobile/E2E_TESTING_QUICKSTART.md
+#
+name: Mobile E2E Tests (Detox)
 
 on:
-  # Manual trigger - stable for Android, iOS still experimental
+  # Manual trigger only - can test using APK from GitHub releases
   workflow_dispatch:
     inputs:
       platform:
@@ -13,20 +21,35 @@ on:
           - android
           - ios
           - both
+      use_release_apk:
+        description: "Use APK from latest GitHub release (recommended)"
+        required: true
+        default: true
+        type: boolean
+      use_live_backend:
+        description: "Use live backend (api.iayos.online) instead of local staging"
+        required: true
+        default: true
+        type: boolean
+      release_tag:
+        description: "Specific release tag (leave empty for latest)"
+        required: false
+        type: string
 
 env:
-  STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL || 'http://localhost:8000' }}
-  EXPO_PUBLIC_API_URL: ${{ secrets.STAGING_BACKEND_URL || 'http://localhost:8000' }}
+  # Development builds connect to live backend (configured in eas.json)
+  STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL || 'https://api.iayos.online' }}
+  EXPO_PUBLIC_API_URL: ${{ secrets.STAGING_BACKEND_URL || 'https://api.iayos.online' }}
 
 jobs:
   test-android:
     if: github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Detox tests with backend connectivity checks
+    timeout-minutes: 45 # Detox tests with Django backend
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: ${{ github.event.inputs.use_live_backend != 'true' && 'postgres:15-alpine' || '' }}
         env:
           POSTGRES_DB: iayos_e2e_db
           POSTGRES_USER: iayos_user
@@ -40,7 +63,7 @@ jobs:
           - 5432:5432
 
       redis:
-        image: redis:7-alpine
+        image: ${{ github.event.inputs.use_live_backend != 'true' && 'redis:7-alpine' || '' }}
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -50,6 +73,30 @@ jobs:
           - 6379:6379
 
     steps:
+      - name: ⚠️ Pre-flight Check - Build Source
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 Test Configuration:"
+          echo ""
+          if [ "${{ github.event.inputs.use_release_apk }}" = "true" ]; then
+            echo "✅ APK Source: GitHub Release"
+            echo "   Development builds include expo-dev-client for Detox support"
+          else
+            echo "⚠️  APK Source: Build from source"
+            echo "   This will fail unless expo-dev-client is configured!"
+          fi
+          echo ""
+          if [ "${{ github.event.inputs.use_live_backend }}" = "true" ]; then
+            echo "🌐 Backend: Live (api.iayos.online)"
+            echo "   Tests will run against production backend"
+            echo "   ⚠️  Ensure test users exist in production!"
+          else
+            echo "🏗️ Backend: Local staging (localhost:8000)"
+            echo "   Fresh database with test data will be created"
+          fi
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
@@ -61,6 +108,7 @@ jobs:
           cache-dependency-path: "**/package-lock.json"
 
       - name: 🐍 Setup Python
+        if: github.event.inputs.use_live_backend != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -74,12 +122,14 @@ jobs:
           java-version: "17"
 
       - name: 📦 Install backend dependencies
+        if: github.event.inputs.use_live_backend != 'true'
         working-directory: apps/backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: 🔧 Apply Django Ninja UUID patch
+        if: github.event.inputs.use_live_backend != 'true'
         run: |
           NINJA_PATH=$(pip show django-ninja | grep -i "^Location:" | cut -d' ' -f2)
           UTILS_FILE="$NINJA_PATH/ninja/signature/utils.py"
@@ -96,6 +146,7 @@ jobs:
           fi
 
       - name: 🗄️ Run database migrations
+        if: github.event.inputs.use_live_backend != 'true'
         working-directory: apps/backend/src
         env:
           USE_LOCAL_DB: "true"
@@ -103,10 +154,11 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: e2e-test-secret-key
           DEBUG: "True"
-          ALLOWED_HOSTS: localhost,127.0.0.1
+          ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
         run: python manage.py migrate --noinput
 
-      - name: 👥 Create test users
+      - name: 👤 Create test users
+        if: github.event.inputs.use_live_backend != 'true'
         working-directory: apps/backend/src
         env:
           USE_LOCAL_DB: "true"
@@ -161,7 +213,8 @@ jobs:
           print('Test users created successfully')
           EOF
 
-      - name: 🚀 Start backend server
+      - name: 🚀 Start Django backend server
+        if: github.event.inputs.use_live_backend != 'true'
         working-directory: apps/backend/src
         env:
           USE_LOCAL_DB: "true"
@@ -169,11 +222,28 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: e2e-test-secret-key
           DEBUG: "True"
-          ALLOWED_HOSTS: localhost,127.0.0.1
+          ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
         run: |
-          python manage.py runserver 8000 &
-          echo $! > backend.pid
-          sleep 5
+          echo "Starting Django backend on 0.0.0.0:8000..."
+          python manage.py runserver 0.0.0.0:8000 > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+          echo "Backend PID: $(cat /tmp/backend.pid)"
+
+          # Wait for backend to be ready
+          echo "Waiting for Django backend to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/api/health/ > /dev/null 2>&1 || curl -s http://localhost:8000/health/live > /dev/null 2>&1; then
+              echo "✅ Django backend is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "⚠️ Backend health check failed, but continuing (Django may not have health endpoint)"
+              echo "Backend log tail:"
+              tail -20 /tmp/backend.log || true
+            fi
+            echo "  Attempt $i/30 - waiting..."
+            sleep 2
+          done
 
       - name: 📱 Enable KVM (for Android Emulator)
         run: |
@@ -360,27 +430,175 @@ jobs:
           echo "✅ Emulator fully ready"
           adb devices -l
 
-      - name: 🏗️ Build Android app for testing
+      - name: 📦 Download APK from GitHub Release
+        if: github.event.inputs.use_release_apk == 'true'
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
+          echo "📦 Downloading APK from GitHub Release..."
+
+          # Determine which release to use
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            RELEASE_TAG="${{ github.event.inputs.release_tag }}"
+            echo "Using specified release: $RELEASE_TAG"
+          else
+            echo "Fetching latest release..."
+            RELEASE_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+            echo "Latest release: $RELEASE_TAG"
+          fi
+
+          # Create output directory
+          mkdir -p android/app/build/outputs/apk/debug
+          mkdir -p android/app/build/outputs/apk/androidTest/debug
+
+          # Download APK from release
+          echo "Downloading APK assets from release $RELEASE_TAG..."
+
+          # Try common APK naming patterns
+          APK_DOWNLOADED=false
+
+          # Pattern 1: app-debug.apk
+          if gh release download "$RELEASE_TAG" -p "app-debug.apk" -D android/app/build/outputs/apk/debug/ 2>/dev/null; then
+            echo "✅ Downloaded app-debug.apk"
+            APK_DOWNLOADED=true
+          # Pattern 2: *-debug.apk
+          elif gh release download "$RELEASE_TAG" -p "*-debug.apk" -D android/app/build/outputs/apk/debug/ 2>/dev/null; then
+            # Rename to standard name
+            mv android/app/build/outputs/apk/debug/*-debug.apk android/app/build/outputs/apk/debug/app-debug.apk
+            echo "✅ Downloaded and renamed debug APK"
+            APK_DOWNLOADED=true
+          # Pattern 3: *.apk (any APK)
+          elif gh release download "$RELEASE_TAG" -p "*.apk" -D android/app/build/outputs/apk/debug/ 2>/dev/null; then
+            # Use the first APK found
+            FIRST_APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+            if [ -n "$FIRST_APK" ]; then
+              mv "$FIRST_APK" android/app/build/outputs/apk/debug/app-debug.apk
+              echo "✅ Downloaded and renamed: $(basename $FIRST_APK)"
+              APK_DOWNLOADED=true
+            fi
+          fi
+
+          if [ "$APK_DOWNLOADED" = "false" ]; then
+            echo "❌ No APK found in release $RELEASE_TAG"
+            echo "Available assets in release:"
+            gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
+            exit 1
+          fi
+
+          # Verify APK
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK_PATH" ]; then
+            echo "✅ APK ready at: $APK_PATH"
+            echo "APK size: $(du -h $APK_PATH | cut -f1)"
+          else
+            echo "❌ APK not found after download"
+            exit 1
+          fi
+
+          # Note: We still need to build the androidTest APK for Detox
+          echo ""
+          echo "⚠️  Note: Still need to build androidTest APK for Detox instrumentation"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: 🏗️ Build Android Test APK
+        if: github.event.inputs.use_release_apk == 'true'
+        working-directory: apps/frontend_mobile/iayos_mobile/android
+        run: |
+          echo "Building androidTest APK for Detox instrumentation..."
+          echo "Note: Native code compilation (CMake) can take 15-20 minutes"
+
+          # Optimize Gradle for CI
+          export GRADLE_OPTS="-Xmx6g -Xms1g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC"
+
+          # Create gradle.properties for CI optimization
+          cat >> gradle.properties << EOF
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.configureondemand=true
+          org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError
+          EOF
+
+          ./gradlew :app:assembleDebugAndroidTest \
+            -DtestBuildType=debug \
+            -PreactNativeArchitectures=x86_64 \
+            --no-daemon \
+            --max-workers=4 \
+            --parallel \
+            --build-cache \
+            -x lint \
+            -x lintVitalAnalyzeDebug
+
+          echo "✅ Test APK built"
+          ls -lh app/build/outputs/apk/androidTest/debug/
+        timeout-minutes: 25
+
+      - name: 🏗️ Build Android app for testing
+        if: github.event.inputs.use_release_apk != 'true'
+        working-directory: apps/frontend_mobile/iayos_mobile
+        env:
+          # CRITICAL: These must be exported for Metro bundler to embed in JS bundle
+          EXPO_PUBLIC_API_URL: ${{ secrets.STAGING_BACKEND_URL || 'http://10.0.2.2:8000' }}
+          EXPO_PUBLIC_E2E_MODE: "true"
+        run: |
+          # Export env vars for all subprocesses
+          export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL}"
+          export EXPO_PUBLIC_E2E_MODE="true"
+
+          echo "=== E2E Build Configuration ==="
+          echo "EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}"
+          echo "EXPO_PUBLIC_E2E_MODE: ${EXPO_PUBLIC_E2E_MODE}"
+          echo "Note: E2E mode skips auth check so app becomes ready immediately"
+          echo ""
+
+          # Clear ALL caches to ensure fresh JS bundle with E2E mode enabled
+          echo "Clearing Metro bundler and build caches..."
+          rm -rf node_modules/.cache 2>/dev/null || true
+          rm -rf /tmp/metro-* 2>/dev/null || true
+          rm -rf /tmp/haste-map-* 2>/dev/null || true
+          rm -rf android/.gradle 2>/dev/null || true
+          rm -rf android/app/build 2>/dev/null || true
+
+          # Verify AuthContext has E2E mode code
+          echo ""
+          echo "Verifying AuthContext.tsx has E2E mode code..."
+          echo "Current directory: $(pwd)"
+          echo "Looking for context/AuthContext.tsx..."
+          ls -la context/ 2>/dev/null || echo "context/ directory not found"
+
+          if [ -f "context/AuthContext.tsx" ] && grep -q "EXPO_PUBLIC_E2E_MODE" context/AuthContext.tsx; then
+            echo "✅ E2E mode code is present in AuthContext.tsx"
+            grep -n "E2E" context/AuthContext.tsx | head -5
+          else
+            echo "❌ WARNING: E2E mode code NOT found in AuthContext.tsx!"
+            echo "App may hang waiting for auth check."
+            echo "File exists check:"
+            ls -la context/AuthContext.tsx 2>/dev/null || echo "File not found"
+          fi
+          echo ""
+
           cd android
 
-          echo "Configuring Gradle for CI build..."
-          export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+          export GRADLE_OPTS="-Xmx6g -Xms1g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -XX:+UseParallelGC"
 
-          echo "Building for x86_64 ONLY (emulator architecture - skipping arm64, armeabi, x86)..."
+          # Full clean build
+          echo "Cleaning previous build artifacts..."
+          ./gradlew clean --no-daemon
+
+          echo "Building for x86_64 ONLY (emulator architecture)..."
           echo "This reduces native build time by ~75% (1 arch instead of 4)"
+          echo "Note: Native code compilation (CMake) can take 15-20 minutes"
 
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
             -DtestBuildType=debug \
             -PreactNativeArchitectures=x86_64 \
             --no-daemon \
-            --max-workers=2 \
+            --max-workers=4 \
             --parallel \
+            --build-cache \
             -x lint \
             -x lintVitalAnalyzeRelease \
             -x lintVitalReportRelease \
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g" \
             || {
               echo "❌ Build failed, retrying with --stacktrace..."
               ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
@@ -388,10 +606,84 @@ jobs:
                 -PreactNativeArchitectures=x86_64 \
                 --no-daemon \
                 --stacktrace \
-                --max-workers=1 \
+                --max-workers=2 \
                 -x lint
             }
-        timeout-minutes: 20
+        timeout-minutes: 30
+
+      - name: ✅ Verify E2E mode in APK bundle
+        working-directory: apps/frontend_mobile/iayos_mobile
+        run: |
+          echo "Verifying E2E mode code is embedded in the APK..."
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK_PATH" ]; then
+            echo "❌ APK not found at $APK_PATH"
+            exit 1
+          fi
+
+          echo "APK size: $(du -h $APK_PATH | cut -f1)"
+
+          # Extract and check the JS bundle
+          echo ""
+          echo "Extracting JS bundle from APK..."
+          unzip -p "$APK_PATH" assets/index.android.bundle > /tmp/bundle.js 2>/dev/null || true
+
+          if [ -f /tmp/bundle.js ]; then
+            BUNDLE_SIZE=$(wc -c < /tmp/bundle.js)
+            echo "JS bundle size: $BUNDLE_SIZE bytes"
+            
+            # Check for E2E mode code
+            if grep -q "EXPO_PUBLIC_E2E_MODE" /tmp/bundle.js; then
+              echo "✅ EXPO_PUBLIC_E2E_MODE found in JS bundle"
+            else
+              echo "⚠️ EXPO_PUBLIC_E2E_MODE not found in bundle (may be minified)"
+            fi
+            
+            # Check for E2E mode string
+            if grep -q "E2E Mode" /tmp/bundle.js || grep -q "E2E_MODE" /tmp/bundle.js; then
+              echo "✅ E2E mode strings found in JS bundle"
+            else
+              echo "⚠️ E2E mode strings not visible (normal for minified code)"
+            fi
+            
+            # Check for auth timeout code
+            if grep -q "AUTH_TIMEOUT" /tmp/bundle.js || grep -q "auth.*timeout" /tmp/bundle.js; then
+              echo "✅ Auth timeout code found in JS bundle"
+            else
+              echo "⚠️ Auth timeout strings not visible (normal for minified code)"
+            fi
+            
+            rm /tmp/bundle.js
+          else
+            echo "⚠️ Could not extract JS bundle (may be in different location)"
+          fi
+
+          echo ""
+          echo "APK verification complete"
+
+      - name: 🔌 Setup ADB port forwarding for backend
+        run: |
+          echo "Setting up ADB reverse port forwarding..."
+          echo "This allows the Android emulator to reach host services via localhost"
+
+          # Port 8000: Backend API
+          adb reverse tcp:8000 tcp:8000
+          echo "✅ Forwarded tcp:8000 (Backend API)"
+
+          # Port 8081: Metro bundler (usually set by Detox, but let's ensure it)
+          adb reverse tcp:8081 tcp:8081
+          echo "✅ Forwarded tcp:8081 (Metro bundler)"
+
+          # Verify the reverse forwarding is active
+          echo ""
+          echo "Active ADB reverse ports:"
+          adb reverse --list
+
+          # Test backend connectivity from host
+          echo ""
+          echo "Testing backend connectivity from host..."
+          curl -s http://localhost:8000/health/live && echo " - Backend health check passed" || echo " - No /health/live endpoint (may be normal)"
 
       - name: 🧪 Run Detox E2E Tests
         id: detox_tests
@@ -416,7 +708,36 @@ jobs:
             -- --json --outputFile=e2e/reports/jest-test-results.json
         timeout-minutes: 15
 
-      - name: 🔍 Debug - Check test results file
+      - name: � Capture Android Logcat
+        if: always()
+        working-directory: apps/frontend_mobile/iayos_mobile
+        run: |
+          echo "Capturing full Android logcat for debugging..."
+          mkdir -p e2e/artifacts
+
+          # Capture full logcat
+          adb logcat -d > e2e/artifacts/full-logcat.txt 2>&1 || true
+
+          # Extract React Native specific logs
+          echo ""
+          echo "=== React Native App Logs ==="
+          grep -E "ReactNative|E2E|Auth|iayos|expo" e2e/artifacts/full-logcat.txt | tail -100 || echo "No RN logs found"
+
+          # Check for crashes
+          echo ""
+          echo "=== Crash/Error Logs ==="
+          grep -E "FATAL|crash|Exception|Error" e2e/artifacts/full-logcat.txt | tail -50 || echo "No crash logs found"
+
+          # Check for network errors
+          echo ""
+          echo "=== Network Logs ==="
+          grep -E "http|localhost|8000|network|connect" e2e/artifacts/full-logcat.txt | tail -30 || echo "No network logs found"
+
+          echo ""
+          echo "Full logcat saved to e2e/artifacts/full-logcat.txt"
+          echo "Logcat size: $(wc -l < e2e/artifacts/full-logcat.txt) lines"
+
+      - name: �🔍 Debug - Check test results file
         if: always()
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
@@ -583,12 +904,57 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: 🧹 Stop backend server
-        if: always()
+      - name: 🧹 Cleanup test data from live backend
+        if: always() && github.event.inputs.use_live_backend == 'true'
+        continue-on-error: true
         run: |
-          if [ -f apps/backend/src/backend.pid ]; then
-            kill $(cat apps/backend/src/backend.pid) || true
-            rm apps/backend/src/backend.pid
+          echo "🗑️ Cleaning up test data from live backend..."
+          echo "⚠️  WARNING: This deletes test user accounts and associated data!"
+
+          # Call backend cleanup API endpoint (you'll need to create this)
+          # For now, we'll document what needs to be cleaned up
+
+          cat << 'EOF'
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          ⚠️  CLEANUP REQUIRED
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          The following test data needs to be cleaned from your live backend:
+
+          Test Users:
+            - client@test.com (CLIENT profile)
+            - worker@test.com (WORKER profile)
+
+          Associated Data:
+            - Jobs posted by client@test.com
+            - Profiles, applications, messages, notifications
+            - Any data created during E2E tests
+
+          RECOMMENDED SOLUTION:
+          Create a Django management command to clean up test data:
+
+            python manage.py cleanup_e2e_test_data
+
+          Or create a backend API endpoint:
+
+            POST /api/admin/cleanup-e2e-tests
+            Authorization: Bearer <admin-token>
+
+          For now, you may need to manually delete these test accounts
+          from your production database to prevent bloat.
+
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          EOF
+
+      - name: 🧹 Stop backend server
+        if: always() && github.event.inputs.use_live_backend != 'true'
+        run: |
+          if [ -f /tmp/backend.pid ]; then
+            echo "Stopping backend server..."
+            kill $(cat /tmp/backend.pid) || true
+            rm /tmp/backend.pid
+          else
+            echo "No backend PID file found (may not have started or using live backend)"
           fi
 
   test-ios:

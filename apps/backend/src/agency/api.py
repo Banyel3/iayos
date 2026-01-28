@@ -2,8 +2,10 @@ from ninja import Router, Form
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from . import services, schemas
+import logging
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
@@ -14,14 +16,18 @@ def upload_agency_kyc(request):
         account_id = request.auth.accountID
         businessName = request.POST.get("businessName")
         businessDesc = request.POST.get("businessDesc")
+        rep_id_type = request.POST.get("rep_id_type", "PHILSYS_ID")  # Default to PhilSys ID
+        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")  # Business type for OCR filtering
         
         class Payload:
-            def __init__(self, accountID, businessName=None, businessDesc=None):
+            def __init__(self, accountID, businessName=None, businessDesc=None, rep_id_type=None, business_type=None):
                 self.accountID = accountID
                 self.businessName = businessName
                 self.businessDesc = businessDesc
+                self.rep_id_type = rep_id_type
+                self.business_type = business_type
 
-        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc)
+        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc, rep_id_type=rep_id_type, business_type=business_type)
 
         # Read uploaded files from request.FILES (Django's UploadedFile objects)
         business_permit = request.FILES.get("business_permit")
@@ -62,7 +68,9 @@ def validate_agency_document(request):
     """
     Per-step validation for agency KYC uploads.
     Validates document quality (resolution, blur) and face detection (for rep ID).
-    Call this before allowing user to proceed to next step.
+    
+    Face detection uses CompreFace API (external service) - lightweight HTTP calls.
+    If CompreFace is unavailable, documents are marked for manual review.
     
     Request: multipart/form-data with:
     - file: The document to validate
@@ -74,9 +82,7 @@ def validate_agency_document(request):
     - details: dict - validation details (resolution, quality_score, face_detected, etc.)
     """
     try:
-        from accounts.document_verification_service import DocumentVerificationService
-        
-        # Get uploaded file
+        # Get uploaded file first (fast operation)
         file = request.FILES.get("file")
         document_type = request.POST.get("document_type", "").upper()
         
@@ -105,6 +111,9 @@ def validate_agency_document(request):
         # Read file data
         file_data = file.read()
         
+        # Get optional rep_id_type for type-specific OCR (unified naming from mobile app)
+        rep_id_type = request.POST.get("rep_id_type", "").upper()
+        
         # Determine if face detection is required
         # Face required for representative ID (front and back)
         require_face = document_type in ['REP_ID_FRONT', 'REP_ID_BACK']
@@ -112,26 +121,51 @@ def validate_agency_document(request):
         # Map to verification service document type
         doc_type_mapping = {
             'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
-            'REP_ID_FRONT': 'FRONTID',
+            'REP_ID_FRONT': rep_id_type if rep_id_type else 'FRONTID',
             'REP_ID_BACK': 'BACKID',
             'ADDRESS_PROOF': 'ADDRESS_PROOF',
             'AUTH_LETTER': 'AUTH_LETTER',
         }
         verification_doc_type = doc_type_mapping.get(document_type, document_type)
         
-        # Run quick validation (resolution + blur + face)
-        service = DocumentVerificationService()
-        result = service.validate_document_quick(
-            file_data=file_data,
-            document_type=verification_doc_type,
-            require_face=require_face
-        )
+        print(f"🔍 [AGENCY] Validating {document_type} as {verification_doc_type}, require_face={require_face}")
         
-        return result
+        # Import and run validation - InsightFace is pre-warmed so this is fast
+        try:
+            from accounts.document_verification_service import DocumentVerificationService
+            service = DocumentVerificationService()
+            
+            # Run quick validation (resolution + blur + face)
+            result = service.validate_document_quick(
+                file_data=file_data,
+                document_type=verification_doc_type,
+                require_face=require_face
+            )
+            return result
+            
+        except Exception as init_error:
+            print(f"⚠️ DocumentVerificationService error: {init_error}")
+            # Return valid with manual review flag if AI service fails
+            return {
+                "valid": True,
+                "error": None,
+                "details": {
+                    "skipped": True,
+                    "reason": "AI verification temporarily unavailable - document accepted for manual review",
+                    "needs_manual_review": True
+                }
+            }
         
     except Exception as e:
-        print(f"Error in validate_agency_document: {str(e)}")
-        return Response({"valid": False, "error": "Validation failed. Please try again."}, status=500)
+        import traceback
+        error_msg = str(e)
+        print(f"Error in validate_agency_document: {error_msg}")
+        traceback.print_exc()
+        return Response({
+            "valid": False, 
+            "error": f"Validation failed: {error_msg}" if error_msg else "Validation failed. Please try again.",
+            "details": {"exception": error_msg}
+        }, status=500)
 
 
 @router.get("/kyc/autofill", auth=cookie_auth)
@@ -208,14 +242,23 @@ def confirm_agency_kyc_data(request):
     
     Request body (JSON):
     - business_name: str
-    - registration_number: str
-    - business_description: str
+    - business_type: str (NEW: SOLE_PROPRIETORSHIP, PARTNERSHIP, CORPORATION, COOPERATIVE)
+    - business_address: str
+    - permit_number: str
+    - tin: str
+    - rep_full_name: str
+    - rep_id_number: str
+    - rep_birth_date: str (YYYY-MM-DD)
+    - rep_address: str
+    - edited_fields: list[str]
     
-    This updates the agency profile with user-confirmed data.
+    This updates AgencyKYCExtractedData with user-confirmed data.
     """
     try:
         import json
-        from accounts.models import Agency as AgencyProfile
+        from .models import AgencyKYC, AgencyKYCExtractedData
+        from django.utils import timezone
+        from datetime import datetime
         
         account_id = request.auth.accountID
         
@@ -225,37 +268,82 @@ def confirm_agency_kyc_data(request):
         except:
             body = {}
         
-        business_name = body.get("business_name") or request.POST.get("business_name")
-        registration_number = body.get("registration_number") or request.POST.get("registration_number")
-        business_description = body.get("business_description") or request.POST.get("business_description")
-        
-        # Get agency profile
+        # Get AgencyKYC record
         try:
-            agency = AgencyProfile.objects.get(accountFK_id=account_id)
-        except AgencyProfile.DoesNotExist:
-            return Response({"success": False, "error": "Agency profile not found"}, status=404)
+            kyc_record = AgencyKYC.objects.get(accountFK_id=account_id)
+        except AgencyKYC.DoesNotExist:
+            return Response({"success": False, "error": "No KYC submission found. Please upload documents first."}, status=404)
         
-        # Update agency profile with confirmed data
-        if business_name:
-            agency.businessName = business_name
-        if business_description:
-            agency.businessDesc = business_description
-        # Note: registration_number might need a new field in Agency model
-        # For now, we'll store it in businessDesc if no dedicated field exists
+        # Get or create extracted data record
+        extracted, created = AgencyKYCExtractedData.objects.get_or_create(
+            agencyKyc=kyc_record,
+            defaults={"extraction_status": "PENDING"}
+        )
         
-        agency.save()
+        # Track which fields were edited by user
+        edited_fields = body.get("edited_fields", [])
+        
+        # Update confirmed fields
+        if "business_name" in body:
+            extracted.confirmed_business_name = body["business_name"]
+        if "business_type" in body:
+            extracted.confirmed_business_type = body["business_type"]
+        if "business_address" in body:
+            extracted.confirmed_business_address = body["business_address"]
+        if "permit_number" in body:
+            extracted.confirmed_permit_number = body["permit_number"]
+        if "tin" in body:
+            extracted.confirmed_tin = body["tin"]
+        if "dti_number" in body:
+            extracted.confirmed_dti_number = body["dti_number"]
+        if "sec_number" in body:
+            extracted.confirmed_sec_number = body["sec_number"]
+        if "rep_full_name" in body:
+            extracted.confirmed_rep_full_name = body["rep_full_name"]
+        if "rep_id_number" in body:
+            extracted.confirmed_rep_id_number = body["rep_id_number"]
+        if "rep_address" in body:
+            extracted.confirmed_rep_address = body["rep_address"]
+        
+        # Handle date fields
+        if "rep_birth_date" in body and body["rep_birth_date"]:
+            try:
+                extracted.confirmed_rep_birth_date = datetime.strptime(body["rep_birth_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        if "permit_issue_date" in body and body["permit_issue_date"]:
+            try:
+                extracted.confirmed_permit_issue_date = datetime.strptime(body["permit_issue_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        if "permit_expiry_date" in body and body["permit_expiry_date"]:
+            try:
+                extracted.confirmed_permit_expiry_date = datetime.strptime(body["permit_expiry_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        # Update metadata
+        extracted.extraction_status = "CONFIRMED"
+        extracted.confirmed_at = timezone.now()
+        extracted.user_edited_fields = edited_fields
+        
+        extracted.save()
+        
+        logger.info(f"Agency KYC data confirmed for accountID {account_id}")
+        if "business_type" in body:
+            logger.info(f"Business type confirmed as: {body['business_type']}")
         
         return {
             "success": True,
-            "message": "Agency data confirmed successfully",
-            "updated_fields": {
-                "business_name": business_name,
-                "business_description": business_description,
-            }
+            "message": "Agency KYC data confirmed successfully",
+            "extraction_status": extracted.extraction_status,
+            "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
         }
         
     except Exception as e:
-        print(f"Error in confirm_agency_kyc_data: {str(e)}")
+        logger.exception(f"Error in confirm_agency_kyc_data: {str(e)}")
         return Response({"success": False, "error": "Failed to confirm data"}, status=500)
 
 

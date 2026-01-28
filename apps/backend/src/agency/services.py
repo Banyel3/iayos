@@ -8,12 +8,8 @@ import uuid
 import os
 import math
 
-# Import AI verification service
-from accounts.document_verification_service import (
-	DocumentVerificationService,
-	VerificationStatus,
-	RejectionReason
-)
+# NOTE: DocumentVerificationService imported lazily inside functions to prevent
+# InsightFace from loading during Django startup (saves ~24s per command)
 
 
 def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_proof, auth_letter):
@@ -53,22 +49,36 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 			defaults={'status': 'PENDING', 'notes': ''}
 		)
 
+		# Save business_type from user selection (for OCR filtering)
+		business_type = getattr(payload, 'business_type', None)
+		if business_type:
+			print(f"💼 Business type received: {business_type} (will be saved during extraction)")
+
 		if not created:
 			# Remove previous files and reset status
-			old_files_count = AgencyKycFile.objects.filter(agencyKyc=kyc_record).count()
+			from iayos_project.utils import delete_storage_file
+			
+			# Delete old files from Supabase storage BEFORE deleting DB records
+			old_files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+			old_files_count = old_files.count()
+			for f in old_files:
+				if f.fileURL:
+					delete_storage_file("agency", f.fileURL)
+			
 			AgencyKycFile.objects.filter(agencyKyc=kyc_record).delete()
 			kyc_record.status = 'PENDING'
 			kyc_record.notes = 'Re-submitted'
 			kyc_record.resubmissionCount = kyc_record.resubmissionCount + 1
 			kyc_record.save()
-			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {old_files_count} old files")
+			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {old_files_count} old files from DB and Supabase")
 
 		uploaded_files = []
 		verification_results = []
 		any_failed = False
 		failure_messages = []
 		
-		# Initialize AI verification service
+		# Initialize AI verification service (lazy import to avoid InsightFace startup delay)
+		from accounts.document_verification_service import DocumentVerificationService
 		verification_service = DocumentVerificationService()
 		
 		# Define which documents require face detection
@@ -130,15 +140,22 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 			if not is_pdf:
 				print(f"🤖 Running AI verification for {key}...")
 				
+				# Get rep_id_type for type-specific OCR (unified naming from mobile app)
+				# This enables using PHILSYS_ID, DRIVERS_LICENSE, etc. for proper keyword validation
+				rep_id_type = getattr(payload, 'rep_id_type', 'FRONTID') or 'FRONTID'
+				
 				# Map agency document types to verification service document types
+				# Use actual ID type for REP_ID_FRONT to enable type-specific OCR keywords
 				doc_type_mapping = {
 					'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
-					'REP_ID_FRONT': 'FRONTID',  # Map to FRONTID for face detection
-					'REP_ID_BACK': 'BACKID',    # Map to BACKID (optional face on back)
+					'REP_ID_FRONT': rep_id_type.upper(),  # Use actual ID type for OCR keywords
+					'REP_ID_BACK': 'BACKID',    # Map to BACKID (no type-specific keywords needed)
 					'ADDRESS_PROOF': 'ADDRESS_PROOF',
 					'AUTH_LETTER': 'AUTH_LETTER',
 				}
 				verification_doc_type = doc_type_mapping.get(key, key)
+				
+				print(f"   🔍 Using verification doc type: {verification_doc_type} (rep_id_type={rep_id_type})")
 				
 				# Run full verification
 				verification_result = verification_service.verify_document(
@@ -181,7 +198,9 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 						ai_status = 'FAILED'
 						ai_rejection_reason = 'MISSING_REQUIRED_TEXT'
 						missing_groups = keyword_check.get('missing_groups', [])
-						ai_rejection_message = f"Business permit does not contain required text. Missing: {', '.join(missing_groups)}. Please upload a valid business permit."
+						# missing_groups is a list of lists, so format each group properly
+						formatted_missing = ', '.join([' or '.join(group) if isinstance(group, list) else str(group) for group in missing_groups])
+						ai_rejection_message = f"Business permit does not contain required text. Missing: {formatted_missing}. Please upload a valid business permit."
 						any_failed = True
 						failure_messages.append(ai_rejection_message)
 						print(f"   ❌ OCR keyword check FAILED for {key}: missing {missing_groups}")
@@ -195,7 +214,8 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 							any_failed = True
 							failure_messages.append(ai_rejection_message)
 				
-				print(f"   🤖 AI Result for {key}: status={ai_status}, confidence={ai_confidence_score:.2f if ai_confidence_score else 0}")
+				confidence_display = f"{ai_confidence_score:.2f}" if ai_confidence_score else "0"
+				print(f"   🤖 AI Result for {key}: status={ai_status}, confidence={confidence_display}")
 			else:
 				# PDF files skip AI verification
 				ai_status = 'SKIPPED'
@@ -270,7 +290,7 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		# Trigger Agency KYC extraction to populate auto-fill data
 		try:
 			from .kyc_extraction_service import trigger_agency_kyc_extraction_after_upload
-			trigger_agency_kyc_extraction_after_upload(kyc_record)
+			trigger_agency_kyc_extraction_after_upload(kyc_record, business_type)
 		except Exception as ext_error:
 			print(f"⚠️  Agency KYC extraction failed (non-blocking): {str(ext_error)}")
 			# Don't fail KYC upload if extraction fails - admin can still verify manually
@@ -292,15 +312,44 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 def get_agency_kyc_status(account_id):
 	try:
 		user = Accounts.objects.get(accountID=account_id)
-		try:
-			kyc_record = AgencyKYC.objects.get(accountFK=user)
-		except AgencyKYC.DoesNotExist:
+		# Get or create AgencyKYC if it doesn't exist yet (for status check)
+		# This prevents 500 errors for new accounts visiting /agency/kyc
+		kyc_record, created = AgencyKYC.objects.get_or_create(
+			accountFK=user,
+			defaults={'status': 'NOT_STARTED', 'notes': ''}
+		)
+		
+		# If just created or explicitly NOT_STARTED
+		if kyc_record.status == 'NOT_STARTED':
 			return {
 				"status": "NOT_STARTED",
 				"message": "No KYC submission found"
 			}
 
 		files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+		
+		# Generate signed URLs for private bucket files
+		from iayos_project.utils import get_signed_url
+		
+		def extract_file_path(url_or_path):
+			"""Extract just the file path from a potentially full URL or signed URL."""
+			if not url_or_path:
+				return None
+			# If it's already just a path (no URL prefix), return as-is
+			if not url_or_path.startswith('http') and '/object/' not in url_or_path:
+				return url_or_path
+			# Extract path from full URL or partial URL
+			# Patterns: /object/sign/agency/agency_X/kyc/file.pdf or /object/public/agency/...
+			import re
+			# Match the actual file path after bucket name
+			match = re.search(r'/(?:object/(?:sign|public)/)?agency/(.+?)(?:\?|$)', url_or_path)
+			if match:
+				return match.group(1)  # Returns agency_X/kyc/file.pdf
+			# Fallback: try to extract agency_X/kyc/filename pattern
+			match = re.search(r'(agency_\d+/kyc/[^?]+)', url_or_path)
+			if match:
+				return match.group(1)
+			return url_or_path
 
 		return {
 			"agency_kyc_id": kyc_record.agencyKycID,
@@ -314,7 +363,7 @@ def get_agency_kyc_status(account_id):
 					"file_name": f.fileName,
 					"file_size": f.fileSize,
 					"uploaded_at": f.uploadedAt,
-					"file_url": f.fileURL
+					"file_url": get_signed_url("agency", extract_file_path(f.fileURL), expires_in=3600) or f.fileURL
 				} for f in files
 			]
 		}
