@@ -114,6 +114,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'iayos_project.observability.RequestIDMiddleware',  # Request ID for tracing (first)
     'corsheaders.middleware.CorsMiddleware',
+    'iayos_project.mobile_cors_middleware.MobileCORSMiddleware',  # Handle mobile apps without Origin header
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
