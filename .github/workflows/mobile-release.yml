@@ -195,81 +195,79 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
-      - name: Build Android APK
+      # ============================================
+      # LOCAL BUILD SETUP (No EAS Cloud Credits!)
+      # ============================================
+      
+      - name: Setup Java JDK 17
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708  # Latest stable
+          
+      - name: Accept Android Licenses
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install Android Build Tools
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Build Android APK (Local - No EAS Credits!)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          # Determine build profile based on input (default to production for auto-triggers)
           BUILD_PROFILE="${{ github.event.inputs.build_type || 'production' }}"
-
-          echo "🏗️ Building with profile: $BUILD_PROFILE"
-
+          
+          echo "🏗️ LOCAL BUILD with profile: $BUILD_PROFILE"
+          echo "✅ No EAS cloud credits consumed - building locally!"
+          
           if [ "$BUILD_PROFILE" = "development" ]; then
             echo "📱 Development build - includes expo-dev-client for Detox E2E testing"
             echo "⚠️  This APK will work with your live backend at api.iayos.online"
           else
             echo "📦 Production build - ready for app store distribution"
           fi
+          
+          # Run local build (outputs APK directly, no cloud needed!)
+          # The --local flag builds on this runner instead of EAS servers
+          eas build --platform android --profile $BUILD_PROFILE --local --non-interactive --output=./build-output.apk
+          
+          # Rename to versioned filename
+          mv ./build-output.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
+          
+          echo "✅ Local build complete!"
+          ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
-          eas build --platform android --profile $BUILD_PROFILE --non-interactive --clear-cache --wait
-
-      - name: Download APK artifact
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
+      - name: Download APK from EAS (if using latest build)
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          echo "Fetching latest build info..."
-
-          # If using latest build, skip waiting (build already exists)
-          if [ "${{ github.event.inputs.use_latest_build }}" = "true" ]; then
-            echo "♻️ Using latest existing build from Expo"
-          else
-            echo "⏳ Waiting for new build to complete..."
-            sleep 10
-          fi
-
-          # Get build info with retry logic
-          MAX_RETRIES=10
-          RETRY_COUNT=0
-          BUILD_URL=""
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Checking for build artifacts..."
-
-            # Get full build info
-            BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
-            echo "Build info: $BUILD_INFO"
-
-            # Check build status (case-insensitive comparison)
-            BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // "unknown"')
-            BUILD_STATUS_LOWER=$(echo "$BUILD_STATUS" | tr '[:upper:]' '[:lower:]')
-            echo "Build status: $BUILD_STATUS"
-
-            if [ "$BUILD_STATUS_LOWER" = "finished" ]; then
-              BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
-              if [ -n "$BUILD_URL" ] && [ "$BUILD_URL" != "null" ]; then
-                echo "✅ Found build URL: $BUILD_URL"
-                break
-              fi
-            elif [ "$BUILD_STATUS_LOWER" = "errored" ] || [ "$BUILD_STATUS_LOWER" = "canceled" ]; then
-              echo "❌ Build failed with status: $BUILD_STATUS"
-              exit 1
-            fi
-
-            echo "Build not ready yet (status: $BUILD_STATUS), waiting 30 seconds..."
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            sleep 30
-          done
-
+          echo "♻️ Using latest existing build from Expo"
+          
+          # Get build info
+          BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
+          BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
+          
           if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
-            echo "❌ Failed to get build URL after $MAX_RETRIES attempts"
-            echo "Last build info:"
-            eas build:list --platform android --limit 1 --json --non-interactive || true
+            echo "❌ No existing build found"
             exit 1
           fi
-
+          
           echo "Downloading APK from: $BUILD_URL"
           curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
-
+          
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
