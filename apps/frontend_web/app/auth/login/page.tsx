@@ -339,7 +339,7 @@ const Login = () => {
               </Link>
               <Link
                 href="/auth/register/agency"
-                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-bold bg-[#54B7EC] text-white hover:text-black hover:bg-blue-50 rounded-lg transition-colors"
               >
                 Register as Agency
               </Link>
@@ -390,7 +390,7 @@ const Login = () => {
                     className="h-8 w-auto mx-auto mb-4"
                   />
                   <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
-                    Welcome back {'<3'}
+                    Welcome back
                   </h1>
                   <p className="font-inter text-sm text-gray-600">
                     Sign in to continue
@@ -561,39 +561,60 @@ const Login = () => {
             </div>
 
             {/* Desktop Layout */}
-            <div className="hidden lg:flex min-h-screen pt-20">
+            <div className="hidden lg:flex min-h-screen pt-10">
               {/* Left Side - Branding */}
-              <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-8">
+              <div className="lg:w-1/2 flex items-center justify-center p-8">
                 <div className="max-w-md text-center text-white">
                   <Image
-                    src="/logo-white.png"
+                    src="/fig1.png"
                     alt="iAyos"
                     width={180}
                     height={60}
-                    className="h-16 w-auto mx-auto mb-6"
+                    className="h-50 w-auto mx-auto mb-6"
                   />
-                  <h1 className="text-4xl font-bold mb-4">Welcome back {'<3'}</h1>
-                  <p className="text-xl mb-8 opacity-90">
-                    Sign in to your account and continue your journey
-                  </p>
-                  <div className="space-y-4">
+                  <h1 className="text-3xl font-bold mb-4 text-slate-900">
+                    May Sira? May <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">iAyos</span>
+                  </h1>
+                  <div className="space-y-4 text-gray-800">
                     <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                         <span className="text-sm">✓</span>
                       </div>
                       <span>Access your dashboard</span>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                         <span className="text-sm">✓</span>
                       </div>
                       <span>Manage your projects</span>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                         <span className="text-sm">✓</span>
                       </div>
                       <span>Connect with professionals</span>
+                    </div>
+                  </div>
+                  <div className="text-left space-y-4 mt-10">
+                    {/* Worker/Client App Download */}
+                    <div>
+                      <p className="text-sm text-slate-900 mb-2">
+                        <strong>
+                          Looking to get something done or work as a freelance worker?
+                        </strong>
+                      </p>
+                      {/* <p className="text-xs text-blue-700 mb-3">
+                        Download our mobile app to get started
+                      </p> */}
+                      <Link href="/auth/download-app">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-[#54B7EC] text-white hover:bg-blue-50 p-7 font-bold text-lg"
+                        >
+                          ⬇ Download App
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -636,9 +657,6 @@ const Login = () => {
                     <h2 className="text-3xl font-bold text-gray-900 mb-2">
                       Sign in to your account
                     </h2>
-                    <p className="text-gray-600">
-                      Welcome back {'<3'}! Please enter your details
-                    </p>
                   </div>
 
                   {/* Form */}
@@ -795,30 +813,6 @@ const Login = () => {
                     />
                     <span className="text-sm">Continue with Google</span>
                   </a>
-
-                  <div className="mt-6 text-center space-y-4">
-                    {/* Worker/Client App Download */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-sm font-inter text-blue-900 mb-2">
-                        <strong>
-                          Are you looking to get something done or looking for
-                          work as a freelance worker?
-                        </strong>
-                      </p>
-                      <p className="text-xs text-blue-700 mb-3">
-                        Download our mobile app to get started
-                      </p>
-                      <Link href="/auth/download-app">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-                        >
-                          📱 Download Mobile App
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
