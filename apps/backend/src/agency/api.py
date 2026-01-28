@@ -80,9 +80,7 @@ def validate_agency_document(request):
     - details: dict - validation details (resolution, quality_score, face_detected, etc.)
     """
     try:
-        from accounts.document_verification_service import DocumentVerificationService
-        
-        # Get uploaded file
+        # Get uploaded file first (fast operation)
         file = request.FILES.get("file")
         document_type = request.POST.get("document_type", "").upper()
         
@@ -132,8 +130,24 @@ def validate_agency_document(request):
         
         print(f"🔍 [AGENCY] Validating {document_type} as {verification_doc_type}, require_face={require_face}")
         
+        # Lazy import to avoid blocking Django startup
+        try:
+            from accounts.document_verification_service import DocumentVerificationService
+            service = DocumentVerificationService()
+        except Exception as init_error:
+            print(f"⚠️ DocumentVerificationService init failed: {init_error}")
+            # Return valid with manual review flag if AI service unavailable
+            return {
+                "valid": True,
+                "error": None,
+                "details": {
+                    "skipped": True,
+                    "reason": "AI verification temporarily unavailable - document accepted for manual review",
+                    "needs_manual_review": True
+                }
+            }
+        
         # Run quick validation (resolution + blur + face)
-        service = DocumentVerificationService()
         result = service.validate_document_quick(
             file_data=file_data,
             document_type=verification_doc_type,

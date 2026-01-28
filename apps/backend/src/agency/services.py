@@ -324,6 +324,26 @@ def get_agency_kyc_status(account_id):
 		
 		# Generate signed URLs for private bucket files
 		from iayos_project.utils import get_signed_url
+		
+		def extract_file_path(url_or_path):
+			"""Extract just the file path from a potentially full URL or signed URL."""
+			if not url_or_path:
+				return None
+			# If it's already just a path (no URL prefix), return as-is
+			if not url_or_path.startswith('http') and '/object/' not in url_or_path:
+				return url_or_path
+			# Extract path from full URL or partial URL
+			# Patterns: /object/sign/agency/agency_X/kyc/file.pdf or /object/public/agency/...
+			import re
+			# Match the actual file path after bucket name
+			match = re.search(r'/(?:object/(?:sign|public)/)?agency/(.+?)(?:\?|$)', url_or_path)
+			if match:
+				return match.group(1)  # Returns agency_X/kyc/file.pdf
+			# Fallback: try to extract agency_X/kyc/filename pattern
+			match = re.search(r'(agency_\d+/kyc/[^?]+)', url_or_path)
+			if match:
+				return match.group(1)
+			return url_or_path
 
 		return {
 			"agency_kyc_id": kyc_record.agencyKycID,
@@ -337,7 +357,7 @@ def get_agency_kyc_status(account_id):
 					"file_name": f.fileName,
 					"file_size": f.fileSize,
 					"uploaded_at": f.uploadedAt,
-					"file_url": get_signed_url("agency", f.fileURL, expires_in=3600) or f.fileURL
+					"file_url": get_signed_url("agency", extract_file_path(f.fileURL), expires_in=3600) or f.fileURL
 				} for f in files
 			]
 		}
