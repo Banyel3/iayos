@@ -308,6 +308,8 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type, rep_i
     This function runs AFTER upload and provides extracted data for editing.
     Results are cached in Redis for 10 minutes.
     
+    OPTIMIZED: Runs OCR extraction in parallel for faster completion.
+    
     Returns:
         dict: Extracted business data (name, address, rep_name, etc.)
     """
@@ -317,73 +319,93 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type, rep_i
         from .kyc_extraction_parser import get_agency_kyc_parser
         parser = get_agency_kyc_parser()
         
-        # Extract from business permit
-        permit_data = {}
+        # Prepare images for parallel processing
+        permit_bytes = None
+        rep_bytes = None
+        
         if business_permit:
             business_permit.seek(0)
             permit_bytes = business_permit.read()
             
-            # Run Tesseract OCR
-            from accounts.document_verification_service import DocumentVerificationService
-            doc_service = DocumentVerificationService()
-            
-            # Use PIL to load image
-            from PIL import Image
-            import io
-            permit_img = Image.open(io.BytesIO(permit_bytes))
-            
-            # Extract text
-            ocr_result = doc_service._extract_text(permit_img)
-            ocr_text = ocr_result.get('text', '')
-            
-            print(f"   📄 Business permit OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}")
-            
-            # Parse business data from OCR text
-            parsed_business = parser.parse_ocr_text(ocr_text, "BUSINESS_PERMIT")
-            permit_data = {
-                "business_name": parsed_business.business_name.value or "",
-                "business_address": parsed_business.business_address.value or "",
-                "permit_number": parsed_business.permit_number.value or "",
-                "dti_number": parsed_business.dti_number.value or "",
-                "sec_number": parsed_business.sec_number.value or "",
-                "tin": parsed_business.tin.value or "",
-                "permit_issue_date": parsed_business.permit_issue_date.value or "",
-                "permit_expiry_date": parsed_business.permit_expiry_date.value or "",
-                "confidence": parsed_business.overall_confidence,
-            }
-        
-        # Extract from representative ID (if provided)
-        rep_data = {}
         if rep_id_front:
             rep_id_front.seek(0)
             rep_bytes = rep_id_front.read()
+        
+        def extract_permit_ocr(image_bytes):
+            """Extract OCR from business permit."""
+            if not image_bytes:
+                return {}
+            try:
+                from accounts.document_verification_service import DocumentVerificationService
+                from PIL import Image
+                import io
+                
+                doc_service = DocumentVerificationService()
+                permit_img = Image.open(io.BytesIO(image_bytes))
+                ocr_result = doc_service._extract_text(permit_img)
+                ocr_text = ocr_result.get('text', '')
+                
+                print(f"   📄 Business permit OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}")
+                
+                parsed_business = parser.parse_ocr_text(ocr_text, "BUSINESS_PERMIT")
+                return {
+                    "business_name": parsed_business.business_name.value or "",
+                    "business_address": parsed_business.business_address.value or "",
+                    "permit_number": parsed_business.permit_number.value or "",
+                    "dti_number": parsed_business.dti_number.value or "",
+                    "sec_number": parsed_business.sec_number.value or "",
+                    "tin": parsed_business.tin.value or "",
+                    "permit_issue_date": parsed_business.permit_issue_date.value or "",
+                    "permit_expiry_date": parsed_business.permit_expiry_date.value or "",
+                    "confidence": parsed_business.overall_confidence,
+                }
+            except Exception as e:
+                print(f"   ❌ Permit OCR error: {e}")
+                return {"confidence": 0}
+        
+        def extract_rep_id_ocr(image_bytes, doc_type):
+            """Extract OCR from representative ID."""
+            if not image_bytes:
+                return {}
+            try:
+                from accounts.document_verification_service import DocumentVerificationService
+                from PIL import Image
+                import io
+                
+                doc_service = DocumentVerificationService()
+                rep_img = Image.open(io.BytesIO(image_bytes))
+                ocr_result = doc_service._extract_text(rep_img)
+                ocr_text = ocr_result.get('text', '')
+                
+                print(f"   🪪 Rep ID OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}")
+                
+                parsed_rep = parser.parse_ocr_text(ocr_text, doc_type)
+                return {
+                    "rep_full_name": parsed_rep.rep_full_name.value or "",
+                    "rep_id_number": parsed_rep.rep_id_number.value or "",
+                    "rep_id_type": parsed_rep.rep_id_type.value or doc_type,
+                    "rep_birth_date": parsed_rep.rep_birth_date.value or "",
+                    "rep_address": parsed_rep.rep_address.value or "",
+                    "confidence": parsed_rep.overall_confidence,
+                }
+            except Exception as e:
+                print(f"   ❌ Rep ID OCR error: {e}")
+                return {"confidence": 0}
+        
+        # Run OCR extraction in parallel for better performance
+        rep_doc_type = (rep_id_type or "REP_ID_FRONT").upper()
+        permit_data = {}
+        rep_data = {}
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            permit_future = executor.submit(extract_permit_ocr, permit_bytes)
+            rep_future = executor.submit(extract_rep_id_ocr, rep_bytes, rep_doc_type)
             
-            from accounts.document_verification_service import DocumentVerificationService
-            doc_service = DocumentVerificationService()
-            
-            from PIL import Image
-            import io
-            rep_img = Image.open(io.BytesIO(rep_bytes))
-            
-            ocr_result = doc_service._extract_text(rep_img)
-            ocr_text = ocr_result.get('text', '')
-            
-            print(f"   🪪 Rep ID OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}")
-            
-            # Parse representative data (use provided ID type if available)
-            rep_doc_type = (rep_id_type or "REP_ID_FRONT").upper()
-            parsed_rep = parser.parse_ocr_text(ocr_text, rep_doc_type)
-            rep_data = {
-                "rep_full_name": parsed_rep.rep_full_name.value or "",
-                "rep_id_number": parsed_rep.rep_id_number.value or "",
-                "rep_id_type": parsed_rep.rep_id_type.value or rep_doc_type,
-                "rep_birth_date": parsed_rep.rep_birth_date.value or "",
-                "rep_address": parsed_rep.rep_address.value or "",
-                "confidence": parsed_rep.overall_confidence,
-            }
+            # Wait for both to complete
+            permit_data = permit_future.result()
+            rep_data = rep_future.result()
         
         # Merge results
-        # Prefer user-selected business_type (dropdown) if provided
         selected_business_type = business_type or permit_data.get("business_type") or ""
 
         extracted_data = {
@@ -393,7 +415,7 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type, rep_i
             "extracted_at": timezone.now().isoformat(),
         }
         
-        print(f"✅ [OCR] Extraction complete: {len(extracted_data)} fields")
+        print(f"✅ [OCR] Parallel extraction complete: {len(extracted_data)} fields")
         
         return {
             "success": True,

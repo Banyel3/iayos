@@ -19,11 +19,16 @@ Usage:
     service = get_face_service()
     result = service.detect_face(image_bytes)
     match = service.compare_faces(id_image, selfie_image)
+
+Performance Optimizations:
+- Connection pooling via httpx.Client (reuses TCP connections)
+- Pre-warming on Django startup to avoid cold start delays
+- Increased timeout for Render free tier cold starts
 """
 
 import os
 import logging
-import requests
+import httpx
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
@@ -37,10 +42,56 @@ logger = logging.getLogger(__name__)
 FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
 # Request timeout (Face API cold start can take ~10-15s on Render free tier)
-FACE_API_TIMEOUT = int(os.getenv("FACE_API_TIMEOUT", "30"))
+# Increased from 30s to 45s to accommodate worst-case cold starts
+FACE_API_TIMEOUT = int(os.getenv("FACE_API_TIMEOUT", "45"))
+
+# Health check timeout (shorter, used for keep-alive pings)
+FACE_API_HEALTH_TIMEOUT = int(os.getenv("FACE_API_HEALTH_TIMEOUT", "10"))
 
 # Minimum confidence threshold for face detection
 MIN_FACE_CONFIDENCE = float(os.getenv("MIN_FACE_CONFIDENCE", "0.7"))
+
+# ============================================================================
+# Connection Pool - Reuse TCP connections for better performance
+# ============================================================================
+
+_http_client: Optional[httpx.Client] = None
+
+
+def get_http_client() -> httpx.Client:
+    """Get or create a persistent HTTP client with connection pooling."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.Client(
+            timeout=httpx.Timeout(FACE_API_TIMEOUT, connect=10.0),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            follow_redirects=True,
+        )
+        logger.info("Created httpx connection pool for Face API")
+    return _http_client
+
+
+def prewarm_face_api() -> bool:
+    """
+    Pre-warm Face API by calling health endpoint.
+    Call this on Django startup to wake the service before user requests.
+    Returns True if service is healthy, False otherwise.
+    """
+    try:
+        client = get_http_client()
+        response = client.get(
+            f"{FACE_API_URL}/health",
+            timeout=FACE_API_HEALTH_TIMEOUT,
+        )
+        if response.status_code == 200:
+            logger.info("Face API pre-warmed successfully")
+            return True
+        else:
+            logger.warning(f"Face API health check returned {response.status_code}")
+            return False
+    except Exception as e:
+        logger.warning(f"Face API pre-warm failed: {e}")
+        return False
 
 # ============================================================================
 # Face Detection Result Types
@@ -140,14 +191,16 @@ class FaceDetectionService:
             "face_comparison_available": self._initialized,
             "model": "mediapipe",
             "auto_accept_enabled": True,  # Always auto-accept since MediaPipe can't match
+            "timeout_seconds": FACE_API_TIMEOUT,
         }
         
         # Optionally check if Face API is reachable
         if self._initialized:
             try:
-                response = requests.get(
+                client = get_http_client()
+                response = client.get(
                     f"{self._api_url}/health",
-                    timeout=5
+                    timeout=FACE_API_HEALTH_TIMEOUT,
                 )
                 if response.status_code == 200:
                     health = response.json()
@@ -192,12 +245,12 @@ class FaceDetectionService:
         try:
             detect_start = time.time()
             
-            # Call external Face API
+            # Call external Face API using connection pool
+            client = get_http_client()
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
-            response = requests.post(
+            response = client.post(
                 f"{self._api_url}/detect",
                 files=files,
-                timeout=self._timeout
             )
             
             detect_time = time.time() - detect_start
@@ -242,14 +295,14 @@ class FaceDetectionService:
                 face_too_small=False  # Let the caller determine this
             )
             
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             logger.error(f"[REQ-{request_id}] Face API timeout after {self._timeout}s")
             return FaceDetectionResult(
                 detected=False,
                 skipped=True,
                 error="Face detection timed out - service may be starting up"
             )
-        except requests.exceptions.ConnectionError as e:
+        except httpx.ConnectError as e:
             logger.error(f"[REQ-{request_id}] Face API connection error: {e}")
             return FaceDetectionResult(
                 detected=False,
@@ -316,15 +369,15 @@ class FaceDetectionService:
         try:
             compare_start = time.time()
             
-            # Call external Face API /verify endpoint
+            # Call external Face API /verify endpoint using connection pool
+            client = get_http_client()
             files = {
                 "file1": ("id.jpg", id_image_data, "image/jpeg"),
                 "file2": ("selfie.jpg", selfie_image_data, "image/jpeg")
             }
-            response = requests.post(
+            response = client.post(
                 f"{self._api_url}/verify",
                 files=files,
-                timeout=self._timeout
             )
             
             compare_time = time.time() - compare_start
@@ -385,7 +438,7 @@ class FaceDetectionService:
                 model="mediapipe"
             )
             
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             logger.warning(f"[COMP-{request_id}] Face API timeout - auto-accepting")
             return FaceComparisonResult(
                 match=True,  # Auto-accept on timeout
