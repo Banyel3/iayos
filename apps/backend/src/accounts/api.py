@@ -427,6 +427,9 @@ def validate_kyc_document(request):
     Checks resolution, blur, and face detection (for ID/selfie).
     Does NOT run OCR - that happens on final submission.
     
+    NOTE: This endpoint is for INDIVIDUAL/MOBILE KYC only.
+    Agency KYC uses /api/agency/kyc/validate-document with different document types.
+    
     Request: multipart/form-data
     - file: The document image file
     - document_type: Type of document (FRONTID, BACKID, CLEARANCE, SELFIE)
@@ -445,6 +448,12 @@ def validate_kyc_document(request):
         
         if not document_type:
             return {"valid": False, "error": "Document type not specified", "details": {}}
+        
+        # Validate document type - INDIVIDUAL/MOBILE KYC only
+        # Agency KYC documents (BUSINESS_PERMIT, REP_ID_FRONT, etc.) should use /api/agency/kyc/validate-document
+        valid_types = ['FRONTID', 'BACKID', 'CLEARANCE', 'SELFIE']
+        if document_type not in valid_types:
+            return {"valid": False, "error": f"Invalid document_type for individual KYC. Must be one of: {', '.join(valid_types)}", "details": {}}
         
         print(f"🔍 [VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
         
