@@ -57,20 +57,43 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		if not created:
 			# Remove previous files and reset status
 			from iayos_project.utils import delete_storage_file
+			import re
+			
+			def extract_file_path_for_delete(url_or_path):
+				"""Extract just the file path from a potentially full URL or signed URL for deletion."""
+				if not url_or_path:
+					return None
+				# If it's already just a path (no URL prefix), return as-is
+				if not url_or_path.startswith('http') and '/object/' not in url_or_path:
+					return url_or_path
+				# Extract path from full URL - match agency_X/kyc/filename pattern
+				match = re.search(r'(agency_\d+/kyc/[^?]+)', url_or_path)
+				if match:
+					return match.group(1)
+				# Fallback - try to get path after /agency/
+				match = re.search(r'/agency/(.+?)(?:\?|$)', url_or_path)
+				if match:
+					return match.group(1)
+				return url_or_path
 			
 			# Delete old files from Supabase storage BEFORE deleting DB records
 			old_files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
 			old_files_count = old_files.count()
+			deleted_count = 0
 			for f in old_files:
 				if f.fileURL:
-					delete_storage_file("agency", f.fileURL)
+					file_path = extract_file_path_for_delete(f.fileURL)
+					if file_path:
+						print(f"🗑️ Deleting old file: {file_path} (from URL: {f.fileURL[:50]}...)")
+						if delete_storage_file("agency", file_path):
+							deleted_count += 1
 			
 			AgencyKycFile.objects.filter(agencyKyc=kyc_record).delete()
 			kyc_record.status = 'PENDING'
 			kyc_record.notes = 'Re-submitted'
 			kyc_record.resubmissionCount = kyc_record.resubmissionCount + 1
 			kyc_record.save()
-			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {old_files_count} old files from DB and Supabase")
+			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {deleted_count}/{old_files_count} old files from Supabase")
 
 		uploaded_files = []
 		verification_results = []
