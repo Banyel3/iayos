@@ -59,6 +59,7 @@ const AgencyKYCPage = () => {
   const [authLetterPreview, setAuthLetterPreview] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false); // Loading state for navigation
   const [agencyKycStatus, setAgencyKycStatus] = useState<string | null>(null);
   const [agencyKycFiles, setAgencyKycFiles] = useState<any[]>([]);
   const [agencyKycNotes, setAgencyKycNotes] = useState<string | null>(null);
@@ -1588,10 +1589,14 @@ const AgencyKYCPage = () => {
             </button>
           )}
           <button
-            onClick={() => router.push("/agency/dashboard")}
+            onClick={() => {
+              setIsNavigating(true);
+              router.push("/agency/dashboard");
+            }}
+            disabled={isNavigating}
             className={`px-6 py-3 rounded-full font-semibold transition-colors ${isRejected
-              ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              : "bg-blue-600 text-white hover:bg-blue-700"
+              ? "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+              : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               }`}
           >
             {isRejected ? "Back to Dashboard" : "Go to Dashboard"}
@@ -1636,17 +1641,17 @@ const AgencyKYCPage = () => {
             {renderProgressBar()}
 
             <div className="relative bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-              {isSubmitting && (
+              {(isSubmitting || isNavigating) && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 rounded-2xl">
                   <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
                   <div className="text-blue-700 font-medium text-base">
-                    Uploading your documents...
+                    {isNavigating ? "Loading..." : "Uploading your documents..."}
                   </div>
                 </div>
               )}
               <div
                 className={
-                  isSubmitting
+                  (isSubmitting || isNavigating)
                     ? "opacity-50 pointer-events-none select-none"
                     : ""
                 }
