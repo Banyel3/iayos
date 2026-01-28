@@ -498,9 +498,6 @@ if REDIS_URL and REDIS_URL != "none":
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": REDIS_URL,
-            "OPTIONS": {
-                "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            },
             "KEY_PREFIX": "iayos",
             "TIMEOUT": 300,  # 5 minutes default cache timeout
         }
