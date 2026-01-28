@@ -344,7 +344,19 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 else:
                     print(f"   ⏳ [AUTO-APPROVAL] Thresholds not met, pending manual review")
         except Exception as e:
-            print(f"   ⚠️ [AUTO-APPROVAL] Check failed (will default to PENDING): {e}")
+            # AI service or auto-approval check failed - fallback to manual review
+            print(f"   ⚠️ [AUTO-APPROVAL] Check failed, falling back to manual review: {e}")
+            kyc_record.notes = f"Auto-approval check failed: {str(e)[:200]}. Requires manual review."
+            kyc_record.save()
+        
+        # If auto-approval didn't happen, ensure status is PENDING for manual review
+        if not auto_approved:
+            kyc_record.status = 'PENDING'
+            if not kyc_record.notes or kyc_record.notes == 'Re-submitted':
+                kyc_record.notes = 'Awaiting manual review by admin'
+            kyc_record.save()
+            final_status = "PENDING"
+            print(f"   📋 [MANUAL REVIEW] KYC set to PENDING for admin review")
         
         print(f"✅ [FAST UPLOAD] KYC uploaded successfully in ~5-10s (cached validation)")
         

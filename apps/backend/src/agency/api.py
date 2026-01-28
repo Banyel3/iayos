@@ -35,10 +35,11 @@ def upload_agency_kyc(request):
         business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
         
         # Get file hashes from validation step (JSON string)
+        # Frontend sends 'file_hashes_json' field with JSON-encoded hashes
         import json
-        file_hashes_json = request.POST.get("file_hashes", "{}")
+        file_hashes_raw = request.POST.get("file_hashes_json", "{}")
         try:
-            file_hashes = json.loads(file_hashes_json)
+            file_hashes = json.loads(file_hashes_raw)
         except json.JSONDecodeError:
             file_hashes = {}
         
