@@ -1191,7 +1191,8 @@ const AgencyKYCPage = () => {
               </h2>
               <div className="space-y-4">
                 {AGENCY_KYC_FIELD_CONFIG.filter(
-                  (f) => f.section === "business",
+                  (f) => f.section === "business" &&
+                    (!f.applicableBusinessTypes || f.applicableBusinessTypes.includes(businessType)),
                 ).map((field) => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
