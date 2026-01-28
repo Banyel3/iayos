@@ -1,0 +1,68 @@
+# Test Agency KYC OCR Extraction with Real Images
+# This test uploads real images to verify OCR is working
+
+@baseUrl = http://localhost:8000
+
+### 1. Login as admin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "admin@iayos.com",
+  "password": "admin123"
+}
+
+### 2. Check current KYC status
+GET {{baseUrl}}/api/agency/status
+Cookie: {{$dotenv ADMIN_COOKIE}}
+
+### 3. Upload Agency KYC with REAL images (put actual file paths below)
+# IMPORTANT: Replace paths with actual image files on your system
+POST {{baseUrl}}/api/agency/upload
+Cookie: {{$dotenv ADMIN_COOKIE}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="businessName"
+
+Test Business Inc
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="businessDesc"
+
+Test business description
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_id_type"
+
+PHILSYS_ID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_type"
+
+SOLE_PROPRIETORSHIP
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_permit"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/business_permit.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_front"; filename="id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_back"; filename="id_back.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_back.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 4. Check autofill data immediately after upload
+GET {{baseUrl}}/api/agency/kyc/autofill
+Cookie: {{$dotenv ADMIN_COOKIE}}
+
+### 5. Wait a few seconds, then check autofill again
+# @note OCR extraction runs asynchronously after upload
+GET {{baseUrl}}/api/agency/kyc/autofill
+Cookie: {{$dotenv ADMIN_COOKIE}}
+
+### 6. Check backend logs for extraction errors
+# Run this in terminal: docker logs iayos-backend-dev 2>&1 | grep -i "AGENCY KYC EXTRACTION" | tail -50
