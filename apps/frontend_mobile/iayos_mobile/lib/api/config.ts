@@ -5,6 +5,7 @@
 // For physical device, use your machine's network IP
 
 import { Platform } from "react-native";
+import NetInfo from "@react-native-community/netinfo";
 
 // AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
 // When you switch networks, Expo will automatically use the new IP
@@ -34,14 +35,48 @@ const getDevIP = (): string => {
 };
 
 const DEV_IP = getDevIP();
+
+// PRODUCTION URL - hardcoded as the authoritative production endpoint
+const PRODUCTION_API_URL = "https://api.iayos.online";
+
 // Allow environment variable override for CI/CD (e.g., staging backend in Detox tests)
+// In production builds (__DEV__ = false), ALWAYS use production URL
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
-  (__DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.online");
+  (__DEV__ ? `http://${DEV_IP}:8000` : PRODUCTION_API_URL);
 
 // Log the API URL being used (helps debug network issues)
 console.log(`[API Config] API_URL = ${API_URL}`);
 console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
+console.log(`[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`);
+
+/**
+ * Check network connectivity before making requests.
+ * Returns detailed network state for debugging.
+ */
+export const checkNetworkConnectivity = async (): Promise<{
+  isConnected: boolean;
+  type: string;
+  details: string;
+}> => {
+  try {
+    const state = await NetInfo.fetch();
+    const isConnected = state.isConnected ?? false;
+    const type = state.type || "unknown";
+    const details = JSON.stringify({
+      isConnected: state.isConnected,
+      isInternetReachable: state.isInternetReachable,
+      type: state.type,
+      details: state.details,
+    });
+    
+    console.log(`[Network] Connectivity check: connected=${isConnected}, type=${type}`);
+    return { isConnected, type, details };
+  } catch (error) {
+    console.error("[Network] Failed to check connectivity:", error);
+    return { isConnected: false, type: "error", details: String(error) };
+  }
+};
 
 const deriveDevWebUrl = () => {
   try {
@@ -468,18 +503,47 @@ export const apiRequest = async (
   };
 
   try {
+    console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
     const resp = await fetch(url, defaultOptions);
+    console.log(`[API] Response: ${resp.status} ${resp.statusText} from ${url}`);
     return resp;
   } catch (err: any) {
+    // Enhanced error logging for debugging network issues
+    console.error(`[API] ❌ Request failed: ${url}`);
+    console.error(`[API] Error name: ${err.name}`);
+    console.error(`[API] Error message: ${err.message}`);
+    
     if (err.name === "AbortError") {
       // Provide clearer error for timeouts
-      throw new Error(`Network request timed out after ${timeout}ms`);
+      throw new Error(`Network request timed out after ${timeout}ms. Please check your internet connection.`);
     }
+    
+    // Check if it's a network error (no internet)
+    if (err.message === "Network request failed") {
+      // Get detailed network state
+      const netState = await checkNetworkConnectivity();
+      console.error(`[API] Network state: ${netState.details}`);
+      
+      if (!netState.isConnected) {
+        throw new Error("No internet connection. Please check your network settings and try again.");
+      }
+      
+      // Internet connected but request still failed - likely server issue
+      throw new Error(
+        `Unable to reach server at ${url}. ` +
+        `Network: ${netState.type}. ` +
+        `Please verify the server is running and try again.`
+      );
+    }
+    
     throw err;
   } finally {
     clearTimeout(timeoutId);
   }
 };
+
+// Export the API_URL for debugging purposes
+export const getApiUrl = () => API_URL;
 
 // Typed JSON fetch helper. Use this when you expect JSON and want a typed result.
 export async function fetchJson<T = any>(
