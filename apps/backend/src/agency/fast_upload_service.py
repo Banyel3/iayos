@@ -281,15 +281,81 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 "files": uploaded_files
             }
         
+        # ============================================
+        # AUTO-APPROVAL CHECK
+        # ============================================
+        # If all documents passed AI validation, check if we should auto-approve
+        final_status = "PENDING"
+        auto_approved = False
+        
+        try:
+            from adminpanel.models import PlatformSettings
+            settings = PlatformSettings.objects.first()
+            
+            if settings and settings.autoApproveKYC:
+                # Check if all required docs passed with sufficient confidence
+                all_passed = all(
+                    r['ai_status'] in ('PASSED', 'SKIPPED') 
+                    for r in upload_results
+                )
+                
+                # Check if rep_id_front has face detected (required for agency KYC)
+                rep_id_front_result = next(
+                    (r for r in upload_results if r['key'] == 'REP_ID_FRONT'), 
+                    None
+                )
+                face_detected = rep_id_front_result and rep_id_front_result.get('face_detected', False)
+                
+                # Calculate average confidence
+                confidence_scores = [
+                    r.get('ai_confidence_score') or 0 
+                    for r in upload_results 
+                    if r.get('ai_confidence_score') is not None
+                ]
+                avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
+                
+                min_confidence = float(settings.kycAutoApproveMinConfidence or 0.7)
+                
+                print(f"   🔍 [AUTO-APPROVAL] Checking eligibility...")
+                print(f"      - autoApproveKYC: {settings.autoApproveKYC}")
+                print(f"      - all_passed: {all_passed}")
+                print(f"      - face_detected: {face_detected}")
+                print(f"      - avg_confidence: {avg_confidence:.2f}")
+                print(f"      - min_confidence: {min_confidence:.2f}")
+                
+                if all_passed and face_detected and avg_confidence >= min_confidence:
+                    kyc_record.status = 'APPROVED'
+                    kyc_record.reviewedBy = None  # Will store as system approval
+                    kyc_record.reviewedAt = timezone.now()
+                    kyc_record.notes = f"Auto-approved: All AI checks passed, confidence={avg_confidence:.2f}"
+                    kyc_record.save()
+                    
+                    final_status = "APPROVED"
+                    auto_approved = True
+                    print(f"   🎉 [AUTO-APPROVAL] Agency KYC auto-approved!")
+                    
+                    # Create success notification
+                    Notification.objects.create(
+                        accountFK=user,
+                        title="Agency Verified! ✅",
+                        message="Your agency KYC has been automatically verified. You can now access all platform features.",
+                        notificationType="KYC_APPROVED"
+                    )
+                else:
+                    print(f"   ⏳ [AUTO-APPROVAL] Thresholds not met, pending manual review")
+        except Exception as e:
+            print(f"   ⚠️ [AUTO-APPROVAL] Check failed (will default to PENDING): {e}")
+        
         print(f"✅ [FAST UPLOAD] KYC uploaded successfully in ~5-10s (cached validation)")
         
         return {
             "message": "Agency KYC uploaded successfully",
             "agency_kyc_id": kyc_record.agencyKycID,
-            "status": "PENDING",
+            "status": final_status,
+            "auto_approved": auto_approved,
             "files": uploaded_files,
             "upload_time": "fast",
-            "note": "OCR extraction will run separately - check autofill endpoint"
+            "note": "OCR extraction will run separately - check autofill endpoint" if not auto_approved else "Auto-approved by AI verification"
         }
 
     except Accounts.DoesNotExist:
