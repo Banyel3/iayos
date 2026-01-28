@@ -20,14 +20,10 @@ python -c "import site; print('\n'.join(site.getsitepackages()))" 2>&1 || echo "
 echo ""
 echo "Checking critical packages:"
 echo "- Django: $(python -c 'import django; print(django.__version__)' 2>&1 || echo 'NOT FOUND ❌')"
-# Simple package checks - just verify import works, no model loading
-echo "- InsightFace: $(pip show insightface 2>/dev/null | grep -q Version && echo 'INSTALLED ✓' || echo 'NOT FOUND')"
-echo "- ONNX Runtime: $(pip show onnxruntime 2>/dev/null | grep -q Version && echo 'INSTALLED ✓' || echo 'NOT FOUND')"
 echo "- Pytesseract: $(python -c 'import pytesseract; print(pytesseract.get_tesseract_version())' 2>&1 || echo 'NOT FOUND ❌')"
 echo "- Pillow: $(python -c 'from PIL import Image; print(Image.__version__)' 2>&1 || echo 'NOT FOUND ❌')"
 echo "- Psycopg2: $(python -c 'import psycopg2; print(psycopg2.__version__)' 2>&1 || echo 'NOT FOUND ❌')"
 echo ""
-echo "INSIGHTFACE_MODEL: ${INSIGHTFACE_MODEL:-buffalo_s (default)}"
 echo "=========================================="
 
 cd /app/backend/src

@@ -209,14 +209,12 @@ EXPOSE 3000
 CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 
 # ============================================
-# Stage 13: Backend Development (Debian-based for InsightFace/ONNX)
+# Stage 13: Backend Development (Debian-based)
 # ============================================
 # Note: Using Debian-slim for consistent Python package availability
-# InsightFace uses ONNX Runtime (~180MB RAM) instead of TensorFlow (~400MB)
 FROM python:3.12-slim AS backend-development
 
 # Set environment variables
-# INSIGHTFACE_HOME: InsightFace stores models in ~/.insightface by default
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -225,13 +223,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Create non-root user
 RUN groupadd -g 1001 appgroup \
-    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
-    && mkdir -p /app/.insightface \
-    && chown appuser:appgroup /app/.insightface
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
 
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
-# - libgl1 for OpenCV (required by InsightFace)
+# Note: Removed OpenCV/InsightFace deps (moved to Face API service)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
@@ -243,12 +239,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     libpng-dev \
     curl \
-    # OpenCV/InsightFace dependencies
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/apps/backend
@@ -261,49 +251,6 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
 RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
-
-# Pre-download InsightFace models at build time to avoid first-request delay
-# buffalo_s model is ~160MB and provides good accuracy with minimal RAM
-RUN python << 'EOF'
-import os
-os.environ['HOME'] = '/app'
-try:
-    from insightface.app import FaceAnalysis
-    import numpy as np
-    
-    print('📥 Pre-downloading InsightFace buffalo_s model...')
-    
-    # Initialize FaceAnalysis - this downloads the model
-    app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
-    app.prepare(ctx_id=-1, det_size=(320, 320))
-    
-    # Verify by running a dummy detection
-    dummy_img = np.zeros((320, 320, 3), dtype=np.uint8)
-    faces = app.get(dummy_img)
-    print(f'✅ InsightFace ready (detected {len(faces)} faces in dummy image)')
-    
-    # Show model size
-    insightface_dir = '/app/.insightface'
-    if os.path.exists(insightface_dir):
-        total_size = 0
-        for root, dirs, files in os.walk(insightface_dir):
-            for f in files:
-                path = os.path.join(root, f)
-                size = os.path.getsize(path)
-                total_size += size
-                print(f'   📦 {os.path.basename(path)}: {size/1024/1024:.1f}MB')
-        print(f'   📊 Total model size: {total_size/1024/1024:.1f}MB')
-except ImportError as e:
-    print(f'⚠️ InsightFace not available: {e}')
-except Exception as e:
-    print(f'⚠️ InsightFace setup warning: {e}')
-EOF
-
-# Ensure appuser owns the downloaded models
-RUN chown -R appuser:appgroup /app/.insightface || true
-
-# Copy backend source (mounted in dev)
-COPY --chown=appuser:appgroup apps/backend .
 
 # Give appuser ownership of working directory
 RUN chown -R appuser:appgroup /app
@@ -319,17 +266,14 @@ EXPOSE 8000
 
 # Default dev command (compose overrides)
 CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
-
 # ============================================
-# Stage 14: Backend Production (Debian-based for InsightFace/ONNX)
+# Stage 14: Backend Production (Debian-based)
 # ============================================
 # This MUST be the last stage for Render to build it by default
-# Using Debian-slim with InsightFace + ONNX Runtime (~180MB RAM)
-# InsightFace uses buffalo_s model for face detection & verification
+# Using Debian-slim for consistent Python package availability
 FROM python:3.12-slim AS backend-production
 
 # Set secure environment variables
-# HOME="/app" ensures InsightFace stores models in /app/.insightface
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -339,14 +283,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Create non-root user (Debian syntax)
 RUN groupadd -g 1001 appgroup \
-    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
-    && mkdir -p /app/.insightface \
-    && chown appuser:appgroup /app/.insightface
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
 
 # Install only runtime dependencies (Debian syntax)
 # - tesseract-ocr for KYC document verification
-# - libgl1 for OpenCV (required by InsightFace)
-# - libleptonica-dev for pytesseract bindings
+# Note: Removed OpenCV/InsightFace deps (moved to Face API service)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     libpq5 \
@@ -355,11 +296,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-eng \
     libleptonica-dev \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
@@ -372,46 +308,6 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
 # Make start.sh executable (it's already copied from backend-builder)
 RUN chmod +x /app/backend/start.sh
-
-# Pre-download InsightFace models at build time to avoid RAM spikes at runtime
-# buffalo_s model is ~160MB and provides good accuracy with minimal RAM (~180MB total)
-RUN python << 'EOF'
-import os
-os.environ['HOME'] = '/app'
-try:
-    from insightface.app import FaceAnalysis
-    import numpy as np
-    
-    print('📥 Pre-downloading InsightFace buffalo_s model...')
-    
-    # Initialize FaceAnalysis - this downloads the model
-    app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
-    app.prepare(ctx_id=-1, det_size=(320, 320))
-    
-    # Verify by running a dummy detection
-    dummy_img = np.zeros((320, 320, 3), dtype=np.uint8)
-    faces = app.get(dummy_img)
-    print(f'✅ InsightFace ready (detected {len(faces)} faces in dummy image)')
-    
-    # Show model size
-    insightface_dir = '/app/.insightface'
-    if os.path.exists(insightface_dir):
-        total_size = 0
-        for root, dirs, files in os.walk(insightface_dir):
-            for f in files:
-                path = os.path.join(root, f)
-                size = os.path.getsize(path)
-                total_size += size
-                print(f'   📦 {os.path.basename(path)}: {size/1024/1024:.1f}MB')
-        print(f'   📊 Total model size: {total_size/1024/1024:.1f}MB')
-except ImportError as e:
-    print(f'⚠️ InsightFace not available: {e}')
-except Exception as e:
-    print(f'⚠️ InsightFace setup warning: {e}')
-EOF
-
-# Ensure appuser can read the pre-downloaded models
-RUN chown -R appuser:appgroup /app/.insightface || true
 
 # CRITICAL: Verify all dependencies are accessible at build time
 # Virtualenv PATH ensures python finds all packages automatically
@@ -433,12 +329,6 @@ try:
     
     import PIL
     print(f'✅ pillow: {PIL.__version__}')
-    
-    import insightface
-    print(f'✅ insightface: {insightface.__version__}')
-    
-    import onnxruntime
-    print(f'✅ onnxruntime: {onnxruntime.__version__}')
     
     print('🎉 ALL DEPENDENCIES VERIFIED')
     print('✅ Build verification PASSED')
