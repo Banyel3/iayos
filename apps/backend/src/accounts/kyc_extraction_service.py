@@ -274,3 +274,107 @@ def _store_face_match_score(extracted: KYCExtractedData, face_match_result: Dict
         
     except Exception as e:
         logger.error(f"   ❌ Failed to store face match score: {str(e)}")
+
+
+class KYCExtractionService:
+    """
+    Lightweight OCR parsing helper for agency autofill flows.
+
+    This service intentionally keeps parsing simple and resilient so that
+    missing fields never break API consumers. It extracts a handful of
+    business and representative fields from raw OCR text produced in
+    fast_upload_service.extract_ocr_for_autofill.
+    """
+
+    def __init__(self):
+        pass
+
+    def extract_business_data(self, ocr_text: str, business_type: str = "") -> Dict[str, Any]:
+        """Extract business permit details with best-effort heuristics."""
+        if not ocr_text:
+            return {
+                "business_name": "",
+                "business_address": "",
+                "permit_number": "",
+                "business_type": business_type or "",
+                "confidence": 0.0,
+            }
+
+        text_upper = ocr_text.upper()
+        lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
+
+        business_name = self._first_matching_line(lines, ["BUSINESS NAME", "REGISTERED NAME", "TRADE NAME", "OWNER", "NAME"])
+        business_address = self._first_matching_line(lines, ["ADDRESS", "LOCATION", "CITY", "STREET", "BARANGAY"])
+        permit_number = self._match_first(text_upper, r"\b[A-Z0-9]{6,}\b") or ""
+
+        confidence = 0.3
+        if business_name:
+            confidence += 0.3
+        if business_address:
+            confidence += 0.2
+        if permit_number:
+            confidence += 0.2
+
+        return {
+            "business_name": business_name or "",
+            "business_address": business_address or "",
+            "permit_number": permit_number or "",
+            "business_type": business_type or "",
+            "confidence": round(min(confidence, 1.0), 2),
+        }
+
+    def extract_representative_data(self, ocr_text: str) -> Dict[str, Any]:
+        """Extract representative name and ID number from ID OCR text."""
+        if not ocr_text:
+            return {
+                "rep_full_name": "",
+                "rep_id_number": "",
+                "rep_address": "",
+                "confidence": 0.0,
+            }
+
+        text_upper = ocr_text.upper()
+        lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
+
+        rep_full_name = self._first_matching_line(lines, ["NAME", "APELYIDO", "SURNAME", "FULL NAME"])
+        rep_address = self._first_matching_line(lines, ["ADDRESS", "CITY", "BARANGAY", "STREET", "MUNICIPALITY"])
+
+        # Try common ID number patterns
+        rep_id_number = (
+            self._match_first(text_upper, r"PSN[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}")
+            or self._match_first(text_upper, r"[A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7}")
+            or self._match_first(text_upper, r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b")
+            or self._match_first(text_upper, r"\b\d{8,12}\b")
+            or ""
+        )
+
+        confidence = 0.3
+        if rep_full_name:
+            confidence += 0.3
+        if rep_id_number:
+            confidence += 0.2
+        if rep_address:
+            confidence += 0.1
+
+        return {
+            "rep_full_name": rep_full_name or "",
+            "rep_id_number": rep_id_number or "",
+            "rep_address": rep_address or "",
+            "confidence": round(min(confidence, 1.0), 2),
+        }
+
+    def _first_matching_line(self, lines: list, keywords: list) -> str:
+        """Return the first line containing any keyword (case-insensitive)."""
+        for line in lines:
+            upper = line.upper()
+            if any(key in upper for key in keywords):
+                # Strip keyword label if present (e.g., "NAME:")
+                parts = upper.split(":", 1)
+                return parts[1].strip() if len(parts) == 2 else line.strip()
+        return ""
+
+    def _match_first(self, text_upper: str, pattern: str) -> Optional[str]:
+        import re
+
+        match = re.search(pattern, text_upper)
+        return match.group(0) if match else None

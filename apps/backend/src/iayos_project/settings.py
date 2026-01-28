@@ -114,6 +114,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'iayos_project.observability.RequestIDMiddleware',  # Request ID for tracing (first)
     'corsheaders.middleware.CorsMiddleware',
+    'iayos_project.mobile_cors_middleware.MobileCORSMiddleware',  # Handle mobile apps without Origin header
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -497,9 +498,6 @@ if REDIS_URL and REDIS_URL != "none":
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": REDIS_URL,
-            "OPTIONS": {
-                "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            },
             "KEY_PREFIX": "iayos",
             "TIMEOUT": 300,  # 5 minutes default cache timeout
         }

@@ -1,0 +1,99 @@
+# ================================================================
+# MOBILE NOTIFICATIONS TEST SUITE
+# Tests: Notifications, Push Token, Settings
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 1: Get All Notifications
+### ================================================================
+# @name getNotifications
+GET {{baseUrl}}/api/accounts/notifications
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 2: Get Unread Notifications Count
+### ================================================================
+# @name getUnreadCount
+GET {{baseUrl}}/api/accounts/notifications/unread-count
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 3: Mark Single Notification as Read
+### ================================================================
+# @name markNotificationRead
+POST {{baseUrl}}/api/accounts/notifications/1/mark-read
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 4: Mark All Notifications as Read
+### ================================================================
+# @name markAllNotificationsRead
+POST {{baseUrl}}/api/accounts/notifications/mark-all-read
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 5: Delete Notification
+### ================================================================
+# @name deleteNotification
+DELETE {{baseUrl}}/api/accounts/notifications/1/delete
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 6: Register Push Token (Expo)
+### ================================================================
+# @name registerPushToken
+POST {{baseUrl}}/api/accounts/register-push-token
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+    "platform": "android",
+    "device_id": "test-device-123"
+}
+
+### ================================================================
+### TEST 7: Get Notification Settings
+### ================================================================
+# @name getNotificationSettings
+GET {{baseUrl}}/api/accounts/notification-settings
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 8: Update Notification Settings
+### ================================================================
+# @name updateNotificationSettings
+PUT {{baseUrl}}/api/accounts/notification-settings
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "job_alerts": true,
+    "message_notifications": true,
+    "payment_notifications": true,
+    "marketing_notifications": false
+}
+
+### ================================================================
+### TEST 9: Delete Non-existent Notification (Should Fail)
+### Expected: 404 Not Found
+### ================================================================
+# @name deleteNonExistentNotification
+DELETE {{baseUrl}}/api/accounts/notifications/999999/delete
+Authorization: Bearer {{workerToken}}

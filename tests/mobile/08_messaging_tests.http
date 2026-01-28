@@ -1,0 +1,144 @@
+# ================================================================
+# MOBILE MESSAGING TEST SUITE
+# Tests: Conversations, Messages, Image Upload
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### SETUP: Login as Client
+### ================================================================
+# @name clientLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testclient@example.com",
+    "password": "Test1234!"
+}
+
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 1: Get All Conversations (Worker)
+### ================================================================
+# @name getWorkerConversations
+GET {{baseUrl}}/api/profiles/chat/conversations
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 2: Get All Conversations (Client)
+### ================================================================
+# @name getClientConversations
+GET {{baseUrl}}/api/profiles/chat/conversations
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 3: Get Conversation by Job ID
+### ================================================================
+# @name getConversationByJob
+GET {{baseUrl}}/api/profiles/chat/conversation-by-job/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 4: Get Conversation by Job ID (Reopen)
+### ================================================================
+# @name reopenConversation
+GET {{baseUrl}}/api/profiles/chat/conversation-by-job/1?reopen=true
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 5: Get Conversation Messages
+### ================================================================
+# @name getConversationMessages
+GET {{baseUrl}}/api/profiles/chat/conversations/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 6: Send Text Message (Worker)
+### ================================================================
+# @name sendMessageWorker
+POST {{baseUrl}}/api/profiles/chat/messages
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "conversation_id": 1,
+    "content": "Hello! I'm on my way to the job site. Should arrive in 15 minutes."
+}
+
+### ================================================================
+### TEST 7: Send Text Message (Client)
+### ================================================================
+# @name sendMessageClient
+POST {{baseUrl}}/api/profiles/chat/messages
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "conversation_id": 1,
+    "content": "Great! I'll be waiting. Please ring the doorbell when you arrive."
+}
+
+### ================================================================
+### TEST 8: Upload Message Image
+### ================================================================
+# @name uploadMessageImage
+POST {{baseUrl}}/api/profiles/chat/1/upload-image
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="image"; filename="chat_image.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/chat_image.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="caption"
+
+Here's a photo of the work in progress
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 9: Send Empty Message (Should Fail)
+### Expected: 400 Bad Request
+### ================================================================
+# @name sendEmptyMessage
+POST {{baseUrl}}/api/profiles/chat/messages
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "conversation_id": 1,
+    "content": ""
+}
+
+### ================================================================
+### TEST 10: Access Non-existent Conversation (Should Fail)
+### Expected: 404 Not Found
+### ================================================================
+# @name getNonExistentConversation
+GET {{baseUrl}}/api/profiles/chat/conversations/999999
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 11: Access Other User's Conversation (Should Fail)
+### Expected: 403 Forbidden
+### ================================================================
+# @name accessOtherConversation
+GET {{baseUrl}}/api/profiles/chat/conversations/1
+Authorization: Bearer {{workerToken}}

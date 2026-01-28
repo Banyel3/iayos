@@ -24,17 +24,40 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Face API configuration (InsightFace microservice)
-# Set FACE_API_URL environment variable to point to your Face API service
 import os
 FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
-# Tesseract is imported conditionally to handle environments where it's not installed
+# Import shared HTTP client and timeouts from face_detection_service
+# This ensures consistent connection pooling and timeouts across all face API calls
+try:
+    from .face_detection_service import get_http_client, FACE_API_TIMEOUT, FACE_API_HEALTH_TIMEOUT
+    _use_shared_client = True
+    logger.info("Using shared HTTP client from face_detection_service")
+except ImportError:
+    _use_shared_client = False
+    FACE_API_TIMEOUT = 45.0
+    FACE_API_HEALTH_TIMEOUT = 10.0
+    logger.info("Shared HTTP client not available, using standalone httpx")
+
+# Tesseract is imported conditionally
 try:
     import pytesseract
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
     logger.warning("pytesseract not installed - OCR verification disabled")
+
+# Import pdf2image for PDF support
+try:
+    from pdf2image import convert_from_bytes
+    PDF_SUPPORT_AVAILABLE = True
+except ImportError:
+    PDF_SUPPORT_AVAILABLE = False
+    logger.warning("pdf2image not installed - PDF verification disabled")
+
+
+
+
 
 
 class VerificationStatus(Enum):
@@ -108,10 +131,12 @@ DOCUMENT_KEYWORDS = {
         ["POLICE", "PNP", "PHILIPPINE NATIONAL POLICE"],
         ["CLEARANCE", "CERTIFICATE"],
     ],
-    # Business Permit (for agencies)
+    # Business Permit (for agencies) - includes Mayor's Permit AND DTI Business Registration
     "BUSINESS_PERMIT": [
-        ["BUSINESS", "MAYOR", "PERMIT", "LICENSE"],
-        ["CITY", "MUNICIPALITY", "BARANGAY"],
+        # Must match at least one from this group
+        ["BUSINESS", "MAYOR", "PERMIT", "LICENSE", "DTI", "TRADE", "INDUSTRY", "CERTIFICATE"],
+        # Must match at least one from this group (location OR DTI registration keywords)
+        ["CITY", "MUNICIPALITY", "BARANGAY", "REGION", "REGISTRATION", "CERTIFIES", "ZAMBOANGA"],
     ],
     
     # ============ GOVERNMENT IDs ============
@@ -213,8 +238,19 @@ FACE_REQUIRED_DOCUMENTS = [
 # Minimum requirements
 MIN_RESOLUTION = 400  # Minimum width or height in pixels (lowered from 640 for testing)
 MIN_FACE_SIZE_RATIO = 0.05  # Face must be at least 5% of image area
-MAX_BLUR_THRESHOLD = 100  # Laplacian variance threshold (lower = more blur)
-MIN_CONFIDENCE_FACE = 0.85  # Minimum confidence for face detection
+MAX_BLUR_THRESHOLD = 50  # Lowered from 100 for leniency on REP IDs  # Laplacian variance threshold (lower = more blur)
+MIN_CONFIDENCE_FACE = 0.40  # Minimum confidence for face detection (lowered for ID photos with small/faded faces)
+
+
+TEXT_ONLY_DOCUMENTS = [
+    # Clearance / permits and supporting docs that do not need face detection
+    "NBI",
+    "POLICE",
+    "CLEARANCE",
+    "BUSINESS_PERMIT",
+    "ADDRESS_PROOF",
+    "AUTH_LETTER",
+]
 
 
 class DocumentVerificationService:
@@ -226,25 +262,43 @@ class DocumentVerificationService:
     - Tesseract OCR for text extraction
     """
 
-    def __init__(self, face_api_url: str = None):
+    def __init__(self, face_api_url: str = None, skip_face_service: bool = False):
         """
         Initialize the verification service
         
         Args:
             face_api_url: URL of Face API service (default from FACE_API_URL env)
+            skip_face_service: When True, never call Face API (used for text-only docs)
         """
         self.face_api_url = face_api_url or FACE_API_URL
+        self.skip_face_service = skip_face_service
         self._face_api_available = None  # Lazy check
         
-        logger.info(f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}")
+        logger.info(
+            f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}, skip_face_service={self.skip_face_service}"
+        )
 
     def _check_face_api_available(self) -> bool:
-        """Check if Face API service is available"""
+        """Check if Face API service is available.
+        
+        Uses shared HTTP client with connection pooling for better performance.
+        Health check timeout is 10s to allow for Render cold start.
+        """
+        if self.skip_face_service:
+            self._face_api_available = False
+            return False
+
         if self._face_api_available is not None:
             return self._face_api_available
             
         try:
-            response = httpx.get(f"{self.face_api_url}/health", timeout=5.0)
+            # Use shared client if available (connection pooling)
+            if _use_shared_client:
+                client = get_http_client()
+                response = client.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
+            else:
+                response = httpx.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
+            
             if response.status_code == 200:
                 data = response.json()
                 self._face_api_available = data.get("model_loaded", False)
@@ -367,6 +421,89 @@ class DocumentVerificationService:
                 "details": {"error": str(e)}
             }
 
+    def validate_text_only_document(
+        self,
+        file_data: bytes,
+        document_type: str,
+        skip_keyword_check: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Lightweight validation path for documents that only need OCR/quality checks.
+
+        Used for agency/business permits and supporting docs to avoid hitting the
+        face detection service (cold starts on Render cause timeouts).
+        """
+        logger.info(
+            f"📄 Text-only validation for {document_type}, skip_keyword_check={skip_keyword_check}"
+        )
+
+        try:
+            image = Image.open(io.BytesIO(file_data))
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+
+            width, height = image.size
+
+            # 1) Quality check
+            quality_result = self._check_image_quality(image)
+            if quality_result["status"] == "FAILED":
+                reason = quality_result.get("reason", "Image quality too low")
+                logger.warning(f"   ❌ Text-only quality failed: {reason}")
+                return {
+                    "valid": False,
+                    "error": reason,
+                    "details": {"quality": quality_result, "resolution": f"{width}x{height}"},
+                }
+
+            # 2) OCR
+            ocr_result = self._extract_text(image)
+            extracted_text = ocr_result.get("text", "")
+            details = {
+                "quality_score": quality_result.get("score", 0),
+                "resolution": f"{width}x{height}",
+                "ocr_confidence": ocr_result.get("confidence", 0),
+                "ocr_length": len(extracted_text),
+                "warnings": quality_result.get("warnings", []),
+            }
+
+            if ocr_result.get("skipped") or ocr_result.get("error"):
+                reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
+                logger.warning(f"   ❌ OCR failed for text-only doc: {reason}")
+                return {"valid": False, "error": reason, "details": details}
+
+            if not extracted_text.strip():
+                logger.warning("   ❌ No readable text found in document")
+                return {
+                    "valid": False,
+                    "error": "No readable text detected. Please upload a clearer document.",
+                    "details": details,
+                }
+
+            # 3) Optional keyword check
+            if not skip_keyword_check and document_type.upper() in DOCUMENT_KEYWORDS:
+                keyword_check = self._check_required_keywords(
+                    extracted_text, document_type.upper()
+                )
+                details["keyword_check"] = keyword_check
+                if not keyword_check["passed"]:
+                    missing = keyword_check.get("missing_groups") or []
+                    logger.warning(f"   ❌ Missing required keywords for {document_type}: {missing}")
+                    return {
+                        "valid": False,
+                        "error": "Required document text not found. Please upload a clearer copy.",
+                        "details": details,
+                    }
+
+            return {"valid": True, "error": None, "details": details}
+
+        except Exception as e:
+            logger.error(f"Text-only validation error: {e}", exc_info=True)
+            return {
+                "valid": False,
+                "error": "Failed to process document. Please try again.",
+                "details": {"error": str(e)},
+            }
+
     def verify_document(
         self, 
         file_data: bytes, 
@@ -448,9 +585,8 @@ class DocumentVerificationService:
             extracted_text = ""
             
             print(f"   📝 OCR check: document_type={document_type.upper()}, ocr_required={ocr_required}")
-            print(f"   📝 Available DOCUMENT_KEYWORDS: {list(DOCUMENT_KEYWORDS.keys())}")
             print(f"   📝 TESSERACT_AVAILABLE = {TESSERACT_AVAILABLE}")
-            
+
             if ocr_required or document_type.upper() in ["NBI", "POLICE", "CLEARANCE"]:
                 print(f"   📝 Running Tesseract OCR for {document_type}...")
                 ocr_result = self._extract_text(image)
@@ -464,11 +600,11 @@ class DocumentVerificationService:
                 }
                 
                 # Log extracted text for debugging (first 500 chars)
+                # Log extracted text for debugging (first 500 chars)
                 text_preview = extracted_text[:500].replace('\n', ' ') if extracted_text else "(empty)"
                 print(f"   📝 OCR extracted ({len(extracted_text)} chars): {text_preview}")
-                print(f"   📝 OCR result: skipped={ocr_result.get('skipped')}, error={ocr_result.get('error')}, reason={ocr_result.get('reason')}")
                 
-                # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
+                 # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
                 if ocr_result.get("skipped") or ocr_result.get("error"):
                     error_reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
                     print(f"   ❌ OCR FAILED: {error_reason}")
@@ -648,14 +784,23 @@ class DocumentVerificationService:
                 image.save(buffer, format="JPEG", quality=90)
                 image_data = buffer.getvalue()
             
-            # Call Face API detection endpoint
+            # Call Face API detection endpoint using shared HTTP client for connection pooling
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
             
-            response = httpx.post(
-                f"{self.face_api_url}/detect",
-                files=files,
-                timeout=30.0
-            )
+            # Use shared client if available (connection pooling + 45s timeout for cold start)
+            if _use_shared_client:
+                client = get_http_client()
+                response = client.post(
+                    f"{self.face_api_url}/detect",
+                    files=files,
+                    timeout=FACE_API_TIMEOUT
+                )
+            else:
+                response = httpx.post(
+                    f"{self.face_api_url}/detect",
+                    files=files,
+                    timeout=FACE_API_TIMEOUT
+                )
             
             if response.status_code != 200:
                 logger.warning(f"Face API returned {response.status_code}: {response.text}")
@@ -668,10 +813,25 @@ class DocumentVerificationService:
             
             result = response.json()
             
+            # Apply confidence threshold to prevent false positives
+            confidence = result.get("confidence", 0)
+            detected = result.get("detected", False)
+            
+            # If detected but confidence is too low, treat as not detected
+            if detected and confidence < MIN_CONFIDENCE_FACE:
+                logger.warning(f"   ⚠️ Face detected but confidence too low ({confidence:.2f} < {MIN_CONFIDENCE_FACE}) - rejecting as false positive")
+                return {
+                    "detected": False,
+                    "count": 0,
+                    "confidence": confidence,
+                    "faces": result.get("faces", []),
+                    "reason": f"Face detection confidence too low ({confidence:.2f})"
+                }
+            
             return {
-                "detected": result.get("detected", False),
+                "detected": detected,
                 "count": result.get("count", 0),
-                "confidence": result.get("confidence", 0),
+                "confidence": confidence,
                 "faces": result.get("faces", [])
             }
             

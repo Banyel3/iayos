@@ -33,15 +33,29 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC, business_type: s
         AgencyKYCExtractedData record if successful, None if no OCR data available
     """
     try:
+        print(f"🔍 [AGENCY KYC EXTRACTION] Processing AgencyKYC {agency_kyc_record.agencyKycID}")
         logger.info(f"🔍 [AGENCY KYC EXTRACTION] Processing AgencyKYC {agency_kyc_record.agencyKycID}")
         
         # Get all files with OCR text
         kyc_files = AgencyKycFile.objects.filter(agencyKyc=agency_kyc_record)
+        print(f"   📂 Found {kyc_files.count()} KYC files")
+        
+        # Debug: Print all file types and OCR status
+        for f in kyc_files:
+            ocr_len = len(f.ocr_text) if f.ocr_text else 0
+            print(f"      - {f.fileType}: OCR text length = {ocr_len}")
         
         # Find business permit (primary source for business data)
         business_permit_file = kyc_files.filter(fileType="BUSINESS_PERMIT").first()
         rep_id_front_file = kyc_files.filter(fileType="REP_ID_FRONT").first()
         rep_id_back_file = kyc_files.filter(fileType="REP_ID_BACK").first()
+        
+        print(f"   📄 Business Permit file found: {business_permit_file is not None}")
+        if business_permit_file:
+            print(f"      OCR text available: {bool(business_permit_file.ocr_text)}")
+            if business_permit_file.ocr_text:
+                print(f"      OCR text length: {len(business_permit_file.ocr_text)}")
+                print(f"      OCR text preview: {business_permit_file.ocr_text[:200]}...")
         
         # Get or create extraction record
         extracted, created = AgencyKYCExtractedData.objects.get_or_create(
@@ -52,11 +66,14 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC, business_type: s
         # Save user-selected business_type if provided
         if business_type:
             extracted.confirmed_business_type = business_type
+            print(f"   💼 Saving user-selected business_type: {business_type}")
             logger.info(f"   💼 Saving user-selected business_type: {business_type}")
         
         if not created:
+            print(f"   ℹ️ Updating existing AgencyKYCExtractedData record")
             logger.info(f"   ℹ️ Updating existing AgencyKYCExtractedData record")
         else:
+            print(f"   ✅ Created new AgencyKYCExtractedData record")
             logger.info(f"   ✅ Created new AgencyKYCExtractedData record")
         
         parser = get_agency_kyc_parser()
@@ -66,7 +83,9 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC, business_type: s
         # Parse Business Permit
         # ============================================================
         if business_permit_file and business_permit_file.ocr_text:
+            print(f"   📝 Found Business Permit OCR text ({len(business_permit_file.ocr_text)} chars)")
             logger.info(f"   📝 Found Business Permit OCR text ({len(business_permit_file.ocr_text)} chars)")
+
             
             parsed_business = parser.parse_ocr_text(
                 business_permit_file.ocr_text,

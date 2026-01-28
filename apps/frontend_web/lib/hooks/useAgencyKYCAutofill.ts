@@ -19,6 +19,8 @@ export interface AgencyKYCField {
   type?: "text" | "select" | "date";
   options?: { value: string; label: string }[];
   section: "business" | "representative";
+  /** If set, field only shown for these business types. If undefined, shown for all. */
+  applicableBusinessTypes?: string[];
 }
 
 // Government ID types matching mobile app
@@ -37,6 +39,14 @@ export const ID_TYPES = [
   { value: "OTHER", label: "Other Government ID" },
 ];
 
+// Business types for conditional field rendering
+export const BUSINESS_TYPES = {
+  SOLE_PROPRIETORSHIP: "SOLE_PROPRIETORSHIP",
+  PARTNERSHIP: "PARTNERSHIP",
+  CORPORATION: "CORPORATION",
+  COOPERATIVE: "COOPERATIVE",
+} as const;
+
 // Field configuration for the editable form
 export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
   // Business Information
@@ -46,6 +56,7 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
     required: true,
     placeholder: "ABC Services Corp.",
     section: "business",
+    // Shown for all business types
   },
   {
     key: "business_type",
@@ -53,6 +64,7 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
     required: false,
     placeholder: "Corporation / Sole Proprietor / Partnership",
     section: "business",
+    // Shown for all - read-only display of selected type
   },
   {
     key: "business_address",
@@ -60,20 +72,42 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
     required: false,
     placeholder: "123 Business St., Makati City",
     section: "business",
-  },
-  {
-    key: "permit_number",
-    label: "Business Permit Number",
-    required: false,
-    placeholder: "BP-2025-XXXXX",
-    section: "business",
+    // Shown for all business types
   },
   {
     key: "dti_number",
-    label: "DTI Registration Number",
+    label: "DTI Business Name Number",
     required: false,
-    placeholder: "DTI-XXXXX-XXXXX",
+    placeholder: "BN-7663018",
     section: "business",
+    // Only for Sole Proprietorship (DTI Registration)
+    applicableBusinessTypes: [BUSINESS_TYPES.SOLE_PROPRIETORSHIP],
+  },
+  {
+    key: "permit_number",
+    label: "Certificate/Permit ID",
+    required: false,
+    placeholder: "BPXW658418425073",
+    section: "business",
+    // Shown for all - but labeled based on context (DTI Cert ID or Mayor's Permit No.)
+  },
+  {
+    key: "permit_issue_date",
+    label: "Valid From",
+    required: false,
+    placeholder: "2025-01-06",
+    type: "date",
+    section: "business",
+    // Shown for all business types
+  },
+  {
+    key: "permit_expiry_date",
+    label: "Valid Until",
+    required: false,
+    placeholder: "2030-01-06",
+    type: "date",
+    section: "business",
+    // Shown for all business types
   },
   {
     key: "sec_number",
@@ -81,13 +115,8 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
     required: false,
     placeholder: "SEC-XXXXXXX",
     section: "business",
-  },
-  {
-    key: "tin",
-    label: "Tax Identification Number (TIN)",
-    required: false,
-    placeholder: "XXX-XXX-XXX-XXX",
-    section: "business",
+    // Only for Corporations and Partnerships
+    applicableBusinessTypes: [BUSINESS_TYPES.CORPORATION, BUSINESS_TYPES.PARTNERSHIP],
   },
   // Representative Information
   {

@@ -17,14 +17,6 @@ on:
   # Manual trigger for on-demand releases
   workflow_dispatch:
     inputs:
-      build_type:
-        description: "Build type (development = Detox-ready, production = App Store)"
-        required: true
-        default: "development"
-        type: choice
-        options:
-          - development
-          - production
       version_type:
         description: "Version bump type"
         required: true
@@ -41,6 +33,11 @@ on:
         type: boolean
       skip_build:
         description: "Skip build (for testing workflow only)"
+        required: false
+        default: false
+        type: boolean
+      local_build:
+        description: "Local build mode - bumps version and creates tag, but you build APK locally with Android Studio"
         required: false
         default: false
         type: boolean
@@ -63,7 +60,8 @@ jobs:
     name: Analyze Changes & Build
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.new_version }}
+      version: ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}
+      tag_name: ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}
       version_type: ${{ steps.analyze.outputs.version_type }}
       should_release: ${{ steps.analyze.outputs.should_release }}
 
@@ -176,8 +174,39 @@ jobs:
           esac
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          # Check if this tag already exists and keep incrementing until we find an unused one
+          cd ${{ github.workspace }}
+          git fetch --tags
+          
+          TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}"
+          TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
+          
+          MAX_INCREMENT=10
+          INCREMENT=0
+          while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
+            echo "⚠️ Tag $TAG_NAME already exists, incrementing patch..."
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
+            INCREMENT=$((INCREMENT + 1))
+            
+            if [ $INCREMENT -ge $MAX_INCREMENT ]; then
+              echo "❌ Too many existing versions, something is wrong"
+              exit 1
+            fi
+          done
+          
+          if [ $INCREMENT -gt 0 ]; then
+            echo "✅ Found unused version: $NEW_VERSION (incremented $INCREMENT times)"
+          fi
+          
+          cd ${{ env.MOBILE_DIR }}
+          
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
+          echo "Tag name: $TAG_NAME"
 
           # Update package.json
           npm version $NEW_VERSION --no-git-tag-version
@@ -195,144 +224,227 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
-      - name: Build Android APK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+      # ============================================
+      # LOCAL BUILD SETUP (No EAS Cloud Credits!)
+      # ============================================
+      
+      - name: Setup Java JDK 17
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708  # Latest stable
+          
+      - name: Accept Android Licenses
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install Android Build Tools
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Build Android APK (Local - No EAS Credits!)
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BUILD_PROFILE="production"
+          
+          echo "🏗️ LOCAL BUILD with profile: $BUILD_PROFILE"
+          echo "✅ No EAS cloud credits consumed - building locally!"
+          
+          echo "📦 Production build - ready for app store distribution"
+          
+          # Run local build (outputs APK directly, no cloud needed!)
+          # The --local flag builds on this runner instead of EAS servers
+          eas build --platform android --profile $BUILD_PROFILE --local --non-interactive --output=./build-output.apk
+          
+          # Rename to versioned filename
+          mv ./build-output.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
+          
+          echo "✅ Local build complete!"
+          ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
+
+      - name: Download APK from EAS (if using latest build)
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          # Determine build profile based on input (default to production for auto-triggers)
-          BUILD_PROFILE="${{ github.event.inputs.build_type || 'production' }}"
-
-          echo "🏗️ Building with profile: $BUILD_PROFILE"
-
-          if [ "$BUILD_PROFILE" = "development" ]; then
-            echo "📱 Development build - includes expo-dev-client for Detox E2E testing"
-            echo "⚠️  This APK will work with your live backend at api.iayos.online"
-          else
-            echo "📦 Production build - ready for app store distribution"
-          fi
-
-          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
-
-      - name: Download APK artifact
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
-        working-directory: ${{ env.MOBILE_DIR }}
-        run: |
-          echo "Fetching latest build info..."
-
-          # If using latest build, skip waiting (build already exists)
-          if [ "${{ github.event.inputs.use_latest_build }}" = "true" ]; then
-            echo "♻️ Using latest existing build from Expo"
-          else
-            echo "⏳ Waiting for new build to complete..."
-            sleep 10
-          fi
-
-          # Get build info with retry logic
-          MAX_RETRIES=10
-          RETRY_COUNT=0
-          BUILD_URL=""
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Checking for build artifacts..."
-
-            # Get full build info
-            BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
-            echo "Build info: $BUILD_INFO"
-
-            # Check build status (case-insensitive comparison)
-            BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // "unknown"')
-            BUILD_STATUS_LOWER=$(echo "$BUILD_STATUS" | tr '[:upper:]' '[:lower:]')
-            echo "Build status: $BUILD_STATUS"
-
-            if [ "$BUILD_STATUS_LOWER" = "finished" ]; then
-              BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
-              if [ -n "$BUILD_URL" ] && [ "$BUILD_URL" != "null" ]; then
-                echo "✅ Found build URL: $BUILD_URL"
-                break
-              fi
-            elif [ "$BUILD_STATUS_LOWER" = "errored" ] || [ "$BUILD_STATUS_LOWER" = "canceled" ]; then
-              echo "❌ Build failed with status: $BUILD_STATUS"
-              exit 1
-            fi
-
-            echo "Build not ready yet (status: $BUILD_STATUS), waiting 30 seconds..."
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            sleep 30
-          done
-
+          echo "♻️ Attempting to use latest existing build from Expo..."
+          echo ""
+          echo "⚠️  NOTE: This option only works for CLOUD (EAS) builds!"
+          echo "   Local builds are not uploaded to Expo and cannot be reused."
+          echo "   If you've been using local builds, you need to build fresh."
+          echo ""
+          
+          # Get build info
+          BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
+          BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
+          BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // empty')
+          BUILD_DATE=$(echo "$BUILD_INFO" | jq -r '.[0].createdAt // empty')
+          
           if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
-            echo "❌ Failed to get build URL after $MAX_RETRIES attempts"
-            echo "Last build info:"
-            eas build:list --platform android --limit 1 --json --non-interactive || true
+            echo "❌ No existing EAS cloud build found!"
+            echo ""
+            echo "📋 Options:"
+            echo "   1. Run workflow again WITHOUT 'use latest build' to build locally"
+            echo "   2. Run 'eas build --platform android' locally to create a cloud build"
+            echo ""
             exit 1
           fi
-
+          
+          echo "📦 Found EAS build:"
+          echo "   Status: $BUILD_STATUS"
+          echo "   Date: $BUILD_DATE"
+          echo "   URL: $BUILD_URL"
+          echo ""
+          
           echo "Downloading APK from: $BUILD_URL"
           curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
-
+          
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
+      # ============================================================================
+      # LOCAL BUILD MODE - Skip cloud build and provide instructions
+      # ============================================================================
+      - name: Local Build Instructions
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+          echo "║                    🏗️  LOCAL BUILD MODE ACTIVATED                           ║"
+          echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "✅ Version bumped to: ${{ steps.version.outputs.new_version }}"
+          echo "✅ Tag will be created: ${{ steps.version.outputs.tag_name }}"
+          echo ""
+          echo "📋 To build the APK locally (5-10 minutes vs 30+ minutes in cloud):"
+          echo ""
+          echo "   Option A: Using Expo CLI (Recommended)"
+          echo "   ────────────────────────────────────────"
+          echo "   1. git pull origin main"
+          echo "   2. cd apps/frontend_mobile/iayos_mobile"
+          echo "   3. npm install"
+          echo "   4. npx expo prebuild --clean"
+          echo "   5. npx expo run:android --variant release"
+          echo ""
+          echo "   Option B: Using Android Studio"
+          echo "   ────────────────────────────────────────"
+          echo "   1. git pull origin main"
+          echo "   2. cd apps/frontend_mobile/iayos_mobile"
+          echo "   3. npm install"
+          echo "   4. npx expo prebuild --clean"
+          echo "   5. Open 'android' folder in Android Studio"
+          echo "   6. Build > Generate Signed Bundle/APK > APK"
+          echo "   7. Choose 'release' build variant"
+          echo ""
+          echo "   APK Location: android/app/build/outputs/apk/release/app-release.apk"
+          echo ""
+          echo "🚀 After building, you can manually upload to the GitHub Release page!"
+          echo ""
+
       - name: Commit version bump
         if: steps.analyze.outputs.should_release == 'true'
+        id: commit_version
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          
+          # Use the version that was already verified to not have an existing tag
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          
+          echo "📦 Version: $NEW_VERSION"
+          echo "🏷️ Tag: $TAG_NAME"
+          
+          echo "final_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          
+          # Sync with remote first
+          echo "🔄 Syncing with remote before committing..."
+          git fetch origin ${{ github.ref_name }}
+          git reset --hard origin/${{ github.ref_name }}
+          
+          # Apply version changes
+          cd ${{ env.MOBILE_DIR }}
+          
+          npm version $NEW_VERSION --no-git-tag-version --allow-same-version
+          
+          # Update app.json version
+          node -e "
+            const fs = require('fs');
+            const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            appJson.expo.version = '$NEW_VERSION';
+            fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+          "
+          
+          cd -
+          
+          # Now commit and push
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
-          git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
           
-          # Pull with rebase before pushing to handle concurrent commits
-          echo "🔄 Pulling latest changes before pushing..."
-          MAX_PUSH_RETRIES=5
-          PUSH_RETRY=0
-          
-          while [ $PUSH_RETRY -lt $MAX_PUSH_RETRIES ]; do
-            echo "Attempt $((PUSH_RETRY + 1))/$MAX_PUSH_RETRIES: Pulling and pushing..."
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "ℹ️ No version changes to commit (already at $NEW_VERSION)"
+          else
+            git commit -m "chore(mobile): bump version to $NEW_VERSION"
             
-            # Pull with rebase (preserves our commit on top)
-            if git pull --rebase origin ${{ github.ref_name }}; then
-              echo "✅ Successfully pulled latest changes"
+            # Push with retry logic
+            MAX_PUSH_RETRIES=5
+            PUSH_RETRY=0
+            
+            while [ $PUSH_RETRY -lt $MAX_PUSH_RETRIES ]; do
+              echo "Attempt $((PUSH_RETRY + 1))/$MAX_PUSH_RETRIES: Pushing..."
               
-              # Try to push
               if git push origin HEAD:${{ github.ref_name }}; then
                 echo "✅ Successfully pushed version bump"
                 break
               else
-                echo "⚠️ Push failed, will retry..."
+                echo "⚠️ Push failed, fetching and rebasing..."
+                git fetch origin ${{ github.ref_name }}
+                git rebase origin/${{ github.ref_name }}
                 PUSH_RETRY=$((PUSH_RETRY + 1))
-                sleep 5
+                sleep 2
               fi
-            else
-              echo "❌ Pull rebase failed - may have conflicts"
-              # If rebase fails, abort and try again
-              git rebase --abort 2>/dev/null || true
-              PUSH_RETRY=$((PUSH_RETRY + 1))
-              sleep 5
+            done
+            
+            if [ $PUSH_RETRY -eq $MAX_PUSH_RETRIES ]; then
+              echo "❌ Failed to push after $MAX_PUSH_RETRIES attempts"
+              echo "⚠️ Continuing with release - version commit may be missing"
+              echo "::warning::Version bump commit was not pushed. Manual intervention may be needed."
             fi
-          done
-          
-          if [ $PUSH_RETRY -eq $MAX_PUSH_RETRIES ]; then
-            echo "❌ Failed to push after $MAX_PUSH_RETRIES attempts"
-            echo "⚠️ Continuing with release - version commit may be missing"
-            echo "::warning::Version bump commit was not pushed. Manual intervention may be needed."
           fi
 
       - name: Create Release
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.local_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: mobile-v${{ steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}${{ github.event.inputs.build_type == 'development' && '-dev' || '' }}
-          name: iAyos Mobile v${{ steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}${{ github.event.inputs.build_type == 'development' && ' [Development Build]' || '' }}
+          tag_name: ${{ steps.commit_version.outputs.tag_name }}
+          name: iAyos Mobile v${{ steps.commit_version.outputs.final_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
-            ## iAyos Mobile App Release v${{ steps.version.outputs.new_version }}
+            ## iAyos Mobile App Release v${{ steps.commit_version.outputs.final_version }}
 
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
-            **Build Profile:** ${{ github.event.inputs.build_type || 'production' }}
+            **Build Profile:** production
             **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'Newly Built' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
 
-            ${{ github.event.inputs.build_type == 'development' && '### 🔧 Development Build\n\nThis build includes:\n- ✅ expo-dev-client for Detox E2E testing\n- ✅ Connected to live backend: api.iayos.online\n- ✅ Ready for automated testing in CI/CD\n- ⚠️ **For testing only** - not optimized for production\n\n> Use this APK with the Detox E2E test workflow' || '### 📦 Production Build\n\nOptimized release ready for:\n- ✅ App Store distribution\n- ✅ Production deployment\n- ✅ End users' }}
+            ### 📦 Production Build
+
+            Optimized release ready for:
+            - ✅ App Store distribution
+            - ✅ Production deployment
+            - ✅ End users
 
             ### Changes
             See commit history for detailed changes.
@@ -355,26 +467,28 @@ jobs:
           echo "## Mobile Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.analyze.outputs.should_release }}" == "true" ]; then
-            echo "✅ **Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Version:** ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
-            echo "🏗️ **Profile:** ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
+            echo "🏗️ **Profile:** production" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ github.event.inputs.local_build }}" == "true" ]; then
+              echo "🏠 **Build:** Local build mode - Build APK locally with Android Studio" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 🏗️ Local Build Instructions" >> $GITHUB_STEP_SUMMARY
+              echo "1. \`git pull origin main\`" >> $GITHUB_STEP_SUMMARY
+              echo "2. \`cd apps/frontend_mobile/iayos_mobile\`" >> $GITHUB_STEP_SUMMARY
+              echo "3. \`npm install\`" >> $GITHUB_STEP_SUMMARY
+              echo "4. \`npx expo prebuild --clean\`" >> $GITHUB_STEP_SUMMARY
+              echo "5. \`npx expo run:android --variant release\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📍 APK: \`android/app/build/outputs/apk/release/app-release.apk\`" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
               echo "♻️ **Build:** Using latest existing build" >> $GITHUB_STEP_SUMMARY
-              echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             else
               echo "🏗️ **Build:** Newly built" >> $GITHUB_STEP_SUMMARY
-              echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
-              if [ "${{ github.event.inputs.build_type }}" == "development" ]; then
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "### 🔧 Development Build Features" >> $GITHUB_STEP_SUMMARY
-                echo "- ✅ Includes expo-dev-client for Detox testing" >> $GITHUB_STEP_SUMMARY
-                echo "- ✅ Connected to live backend (api.iayos.online)" >> $GITHUB_STEP_SUMMARY
-                echo "- ✅ Ready for E2E testing workflow" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "**Next Step:** Use this release in the Detox E2E Tests workflow" >> $GITHUB_STEP_SUMMARY
-              fi
+              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "⏭️ No mobile release needed - no relevant changes detected" >> $GITHUB_STEP_SUMMARY

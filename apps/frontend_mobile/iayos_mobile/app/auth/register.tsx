@@ -108,7 +108,7 @@ export default function RegisterScreen() {
         setTimeout(() => {
           try {
             (fieldRef as any).focus?.();
-          } catch (e) {}
+          } catch (e) { }
         }, 50);
       }
     });
@@ -116,7 +116,7 @@ export default function RegisterScreen() {
     return () => {
       try {
         subscription.remove();
-      } catch (e) {}
+      } catch (e) { }
     };
   }, []);
 
@@ -301,9 +301,9 @@ export default function RegisterScreen() {
     <SafeAreaView style={styles.container} testID="register-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        enabled={Platform.OS === "ios"}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        enabled={true}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -350,7 +350,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeIconContainer,
                       profileType === "CLIENT" &&
-                        styles.profileTypeIconContainerSelected,
+                      styles.profileTypeIconContainerSelected,
                     ]}
                   >
                     <Ionicons
@@ -365,7 +365,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeCardTitle,
                       profileType === "CLIENT" &&
-                        styles.profileTypeCardTitleSelected,
+                      styles.profileTypeCardTitleSelected,
                     ]}
                   >
                     Hire Workers
@@ -398,7 +398,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeIconContainer,
                       profileType === "WORKER" &&
-                        styles.profileTypeIconContainerSelected,
+                      styles.profileTypeIconContainerSelected,
                     ]}
                   >
                     <Ionicons
@@ -413,7 +413,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeCardTitle,
                       profileType === "WORKER" &&
-                        styles.profileTypeCardTitleSelected,
+                      styles.profileTypeCardTitleSelected,
                     ]}
                   >
                     Find Work
@@ -803,6 +803,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: Platform.OS === "android" ? 300 : 100,
   },
   headerContainer: {
     paddingHorizontal: Spacing["2xl"],
