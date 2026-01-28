@@ -104,6 +104,8 @@ const AgencyKYCPage = () => {
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
   const [ocrExtracted, setOcrExtracted] = useState(false);
   const [ocrExtractedData, setOcrExtractedData] = useState<any>(null);
+  const [hasBusinessAutofill, setHasBusinessAutofill] = useState(false);
+  const [hasRepAutofill, setHasRepAutofill] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -467,12 +469,8 @@ const AgencyKYCPage = () => {
       console.log("✅ OCR extraction result:", result);
 
       if (result.success && result.extracted_data) {
-        const data = result.extracted_data;
-
-        // Autofill form fields from OCR
-        if (data.business_name) setBusinessName(data.business_name);
-        if (data.business_address) setBusinessDesc(data.business_address);
-        if (data.permit_number) setRegistrationNumber(data.permit_number);
+        setOcrExtractedData(result.extracted_data);
+        await fetchBusinessAutofill();
 
         showToast({
           type: "success",
@@ -505,6 +503,112 @@ const AgencyKYCPage = () => {
       setIsExtractingOCR(false);
     }
   };
+
+  const mapBusinessAutofillFields = (fields: Record<string, string>) => {
+    setOcrFields((prev) => ({
+      ...prev,
+      business_name: fields.business_name || prev.business_name || "",
+      business_address: fields.business_address || prev.business_address || "",
+      business_type: fields.business_type || prev.business_type || "",
+      permit_number: fields.permit_number || prev.permit_number || "",
+      dti_number: fields.dti_number || prev.dti_number || "",
+      sec_number: fields.sec_number || prev.sec_number || "",
+      tin: fields.tin || prev.tin || "",
+      permit_issue_date: fields.permit_issue_date || prev.permit_issue_date || "",
+      permit_expiry_date: fields.permit_expiry_date || prev.permit_expiry_date || "",
+    }));
+
+    if (fields.business_name) setBusinessName(fields.business_name);
+    if (fields.business_address) setBusinessDesc(fields.business_address);
+    if (fields.permit_number) setRegistrationNumber(fields.permit_number);
+    if (fields.business_type) setBusinessType(fields.business_type);
+  };
+
+  const mapRepAutofillFields = (fields: Record<string, string>) => {
+    setOcrFields((prev) => ({
+      ...prev,
+      rep_full_name: fields.rep_full_name || prev.rep_full_name || "",
+      rep_id_number: fields.rep_id_number || prev.rep_id_number || "",
+      rep_id_type: fields.rep_id_type || prev.rep_id_type || "",
+      rep_birth_date: fields.rep_birth_date || prev.rep_birth_date || "",
+      rep_address: fields.rep_address || prev.rep_address || "",
+    }));
+
+    if (fields.rep_id_type) setRepIdType(fields.rep_id_type);
+  };
+
+  const fetchBusinessAutofill = async () => {
+    if (!businessPermit) return;
+    try {
+      const formData = new FormData();
+      formData.append("business_permit", businessPermit);
+      formData.append("business_type", businessType);
+
+      const response = await fetch(
+        `${API_BASE}/api/agency/kyc/autofill-business`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Business autofill failed");
+      }
+
+      const result = await response.json();
+      if (result.success && result.fields) {
+        mapBusinessAutofillFields(result.fields);
+        setHasBusinessAutofill(true);
+        setOcrExtracted(true);
+      }
+    } catch (error) {
+      console.error("Business autofill error:", error);
+    }
+  };
+
+  const fetchRepAutofill = async () => {
+    if (!repIDFront) return;
+    try {
+      const formData = new FormData();
+      formData.append("id_front", repIDFront);
+      formData.append("id_type", repIdType);
+
+      const response = await fetch(
+        `${API_BASE}/api/agency/kyc/autofill-id`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("ID autofill failed");
+      }
+
+      const result = await response.json();
+      if (result.success && result.fields) {
+        mapRepAutofillFields(result.fields);
+        setHasRepAutofill(true);
+      }
+    } catch (error) {
+      console.error("ID autofill error:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (currentStep === 3 && !hasBusinessAutofill && businessPermit) {
+      fetchBusinessAutofill();
+    }
+  }, [currentStep, hasBusinessAutofill, businessPermit, businessType]);
+
+  useEffect(() => {
+    if (currentStep === 4 && !hasRepAutofill && repIDFront) {
+      fetchRepAutofill();
+    }
+  }, [currentStep, hasRepAutofill, repIDFront, repIdType]);
 
   const handleSubmit = async () => {
     if (
