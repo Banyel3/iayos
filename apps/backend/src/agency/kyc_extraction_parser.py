@@ -210,9 +210,10 @@ class AgencyKYCExtractionParser:
         certifies_match = self.certifies_that_pattern.search(text)
         if certifies_match:
             business_name = certifies_match.group(1).strip()
+            # Keep original case for business names (they're usually all caps)
             result.business_name = ExtractionResult(
-                value=business_name.title(),
-                confidence=0.85,
+                value=business_name,
+                confidence=0.9,
                 source_text=certifies_match.group(0)
             )
             logger.info(f"   Business Name (from 'certifies that'): {result.business_name.value}")
@@ -235,7 +236,7 @@ class AgencyKYCExtractionParser:
                     and not any(kw in line.upper() for kw in excluded_phrases)
                 ):
                     result.business_name = ExtractionResult(
-                        value=line.title(),
+                        value=line,  # Keep original case
                         confidence=0.7,
                         source_text=line,
                     )

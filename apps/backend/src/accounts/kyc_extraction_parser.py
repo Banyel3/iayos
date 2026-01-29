@@ -238,6 +238,54 @@ class KYCExtractionParser:
     def _extract_name(self, text_upper: str, text_lines: List[str], document_type: str) -> ExtractionResult:
         """Extract full name from document"""
         
+        # Driver's License specific: Look for "SURNAME, FIRST NAME MIDDLE NAME" pattern
+        if document_type == "DRIVERSLICENSE":
+            # Find lines with SURNAME, FIRST NAME, MIDDLE NAME labels
+            surname = ""
+            first_name = ""
+            middle_name = ""
+            
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip()
+                if "SURNAME" in line_clean.upper():
+                    # Extract text after SURNAME label
+                    surname_match = re.search(r'SURNAME[:\s]*([A-Z]+)', line_clean.upper())
+                    if surname_match:
+                        surname = surname_match.group(1).strip()
+                    # Sometimes surname is on next line
+                    elif i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        if next_line and next_line.isupper():
+                            surname = next_line
+                
+                elif "FIRST NAME" in line_clean.upper():
+                    first_match = re.search(r'FIRST NAME[:\s]*([A-Z]+)', line_clean.upper())
+                    if first_match:
+                        first_name = first_match.group(1).strip()
+                    elif i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        if next_line and next_line.isupper():
+                            first_name = next_line
+                
+                elif "MIDDLE NAME" in line_clean.upper():
+                    middle_match = re.search(r'MIDDLE NAME[:\s]*([A-Z]+)', line_clean.upper())
+                    if middle_match:
+                        middle_name = middle_match.group(1).strip()
+                    elif i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        if next_line and next_line.isupper():
+                            middle_name = next_line
+            
+            # Construct full name if we found all parts
+            if surname or first_name:
+                full_name_parts = [p for p in [first_name, middle_name, surname] if p]
+                full_name = " ".join(full_name_parts).title()
+                return ExtractionResult(
+                    value=full_name,
+                    confidence=0.85,
+                    source_text=f"SURNAME: {surname}, FIRST: {first_name}, MIDDLE: {middle_name}"
+                )
+        
         # Common name field labels
         name_labels = [
             "SURNAME", "FAMILY NAME", "LAST NAME", "GIVEN NAME", "FIRST NAME", 
@@ -322,18 +370,35 @@ class KYCExtractionParser:
         if not full_name:
             return
         
-        parts = full_name.split()
-        confidence = result.full_name.confidence * 0.8  # Reduce confidence for parsed components
-        
-        if len(parts) == 1:
-            result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
-        elif len(parts) == 2:
-            result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
-            result.last_name = ExtractionResult(value=parts[1], confidence=confidence)
-        elif len(parts) >= 3:
-            result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
-            result.middle_name = ExtractionResult(value=' '.join(parts[1:-1]), confidence=confidence * 0.9)
-            result.last_name = ExtractionResult(value=parts[-1], confidence=confidence)
+        # Check if source_text indicates Driver's License format (already parsed)
+        if "SURNAME:" in result.full_name.source_text:
+            # Name already in FIRST MIDDLE LAST order from Driver's License extraction
+            parts = full_name.split()
+            confidence = result.full_name.confidence  # Use full confidence since we parsed correctly
+            
+            if len(parts) == 1:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+            elif len(parts) == 2:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.last_name = ExtractionResult(value=parts[1], confidence=confidence)
+            elif len(parts) >= 3:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.middle_name = ExtractionResult(value=parts[1], confidence=confidence)
+                result.last_name = ExtractionResult(value=parts[2], confidence=confidence)
+        else:
+            # Standard parsing for other ID types
+            parts = full_name.split()
+            confidence = result.full_name.confidence * 0.8  # Reduce confidence for parsed components
+            
+            if len(parts) == 1:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+            elif len(parts) == 2:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.last_name = ExtractionResult(value=parts[1], confidence=confidence)
+            elif len(parts) >= 3:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.middle_name = ExtractionResult(value=' '.join(parts[1:-1]), confidence=confidence * 0.9)
+                result.last_name = ExtractionResult(value=parts[-1], confidence=confidence)
     
     def _extract_birth_date(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
         """Extract birth date from document"""
