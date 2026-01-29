@@ -301,6 +301,7 @@ class KYCExtractionParser:
             # PATTERN 0 (DIRECT SCAN): Look for any line with exactly 2-3 comma-separated uppercase words
             # that looks like a name (e.g., "CORNELIO, VANIEL JOHN, GARCIA")
             # This works even when OCR doesn't properly detect the label line
+            # FIXED: Allow for OCR noise (stray digits, special chars) and clean them up
             excluded_name_words = [
                 "LICENSE", "PROFESSIONAL", "NON-PROFESSIONAL", "DRIVER", "REPUBLIC",
                 "PHILIPPINES", "LAND", "TRANSPORTATION", "OFFICE", "LTO", "LAST",
@@ -318,24 +319,27 @@ class KYCExtractionParser:
                 # Check if line has comma-separated parts (typical name format)
                 parts = [p.strip() for p in line_clean.split(',')]
                 if 2 <= len(parts) <= 4:
-                    # Check if all parts look like name parts (uppercase letters and spaces only)
+                    # Check if all parts look like name parts (primarily uppercase letters)
+                    # FIXED: Allow for OCR noise - check if >80% are valid name characters
                     all_valid = True
+                    cleaned_parts = []
                     for part in parts:
-                        part_upper = part.upper()
-                        # Must be uppercase letters and spaces
-                        if not re.match(r'^[A-Z\s]+$', part_upper):
+                        # Clean OCR noise: remove stray digits and special chars, keep letters and spaces
+                        cleaned_part = re.sub(r'[^A-Za-z\s\-]', '', part).strip().upper()
+                        if len(cleaned_part) < 2:
                             all_valid = False
                             break
                         # Skip if any part is an excluded word
-                        if any(excl in part_upper.split() for excl in excluded_name_words):
+                        if any(excl in cleaned_part.split() for excl in excluded_name_words):
                             all_valid = False
                             break
+                        cleaned_parts.append(cleaned_part)
                     
-                    if all_valid and all(len(p) >= 2 for p in parts):
+                    if all_valid and len(cleaned_parts) >= 2:
                         # Format: LASTNAME, FIRSTNAME, MIDDLENAME or LASTNAME, FIRSTNAME MIDDLENAME
-                        last_name = parts[0].strip()
-                        first_name = parts[1].strip() if len(parts) > 1 else ""
-                        middle_name = parts[2].strip() if len(parts) > 2 else ""
+                        last_name = cleaned_parts[0]
+                        first_name = cleaned_parts[1] if len(cleaned_parts) > 1 else ""
+                        middle_name = cleaned_parts[2] if len(cleaned_parts) > 2 else ""
                         
                         full_name = f"{first_name} {middle_name} {last_name}".strip()
                         full_name = ' '.join(full_name.split())  # Remove extra spaces
@@ -683,7 +687,7 @@ class KYCExtractionParser:
         
         # Driver's License: Look for "License No." label with value on same or next line
         if document_type == "DRIVERSLICENSE" and text_lines:
-            license_labels = ["LICENSE NO", "LICENSE NUMBER", "LIC NO", "DL NO"]
+            license_labels = ["LICENSE NO", "LICENSE NUMBER", "LIC NO", "DL NO", "LISENSYA"]
             for i, line in enumerate(text_lines):
                 line_clean = line.strip().upper()
                 for label in license_labels:
@@ -709,6 +713,22 @@ class KYCExtractionParser:
                                     confidence=0.9,
                                     source_text=f"DL_LABEL_PATTERN: {label} -> {id_line}"
                                 )
+            
+            # FALLBACK: Scan ALL lines for license number format without label
+            # Philippine DL format: X##-##-###### (e.g., C23-75-007537)
+            for line in text_lines:
+                line_clean = line.strip().upper()
+                # Skip lines that are clearly labels
+                if any(lbl in line_clean for lbl in ["NAME", "ADDRESS", "DATE", "SEX", "BIRTH"]):
+                    continue
+                # Look for Philippine driver's license format
+                dl_match = re.search(r'([A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7})', line_clean)
+                if dl_match:
+                    return ExtractionResult(
+                        value=dl_match.group(1).replace(' ', '-'),
+                        confidence=0.80,
+                        source_text=f"DL_FORMAT_SCAN: {dl_match.group(1)}"
+                    )
         
         patterns = {
             "PASSPORT": (self.PATTERNS["passport"], 0.9),
@@ -825,6 +845,39 @@ class KYCExtractionParser:
                             confidence=0.5,
                             source_text=line
                         )
+        
+        # FALLBACK for Driver's License: Scan for lines with Philippine location keywords
+        if document_type == "DRIVERSLICENSE":
+            ph_address_keywords = [
+                "BARANGAY", "BRGY", "PUROK", "ZONE", "SITIO",
+                "STREET", "ST.", "ROAD", "RD.", "AVENUE", "AVE.",
+                "CITY OF", "MUNICIPALITY", "PROVINCE OF",
+                "ZAMBOANGA", "MANILA", "CEBU", "DAVAO", "QUEZON",
+                "CALOOCAN", "MAKATI", "PASIG", "TAGUIG", "PARAÑAQUE",
+                "CAVITE", "LAGUNA", "BULACAN", "PAMPANGA", "RIZAL",
+                "BATANGAS", "PANGASINAN", "ILOILO", "NEGROS",
+            ]
+            # Collect address parts from lines containing location keywords
+            address_parts = []
+            for line in text_lines:
+                line_clean = line.strip()
+                line_upper = line_clean.upper()
+                # Skip very short lines and label lines
+                if len(line_clean) < 8:
+                    continue
+                if any(lbl in line_upper for lbl in ["NAME", "DATE", "SEX", "BIRTH", "LICENSE NO", "NATIONALITY"]):
+                    continue
+                # Check if line has Philippine address keywords
+                if any(kw in line_upper for kw in ph_address_keywords):
+                    address_parts.append(line_clean)
+            
+            if address_parts:
+                full_address = ', '.join(address_parts[:3])  # Max 3 lines
+                return ExtractionResult(
+                    value=self._clean_address(full_address),
+                    confidence=0.65,
+                    source_text=f"DL_LOCATION_SCAN: {full_address[:50]}"
+                )
         
         return ExtractionResult()
     
