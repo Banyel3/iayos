@@ -451,7 +451,7 @@ const AgencyKYCPage = () => {
 
   const handleNextStep = () => {
     if (currentStep === 1) setCurrentStep(2);
-    // Step 2 calls handleExtractOCR when Next is clicked
+    // Step 2 calls handleProceedToForms when Next is clicked
   };
 
   const handleBack = () => {
@@ -459,125 +459,20 @@ const AgencyKYCPage = () => {
     else router.push("/agency/dashboard");
   };
 
-  // Extract OCR data for autofill (triggered by "Next" button in Step 2)
-  // Uses the new separate autofill endpoints instead of deprecated extract-ocr
-  const handleExtractOCR = async () => {
+  // Move to next step - OCR autofill is handled by useEffects when each step loads
+  const handleProceedToForms = () => {
     if (!businessPermit || !repIDFront) {
       showToast({
         type: "warning",
         title: "Missing Documents",
         message:
-          "Please upload Business Permit and Representative ID Front for OCR extraction",
+          "Please upload Business Permit and Representative ID Front before proceeding",
       });
       return;
     }
 
-    setIsExtractingOCR(true);
-
-    try {
-      console.log("📝 Extracting OCR data for autofill (using new endpoints)...");
-
-      // Call both autofill endpoints in parallel
-      const [businessResult, repResult] = await Promise.allSettled([
-        (async () => {
-          const formData = new FormData();
-          formData.append("business_permit", businessPermit);
-          formData.append("business_type", businessType);
-
-          const response = await fetch(
-            `${API_BASE}/api/agency/kyc/autofill-business`,
-            {
-              method: "POST",
-              credentials: "include",
-              body: formData,
-            },
-          );
-
-          if (!response.ok) {
-            throw new Error("Business autofill failed");
-          }
-
-          return response.json();
-        })(),
-        (async () => {
-          const formData = new FormData();
-          formData.append("id_front", repIDFront);
-          formData.append("id_type", repIdType);
-
-          const response = await fetch(
-            `${API_BASE}/api/agency/kyc/autofill-id`,
-            {
-              method: "POST",
-              credentials: "include",
-              body: formData,
-            },
-          );
-
-          if (!response.ok) {
-            throw new Error("ID autofill failed");
-          }
-
-          return response.json();
-        })(),
-      ]);
-
-      let businessSuccess = false;
-      let repSuccess = false;
-
-      // Process business autofill result
-      if (businessResult.status === "fulfilled" && businessResult.value.success) {
-        mapBusinessAutofillFields(businessResult.value.fields);
-        setHasBusinessAutofill(true);
-        businessSuccess = true;
-        console.log("✅ Business OCR extraction result:", businessResult.value);
-      }
-
-      // Process rep ID autofill result
-      if (repResult.status === "fulfilled" && repResult.value.success) {
-        mapRepAutofillFields(repResult.value.fields);
-        setHasRepAutofill(true);
-        repSuccess = true;
-        console.log("✅ Rep ID OCR extraction result:", repResult.value);
-      }
-
-      // Merge extracted data for legacy compatibility
-      const extractedData = {
-        ...(businessResult.status === "fulfilled" && businessResult.value.fields || {}),
-        ...(repResult.status === "fulfilled" && repResult.value.fields || {}),
-      };
-      setOcrExtractedData(extractedData);
-
-      if (businessSuccess || repSuccess) {
-        showToast({
-          type: "success",
-          title: "OCR Extracted",
-          message:
-            "Business data autofilled successfully! Please review and edit if needed.",
-        });
-        setOcrExtracted(true);
-        setCurrentStep(3); // Move to form step
-      } else {
-        showToast({
-          type: "warning",
-          title: "Low Confidence",
-          message:
-            "OCR extraction completed with low confidence. Please fill the form manually.",
-        });
-        setOcrExtracted(true);
-        setCurrentStep(3); // Still move to form
-      }
-    } catch (error) {
-      console.error("OCR extraction error:", error);
-      showToast({
-        type: "error",
-        title: "OCR Failed",
-        message: "OCR extraction failed. Please fill the form manually.",
-      });
-      setOcrExtracted(true);
-      setCurrentStep(3); // Still allow proceeding to form
-    } finally {
-      setIsExtractingOCR(false);
-    }
+    // Just move to Step 3 - the useEffect will trigger autofill-business
+    setCurrentStep(3);
   };
 
   const mapBusinessAutofillFields = (fields: Record<string, string>) => {
@@ -615,10 +510,13 @@ const AgencyKYCPage = () => {
 
   const fetchBusinessAutofill = async () => {
     if (!businessPermit) return;
+    setIsExtractingOCR(true);
     try {
       const formData = new FormData();
       formData.append("business_permit", businessPermit);
       formData.append("business_type", businessType);
+
+      console.log("📝 Running business OCR autofill...");
 
       const response = await fetch(
         `${API_BASE}/api/agency/kyc/autofill-business`,
@@ -635,21 +533,43 @@ const AgencyKYCPage = () => {
 
       const result = await response.json();
       if (result.success && result.fields) {
+        console.log("✅ Business autofill result:", result.fields);
         mapBusinessAutofillFields(result.fields);
         setHasBusinessAutofill(true);
         setOcrExtracted(true);
+        showToast({
+          type: "success",
+          title: "Business Details Autofilled",
+          message: "Please review and edit if needed.",
+        });
+      } else {
+        showToast({
+          type: "info",
+          title: "Low Confidence OCR",
+          message: "Please fill business details manually.",
+        });
       }
     } catch (error) {
       console.error("Business autofill error:", error);
+      showToast({
+        type: "warning",
+        title: "Autofill Unavailable",
+        message: "Please fill business details manually.",
+      });
+    } finally {
+      setIsExtractingOCR(false);
     }
   };
 
   const fetchRepAutofill = async () => {
     if (!repIDFront) return;
+    setIsExtractingOCR(true);
     try {
       const formData = new FormData();
       formData.append("id_front", repIDFront);
       formData.append("id_type", repIdType);
+
+      console.log("📝 Running representative ID OCR autofill...");
 
       const response = await fetch(
         `${API_BASE}/api/agency/kyc/autofill-id`,
@@ -666,11 +586,30 @@ const AgencyKYCPage = () => {
 
       const result = await response.json();
       if (result.success && result.fields) {
+        console.log("✅ Rep ID autofill result:", result.fields);
         mapRepAutofillFields(result.fields);
         setHasRepAutofill(true);
+        showToast({
+          type: "success",
+          title: "Representative Details Autofilled",
+          message: "Please review and edit if needed.",
+        });
+      } else {
+        showToast({
+          type: "info",
+          title: "Low Confidence OCR",
+          message: "Please fill representative details manually.",
+        });
       }
     } catch (error) {
       console.error("ID autofill error:", error);
+      showToast({
+        type: "warning",
+        title: "Autofill Unavailable",
+        message: "Please fill representative details manually.",
+      });
+    } finally {
+      setIsExtractingOCR(false);
     }
   };
 
@@ -1292,7 +1231,7 @@ const AgencyKYCPage = () => {
 
       <div className="flex justify-end gap-2 mt-8">
         <Button
-          onClick={handleExtractOCR}
+          onClick={handleProceedToForms}
           disabled={
             isExtractingOCR || !businessPermit || !repIDFront || !repIDBack
           }
