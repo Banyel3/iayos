@@ -357,10 +357,18 @@ def validate_agency_document(request):
         from .validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
         file_hash = generate_file_hash(file_data)
         
-        # Check cache first
-        cached_result = get_cached_validation(file_hash, document_type)
+        # Get rep_id_type BEFORE cache check - needed for composite cache key
+        # This fixes bug where changing ID type dropdown didn't invalidate cached validation
+        rep_id_type = request.POST.get("rep_id_type", "").upper()
+        
+        # Create composite cache key for rep ID documents (includes ID type)
+        # e.g., "REP_ID_FRONT:PHILSYS_ID" vs "REP_ID_FRONT:DRIVERS_LICENSE"
+        cache_doc_type = f"{document_type}:{rep_id_type}" if rep_id_type and document_type in ['REP_ID_FRONT', 'REP_ID_BACK'] else document_type
+        
+        # Check cache first using composite key
+        cached_result = get_cached_validation(file_hash, cache_doc_type)
         if cached_result:
-            print(f"✅ [CACHE HIT] Using cached validation for {document_type}")
+            print(f"✅ [CACHE HIT] Using cached validation for {cache_doc_type}")
             return {
                 "valid": cached_result.get('ai_status') != 'FAILED',
                 "error": cached_result.get('ai_rejection_message'),
@@ -368,9 +376,6 @@ def validate_agency_document(request):
                 "file_hash": file_hash,
                 "cached": True
             }
-        
-        # Get optional rep_id_type for type-specific OCR
-        rep_id_type = request.POST.get("rep_id_type", "").upper()
         
         # Determine if face detection is required (front ID only)
         require_face = document_type in ['REP_ID_FRONT']
@@ -419,8 +424,8 @@ def validate_agency_document(request):
                     'text_only_validation': True,
                 }
                 
-                # Cache the result
-                cache_validation_result(file_hash, document_type, validation_data)
+                # Cache the result using composite key
+                cache_validation_result(file_hash, cache_doc_type, validation_data)
                 
                 return {
                     "valid": result.get('valid', False),
@@ -457,8 +462,8 @@ def validate_agency_document(request):
                 'ai_rejection_message': rejection_message if rejection_message else None,
             }
             
-            # Cache the result
-            cache_validation_result(file_hash, document_type, validation_data)
+            # Cache the result using composite key
+            cache_validation_result(file_hash, cache_doc_type, validation_data)
             
             # Return response
             return {
