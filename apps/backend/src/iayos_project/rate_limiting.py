@@ -32,9 +32,9 @@ class RateLimitExceeded(Exception):
 
 
 # Rate limit configurations (per IP address)
-# Simplified limits - 20 requests per minute for all categories
+# Production-ready limits - designed for real usage with multiple concurrent users
 RATE_LIMITS = {
-    # Authentication endpoints
+    # Authentication endpoints - moderate limits (login attempts)
     "auth": {
         "limit": 20,
         "window": 60,  # 20 per minute per IP
@@ -46,25 +46,25 @@ RATE_LIMITS = {
         "window": 300,  # 5 per 5 minutes per IP
         "key_prefix": "rl:pwd",
     },
-    # API write operations
+    # API write operations - generous limits
     "api_write": {
-        "limit": 20,
-        "window": 60,  # 20 per minute per IP
+        "limit": 200,
+        "window": 60,  # 200 per minute per IP
         "key_prefix": "rl:write",
     },
-    # API read operations
+    # API read operations - very generous (dashboards poll many endpoints)
     "api_read": {
-        "limit": 20,
-        "window": 60,  # 20 per minute per IP
+        "limit": 1000,
+        "window": 60,  # 1000 per minute per IP (~16 req/sec)
         "key_prefix": "rl:read",
     },
-    # File uploads
+    # File uploads - moderate limits
     "upload": {
-        "limit": 20,
-        "window": 60,  # 20 per minute per IP
+        "limit": 30,
+        "window": 60,  # 30 per minute per IP
         "key_prefix": "rl:upload",
     },
-    # Payment operations
+    # Payment operations - strict for security
     "payment": {
         "limit": 20,
         "window": 60,  # 20 per minute per IP
@@ -113,16 +113,17 @@ def check_rate_limit(category: str, identifier: str) -> tuple[bool, int, int]:
             ttl = cache.ttl(key) if hasattr(cache, 'ttl') else window
             return False, current, ttl if ttl > 0 else window
         
-        # Increment counter
-        new_count = cache.get_or_set(key, 0, window)
-        if new_count == 0:
+        # Increment counter with proper TTL handling
+        if current == 0 or current is None:
+            # First request in window - set counter to 1 with TTL
             cache.set(key, 1, window)
             new_count = 1
         else:
+            # Subsequent requests - increment existing counter
             try:
                 new_count = cache.incr(key)
             except ValueError:
-                # Key expired between get and incr
+                # Key expired between get and incr - start new window
                 cache.set(key, 1, window)
                 new_count = 1
         
