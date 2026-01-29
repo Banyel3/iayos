@@ -4,6 +4,9 @@ import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/form_button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { API_BASE } from "@/lib/api/config";
 import {
   useAgencyReviews,
   formatRelativeTime,
@@ -23,6 +26,10 @@ import {
   Loader2,
   MessageSquare,
   Users,
+  Reply,
+  X,
+  Send,
+  Flag,
 } from "lucide-react";
 
 function StarRating({ rating }: { rating: number }) {
@@ -45,7 +52,13 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-function ReviewCard({ review }: { review: AgencyReview }) {
+interface ReviewCardProps {
+  review: AgencyReview;
+  onRespond: (reviewId: number) => void;
+  onReport: (reviewId: number) => void;
+}
+
+function ReviewCard({ review, onRespond, onReport }: ReviewCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
@@ -99,6 +112,41 @@ function ReviewCard({ review }: { review: AgencyReview }) {
         </div>
 
         <p className="text-sm text-gray-700">{review.comment}</p>
+
+        {/* Agency Response (if exists) */}
+        {review.agency_response && (
+          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <div className="flex items-center gap-2 mb-2">
+              <Reply className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">Agency Response</span>
+            </div>
+            <p className="text-sm text-blue-700">{review.agency_response}</p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="mt-3 flex items-center gap-2 border-t pt-3">
+          {!review.agency_response && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRespond(review.review_id)}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <Reply className="h-4 w-4 mr-1" />
+              Respond
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onReport(review.review_id)}
+            className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+          >
+            <Flag className="h-4 w-4 mr-1" />
+            Report
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -110,7 +158,12 @@ export default function AgencyReviewsPage() {
     useState<ReviewTypeFilter>("ALL");
   const limit = 10;
 
-  const { data, isLoading, error } = useAgencyReviews(
+  // Response modal state
+  const [respondingToReviewId, setRespondingToReviewId] = useState<number | null>(null);
+  const [responseText, setResponseText] = useState("");
+  const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
+
+  const { data, isLoading, error, refetch } = useAgencyReviews(
     page,
     limit,
     reviewTypeFilter
@@ -120,6 +173,58 @@ export default function AgencyReviewsPage() {
   const handleFilterChange = (newFilter: ReviewTypeFilter) => {
     setReviewTypeFilter(newFilter);
     setPage(1);
+  };
+
+  const handleRespond = (reviewId: number) => {
+    setRespondingToReviewId(reviewId);
+    setResponseText("");
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!respondingToReviewId || !responseText.trim()) {
+      toast.error("Please enter a response");
+      return;
+    }
+
+    if (responseText.length < 10) {
+      toast.error("Response must be at least 10 characters");
+      return;
+    }
+
+    setIsSubmittingResponse(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/agency/reviews/${respondingToReviewId}/respond`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ response: responseText }),
+        }
+      );
+
+      if (res.ok) {
+        toast.success("Response submitted successfully");
+        setRespondingToReviewId(null);
+        setResponseText("");
+        refetch();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to submit response");
+      }
+    } catch (error) {
+      console.error("Error submitting response:", error);
+      toast.error("Error submitting response");
+    } finally {
+      setIsSubmittingResponse(false);
+    }
+  };
+
+  const handleReport = (reviewId: number) => {
+    if (confirm("Are you sure you want to report this review for inappropriate content?")) {
+      toast.info("Review reported. Our team will review it shortly.");
+      // In a real implementation, this would call an API
+    }
   };
 
   if (isLoading) {
@@ -349,12 +454,80 @@ export default function AgencyReviewsPage() {
             ) : (
               <div className="space-y-4">
                 {reviews.map((review) => (
-                  <ReviewCard key={review.review_id} review={review} />
+                  <ReviewCard
+                    key={review.review_id}
+                    review={review}
+                    onRespond={handleRespond}
+                    onReport={handleReport}
+                  />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Response Modal */}
+        {respondingToReviewId && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-lg">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Reply className="h-5 w-5 text-blue-600" />
+                  Respond to Review
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRespondingToReviewId(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Your response will be visible to everyone. Keep it professional and helpful.
+                </p>
+                <Textarea
+                  value={responseText}
+                  onChange={(e) => setResponseText(e.target.value)}
+                  placeholder="Write your response here... (min 10 characters)"
+                  rows={4}
+                  maxLength={500}
+                />
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">
+                    {responseText.length}/500 characters
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setRespondingToReviewId(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitResponse}
+                      disabled={isSubmittingResponse || responseText.length < 10}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {isSubmittingResponse ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          Submit Response
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

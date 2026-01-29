@@ -15,15 +15,19 @@ import {
   Star,
   MessageSquare,
   Receipt,
+  Bell,
+  Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 
 export default function AgencySidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (href: string) => pathname.startsWith(href);
@@ -140,6 +144,47 @@ export default function AgencySidebar({ className }: { className?: string }) {
         </Link>
 
         <Link
+          href="/agency/wallet"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
+            isActive("/agency/wallet")
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <Wallet className="h-4 w-4" /> {!collapsed && <span>Wallet</span>}
+        </Link>
+
+        <Link
+          href="/agency/notifications"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md mt-2 relative",
+            isActive("/agency/notifications")
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <div className="relative">
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2">
+              Notifications
+              {unreadCount > 0 && (
+                <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </span>
+          )}
+        </Link>
+
+        <Link
           href="/agency/profile"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
@@ -149,6 +194,18 @@ export default function AgencySidebar({ className }: { className?: string }) {
           )}
         >
           <UserCheck className="h-4 w-4" /> {!collapsed && <span>Profile</span>}
+        </Link>
+
+        <Link
+          href="/agency/settings"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
+            isActive("/agency/settings")
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <Settings className="h-4 w-4" /> {!collapsed && <span>Settings</span>}
         </Link>
       </nav>
 
