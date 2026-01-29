@@ -227,6 +227,7 @@ class AgencyKYCExtractionParser:
                 "REPUBLIC",
                 "PHILIPPINES",
                 "IS A BUSINESS NAME REGISTERED",
+                "BARANGAY",
             ]
             for line in lines[:12]:
                 line = line.strip()
