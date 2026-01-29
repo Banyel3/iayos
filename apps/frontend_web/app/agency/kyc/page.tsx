@@ -107,6 +107,32 @@ const AgencyKYCPage = () => {
   const [hasBusinessAutofill, setHasBusinessAutofill] = useState(false);
   const [hasRepAutofill, setHasRepAutofill] = useState(false);
 
+  // Handler to clear rep ID validation when ID type changes
+  // This prevents the cache bug where validation checks the old ID type
+  const handleRepIdTypeChange = (newType: string) => {
+    if (newType !== repIdType) {
+      // Clear rep ID files and validation - they were validated against old ID type
+      setRepIDFront(null);
+      setRepIDBack(null);
+      setRepFrontPreview("");
+      setRepBackPreview("");
+      setRepFrontValidationError(null);
+      setRepBackValidationError(null);
+      // Clear file hashes for rep IDs
+      setFileHashes((prev) => {
+        const { REP_ID_FRONT, REP_ID_BACK, ...rest } = prev;
+        return rest;
+      });
+      // Show toast to inform user
+      showToast({
+        type: "info",
+        title: "ID Type Changed",
+        message: "Please re-upload your ID documents for the new ID type.",
+      });
+    }
+    setRepIdType(newType);
+  };
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
@@ -1053,7 +1079,7 @@ const AgencyKYCPage = () => {
             </label>
             <select
               value={repIdType}
-              onChange={(e) => setRepIdType(e.target.value)}
+              onChange={(e) => handleRepIdTypeChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             >
               {ID_TYPES.map((idType) => (
@@ -1522,10 +1548,14 @@ const AgencyKYCPage = () => {
                     <div className="relative">
                       {field.type === "select" ? (
                         <select
-                          value={ocrFields[field.key] || repIdType}
+                          value={field.key === "rep_id_type" ? (ocrFields[field.key] || repIdType) : (ocrFields[field.key] || businessType)}
                           onChange={(e) => {
                             handleOcrFieldChange(field.key, e.target.value);
-                            setRepIdType(e.target.value);
+                            if (field.key === "rep_id_type") {
+                              handleRepIdTypeChange(e.target.value);
+                            } else if (field.key === "business_type") {
+                              setBusinessType(e.target.value);
+                            }
                           }}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white ${
                             editedFields.has(field.key)
@@ -1763,10 +1793,12 @@ const AgencyKYCPage = () => {
                     <div className="relative">
                       {field.type === "select" ? (
                         <select
-                          value={ocrFields[field.key] || repIdType}
+                          value={field.key === "rep_id_type" ? (ocrFields[field.key] || repIdType) : (ocrFields[field.key] || "")}
                           onChange={(e) => {
                             handleOcrFieldChange(field.key, e.target.value);
-                            setRepIdType(e.target.value);
+                            if (field.key === "rep_id_type") {
+                              handleRepIdTypeChange(e.target.value);
+                            }
                           }}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${
                             editedFields.has(field.key)
