@@ -206,6 +206,8 @@ class KYCExtractionParser:
         
         logger.info(f"   ✅ Extraction complete: overall_confidence={result.overall_confidence:.2f}")
         logger.info(f"   📋 Name: {result.full_name.value}, DOB: {result.birth_date.value}, ID: {result.id_number.value}")
+        # Debug: Log first 500 chars of raw OCR text for troubleshooting extraction issues
+        logger.debug(f"   📝 RAW OCR TEXT (first 500 chars):\n{ocr_text[:500]}\n   --- END RAW TEXT ---")
         
         return result
     
@@ -296,13 +298,60 @@ class KYCExtractionParser:
         
         # Driver's License specific: Look for "Last Name, First Name, Middle Name" label with value on next line
         if document_type == "DRIVERSLICENSE":
-            # Pattern 0 (NEW LTO FORMAT): Name line with comma-separated format "DELA CRUZ, JUAN, OCAMPO"
-            # This format has exactly 3 comma-separated parts: Last, First, Middle
+            # PATTERN 0 (DIRECT SCAN): Look for any line with exactly 2-3 comma-separated uppercase words
+            # that looks like a name (e.g., "CORNELIO, VANIEL JOHN, GARCIA")
+            # This works even when OCR doesn't properly detect the label line
+            excluded_name_words = [
+                "LICENSE", "PROFESSIONAL", "NON-PROFESSIONAL", "DRIVER", "REPUBLIC",
+                "PHILIPPINES", "LAND", "TRANSPORTATION", "OFFICE", "LTO", "LAST",
+                "FIRST", "MIDDLE", "NAME", "ADDRESS", "DATE", "BIRTH", "NATIONALITY",
+                "RESTRICTIONS", "CONDITIONS", "AGENCY", "CODE", "WEIGHT", "HEIGHT",
+                "SEX", "BLOOD", "TYPE", "EXPIRATION", "VALID"
+            ]
+            
+            for line in text_lines:
+                line_clean = line.strip()
+                # Skip lines that are too short or too long (names are typically 15-60 chars)
+                if len(line_clean) < 10 or len(line_clean) > 80:
+                    continue
+                    
+                # Check if line has comma-separated parts (typical name format)
+                parts = [p.strip() for p in line_clean.split(',')]
+                if 2 <= len(parts) <= 4:
+                    # Check if all parts look like name parts (uppercase letters and spaces only)
+                    all_valid = True
+                    for part in parts:
+                        part_upper = part.upper()
+                        # Must be uppercase letters and spaces
+                        if not re.match(r'^[A-Z\s]+$', part_upper):
+                            all_valid = False
+                            break
+                        # Skip if any part is an excluded word
+                        if any(excl in part_upper.split() for excl in excluded_name_words):
+                            all_valid = False
+                            break
+                    
+                    if all_valid and all(len(p) >= 2 for p in parts):
+                        # Format: LASTNAME, FIRSTNAME, MIDDLENAME or LASTNAME, FIRSTNAME MIDDLENAME
+                        last_name = parts[0].strip()
+                        first_name = parts[1].strip() if len(parts) > 1 else ""
+                        middle_name = parts[2].strip() if len(parts) > 2 else ""
+                        
+                        full_name = f"{first_name} {middle_name} {last_name}".strip()
+                        full_name = ' '.join(full_name.split())  # Remove extra spaces
+                        
+                        logger.info(f"   DL Name (direct scan): {full_name}")
+                        return ExtractionResult(
+                            value=full_name.title(),
+                            confidence=0.90,
+                            source_text=f"DL_DIRECT_SCAN: {line_clean}"
+                        )
+            
+            # Pattern 1 (LABEL-BASED): Check if previous line is the label "Last Name, First Name, Middle Name"
             for i, line in enumerate(text_lines):
                 line_clean = line.strip()
                 line_upper = line_clean.upper()
                 
-                # Check if previous line is the label "Last Name, First Name, Middle Name"
                 if i > 0:
                     prev_line = text_lines[i - 1].strip().upper()
                     if ("LAST" in prev_line and "FIRST" in prev_line) or ("LAST NAME" in prev_line):
@@ -324,7 +373,7 @@ class KYCExtractionParser:
                             return ExtractionResult(
                                 value=full_name.title(),
                                 confidence=0.95,
-                                source_text=f"DL_NEW_FORMAT: {line_clean}"
+                                source_text=f"DL_LABEL_FORMAT: {line_clean}"
                             )
             
             # Pattern 1: "Last Name, First Name, Middle Name" label with "LASTNAME, FIRSTNAME MIDDLENAME" on next line
@@ -629,7 +678,7 @@ class KYCExtractionParser:
         
         return dates
     
-    def _extract_id_number(self, text_upper: str, document_type: str, text_lines: List[str] = None) -> ExtractionResult:
+    def _extract_id_number(self, text_upper: str, document_type: str, text_lines: Optional[List[str]] = None) -> ExtractionResult:
         """Extract ID/document number based on document type"""
         
         # Driver's License: Look for "License No." label with value on same or next line
@@ -680,6 +729,14 @@ class KYCExtractionParser:
                     source_text=match.group(0)
                 )
         
+        # Excluded words that should NOT be matched as ID numbers (header/boilerplate text)
+        id_exclusions = [
+            "PROFESSIONAL", "NON-PROFESSIONAL", "N-PROFESSIONAL",
+            "DRIVER", "LICENSE", "LICENCE", "REPUBLIC", "PHILIPPINES",
+            "TRANSPORTATION", "OFFICE", "RESTRICTION", "CONDITIONS",
+            "NATIONALITY", "PILIPINO", "FILIPINO"
+        ]
+        
         # Generic ID number patterns
         generic_patterns = [
             r'NO\.?\s*[:\s]?\s*([A-Z0-9\-]{8,15})',
@@ -690,8 +747,13 @@ class KYCExtractionParser:
         for pattern in generic_patterns:
             match = re.search(pattern, text_upper)
             if match:
+                matched_value = match.group(1) if match.lastindex else match.group(0)
+                # Skip if the matched value is an excluded word (e.g., "N-PROFESSIONAL")
+                if any(excl in matched_value for excl in id_exclusions):
+                    logger.debug(f"   Skipping excluded ID match: {matched_value}")
+                    continue
                 return ExtractionResult(
-                    value=match.group(1) if match.lastindex else match.group(0),
+                    value=matched_value,
                     confidence=0.6,
                     source_text=match.group(0)
                 )

@@ -138,7 +138,12 @@ class AgencyKYCExtractionParser:
             re.IGNORECASE
         )
         # Matches "DEVANTE SOFTWARE DEVELOPMENT SERVICES" after "This certifies that"
-        self.certifies_that_pattern = re.compile(r'This\s+certifies\s+that\s+([A-Z\s&-]+?)(?:\n|\()', re.IGNORECASE)
+        # Improved: Allow multi-line capture until we hit common delimiters or location words
+        self.certifies_that_pattern = re.compile(
+            r'This\s+certifies\s+that\s+([A-Z][A-Z0-9\s&\-\.]+?)'
+            r'(?:\n|\(|is\s+a|is\s+registered|located|with\s+business|,\s*(?:REGION|CITY|PROVINCE|BARANGAY|BLK|BLOCK|LOT))',
+            re.IGNORECASE
+        )
         
         # Date patterns (various formats)
         self.date_patterns = [
@@ -167,6 +172,8 @@ class AgencyKYCExtractionParser:
             return result
         
         logger.info(f"📄 Parsing {document_type} OCR text ({len(ocr_text)} chars)")
+        # Debug: Log first 500 chars of raw OCR text for troubleshooting extraction issues
+        logger.debug(f"   📝 RAW OCR TEXT (first 500 chars):\n{ocr_text[:500]}\n   --- END RAW TEXT ---")
         
         # Parse based on document type
         if document_type == "BUSINESS_PERMIT":
@@ -228,6 +235,22 @@ class AgencyKYCExtractionParser:
                 "PHILIPPINES",
                 "IS A BUSINESS NAME REGISTERED",
                 "BARANGAY",
+                # Location-related exclusions (Issue fix: addresses were being picked as business names)
+                "REGION",
+                "CITY OF",
+                "PROVINCE OF",
+                "ZAMBOANGA",
+                "MANILA",
+                "CEBU",
+                "DAVAO",
+                "QUEZON",
+                "PASOBOLONG",
+                "BLK",
+                "BLOCK",
+                "LOT",
+                "STREET",
+                "ZONE",
+                "PUROK",
             ]
             for line in lines[:12]:
                 line = line.strip()
