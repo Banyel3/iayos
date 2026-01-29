@@ -1,0 +1,277 @@
+# ================================================================
+# MOBILE PROFILE TEST SUITE
+# Tests: Profile View/Edit, Avatar, Portfolio, Certifications, Materials
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### PROFILE TESTS
+### ================================================================
+
+### TEST 1: Get Worker Profile
+### ================================================================
+# @name getWorkerProfile
+GET {{baseUrl}}/api/mobile/auth/profile
+Authorization: Bearer {{workerToken}}
+
+### TEST 2: Update Profile
+### ================================================================
+# @name updateProfile
+PUT {{baseUrl}}/api/mobile/profile/update
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "bio": "Experienced plumber with 5+ years in residential and commercial plumbing.",
+    "hourly_rate": 350,
+    "phone_number": "09171234567"
+}
+
+### TEST 3: Get Profile Metrics
+### ================================================================
+# @name getProfileMetrics
+GET {{baseUrl}}/api/mobile/profile/metrics
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### AVATAR TESTS
+### ================================================================
+
+### TEST 4: Upload Avatar
+### ================================================================
+# @name uploadAvatar
+POST {{baseUrl}}/api/mobile/profile/upload-image
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="image"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/avatar.jpg
+------WebKitFormBoundary--
+
+### TEST 5: Delete Avatar
+### ================================================================
+# @name deleteAvatar
+DELETE {{baseUrl}}/api/mobile/profile/avatar
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### PORTFOLIO TESTS
+### ================================================================
+
+### TEST 6: Get Portfolio
+### ================================================================
+# @name getPortfolio
+GET {{baseUrl}}/api/mobile/profile/portfolio
+Authorization: Bearer {{workerToken}}
+
+### TEST 7: Upload Portfolio Image
+### ================================================================
+# @name uploadPortfolioImage
+POST {{baseUrl}}/api/mobile/profile/portfolio
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="image"; filename="portfolio_1.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/portfolio.jpg
+------WebKitFormBoundary
+Content-Disposition: form-data; name="caption"
+
+Bathroom renovation project completed in December 2025
+------WebKitFormBoundary--
+
+### TEST 8: Update Portfolio Caption
+### ================================================================
+# @name updatePortfolioCaption
+PUT {{baseUrl}}/api/mobile/profile/portfolio/1
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "caption": "Updated caption for bathroom renovation project"
+}
+
+### TEST 9: Reorder Portfolio
+### ================================================================
+# @name reorderPortfolio
+PUT {{baseUrl}}/api/mobile/profile/portfolio/reorder
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "order": [3, 1, 2]
+}
+
+### TEST 10: Delete Portfolio Image
+### ================================================================
+# @name deletePortfolioImage
+DELETE {{baseUrl}}/api/mobile/profile/portfolio/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### CERTIFICATIONS TESTS
+### ================================================================
+
+### TEST 11: Get Certifications
+### ================================================================
+# @name getCertifications
+GET {{baseUrl}}/api/accounts/worker/certifications
+Authorization: Bearer {{workerToken}}
+
+### TEST 12: Add Certification
+### ================================================================
+# @name addCertification
+POST {{baseUrl}}/api/accounts/worker/certifications
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="name"
+
+Licensed Plumber Certificate
+------WebKitFormBoundary
+Content-Disposition: form-data; name="issuing_organization"
+
+Technical Education and Skills Development Authority (TESDA)
+------WebKitFormBoundary
+Content-Disposition: form-data; name="issue_date"
+
+2023-06-15
+------WebKitFormBoundary
+Content-Disposition: form-data; name="expiry_date"
+
+2028-06-15
+------WebKitFormBoundary
+Content-Disposition: form-data; name="certificate_file"; filename="cert.pdf"
+Content-Type: application/pdf
+
+< ./test_images/certificate.pdf
+------WebKitFormBoundary--
+
+### TEST 13: Update Certification
+### ================================================================
+# @name updateCertification
+PUT {{baseUrl}}/api/accounts/worker/certifications/1
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "name": "Master Plumber Certificate",
+    "issuing_organization": "TESDA"
+}
+
+### TEST 14: Delete Certification
+### ================================================================
+# @name deleteCertification
+DELETE {{baseUrl}}/api/accounts/worker/certifications/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### MATERIALS TESTS
+### ================================================================
+
+### TEST 15: Get Materials
+### ================================================================
+# @name getMaterials
+GET {{baseUrl}}/api/accounts/worker/materials
+Authorization: Bearer {{workerToken}}
+
+### TEST 16: Add Material
+### ================================================================
+# @name addMaterial
+POST {{baseUrl}}/api/accounts/worker/materials
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "name": "PVC Pipes 1 inch",
+    "description": "High quality PVC pipes for residential plumbing",
+    "price": 150,
+    "unit": "per meter",
+    "is_available": true
+}
+
+### TEST 17: Update Material
+### ================================================================
+# @name updateMaterial
+PUT {{baseUrl}}/api/accounts/worker/materials/1
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "price": 175,
+    "is_available": true
+}
+
+### TEST 18: Delete Material
+### ================================================================
+# @name deleteMaterial
+DELETE {{baseUrl}}/api/accounts/worker/materials/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### SKILLS TESTS
+### ================================================================
+
+### TEST 19: Get Available Skills
+### ================================================================
+# @name getAvailableSkills
+GET {{baseUrl}}/api/mobile/skills/available
+Authorization: Bearer {{workerToken}}
+
+### TEST 20: Get My Skills
+### ================================================================
+# @name getMySkills
+GET {{baseUrl}}/api/mobile/skills/my-skills
+Authorization: Bearer {{workerToken}}
+
+### TEST 21: Add Skill
+### ================================================================
+# @name addSkill
+POST {{baseUrl}}/api/mobile/skills/add
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "skill_id": 1,
+    "experience_level": "INTERMEDIATE",
+    "years_experience": 5
+}
+
+### TEST 22: Update Skill
+### ================================================================
+# @name updateSkill
+PUT {{baseUrl}}/api/mobile/skills/1
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "experience_level": "EXPERT",
+    "years_experience": 8
+}
+
+### TEST 23: Remove Skill
+### ================================================================
+# @name removeSkill
+DELETE {{baseUrl}}/api/mobile/skills/1
+Authorization: Bearer {{workerToken}}

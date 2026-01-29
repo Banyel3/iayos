@@ -31,42 +31,43 @@ class RateLimitExceeded(Exception):
         super().__init__(f"Rate limit exceeded: {limit} requests per {window}s")
 
 
-# Rate limit configurations
+# Rate limit configurations (per IP address)
+# Production-ready limits - designed for real usage with multiple concurrent users
 RATE_LIMITS = {
-    # Authentication endpoints - strict limits
+    # Authentication endpoints - moderate limits (login attempts)
     "auth": {
-        "limit": 5,
-        "window": 60,  # 5 per minute
+        "limit": 20,
+        "window": 60,  # 20 per minute per IP
         "key_prefix": "rl:auth",
     },
-    # Password reset - very strict
+    # Password reset - strict to prevent abuse
     "password_reset": {
-        "limit": 3,
-        "window": 300,  # 3 per 5 minutes
+        "limit": 5,
+        "window": 300,  # 5 per 5 minutes per IP
         "key_prefix": "rl:pwd",
     },
-    # API write operations - moderate limits
+    # API write operations - generous limits
     "api_write": {
-        "limit": 30,
-        "window": 60,  # 30 per minute
+        "limit": 200,
+        "window": 60,  # 200 per minute per IP
         "key_prefix": "rl:write",
     },
-    # API read operations - lenient limits
+    # API read operations - very generous (dashboards poll many endpoints)
     "api_read": {
-        "limit": 100,
-        "window": 60,  # 100 per minute
+        "limit": 1000,
+        "window": 60,  # 1000 per minute per IP (~16 req/sec)
         "key_prefix": "rl:read",
     },
-    # File uploads - strict limits
+    # File uploads - moderate limits
     "upload": {
-        "limit": 10,
-        "window": 60,  # 10 per minute
+        "limit": 30,
+        "window": 60,  # 30 per minute per IP
         "key_prefix": "rl:upload",
     },
-    # Payment operations - very strict
+    # Payment operations - strict for security
     "payment": {
-        "limit": 5,
-        "window": 60,  # 5 per minute
+        "limit": 20,
+        "window": 60,  # 20 per minute per IP
         "key_prefix": "rl:payment",
     },
 }

@@ -1,0 +1,174 @@
+# ================================================================
+# MOBILE JOB WORKFLOW TEST SUITE
+# Tests: Active Jobs, Completion Flow, Reviews
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### SETUP: Login as Client
+### ================================================================
+# @name clientLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testclient@example.com",
+    "password": "Test1234!"
+}
+
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 1: Get My Jobs (Worker - all statuses)
+### ================================================================
+# @name getMyJobsWorker
+GET {{baseUrl}}/api/mobile/jobs/my-jobs
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 2: Get My Jobs (Client - all statuses)
+### ================================================================
+# @name getMyJobsClient
+GET {{baseUrl}}/api/mobile/jobs/my-jobs
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 3: Get My Jobs - In Progress Only
+### ================================================================
+# @name getJobsInProgress
+GET {{baseUrl}}/api/mobile/jobs/my-jobs?status=IN_PROGRESS
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 4: Get My Jobs - Completed Only
+### ================================================================
+# @name getJobsCompleted
+GET {{baseUrl}}/api/mobile/jobs/my-jobs?status=COMPLETED
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 5: Get Active Jobs (Legacy Endpoint)
+### ================================================================
+# @name getActiveJobs
+GET {{baseUrl}}/api/jobs/my-active-jobs
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### PHASE 1: Client Confirms Work Started
+### ================================================================
+# @name confirmWorkStarted
+POST {{baseUrl}}/api/jobs/1/confirm-work-started
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### PHASE 2: Worker Marks Job Complete
+### ================================================================
+# @name workerMarkComplete
+POST {{baseUrl}}/api/jobs/1/mark-complete
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "completion_notes": "Job completed successfully. All plumbing fixtures have been installed and tested."
+}
+
+### ================================================================
+### PHASE 3: Client Approves Completion
+### ================================================================
+# @name clientApproveCompletion
+POST {{baseUrl}}/api/jobs/1/approve-completion
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 6: Upload Job Photos (Worker)
+### Note: Requires multipart form data
+### ================================================================
+# @name uploadJobPhotos
+POST {{baseUrl}}/api/jobs/1/upload-photos
+Authorization: Bearer {{workerToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="photos"; filename="job_photo_1.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/job_photo.jpg
+------WebKitFormBoundary--
+
+### ================================================================
+### TEST 7: Submit Review (Client reviews Worker)
+### ================================================================
+# @name clientReviewWorker
+POST {{baseUrl}}/api/jobs/1/review
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "rating": 5,
+    "comment": "Excellent work! The worker was professional, punctual, and did a fantastic job. Highly recommended!",
+    "would_recommend": true
+}
+
+### ================================================================
+### TEST 8: Submit Review (Worker reviews Client)
+### ================================================================
+# @name workerReviewClient
+POST {{baseUrl}}/api/jobs/1/review
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "rating": 5,
+    "comment": "Great client to work with. Clear instructions and prompt payment.",
+    "would_recommend": true
+}
+
+### ================================================================
+### TEST 9: Get Worker Reviews
+### ================================================================
+# @name getWorkerReviews
+GET {{baseUrl}}/api/mobile/reviews/worker/1?page=1&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 10: Get Client Reviews
+### ================================================================
+# @name getClientReviews
+GET {{baseUrl}}/api/mobile/reviews/client/1?page=1&limit=20
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 11: Get Review Stats
+### ================================================================
+# @name getReviewStats
+GET {{baseUrl}}/api/mobile/reviews/stats/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 12: Get My Reviews
+### ================================================================
+# @name getMyReviews
+GET {{baseUrl}}/api/mobile/reviews/my-reviews
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 13: Get Job Receipt
+### ================================================================
+# @name getJobReceipt
+GET {{baseUrl}}/api/jobs/1/receipt
+Authorization: Bearer {{clientToken}}

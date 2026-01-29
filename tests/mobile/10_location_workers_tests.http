@@ -1,0 +1,155 @@
+# ================================================================
+# MOBILE LOCATION & WORKERS TEST SUITE
+# Tests: Location Tracking, Worker Browsing, Agency Browsing
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login as Worker
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### SETUP: Login as Client
+### ================================================================
+# @name clientLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testclient@example.com",
+    "password": "Test1234!"
+}
+
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ================================================================
+### LOCATION TESTS
+### ================================================================
+
+### TEST 1: Update Worker Location
+### ================================================================
+# @name updateLocation
+POST {{baseUrl}}/api/accounts/location/update
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "latitude": 6.9214,
+    "longitude": 122.0790
+}
+
+### TEST 2: Get My Current Location
+### ================================================================
+# @name getMyLocation
+GET {{baseUrl}}/api/accounts/location/me
+Authorization: Bearer {{workerToken}}
+
+### TEST 3: Toggle Location Sharing
+### ================================================================
+# @name toggleLocationSharing
+POST {{baseUrl}}/api/accounts/location/toggle-sharing
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "enabled": true
+}
+
+### ================================================================
+### CITIES & BARANGAYS
+### ================================================================
+
+### TEST 4: Get Cities
+### ================================================================
+# @name getCities
+GET {{baseUrl}}/api/mobile/locations/cities
+Authorization: Bearer {{clientToken}}
+
+### TEST 5: Get Barangays for City
+### ================================================================
+# @name getBarangays
+GET {{baseUrl}}/api/mobile/locations/cities/1/barangays
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### WORKERS BROWSING (CLIENT)
+### ================================================================
+
+### TEST 6: Get Nearby Workers
+### ================================================================
+# @name getNearbyWorkers
+GET {{baseUrl}}/api/mobile/workers/list
+Authorization: Bearer {{clientToken}}
+
+### TEST 7: Get Worker Detail
+### ================================================================
+# @name getWorkerDetail
+GET {{baseUrl}}/api/mobile/workers/detail/1
+Authorization: Bearer {{clientToken}}
+
+### TEST 8: Get Non-existent Worker (Should 404)
+### ================================================================
+# @name getNonExistentWorker
+GET {{baseUrl}}/api/mobile/workers/detail/999999
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### AGENCIES BROWSING (CLIENT)
+### ================================================================
+
+### TEST 9: Get Agencies List
+### ================================================================
+# @name getAgenciesList
+GET {{baseUrl}}/api/mobile/agencies/list
+Authorization: Bearer {{clientToken}}
+
+### TEST 10: Get Agency Detail
+### ================================================================
+# @name getAgencyDetail
+GET {{baseUrl}}/api/mobile/agencies/detail/1
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### CLIENT DETAIL (WORKER VIEW)
+### ================================================================
+
+### TEST 11: Get Client Detail
+### ================================================================
+# @name getClientDetail
+GET {{baseUrl}}/api/mobile/clients/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### WORKER AVAILABILITY
+### ================================================================
+
+### TEST 12: Get Worker Availability
+### ================================================================
+# @name getWorkerAvailability
+GET {{baseUrl}}/api/accounts/worker/availability
+Authorization: Bearer {{workerToken}}
+
+### TEST 13: Update Worker Availability
+### ================================================================
+# @name updateWorkerAvailability
+PUT {{baseUrl}}/api/accounts/worker/availability
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "is_available": true,
+    "available_days": ["MON", "TUE", "WED", "THU", "FRI"],
+    "available_hours_start": "08:00",
+    "available_hours_end": "17:00"
+}
