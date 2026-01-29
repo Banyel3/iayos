@@ -460,6 +460,7 @@ const AgencyKYCPage = () => {
   };
 
   // Extract OCR data for autofill (triggered by "Next" button in Step 2)
+  // Uses the new separate autofill endpoints instead of deprecated extract-ocr
   const handleExtractOCR = async () => {
     if (!businessPermit || !repIDFront) {
       showToast({
@@ -474,30 +475,79 @@ const AgencyKYCPage = () => {
     setIsExtractingOCR(true);
 
     try {
-      const formData = new FormData();
-      formData.append("business_permit", businessPermit);
-      formData.append("rep_id_front", repIDFront);
-      formData.append("business_type", businessType);
+      console.log("📝 Extracting OCR data for autofill (using new endpoints)...");
 
-      console.log("📝 Extracting OCR data for autofill...");
+      // Call both autofill endpoints in parallel
+      const [businessResult, repResult] = await Promise.allSettled([
+        (async () => {
+          const formData = new FormData();
+          formData.append("business_permit", businessPermit);
+          formData.append("business_type", businessType);
 
-      const response = await fetch(`${API_BASE}/api/agency/kyc/extract-ocr`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
+          const response = await fetch(
+            `${API_BASE}/api/agency/kyc/autofill-business`,
+            {
+              method: "POST",
+              credentials: "include",
+              body: formData,
+            },
+          );
 
-      if (!response.ok) {
-        throw new Error("OCR extraction failed");
+          if (!response.ok) {
+            throw new Error("Business autofill failed");
+          }
+
+          return response.json();
+        })(),
+        (async () => {
+          const formData = new FormData();
+          formData.append("id_front", repIDFront);
+          formData.append("id_type", repIdType);
+
+          const response = await fetch(
+            `${API_BASE}/api/agency/kyc/autofill-id`,
+            {
+              method: "POST",
+              credentials: "include",
+              body: formData,
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error("ID autofill failed");
+          }
+
+          return response.json();
+        })(),
+      ]);
+
+      let businessSuccess = false;
+      let repSuccess = false;
+
+      // Process business autofill result
+      if (businessResult.status === "fulfilled" && businessResult.value.success) {
+        mapBusinessAutofillFields(businessResult.value.fields);
+        setHasBusinessAutofill(true);
+        businessSuccess = true;
+        console.log("✅ Business OCR extraction result:", businessResult.value);
       }
 
-      const result = await response.json();
-      console.log("✅ OCR extraction result:", result);
+      // Process rep ID autofill result
+      if (repResult.status === "fulfilled" && repResult.value.success) {
+        mapRepAutofillFields(repResult.value.fields);
+        setHasRepAutofill(true);
+        repSuccess = true;
+        console.log("✅ Rep ID OCR extraction result:", repResult.value);
+      }
 
-      if (result.success && result.extracted_data) {
-        setOcrExtractedData(result.extracted_data);
-        await fetchBusinessAutofill();
+      // Merge extracted data for legacy compatibility
+      const extractedData = {
+        ...(businessResult.status === "fulfilled" && businessResult.value.fields || {}),
+        ...(repResult.status === "fulfilled" && repResult.value.fields || {}),
+      };
+      setOcrExtractedData(extractedData);
 
+      if (businessSuccess || repSuccess) {
         showToast({
           type: "success",
           title: "OCR Extracted",
