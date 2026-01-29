@@ -32,9 +32,9 @@ class RateLimitExceeded(Exception):
 
 
 # Rate limit configurations (per IP address)
-# Production-ready limits - designed for real usage with multiple concurrent users
+# Simplified limits - 20 requests per minute for all categories
 RATE_LIMITS = {
-    # Authentication endpoints - moderate limits (login attempts)
+    # Authentication endpoints
     "auth": {
         "limit": 20,
         "window": 60,  # 20 per minute per IP
@@ -46,25 +46,25 @@ RATE_LIMITS = {
         "window": 300,  # 5 per 5 minutes per IP
         "key_prefix": "rl:pwd",
     },
-    # API write operations - generous limits
+    # API write operations
     "api_write": {
-        "limit": 200,
-        "window": 60,  # 200 per minute per IP
+        "limit": 20,
+        "window": 60,  # 20 per minute per IP
         "key_prefix": "rl:write",
     },
-    # API read operations - very generous (dashboards poll many endpoints)
+    # API read operations
     "api_read": {
-        "limit": 1000,
-        "window": 60,  # 1000 per minute per IP (~16 req/sec)
+        "limit": 20,
+        "window": 60,  # 20 per minute per IP
         "key_prefix": "rl:read",
     },
-    # File uploads - moderate limits
+    # File uploads
     "upload": {
-        "limit": 30,
-        "window": 60,  # 30 per minute per IP
+        "limit": 20,
+        "window": 60,  # 20 per minute per IP
         "key_prefix": "rl:upload",
     },
-    # Payment operations - strict for security
+    # Payment operations
     "payment": {
         "limit": 20,
         "window": 60,  # 20 per minute per IP
