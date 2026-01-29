@@ -130,7 +130,10 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
     placeholder: "SEC-XXXXXXX",
     section: "business",
     // Only for Corporations and Partnerships
-    applicableBusinessTypes: [BUSINESS_TYPES.CORPORATION, BUSINESS_TYPES.PARTNERSHIP],
+    applicableBusinessTypes: [
+      BUSINESS_TYPES.CORPORATION,
+      BUSINESS_TYPES.PARTNERSHIP,
+    ],
   },
   // Representative Information
   {
