@@ -108,6 +108,27 @@ if (Test-Path $dtiCert) {
             Write-Host "    DTI Number: $($autofillData.fields.dti_number)" -ForegroundColor Gray
             Write-Host "    Permit Number: $($autofillData.fields.permit_number)" -ForegroundColor Gray
             Write-Host "    Address: $($autofillData.fields.business_address)" -ForegroundColor Gray
+            
+            # Verify expected values
+            Write-Host "`n  Data Validation:" -ForegroundColor Cyan
+            $expectedBusinessName = "DEVANTE SOFTWARE DEVELOPMENT SERVICES"
+            if ($autofillData.fields.business_name -eq $expectedBusinessName) {
+                Write-Host "    ✓ Business Name: CORRECT" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ Business Name: INCORRECT (expected '$expectedBusinessName')" -ForegroundColor Red
+            }
+            
+            if ($autofillData.fields.dti_number) {
+                Write-Host "    ✓ DTI Number: EXTRACTED ($($autofillData.fields.dti_number))" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ DTI Number: MISSING" -ForegroundColor Red
+            }
+            
+            if ($autofillData.fields.permit_number) {
+                Write-Host "    ✓ Permit Number: EXTRACTED ($($autofillData.fields.permit_number))" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ Permit Number: MISSING" -ForegroundColor Red
+            }
         }
     } catch {
         Write-Host "  ✗ Autofill business failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -167,6 +188,47 @@ if (Test-Path $idFront) {
             Write-Host "    ID Number: $($autofillData.fields.rep_id_number)" -ForegroundColor Gray
             Write-Host "    Birth Date: $($autofillData.fields.rep_birth_date)" -ForegroundColor Gray
             Write-Host "    Address: $($autofillData.fields.rep_address)" -ForegroundColor Gray
+            
+            # Verify expected values
+            Write-Host "`n  Data Validation:" -ForegroundColor Cyan
+            $expectedFullName = "Arthur Planta Tugade"
+            $expectedLastName = "Tugade"
+            $expectedFirstName = "Arthur"
+            $expectedMiddleName = "Planta"
+            
+            if ($autofillData.fields.rep_full_name -eq $expectedFullName) {
+                Write-Host "    ✓ Full Name: CORRECT ($expectedFullName)" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ Full Name: INCORRECT" -ForegroundColor Red
+                Write-Host "      Expected: $expectedFullName" -ForegroundColor Yellow
+                Write-Host "      Got: $($autofillData.fields.rep_full_name)" -ForegroundColor Yellow
+            }
+            
+            # Check if name components are in the full name
+            $fullName = $autofillData.fields.rep_full_name
+            if ($fullName -match $expectedFirstName) {
+                Write-Host "    ✓ First Name: FOUND ('$expectedFirstName' in name)" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ First Name: NOT FOUND (expected '$expectedFirstName')" -ForegroundColor Red
+            }
+            
+            if ($fullName -match $expectedMiddleName) {
+                Write-Host "    ✓ Middle Name: FOUND ('$expectedMiddleName' in name)" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ Middle Name: NOT FOUND (expected '$expectedMiddleName')" -ForegroundColor Red
+            }
+            
+            if ($fullName -match $expectedLastName) {
+                Write-Host "    ✓ Last Name: FOUND ('$expectedLastName' in name)" -ForegroundColor Green
+            } else {
+                Write-Host "    ✗ Last Name: NOT FOUND (expected '$expectedLastName')" -ForegroundColor Red
+            }
+            
+            if ($autofillData.fields.rep_id_number) {
+                Write-Host "    ✓ ID Number: EXTRACTED ($($autofillData.fields.rep_id_number))" -ForegroundColor Green
+            } else {
+                Write-Host "    ⚠ ID Number: MISSING" -ForegroundColor Yellow
+            }
         }
     } catch {
         Write-Host "  ✗ Autofill ID failed: $($_.Exception.Message)" -ForegroundColor Red

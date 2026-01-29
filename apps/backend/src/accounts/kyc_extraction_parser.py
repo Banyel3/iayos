@@ -192,8 +192,8 @@ class KYCExtractionParser:
         self._split_name(result)  # Parse into first/middle/last
         
         result.birth_date = self._extract_birth_date(text_upper, text_lines)
-        result.id_number = self._extract_id_number(text_upper, document_type)
-        result.address = self._extract_address(text_upper, text_lines)
+        result.id_number = self._extract_id_number(text_upper, document_type, text_lines)
+        result.address = self._extract_address(text_upper, text_lines, document_type)
         result.sex = self._extract_sex(text_upper)
         result.nationality = self._extract_nationality(text_upper)
         result.expiry_date = self._extract_expiry_date(text_upper, text_lines)
@@ -430,24 +430,25 @@ class KYCExtractionParser:
             
             for label in date_labels:
                 if label in line_upper:
-                    # Try to find date on this line or next
+                    # Driver's License pattern: value is on the NEXT line
+                    if i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        next_date = self._parse_date_from_text(next_line.upper())
+                        if next_date:
+                            return ExtractionResult(
+                                value=next_date,
+                                confidence=0.9,
+                                source_text=f"DL_LABEL_PATTERN: {label} -> {next_line}"
+                            )
+                    
+                    # Fallback: Try to find date on this line
                     date_result = self._parse_date_from_text(line_upper)
                     if date_result:
                         return ExtractionResult(
                             value=date_result,
-                            confidence=0.9,
+                            confidence=0.8,
                             source_text=line
                         )
-                    
-                    # Check next line
-                    if i + 1 < len(text_lines):
-                        next_date = self._parse_date_from_text(text_lines[i + 1].upper())
-                        if next_date:
-                            return ExtractionResult(
-                                value=next_date,
-                                confidence=0.85,
-                                source_text=text_lines[i + 1]
-                            )
         
         # Fall back to finding any date in the text
         all_dates = self._find_all_dates(text_upper)
@@ -531,8 +532,27 @@ class KYCExtractionParser:
         
         return dates
     
-    def _extract_id_number(self, text_upper: str, document_type: str) -> ExtractionResult:
+    def _extract_id_number(self, text_upper: str, document_type: str, text_lines: List[str] = None) -> ExtractionResult:
         """Extract ID/document number based on document type"""
+        
+        # Driver's License: Look for "License No." label with value on next line
+        if document_type == "DRIVERSLICENSE" and text_lines:
+            license_labels = ["LICENSE NO", "LICENSE NUMBER", "LIC NO", "DL NO"]
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip().upper()
+                for label in license_labels:
+                    if label in line_clean:
+                        # License number is on the next line
+                        if i + 1 < len(text_lines):
+                            id_line = text_lines[i + 1].strip()
+                            # Extract alphanumeric ID
+                            id_match = re.search(r'([A-Z0-9\-]{8,15})', id_line.upper())
+                            if id_match:
+                                return ExtractionResult(
+                                    value=id_match.group(1),
+                                    confidence=0.9,
+                                    source_text=f"DL_LABEL_PATTERN: {label} -> {id_line}"
+                                )
         
         patterns = {
             "PASSPORT": (self.PATTERNS["passport"], 0.9),
@@ -571,7 +591,7 @@ class KYCExtractionParser:
         
         return ExtractionResult()
     
-    def _extract_address(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
+    def _extract_address(self, text_upper: str, text_lines: List[str], document_type: str = "") -> ExtractionResult:
         """Extract address from document"""
         
         # Look for address labels
@@ -583,28 +603,47 @@ class KYCExtractionParser:
                     # Collect address lines
                     address_parts = []
                     
-                    # Check if address is on same line
-                    after_keyword = line_upper.split(keyword)[-1].strip()
-                    after_keyword = re.sub(r'^[:\s/]+', '', after_keyword)
-                    if after_keyword and len(after_keyword) > 5:
-                        address_parts.append(after_keyword)
-                    
-                    # Collect subsequent lines that look like address parts
-                    for j in range(i + 1, min(i + 4, len(text_lines))):
-                        next_line = text_lines[j].strip()
-                        if next_line and len(next_line) > 3:
-                            # Stop if we hit another label
-                            if any(lbl in next_line.upper() for lbl in ["NAME", "DATE", "SEX", "BORN", "NUMBER"]):
-                                break
-                            address_parts.append(next_line)
-                    
-                    if address_parts:
-                        full_address = ', '.join(address_parts)
-                        return ExtractionResult(
-                            value=self._clean_address(full_address),
-                            confidence=0.8,
-                            source_text=full_address[:100]
-                        )
+                    # Driver's License pattern: address is on NEXT line(s), not same line
+                    if document_type == "DRIVERSLICENSE":
+                        # Collect subsequent lines that look like address parts
+                        for j in range(i + 1, min(i + 4, len(text_lines))):
+                            next_line = text_lines[j].strip()
+                            if next_line and len(next_line) > 3:
+                                # Stop if we hit another label
+                                if any(lbl in next_line.upper() for lbl in ["NAME", "DATE", "SEX", "BORN", "NUMBER", "LICENSE", "NATIONALITY"]):
+                                    break
+                                address_parts.append(next_line)
+                        
+                        if address_parts:
+                            full_address = ', '.join(address_parts)
+                            return ExtractionResult(
+                                value=self._clean_address(full_address),
+                                confidence=0.9,
+                                source_text=f"DL_LABEL_PATTERN: {keyword} -> {full_address[:50]}"
+                            )
+                    else:
+                        # Other documents: check if address is on same line
+                        after_keyword = line_upper.split(keyword)[-1].strip()
+                        after_keyword = re.sub(r'^[:\s/]+', '', after_keyword)
+                        if after_keyword and len(after_keyword) > 5:
+                            address_parts.append(after_keyword)
+                        
+                        # Collect subsequent lines that look like address parts
+                        for j in range(i + 1, min(i + 4, len(text_lines))):
+                            next_line = text_lines[j].strip()
+                            if next_line and len(next_line) > 3:
+                                # Stop if we hit another label
+                                if any(lbl in next_line.upper() for lbl in ["NAME", "DATE", "SEX", "BORN", "NUMBER"]):
+                                    break
+                                address_parts.append(next_line)
+                        
+                        if address_parts:
+                            full_address = ', '.join(address_parts)
+                            return ExtractionResult(
+                                value=self._clean_address(full_address),
+                                confidence=0.8,
+                                source_text=full_address[:100]
+                            )
         
         # Look for Philippine location names
         for location in self.PATTERNS["ph_locations"]:
@@ -697,23 +736,25 @@ class KYCExtractionParser:
             
             for label in expiry_labels:
                 if label in line_upper:
+                    # Driver's License pattern: date is on the NEXT line
+                    if i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        next_date = self._parse_date_from_text(next_line.upper())
+                        if next_date:
+                            return ExtractionResult(
+                                value=next_date,
+                                confidence=0.9,
+                                source_text=f"DL_LABEL_PATTERN: {label} -> {next_line}"
+                            )
+                    
+                    # Fallback: Try to find date on this line
                     date_result = self._parse_date_from_text(line_upper)
                     if date_result:
                         return ExtractionResult(
                             value=date_result,
-                            confidence=0.85,
+                            confidence=0.8,
                             source_text=line
                         )
-                    
-                    # Check next line
-                    if i + 1 < len(text_lines):
-                        next_date = self._parse_date_from_text(text_lines[i + 1].upper())
-                        if next_date:
-                            return ExtractionResult(
-                                value=next_date,
-                                confidence=0.8,
-                                source_text=text_lines[i + 1]
-                            )
         
         return ExtractionResult()
 
