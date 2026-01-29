@@ -138,10 +138,21 @@ class AgencyKYCExtractionParser:
             re.IGNORECASE
         )
         # Matches "DEVANTE SOFTWARE DEVELOPMENT SERVICES" after "This certifies that"
-        # Improved: Allow multi-line capture until we hit common delimiters or location words
-        self.certifies_that_pattern = re.compile(
-            r'This\s+certifies\s+that\s+([A-Z][A-Z0-9\s&\-\.]+?)'
-            r'(?:\n|\(|is\s+a|is\s+registered|located|with\s+business|,\s*(?:REGION|CITY|PROVINCE|BARANGAY|BLK|BLOCK|LOT))',
+        # FIXED: Handle multi-line OCR where business name is on next line after "This certifies that"
+        # Pattern 1: Business name on SAME LINE as "This certifies that"
+        self.certifies_that_same_line_pattern = re.compile(
+            r'This\s+certifies\s+that\s+([A-Z][A-Z0-9\s&\-\.]{4,}?)'
+            r'(?:\(|is\s+a|is\s+registered|located|with\s+business|,\s*(?:REGION|CITY|PROVINCE|BARANGAY|BLK|BLOCK|LOT))',
+            re.IGNORECASE
+        )
+        # Pattern 2: Business name on NEXT LINE after "This certifies that" (common OCR output)
+        self.certifies_that_next_line_pattern = re.compile(
+            r'This\s+certifies\s+that\s*\n+\s*([A-Z][A-Z0-9\s&\-\.]{4,}?)(?:\n|\(|is\s+a|is\s+registered|located|with\s+business)',
+            re.IGNORECASE | re.DOTALL
+        )
+        # Pattern for extracting owner name to EXCLUDE from business name
+        self.owner_name_pattern = re.compile(
+            r'(?:issued\s+to|owner|proprietor)[:\s]+([A-Z][A-Z\s]+?)(?:\n|is\s+valid|subject\s+to|,)',
             re.IGNORECASE
         )
         
@@ -213,19 +224,55 @@ class AgencyKYCExtractionParser:
         lines = text.split('\n')
         text_upper = text.upper()
         
+        # First, extract owner name so we can EXCLUDE it from business name
+        owner_name = None
+        issued_to_match = self.issued_to_pattern.search(text)
+        if issued_to_match:
+            owner_name = issued_to_match.group(1).strip().upper()
+            logger.info(f"   Detected Owner Name (to exclude): {owner_name}")
+        
+        # Also try owner_name_pattern for additional detection
+        if not owner_name:
+            owner_match = self.owner_name_pattern.search(text)
+            if owner_match:
+                owner_name = owner_match.group(1).strip().upper()
+                logger.info(f"   Detected Owner Name (from proprietor): {owner_name}")
+        
         # Extract business name - prefer DTI certificate format "This certifies that"
-        certifies_match = self.certifies_that_pattern.search(text)
+        # PATTERN 1: Same line - "This certifies that BUSINESS NAME"
+        certifies_match = self.certifies_that_same_line_pattern.search(text)
         if certifies_match:
             business_name = certifies_match.group(1).strip()
-            # Keep original case for business names (they're usually all caps)
-            result.business_name = ExtractionResult(
-                value=business_name,
-                confidence=0.9,
-                source_text=certifies_match.group(0)
-            )
-            logger.info(f"   Business Name (from 'certifies that'): {result.business_name.value}")
+            # Skip if this matches the owner name
+            if owner_name and business_name.upper() == owner_name:
+                logger.info(f"   Skipping owner name as business name: {business_name}")
+                certifies_match = None
+            else:
+                result.business_name = ExtractionResult(
+                    value=business_name,
+                    confidence=0.9,
+                    source_text=certifies_match.group(0)
+                )
+                logger.info(f"   Business Name (from 'certifies that' same-line): {result.business_name.value}")
+        
+        # PATTERN 2: Next line - "This certifies that\nBUSINESS NAME"
+        if not result.business_name.value:
+            certifies_match = self.certifies_that_next_line_pattern.search(text)
+            if certifies_match:
+                business_name = certifies_match.group(1).strip()
+                # Skip if this matches the owner name
+                if owner_name and business_name.upper() == owner_name:
+                    logger.info(f"   Skipping owner name as business name (next-line): {business_name}")
+                    certifies_match = None
+                else:
+                    result.business_name = ExtractionResult(
+                        value=business_name,
+                        confidence=0.85,
+                        source_text=certifies_match.group(0)[:50] + "..."
+                    )
+                    logger.info(f"   Business Name (from 'certifies that' next-line): {result.business_name.value}")
 
-        # Fallback: first all-caps line near the top (avoid boilerplate lines)
+        # Fallback: first all-caps line near the top (avoid boilerplate lines and OWNER NAME)
         if not result.business_name.value:
             excluded_phrases = [
                 "CERTIFICATE",
@@ -254,6 +301,10 @@ class AgencyKYCExtractionParser:
             ]
             for line in lines[:12]:
                 line = line.strip()
+                # Skip owner name
+                if owner_name and line.upper() == owner_name:
+                    logger.debug(f"   Skipping owner name in fallback: {line}")
+                    continue
                 if (
                     line.isupper()
                     and len(line) > 5
@@ -264,7 +315,7 @@ class AgencyKYCExtractionParser:
                         confidence=0.7,
                         source_text=line,
                     )
-                    logger.info(f"   Business Name: {result.business_name.value}")
+                    logger.info(f"   Business Name (fallback): {result.business_name.value}")
                     break
         
         # Extract business type (look for keywords like "sole proprietor", "corporation")
