@@ -90,6 +90,7 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
 
         uploaded_files = []
         file_hashes = getattr(payload, 'file_hashes', {})
+        rep_id_type = getattr(payload, 'rep_id_type', None)
         
         # ============================================
         # PARALLEL FILE UPLOAD TO SUPABASE
@@ -119,18 +120,24 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 # Get cached validation result from Redis
                 from .validation_cache import get_cached_validation, generate_file_hash
                 
+                # Construct cache key matching validation step's composite key pattern
+                # For REP_ID_FRONT/REP_ID_BACK, use "REP_ID_FRONT:PHILSYS_ID" format
+                cache_key = f"{key}:{rep_id_type}" if rep_id_type and key in ['REP_ID_FRONT', 'REP_ID_BACK'] else key
+                
                 file_hash = file_hashes.get(key)
                 cached_validation = None
                 
                 if file_hash:
-                    cached_validation = get_cached_validation(file_hash, key)
+                    cached_validation = get_cached_validation(file_hash, cache_key)
+                    print(f"🔍 [CACHE LOOKUP] {key} with cache_key='{cache_key}', hash={file_hash[:8]}... → {'HIT' if cached_validation else 'MISS'}")
                 else:
                     # Fallback: generate hash from file data if not provided
                     file.seek(0)
                     file_data = file.read()
                     file.seek(0)
                     file_hash = generate_file_hash(file_data)
-                    cached_validation = get_cached_validation(file_hash, key)
+                    cached_validation = get_cached_validation(file_hash, cache_key)
+                    print(f"🔍 [CACHE LOOKUP] {key} with cache_key='{cache_key}', hash={file_hash[:8]}... (generated) → {'HIT' if cached_validation else 'MISS'}")
                 
                 # Extract validation results from cache (or use defaults)
                 ai_status = 'PENDING'
