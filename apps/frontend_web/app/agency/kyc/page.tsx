@@ -1052,13 +1052,27 @@ const AgencyKYCPage = () => {
               {businessType === "COOPERATIVE" &&
                 "CDA/SEC Certificate of Registration"}
               <span className="text-red-500"> *</span>
+              {isValidatingPermit && (
+                <span className="text-blue-500 text-xs ml-2">
+                  Validating...
+                </span>
+              )}
             </label>
             <label
               htmlFor="permitUpload"
-              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center"
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
+                businessPermit
+                  ? "border-green-400"
+                  : "border-gray-300 hover:border-blue-500"
+              } ${isValidatingPermit ? "opacity-60 pointer-events-none" : ""}`}
             >
-              {permitPreview ? (
-                <div>
+              {isValidatingPermit ? (
+                <div className="flex flex-col items-center">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                  <p className="text-sm text-blue-600">Processing document...</p>
+                </div>
+              ) : permitPreview ? (
+                <div className="relative">
                   <Image
                     src={permitPreview}
                     alt="Permit"
@@ -1066,6 +1080,21 @@ const AgencyKYCPage = () => {
                     height={180}
                     className="mx-auto rounded-lg object-cover"
                   />
+                  {businessPermit && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-600 mt-2">
                     Permit uploaded ✓
                   </p>
@@ -1087,6 +1116,7 @@ const AgencyKYCPage = () => {
               type="file"
               accept="image/*,.pdf"
               onChange={handlePermitChange}
+              disabled={isValidatingPermit}
               className="hidden"
             />
           </div>
