@@ -33,10 +33,7 @@ import {
 import { format, subMonths } from "date-fns";
 
 export default function AnalyticsPage() {
-  const [dateRange, setDateRange] = useState({
-    start: subMonths(new Date(), 3),
-    end: new Date(),
-  });
+  const [weeksRange, setWeeksRange] = useState(12); // Default 12 weeks (3 months)
   const [leaderboardSort, setLeaderboardSort] = useState<
     "rating" | "jobs" | "earnings"
   >("rating");
@@ -47,8 +44,7 @@ export default function AnalyticsPage() {
     20
   );
   const { data: revenueTrends, isLoading: trendsLoading } = useRevenueTrends(
-    dateRange.start,
-    dateRange.end
+    weeksRange
   );
 
   if (statsLoading || leaderboardLoading || trendsLoading) {

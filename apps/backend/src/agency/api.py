@@ -743,6 +743,30 @@ def get_profile(request):
         return Response({"error": "Internal server error"}, status=500)
 
 
+@router.get("/analytics/revenue-trends", auth=cookie_auth)
+def get_revenue_trends(request, weeks: int = 12):
+    """
+    Get weekly revenue and job completion trends for analytics charts.
+    
+    Query params:
+        weeks: Number of weeks to fetch (default: 12, max: 52)
+    
+    Returns:
+        List of weekly data points with date, revenue, and jobs completed
+    """
+    try:
+        account_id = request.auth.accountID
+        # Cap weeks at 52 (1 year)
+        weeks = min(weeks, 52)
+        trends = services.get_revenue_trends(account_id, weeks)
+        return {"success": True, "trends": trends, "weeks": weeks}
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"Error fetching revenue trends: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)
+
+
 @router.post("/profile/update", auth=cookie_auth)
 def update_profile(request):
     """Update agency profile information."""

@@ -103,47 +103,30 @@ export function useLeaderboard(
 }
 
 /**
- * Fetch revenue trends (mock data for now - can be replaced with real API)
+ * Fetch revenue trends from the backend API
  */
-export function useRevenueTrends(startDate: Date, endDate: Date) {
+export function useRevenueTrends(weeks: number = 12) {
   return useQuery<RevenueTrendData[]>({
-    queryKey: [
-      "agency",
-      "revenue-trends",
-      startDate.toISOString(),
-      endDate.toISOString(),
-    ],
+    queryKey: ["agency", "revenue-trends", weeks],
     queryFn: async () => {
-      // For now, generate mock data
-      // In production, this would call: GET /api/agency/analytics/revenue-trends?start=X&end=Y
-      return generateMockRevenueTrends(startDate, endDate);
+      const response = await fetch(
+        `${API_BASE}/api/agency/analytics/revenue-trends?weeks=${weeks}`,
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch revenue trends");
+      }
+
+      const data = await response.json();
+      return data.trends || [];
     },
     refetchOnWindowFocus: false,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
-}
-
-/**
- * Generate mock revenue trends data
- * TODO: Replace with real API endpoint when analytics backend is implemented
- */
-function generateMockRevenueTrends(
-  startDate: Date,
-  endDate: Date,
-): RevenueTrendData[] {
-  const data: RevenueTrendData[] = [];
-  const currentDate = new Date(startDate);
-
-  while (currentDate <= endDate) {
-    data.push({
-      date: currentDate.toISOString().split("T")[0],
-      revenue: Math.floor(Math.random() * 10000) + 5000,
-      jobs: Math.floor(Math.random() * 20) + 5,
-    });
-    currentDate.setDate(currentDate.getDate() + 7); // Weekly intervals
-  }
-
-  return data;
 }
 
 /**

@@ -1,9 +1,10 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
 from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview
 from iayos_project.utils import upload_agency_doc
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
 import uuid
 import os
 import math
@@ -652,11 +653,33 @@ def get_agency_profile(account_id):
         total_employees = employees.count()
         avg_employee_rating = employees.aggregate(avg_rating=Avg('rating'))['avg_rating']
         
-        # TODO: Get jobs statistics when jobs model is implemented
-        # For now, return placeholder values
-        total_jobs = 0
-        active_jobs = 0
-        completed_jobs = 0
+        # Get real job statistics for this agency
+        try:
+            from accounts.models import Agency, Job
+            agency = Agency.objects.get(accountFK=user)
+            
+            # Query jobs assigned to this agency
+            agency_jobs = Job.objects.filter(assignedAgencyFK=agency)
+            total_jobs = agency_jobs.count()
+            active_jobs = agency_jobs.filter(status='IN_PROGRESS').count()
+            completed_jobs = agency_jobs.filter(status='COMPLETED').count()
+            cancelled_jobs = agency_jobs.filter(status='CANCELLED').count()
+            
+            # Calculate total revenue from completed jobs
+            total_revenue = agency_jobs.filter(status='COMPLETED').aggregate(
+                total=Sum('budget')
+            )['total'] or Decimal('0.00')
+            
+            # Get average rating from reviews (using employee ratings as proxy for now)
+            average_rating = float(avg_employee_rating) if avg_employee_rating else 0.0
+            
+        except Agency.DoesNotExist:
+            total_jobs = 0
+            active_jobs = 0
+            completed_jobs = 0
+            cancelled_jobs = 0
+            total_revenue = Decimal('0.00')
+            average_rating = 0.0
         
         # Get account info
         email = user.email
@@ -677,6 +700,9 @@ def get_agency_profile(account_id):
                 "total_jobs": total_jobs,
                 "active_jobs": active_jobs,
                 "completed_jobs": completed_jobs,
+                "cancelled_jobs": cancelled_jobs,
+                "total_revenue": float(total_revenue),
+                "average_rating": average_rating,
             },
             "created_at": created_at,
         }
@@ -1997,5 +2023,79 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
             "total_pages": total_pages
         }
     
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+
+
+def get_revenue_trends(account_id, weeks=12):
+    """
+    Get weekly revenue and job completion trends for the agency.
+    
+    Args:
+        account_id: The agency account ID
+        weeks: Number of weeks to fetch (default: 12 = ~3 months)
+    
+    Returns:
+        List of weekly data points with date, revenue, and jobs completed
+    """
+    try:
+        from accounts.models import Agency
+        from django.db.models.functions import TruncWeek
+        
+        user = Accounts.objects.get(accountID=account_id)
+        
+        # Get agency record
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return []
+        
+        # Calculate date range
+        end_date = timezone.now()
+        start_date = end_date - timedelta(weeks=weeks)
+        
+        # Query completed jobs grouped by week
+        weekly_data = Job.objects.filter(
+            assignedAgencyFK=agency,
+            status='COMPLETED',
+            completedAt__gte=start_date,
+            completedAt__lte=end_date
+        ).annotate(
+            week=TruncWeek('completedAt')
+        ).values('week').annotate(
+            revenue=Sum('budget'),
+            jobs=Count('jobID')
+        ).order_by('week')
+        
+        # Convert to list with proper formatting
+        trends = []
+        for entry in weekly_data:
+            trends.append({
+                "date": entry['week'].strftime('%Y-%m-%d') if entry['week'] else None,
+                "revenue": float(entry['revenue'] or 0),
+                "jobs": entry['jobs'] or 0
+            })
+        
+        # Fill in missing weeks with zeros
+        all_weeks = []
+        current = start_date
+        while current <= end_date:
+            week_start = current - timedelta(days=current.weekday())
+            week_str = week_start.strftime('%Y-%m-%d')
+            
+            # Find matching data or use zeros
+            existing = next((t for t in trends if t['date'] == week_str), None)
+            if existing:
+                all_weeks.append(existing)
+            else:
+                all_weeks.append({
+                    "date": week_str,
+                    "revenue": 0,
+                    "jobs": 0
+                })
+            current += timedelta(weeks=1)
+        
+        return all_weeks
+        
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
