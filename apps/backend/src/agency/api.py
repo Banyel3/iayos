@@ -94,6 +94,86 @@ def agency_kyc_status(request):
         return Response({"error": "Internal server error"}, status=500)
 
 
+@router.delete("/kyc/files", auth=cookie_auth)
+def delete_agency_kyc_files(request):
+    """
+    Delete all agency KYC files for clean resubmission.
+    
+    Deletes:
+    - All files from Supabase storage (agency bucket)
+    - All AgencyKycFile database records
+    - Resets AgencyKYC status to PENDING
+    
+    Allows unlimited resubmissions.
+    """
+    import re
+    from agency.models import AgencyKYC, AgencyKycFile
+    from iayos_project.utils import delete_storage_file
+    
+    try:
+        account_id = request.auth.accountID
+        
+        # Find KYC record
+        kyc_record = AgencyKYC.objects.filter(accountFK_id=account_id).first()
+        
+        if not kyc_record:
+            return {"success": True, "message": "No KYC records found", "deleted_count": 0}
+        
+        def extract_file_path_for_delete(url_or_path):
+            """Extract file path from URL for deletion."""
+            if not url_or_path:
+                return None
+            if not url_or_path.startswith('http') and '/object/' not in url_or_path:
+                return url_or_path
+            match = re.search(r'(agency_\d+/kyc/[^?]+)', url_or_path)
+            if match:
+                return match.group(1)
+            match = re.search(r'/agency/(.+?)(?:\?|$)', url_or_path)
+            if match:
+                return match.group(1)
+            return url_or_path
+        
+        # Delete files from Supabase storage
+        old_files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+        old_files_count = old_files.count()
+        deleted_count = 0
+        
+        for f in old_files:
+            if f.fileURL:
+                file_path = extract_file_path_for_delete(f.fileURL)
+                if file_path:
+                    print(f"🗑️ Deleting agency KYC file: {file_path}")
+                    if delete_storage_file("agency", file_path):
+                        deleted_count += 1
+        
+        # Delete all file records from database
+        AgencyKycFile.objects.filter(agencyKyc=kyc_record).delete()
+        
+        # Reset KYC status and increment resubmission count
+        kyc_record.status = 'PENDING'
+        kyc_record.notes = 'Files cleared for resubmission'
+        kyc_record.resubmissionCount = kyc_record.resubmissionCount + 1
+        kyc_record.rejectionReason = ''
+        kyc_record.rejectionCategory = ''
+        kyc_record.save()
+        
+        print(f"✅ Agency KYC files cleared: {deleted_count}/{old_files_count} from Supabase, DB records deleted")
+        
+        return {
+            "success": True,
+            "message": f"Deleted {deleted_count} files from storage and cleared {old_files_count} database records",
+            "deleted_count": deleted_count,
+            "db_records_cleared": old_files_count,
+            "resubmission_count": kyc_record.resubmissionCount
+        }
+        
+    except Exception as e:
+        print(f"❌ Error deleting agency KYC files: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
 @router.post("/kyc/extract-ocr", auth=cookie_auth)
 def extract_ocr_from_documents(request):
     """

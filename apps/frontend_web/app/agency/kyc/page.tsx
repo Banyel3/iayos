@@ -813,8 +813,40 @@ const AgencyKYCPage = () => {
     setCurrentStep(6);
   };
 
-  const handleResubmit = () => {
-    // Clear ALL state for a fresh resubmission - not just status
+  const [isDeletingFiles, setIsDeletingFiles] = useState(false);
+
+  const handleResubmit = async () => {
+    // First, delete old files from backend (Supabase + DB)
+    setIsDeletingFiles(true);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/agency/kyc/files`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete old files");
+      }
+      
+      console.log("🗑️ Old KYC files deleted:", data);
+      
+    } catch (error) {
+      console.error("Error deleting old files:", error);
+      showToast({
+        type: "error",
+        title: "Cleanup Failed",
+        message: "Could not delete old files. Please try again.",
+      });
+      setIsDeletingFiles(false);
+      return;
+    }
+    
+    setIsDeletingFiles(false);
+    
+    // Clear ALL local state for a fresh resubmission
 
     // Clear KYC status
     setAgencyKycStatus(null);
@@ -850,9 +882,9 @@ const AgencyKYCPage = () => {
     setCurrentStep(1);
 
     showToast({
-      type: "info",
-      title: "Resubmission Started",
-      message: "Please upload corrected documents",
+      type: "success",
+      title: "Ready for Resubmission",
+      message: "Old documents cleared. Please upload new documents.",
     });
   };
 
@@ -2164,22 +2196,50 @@ const AgencyKYCPage = () => {
           {isRejected && (
             <button
               onClick={handleResubmit}
-              className="px-6 py-3 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+              disabled={isDeletingFiles}
+              className="px-6 py-3 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                />
-              </svg>
-              Resubmit Documents
+              {isDeletingFiles ? (
+                <>
+                  <svg
+                    className="w-5 h-5 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Clearing Files...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                    />
+                  </svg>
+                  Resubmit Documents
+                </>
+              )}
             </button>
           )}
           <button
@@ -2187,7 +2247,7 @@ const AgencyKYCPage = () => {
               setIsNavigating(true);
               router.push("/agency/dashboard");
             }}
-            disabled={isNavigating}
+            disabled={isNavigating || isDeletingFiles}
             className={`px-6 py-3 rounded-full font-semibold transition-colors ${
               isRejected
                 ? "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
