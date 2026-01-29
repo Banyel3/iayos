@@ -238,51 +238,67 @@ class KYCExtractionParser:
     def _extract_name(self, text_upper: str, text_lines: List[str], document_type: str) -> ExtractionResult:
         """Extract full name from document"""
         
-        # Driver's License specific: Look for "SURNAME, FIRST NAME MIDDLE NAME" pattern
+        # Driver's License specific: Look for "Last Name, First Name, Middle Name" label with value on next line
         if document_type == "DRIVERSLICENSE":
-            # Find lines with SURNAME, FIRST NAME, MIDDLE NAME labels
+            # Pattern 1: "Last Name, First Name, Middle Name" label with "LASTNAME, FIRSTNAME MIDDLENAME" on next line
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip().upper()
+                # Look for the label line
+                if "LAST NAME" in line_clean and "FIRST NAME" in line_clean and "MIDDLE NAME" in line_clean:
+                    # Name is on the next line in format: "TUGADE, ARTHUR PLANTA"
+                    if i + 1 < len(text_lines):
+                        name_line = text_lines[i + 1].strip()
+                        # Parse "LASTNAME, FIRSTNAME MIDDLENAME" format
+                        if ',' in name_line:
+                            parts = name_line.split(',', 1)
+                            last_name = parts[0].strip()
+                            if len(parts) > 1:
+                                given_names = parts[1].strip().split()
+                                first_name = given_names[0] if len(given_names) > 0 else ""
+                                middle_name = given_names[1] if len(given_names) > 1 else ""
+                                
+                                full_name = f"{first_name} {middle_name} {last_name}".strip()
+                                return ExtractionResult(
+                                    value=full_name.title(),
+                                    confidence=0.9,
+                                    source_text=f"DL_FORMAT: {name_line}"
+                                )
+            
+            # Pattern 2: Separate SURNAME, FIRST NAME, MIDDLE NAME labels with values below each
             surname = ""
             first_name = ""
             middle_name = ""
             
             for i, line in enumerate(text_lines):
                 line_clean = line.strip()
-                if "SURNAME" in line_clean.upper():
-                    # Extract text after SURNAME label
-                    surname_match = re.search(r'SURNAME[:\s]*([A-Z]+)', line_clean.upper())
-                    if surname_match:
-                        surname = surname_match.group(1).strip()
-                    # Sometimes surname is on next line
-                    elif i + 1 < len(text_lines):
+                line_upper = line_clean.upper()
+                
+                # Look for individual label lines with value on next line
+                if line_upper in ["SURNAME", "LAST NAME"] or line_upper.startswith("SURNAME"):
+                    if i + 1 < len(text_lines):
                         next_line = text_lines[i + 1].strip()
-                        if next_line and next_line.isupper():
+                        if next_line and len(next_line) > 1 and next_line.isupper():
                             surname = next_line
                 
-                elif "FIRST NAME" in line_clean.upper():
-                    first_match = re.search(r'FIRST NAME[:\s]*([A-Z]+)', line_clean.upper())
-                    if first_match:
-                        first_name = first_match.group(1).strip()
-                    elif i + 1 < len(text_lines):
+                elif line_upper in ["FIRST NAME", "GIVEN NAME"] or line_upper.startswith("FIRST NAME"):
+                    if i + 1 < len(text_lines):
                         next_line = text_lines[i + 1].strip()
-                        if next_line and next_line.isupper():
+                        if next_line and len(next_line) > 1 and next_line.isupper():
                             first_name = next_line
                 
-                elif "MIDDLE NAME" in line_clean.upper():
-                    middle_match = re.search(r'MIDDLE NAME[:\s]*([A-Z]+)', line_clean.upper())
-                    if middle_match:
-                        middle_name = middle_match.group(1).strip()
-                    elif i + 1 < len(text_lines):
+                elif line_upper in ["MIDDLE NAME"] or line_upper.startswith("MIDDLE NAME"):
+                    if i + 1 < len(text_lines):
                         next_line = text_lines[i + 1].strip()
-                        if next_line and next_line.isupper():
+                        if next_line and len(next_line) > 1 and next_line.isupper():
                             middle_name = next_line
             
-            # Construct full name if we found all parts
+            # Construct full name if we found parts
             if surname or first_name:
                 full_name_parts = [p for p in [first_name, middle_name, surname] if p]
                 full_name = " ".join(full_name_parts).title()
                 return ExtractionResult(
                     value=full_name,
-                    confidence=0.85,
+                    confidence=0.8,
                     source_text=f"SURNAME: {surname}, FIRST: {first_name}, MIDDLE: {middle_name}"
                 )
         
