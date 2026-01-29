@@ -90,6 +90,11 @@ echo "=========================================="
 python manage.py create_test_users || echo "Test users creation skipped (may already exist or missing env vars)"
 
 echo "=========================================="
+echo "Clearing rate limit caches..."
+echo "=========================================="
+python manage.py clear_rate_limits --all || echo "Rate limit clearing skipped (cache may be empty)"
+
+echo "=========================================="
 echo "Starting Daphne ASGI server..."
 echo "=========================================="
 exec daphne -b 0.0.0.0 -p 8000 iayos_project.asgi:application

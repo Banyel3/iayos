@@ -2607,6 +2607,79 @@ def get_certification_history_endpoint(request, cert_id: int):
         return Response({"success": False, "error": str(e)}, status=500)
 
 
+# ============================================================
+# RATE LIMIT MANAGEMENT
+# ============================================================
+
+@router.post("/rate-limits/clear", auth=cookie_auth)
+def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_address: Optional[str] = None):
+    """
+    Clear rate limit caches (admin only).
+    
+    Parameters:
+    - category: Specific category to clear (auth, api_read, api_write, upload, payment)
+    - ip_address: Specific IP to clear (hashed format)
+    - If both None: clears ALL rate limits
+    """
+    from django.core.cache import cache
+    
+    cleared_count = 0
+    
+    try:
+        if category and ip_address:
+            # Clear specific category for specific IP
+            from iayos_project.rate_limiting import get_rate_limit_key
+            key = get_rate_limit_key(category, ip_address)
+            if cache.delete(key):
+                cleared_count = 1
+                print(f"✅ Cleared rate limit: {category} for {ip_address}")
+        elif category:
+            # Clear all IPs for specific category
+            pattern = f"rl:{category}:*"
+            if hasattr(cache, 'delete_pattern'):
+                cleared_count = cache.delete_pattern(pattern)
+            else:
+                # Fallback for non-Redis cache backends
+                keys = cache.keys(pattern) if hasattr(cache, 'keys') else []
+                for key in keys:
+                    cache.delete(key)
+                cleared_count = len(keys)
+            print(f"✅ Cleared {cleared_count} rate limit keys for category: {category}")
+        elif ip_address:
+            # Clear all categories for specific IP
+            categories = ['auth', 'password_reset', 'api_write', 'api_read', 'upload', 'payment']
+            for cat in categories:
+                from iayos_project.rate_limiting import get_rate_limit_key
+                key = get_rate_limit_key(cat, ip_address)
+                if cache.delete(key):
+                    cleared_count += 1
+            print(f"✅ Cleared {cleared_count} rate limit keys for IP: {ip_address}")
+        else:
+            # Clear ALL rate limits
+            pattern = "rl:*"
+            if hasattr(cache, 'delete_pattern'):
+                cleared_count = cache.delete_pattern(pattern)
+            else:
+                # Fallback for non-Redis cache backends
+                keys = cache.keys(pattern) if hasattr(cache, 'keys') else []
+                for key in keys:
+                    cache.delete(key)
+                cleared_count = len(keys)
+            print(f"✅ Cleared ALL rate limits ({cleared_count} keys)")
+        
+        return {
+            "success": True,
+            "message": f"Cleared {cleared_count} rate limit cache entries",
+            "cleared_count": cleared_count
+        }
+    
+    except Exception as e:
+        print(f"❌ Error clearing rate limits: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
 
 
 
