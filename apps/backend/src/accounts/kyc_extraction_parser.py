@@ -194,9 +194,12 @@ class KYCExtractionParser:
         result.birth_date = self._extract_birth_date(text_upper, text_lines)
         result.id_number = self._extract_id_number(text_upper, document_type, text_lines)
         result.address = self._extract_address(text_upper, text_lines, document_type)
-        result.sex = self._extract_sex(text_upper)
-        result.nationality = self._extract_nationality(text_upper)
+        result.sex = self._extract_sex(text_upper, text_lines)
+        result.nationality = self._extract_nationality(text_upper, text_lines)
         result.expiry_date = self._extract_expiry_date(text_upper, text_lines)
+        
+        # Validate field consistency (dates make sense, etc.)
+        self._validate_field_consistency(result)
         
         # Calculate overall confidence
         result.calculate_overall_confidence()
@@ -205,6 +208,59 @@ class KYCExtractionParser:
         logger.info(f"   📋 Name: {result.full_name.value}, DOB: {result.birth_date.value}, ID: {result.id_number.value}")
         
         return result
+    
+    def _validate_field_consistency(self, result: ParsedKYCData) -> None:
+        """
+        Validate that extracted fields make logical sense.
+        Adjusts confidence scores if data seems inconsistent.
+        """
+        today = date.today()
+        
+        # Validate birth date: Should result in age between 15-120 years
+        if result.birth_date.value:
+            try:
+                birth = datetime.strptime(result.birth_date.value, "%Y-%m-%d").date()
+                age = (today - birth).days // 365
+                
+                if age < 15 or age > 120:
+                    logger.warning(f"   ⚠️ Invalid age calculated: {age} years (DOB: {result.birth_date.value})")
+                    result.birth_date.confidence = max(0.3, result.birth_date.confidence * 0.5)
+                elif age < 18:
+                    logger.info(f"   ℹ️ Minor detected: {age} years old")
+            except (ValueError, TypeError):
+                pass
+        
+        # Validate expiry date: Should be after birth date
+        if result.birth_date.value and result.expiry_date.value:
+            try:
+                birth = datetime.strptime(result.birth_date.value, "%Y-%m-%d").date()
+                expiry = datetime.strptime(result.expiry_date.value, "%Y-%m-%d").date()
+                
+                if expiry <= birth:
+                    logger.warning(f"   ⚠️ Expiry date ({result.expiry_date.value}) is before birth date ({result.birth_date.value})")
+                    # Swap if they seem reversed
+                    if (today - expiry).days // 365 > 15:  # Expiry looks like a birth date
+                        logger.info(f"   🔄 Swapping birth/expiry dates (they appear reversed)\")")
+                        result.birth_date.value, result.expiry_date.value = result.expiry_date.value, result.birth_date.value
+            except (ValueError, TypeError):
+                pass
+        
+        # Validate expiry date: Check if already expired (just log, don't reduce confidence)
+        if result.expiry_date.value:
+            try:
+                expiry = datetime.strptime(result.expiry_date.value, "%Y-%m-%d").date()
+                if expiry < today:
+                    days_expired = (today - expiry).days
+                    logger.info(f"   ⚠️ Document expired {days_expired} days ago (expiry: {result.expiry_date.value})")
+            except (ValueError, TypeError):
+                pass
+        
+        # Validate ID number format for driver's license
+        if result.id_type_detected == "DRIVERSLICENSE" and result.id_number.value:
+            # LTO format: [A-Z]##-##-###### (e.g., C23-75-007537)
+            if not re.match(r'^[A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7}$', result.id_number.value):
+                logger.warning(f"   ⚠️ License number format may be incorrect: {result.id_number.value}")
+                result.id_number.confidence = max(0.5, result.id_number.confidence * 0.8)
     
     def _detect_document_type(self, text_upper: str) -> str:
         """Detect the type of government ID from OCR text"""
@@ -240,6 +296,37 @@ class KYCExtractionParser:
         
         # Driver's License specific: Look for "Last Name, First Name, Middle Name" label with value on next line
         if document_type == "DRIVERSLICENSE":
+            # Pattern 0 (NEW LTO FORMAT): Name line with comma-separated format "DELA CRUZ, JUAN, OCAMPO"
+            # This format has exactly 3 comma-separated parts: Last, First, Middle
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip()
+                line_upper = line_clean.upper()
+                
+                # Check if previous line is the label "Last Name, First Name, Middle Name"
+                if i > 0:
+                    prev_line = text_lines[i - 1].strip().upper()
+                    if ("LAST" in prev_line and "FIRST" in prev_line) or ("LAST NAME" in prev_line):
+                        # This line should contain the name in format: "DELA CRUZ, JUAN, OCAMPO"
+                        parts = [p.strip() for p in line_clean.split(',')]
+                        if len(parts) >= 2:
+                            last_name = parts[0].strip()
+                            first_name = parts[1].strip() if len(parts) > 1 else ""
+                            middle_name = parts[2].strip() if len(parts) > 2 else ""
+                            
+                            # Skip if it looks like labels, not values
+                            if any(label in last_name.upper() for label in ["NAME", "SURNAME", "LAST", "FIRST", "MIDDLE"]):
+                                continue
+                            
+                            full_name = f"{first_name} {middle_name} {last_name}".strip()
+                            # Remove extra spaces
+                            full_name = ' '.join(full_name.split())
+                            
+                            return ExtractionResult(
+                                value=full_name.title(),
+                                confidence=0.95,
+                                source_text=f"DL_NEW_FORMAT: {line_clean}"
+                            )
+            
             # Pattern 1: "Last Name, First Name, Middle Name" label with "LASTNAME, FIRSTNAME MIDDLENAME" on next line
             for i, line in enumerate(text_lines):
                 line_clean = line.strip().upper()
@@ -430,7 +517,16 @@ class KYCExtractionParser:
             
             for label in date_labels:
                 if label in line_upper:
-                    # Driver's License pattern: value is on the NEXT line
+                    # NEW LTO FORMAT: Try to find date on SAME line first (e.g., "Date of Birth  1977/03/01")
+                    same_line_date = self._parse_date_from_text(line_upper)
+                    if same_line_date:
+                        return ExtractionResult(
+                            value=same_line_date,
+                            confidence=0.95,
+                            source_text=f"DL_SAME_LINE: {label} -> {same_line_date}"
+                        )
+                    
+                    # OLD FORMAT: Driver's License pattern - value is on the NEXT line
                     if i + 1 < len(text_lines):
                         next_line = text_lines[i + 1].strip()
                         next_date = self._parse_date_from_text(next_line.upper())
@@ -440,15 +536,6 @@ class KYCExtractionParser:
                                 confidence=0.9,
                                 source_text=f"DL_LABEL_PATTERN: {label} -> {next_line}"
                             )
-                    
-                    # Fallback: Try to find date on this line
-                    date_result = self._parse_date_from_text(line_upper)
-                    if date_result:
-                        return ExtractionResult(
-                            value=date_result,
-                            confidence=0.8,
-                            source_text=line
-                        )
         
         # Fall back to finding any date in the text
         all_dates = self._find_all_dates(text_upper)
@@ -472,6 +559,16 @@ class KYCExtractionParser:
     
     def _parse_date_from_text(self, text: str) -> Optional[str]:
         """Try to parse a date from text"""
+        
+        # Pattern: YYYY/MM/DD (NEW LTO FORMAT - e.g., 1977/03/01, 2021/03/01)
+        match = re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', text)
+        if match:
+            year, month, day = match.groups()
+            try:
+                parsed = date(int(year), int(month), int(day))
+                return parsed.strftime("%Y-%m-%d")
+            except ValueError:
+                pass
         
         # Pattern: DD/MM/YYYY or DD-MM-YYYY
         match = re.search(r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})', text)
@@ -535,14 +632,24 @@ class KYCExtractionParser:
     def _extract_id_number(self, text_upper: str, document_type: str, text_lines: List[str] = None) -> ExtractionResult:
         """Extract ID/document number based on document type"""
         
-        # Driver's License: Look for "License No." label with value on next line
+        # Driver's License: Look for "License No." label with value on same or next line
         if document_type == "DRIVERSLICENSE" and text_lines:
             license_labels = ["LICENSE NO", "LICENSE NUMBER", "LIC NO", "DL NO"]
             for i, line in enumerate(text_lines):
                 line_clean = line.strip().upper()
                 for label in license_labels:
                     if label in line_clean:
-                        # License number is on the next line
+                        # NEW LTO FORMAT: License number on SAME line (e.g., "License No.  C23-75-007537")
+                        # Pattern: [A-Z]\d{2}-\d{2}-\d{6,7} (e.g., C23-75-007537)
+                        same_line_match = re.search(r'([A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7})', line_clean)
+                        if same_line_match:
+                            return ExtractionResult(
+                                value=same_line_match.group(1),
+                                confidence=0.95,
+                                source_text=f"DL_SAME_LINE: {label} -> {same_line_match.group(1)}"
+                            )
+                        
+                        # Fallback: License number is on the next line (OLD FORMAT)
                         if i + 1 < len(text_lines):
                             id_line = text_lines[i + 1].strip()
                             # Extract alphanumeric ID
@@ -665,13 +772,39 @@ class KYCExtractionParser:
         address = address.strip(' ,.')
         return address.title()
     
-    def _extract_sex(self, text_upper: str) -> ExtractionResult:
+    def _extract_sex(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
         """Extract sex/gender from document"""
         
-        # Look for explicit sex labels
+        # NEW LTO FORMAT: Columnar layout where "Gender" is in header row
+        # and "M" or "F" is in the data row below
+        for i, line in enumerate(text_lines):
+            line_upper = line.strip().upper()
+            if 'GENDER' in line_upper or 'SEX' in line_upper:
+                # Check if value is on next line (columnar format)
+                if i + 1 < len(text_lines):
+                    next_line = text_lines[i + 1].strip().upper()
+                    # Look for standalone M or F in the data row
+                    # Use word boundary to avoid matching M in other words
+                    m_match = re.search(r'\bM\b', next_line)
+                    f_match = re.search(r'\bF\b', next_line)
+                    if m_match:
+                        return ExtractionResult(
+                            value='MALE',
+                            confidence=0.9,
+                            source_text=f"COLUMNAR: {line_upper} -> M"
+                        )
+                    elif f_match:
+                        return ExtractionResult(
+                            value='FEMALE',
+                            confidence=0.9,
+                            source_text=f"COLUMNAR: {line_upper} -> F"
+                        )
+        
+        # Look for explicit sex labels (same-line patterns)
         patterns = [
             r'SEX[:\s]*([MF]|MALE|FEMALE)',
             r'KASARIAN[:\s]*([MF]|LALAKI|BABAE)',
+            r'GENDER[:\s]+([MF])\b',
             r'GENDER[:\s]*([MF]|MALE|FEMALE)',
             r'\b(MALE|FEMALE)\b',
         ]
@@ -694,10 +827,26 @@ class KYCExtractionParser:
         
         return ExtractionResult()
     
-    def _extract_nationality(self, text_upper: str) -> ExtractionResult:
+    def _extract_nationality(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
         """Extract nationality from document"""
         
-        # Common nationality patterns
+        # NEW LTO FORMAT: Columnar layout where "Nationality" is in header row
+        # and "Filipino" is in the data row below
+        for i, line in enumerate(text_lines):
+            line_upper = line.strip().upper()
+            if 'NATIONALITY' in line_upper or 'NASYONALIDAD' in line_upper:
+                # Check if value is on next line (columnar format)
+                if i + 1 < len(text_lines):
+                    next_line = text_lines[i + 1].strip().upper()
+                    if 'FILIPINO' in next_line or 'FILIPINA' in next_line or 'PILIPINO' in next_line:
+                        value = 'FILIPINO' if 'FILIPINO' in next_line or 'PILIPINO' in next_line else 'FILIPINA'
+                        return ExtractionResult(
+                            value=value,
+                            confidence=0.95,
+                            source_text=f"COLUMNAR: {line_upper} -> {value}"
+                        )
+        
+        # Common nationality patterns (same-line format)
         patterns = [
             r'NATIONALITY[:\s]*(FILIPINO|FILIPINA|PHILIPPINE|PH)',
             r'NASYONALIDAD[:\s]*(PILIPINO|PILIPINA)',
@@ -736,7 +885,16 @@ class KYCExtractionParser:
             
             for label in expiry_labels:
                 if label in line_upper:
-                    # Driver's License pattern: date is on the NEXT line
+                    # NEW LTO FORMAT: Try to find date on SAME line first (e.g., "Expiration Date  2021/03/01")
+                    same_line_date = self._parse_date_from_text(line_upper)
+                    if same_line_date:
+                        return ExtractionResult(
+                            value=same_line_date,
+                            confidence=0.95,
+                            source_text=f"DL_SAME_LINE: {label} -> {same_line_date}"
+                        )
+                    
+                    # OLD FORMAT: Driver's License pattern - date is on the NEXT line
                     if i + 1 < len(text_lines):
                         next_line = text_lines[i + 1].strip()
                         next_date = self._parse_date_from_text(next_line.upper())
@@ -747,7 +905,7 @@ class KYCExtractionParser:
                                 source_text=f"DL_LABEL_PATTERN: {label} -> {next_line}"
                             )
                     
-                    # Fallback: Try to find date on this line
+                    # Fallback: Try to find date on next line without label check
                     date_result = self._parse_date_from_text(line_upper)
                     if date_result:
                         return ExtractionResult(
