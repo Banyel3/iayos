@@ -442,7 +442,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // HTTP Request helper with credentials
 // API request helper with built-in timeout using AbortController
 export const DEFAULT_REQUEST_TIMEOUT = 15000; // 15 seconds
-export const OCR_TIMEOUT = 90000; // 90 seconds (1.5 min) for OCR extraction operations
+export const OCR_TIMEOUT = 300000; // 5 minutes for OCR extraction operations (Tesseract can take 2-4 min)
 
 export const apiRequest = async (
   url: string,
