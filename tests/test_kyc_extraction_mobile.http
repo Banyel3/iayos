@@ -1,0 +1,222 @@
+### Mobile KYC Per-Step OCR Extraction Tests
+### These endpoints extract data from uploaded ID and clearance documents
+
+@baseUrl = http://localhost:8000
+@token = eyJ... # Replace with valid JWT token
+
+### ============================================
+### 1. Extract ID Data from Front ID Image
+### ============================================
+
+### Test with National ID (NATIONAL_ID)
+# @name extractIdNational
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_front"; filename="id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/philippine_id_front.jpg
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+NATIONAL_ID
+------FormBoundary--
+
+### Expected Response:
+# {
+#   "success": true,
+#   "has_extraction": true,
+#   "fields": {
+#     "full_name": { "value": "Juan Dela Cruz", "confidence": 0.85, "editable": true },
+#     "id_number": { "value": "1234-5678-9012-3456", "confidence": 0.92, "editable": true },
+#     "birth_date": { "value": "1990-01-15", "confidence": 0.78, "editable": true },
+#     "address": { "value": "123 Main St, Zamboanga City", "confidence": 0.70, "editable": true },
+#     "sex": { "value": "MALE", "confidence": 0.95, "editable": true }
+#   },
+#   "confidence": 0.84,
+#   "extracted_at": "2025-01-26T12:00:00Z"
+# }
+
+### Test with Driver's License
+# @name extractIdDrivers
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_front"; filename="license.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/drivers_license.jpg
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+DRIVERS_LICENSE
+------FormBoundary--
+
+### Test with Passport
+# @name extractIdPassport
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_front"; filename="passport.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/passport.jpg
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+PASSPORT
+------FormBoundary--
+
+
+### ============================================
+### 2. Extract Clearance Data from Clearance Image
+### ============================================
+
+### Test with NBI Clearance
+# @name extractClearanceNBI
+POST {{baseUrl}}/api/accounts/kyc/extract-clearance
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="clearance"; filename="nbi_clearance.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/nbi_clearance.jpg
+------FormBoundary
+Content-Disposition: form-data; name="clearance_type"
+
+NBI
+------FormBoundary--
+
+### Expected Response:
+# {
+#   "success": true,
+#   "has_extraction": true,
+#   "fields": {
+#     "holder_name": { "value": "Juan Dela Cruz", "confidence": 0.88, "editable": true },
+#     "clearance_number": { "value": "2024-12345678", "confidence": 0.95, "editable": true },
+#     "issue_date": { "value": "2024-06-01", "confidence": 0.82, "editable": true },
+#     "validity_date": { "value": "2025-06-01", "confidence": 0.78, "editable": true },
+#     "clearance_type": { "value": "NBI", "confidence": 1.0, "editable": false }
+#   },
+#   "confidence": 0.88,
+#   "extracted_at": "2025-01-26T12:00:00Z"
+# }
+
+### Test with Police Clearance
+# @name extractClearancePolice
+POST {{baseUrl}}/api/accounts/kyc/extract-clearance
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="clearance"; filename="police_clearance.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/police_clearance.jpg
+------FormBoundary
+Content-Disposition: form-data; name="clearance_type"
+
+POLICE
+------FormBoundary--
+
+
+### ============================================
+### 3. Error Cases
+### ============================================
+
+### No Authorization
+# @name extractIdUnauthorized
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+NATIONAL_ID
+------FormBoundary--
+
+### Expected: 401 Unauthorized
+
+### Missing File
+# @name extractIdNoFile
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+NATIONAL_ID
+------FormBoundary--
+
+### Expected: 400 Bad Request - "No ID image provided"
+
+### Invalid ID Type
+# @name extractIdInvalidType
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_front"; filename="id.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/philippine_id_front.jpg
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+INVALID_TYPE
+------FormBoundary--
+
+### Expected: 200 with fallback extraction (id_type defaults to unknown)
+
+
+### ============================================
+### 4. Edge Cases - Poor Quality Images
+### ============================================
+
+### Low quality image should still attempt extraction
+### with lower confidence scores
+# @name extractIdLowQuality
+POST {{baseUrl}}/api/accounts/kyc/extract-id
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="id_front"; filename="blurry_id.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/blurry_id.jpg
+------FormBoundary
+Content-Disposition: form-data; name="id_type"
+
+NATIONAL_ID
+------FormBoundary--
+
+### Expected: 200 with has_extraction=false or low confidence values
+
+
+### ============================================
+### 5. OCR Failure - Manual Entry Fallback
+### ============================================
+
+### When OCR completely fails, frontend should show manual entry form
+### Backend returns has_extraction=false with empty fields
+
+### Expected workflow:
+### 1. User uploads document
+### 2. Backend attempts OCR extraction
+### 3. If OCR fails: { success: true, has_extraction: false, fields: {} }
+### 4. Frontend shows manual entry form (empty fields, all editable)
+### 5. User fills in details manually
+### 6. Proceed to next step with user-entered values
+

@@ -1,7 +1,8 @@
 // app/kyc/upload.tsx
 // KYC document upload screen - Matches Next.js design
+// Updated: Per-step OCR extraction with editable fields
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +13,8 @@ import {
   Image,
   ActivityIndicator,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,7 +23,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { useKYC } from "@/lib/hooks/useKYC";
+import {
+  useExtractID,
+  useExtractClearance,
+  IDExtractionResponse,
+  ClearanceExtractionResponse,
+  ExtractedFieldWithConfidence,
+} from "@/lib/hooks/useKYCAutofill";
 import CustomBackButton from "@/components/navigation/CustomBackButton";
+import { KYCExtractionForm } from "@/components/KYC";
 import {
   Colors,
   Typography,
@@ -78,6 +89,23 @@ export default function KYCUploadScreen() {
   const [backIDFile, setBackIDFile] = useState<ImageFile | null>(null);
   const [clearanceFile, setClearanceFile] = useState<ImageFile | null>(null);
   const [selfieFile, setSelfieFile] = useState<ImageFile | null>(null);
+
+  // Per-step OCR extraction state
+  const extractIDMutation = useExtractID();
+  const extractClearanceMutation = useExtractClearance();
+
+  // ID extraction data and editable values
+  const [idExtractionData, setIdExtractionData] = useState<IDExtractionResponse | null>(null);
+  const [idFormValues, setIdFormValues] = useState<Record<string, string>>({});
+  const [showIdForm, setShowIdForm] = useState(false);
+
+  // Clearance extraction data and editable values
+  const [clearanceExtractionData, setClearanceExtractionData] = useState<ClearanceExtractionResponse | null>(null);
+  const [clearanceFormValues, setClearanceFormValues] = useState<Record<string, string>>({});
+  const [showClearanceForm, setShowClearanceForm] = useState(false);
+
+  // Track if extraction is happening
+  const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -251,6 +279,63 @@ export default function KYCUploadScreen() {
           setIsValidating(false);
           return;
         }
+
+        // ===== OCR EXTRACTION: Extract ID data after validation =====
+        setIsValidating(false);
+        setIsExtracting(true);
+        
+        try {
+          const idFormData = new FormData();
+          idFormData.append("id_front", {
+            uri: frontIDFile!.uri,
+            name: frontIDFile!.name,
+            type: frontIDFile!.type,
+          } as any);
+          idFormData.append("id_type", selectedIDType);
+          
+          const extractResult = await extractIDMutation.mutateAsync(idFormData);
+          
+          setIdExtractionData(extractResult);
+          
+          // Initialize form values from extraction
+          if (extractResult.has_extraction && extractResult.fields) {
+            const initialValues: Record<string, string> = {};
+            Object.entries(extractResult.fields).forEach(([key, field]) => {
+              if (field) {
+                initialValues[key] = field.value || "";
+              }
+            });
+            setIdFormValues(initialValues);
+          } else {
+            // No extraction - enable manual entry mode
+            setIdFormValues({
+              full_name: "",
+              id_number: "",
+              birth_date: "",
+              address: "",
+              sex: "",
+            });
+          }
+          
+          setShowIdForm(true);
+        } catch (extractError) {
+          console.error("ID extraction error:", extractError);
+          // Extraction failed - allow manual entry
+          setIdExtractionData(null);
+          setIdFormValues({
+            full_name: "",
+            id_number: "",
+            birth_date: "",
+            address: "",
+            sex: "",
+          });
+          setShowIdForm(true);
+        } finally {
+          setIsExtracting(false);
+        }
+        
+        // Don't proceed to next step - wait for user to review/edit form
+        return;
       }
 
       // Step 3: Validate clearance document
@@ -267,6 +352,65 @@ export default function KYCUploadScreen() {
           setIsValidating(false);
           return;
         }
+
+        // ===== OCR EXTRACTION: Extract clearance data after validation =====
+        setIsValidating(false);
+        setIsExtracting(true);
+        
+        try {
+          const clearanceFormData = new FormData();
+          clearanceFormData.append("clearance", {
+            uri: clearanceFile!.uri,
+            name: clearanceFile!.name,
+            type: clearanceFile!.type,
+          } as any);
+          clearanceFormData.append("clearance_type", selectedClearanceType);
+          
+          const extractResult = await extractClearanceMutation.mutateAsync(clearanceFormData);
+          
+          setClearanceExtractionData(extractResult);
+          
+          // Initialize form values from extraction
+          if (extractResult.has_extraction && extractResult.fields) {
+            const initialValues: Record<string, string> = {};
+            Object.entries(extractResult.fields).forEach(([key, field]) => {
+              if (field) {
+                initialValues[key] = field.value || "";
+              }
+            });
+            // Set clearance type from selection
+            initialValues.clearance_type = selectedClearanceType;
+            setClearanceFormValues(initialValues);
+          } else {
+            // No extraction - enable manual entry mode
+            setClearanceFormValues({
+              holder_name: "",
+              clearance_number: "",
+              issue_date: "",
+              validity_date: "",
+              clearance_type: selectedClearanceType,
+            });
+          }
+          
+          setShowClearanceForm(true);
+        } catch (extractError) {
+          console.error("Clearance extraction error:", extractError);
+          // Extraction failed - allow manual entry
+          setClearanceExtractionData(null);
+          setClearanceFormValues({
+            holder_name: "",
+            clearance_number: "",
+            issue_date: "",
+            validity_date: "",
+            clearance_type: selectedClearanceType,
+          });
+          setShowClearanceForm(true);
+        } finally {
+          setIsExtracting(false);
+        }
+        
+        // Don't proceed to next step - wait for user to review/edit form
+        return;
       }
 
       // Step 4: Validate selfie (with face detection)
@@ -302,11 +446,66 @@ export default function KYCUploadScreen() {
   };
 
   const handleBack = () => {
+    // If showing ID form, hide it and stay on step 2
+    if (showIdForm && currentStep === 2) {
+      setShowIdForm(false);
+      setIdExtractionData(null);
+      setIdFormValues({});
+      return;
+    }
+    
+    // If showing clearance form, hide it and stay on step 3
+    if (showClearanceForm && currentStep === 3) {
+      setShowClearanceForm(false);
+      setClearanceExtractionData(null);
+      setClearanceFormValues({});
+      return;
+    }
+    
     if (currentStep > 1) {
+      // When going back, also reset the forms for that step
+      if (currentStep === 3) {
+        setShowIdForm(false);
+        setIdExtractionData(null);
+        setIdFormValues({});
+      }
+      if (currentStep === 4) {
+        setShowClearanceForm(false);
+        setClearanceExtractionData(null);
+        setClearanceFormValues({});
+      }
       setCurrentStep(currentStep - 1);
     } else {
       router.back();
     }
+  };
+
+  // Handle proceeding from ID extraction form to Step 3
+  const handleProceedFromIdForm = () => {
+    setShowIdForm(false);
+    setCurrentStep(3);
+  };
+
+  // Handle proceeding from Clearance extraction form to Step 4
+  const handleProceedFromClearanceForm = () => {
+    setShowClearanceForm(false);
+    setCurrentStep(4);
+  };
+
+  // Handle field value changes in ID form
+  const handleIdFieldChange = (fieldName: string, value: string) => {
+    setIdFormValues(prev => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+  };
+
+  // Handle field value changes in Clearance form
+  const handleClearanceFieldChange = (fieldName: string, value: string) => {
+    setClearanceFormValues(prev => ({
+      ...prev,
+      [fieldName]: value,
+    }));
   };
 
   const handleSubmit = async () => {
@@ -344,6 +543,16 @@ export default function KYCUploadScreen() {
         name: selfieFile!.name,
         type: selfieFile!.type,
       } as any);
+
+      // Include extracted/edited ID fields
+      if (Object.keys(idFormValues).length > 0) {
+        formData.append("extracted_id_data", JSON.stringify(idFormValues));
+      }
+
+      // Include extracted/edited clearance fields
+      if (Object.keys(clearanceFormValues).length > 0) {
+        formData.append("extracted_clearance_data", JSON.stringify(clearanceFormValues));
+      }
 
       const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
         method: "POST",
@@ -536,6 +745,22 @@ export default function KYCUploadScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* ID Extraction Form - shown after OCR processing */}
+      {showIdForm && (
+        <KYCExtractionForm
+          title="Verify ID Information"
+          subtitle="Review and edit the extracted details"
+          documentType="id"
+          fields={idExtractionData?.fields || {}}
+          values={idFormValues}
+          onFieldChange={handleIdFieldChange}
+          isLoading={isExtracting}
+          error={extractIDMutation.error ? String(extractIDMutation.error) : undefined}
+          onProceed={handleProceedFromIdForm}
+          proceedButtonText="Continue to Clearance"
+        />
+      )}
     </View>
   );
 
@@ -603,6 +828,22 @@ export default function KYCUploadScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Clearance Extraction Form - shown after OCR processing */}
+      {showClearanceForm && (
+        <KYCExtractionForm
+          title="Verify Clearance Information"
+          subtitle="Review and edit the extracted details"
+          documentType="clearance"
+          fields={clearanceExtractionData?.fields || {}}
+          values={clearanceFormValues}
+          onFieldChange={handleClearanceFieldChange}
+          isLoading={isExtracting}
+          error={extractClearanceMutation.error ? String(extractClearanceMutation.error) : undefined}
+          onProceed={handleProceedFromClearanceForm}
+          proceedButtonText="Continue to Selfie"
+        />
+      )}
     </View>
   );
 
@@ -695,68 +936,71 @@ export default function KYCUploadScreen() {
         {currentStep === 4 && renderStep4()}
       </ScrollView>
 
-      <View style={styles.footer}>
-        {currentStep > 1 && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            disabled={isValidating || isSubmitting}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={20}
-              color={
-                isValidating || isSubmitting
-                  ? Colors.textSecondary
-                  : Colors.primary
-              }
-            />
-            <Text
-              style={[
-                styles.backButtonText,
-                (isValidating || isSubmitting) && {
-                  color: Colors.textSecondary,
-                },
-              ]}
+      {/* Hide footer when extraction form is shown (form has its own proceed button) */}
+      {!showIdForm && !showClearanceForm && (
+        <View style={styles.footer}>
+          {currentStep > 1 && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              disabled={isValidating || isSubmitting || isExtracting}
             >
-              Back
-            </Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.nextButton,
-            currentStep === 1 && styles.nextButtonFull,
-            (isValidating || isSubmitting) && { opacity: 0.7 },
-          ]}
-          onPress={handleNext}
-          disabled={isSubmitting || isValidating}
-        >
-          {isSubmitting || isValidating ? (
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <ActivityIndicator color={Colors.white} size="small" />
-              <Text style={[styles.nextButtonText, { marginLeft: 8 }]}>
-                {isValidating ? "Validating..." : "Submitting..."}
-              </Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.nextButtonText}>
-                {currentStep === 4
-                  ? isRejected
-                    ? "Resubmit Documents"
-                    : "Submit"
-                  : "Next"}
-              </Text>
               <Ionicons
-                name={currentStep === 4 ? "checkmark" : "arrow-forward"}
+                name="arrow-back"
                 size={20}
-                color={Colors.white}
+                color={
+                  isValidating || isSubmitting || isExtracting
+                    ? Colors.textSecondary
+                    : Colors.primary
+                }
               />
-            </>
+              <Text
+                style={[
+                  styles.backButtonText,
+                  (isValidating || isSubmitting || isExtracting) && {
+                    color: Colors.textSecondary,
+                  },
+                ]}
+              >
+                Back
+              </Text>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[
+              styles.nextButton,
+              currentStep === 1 && styles.nextButtonFull,
+              (isValidating || isSubmitting || isExtracting) && { opacity: 0.7 },
+            ]}
+            onPress={handleNext}
+            disabled={isSubmitting || isValidating || isExtracting}
+          >
+            {isSubmitting || isValidating || isExtracting ? (
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <ActivityIndicator color={Colors.white} size="small" />
+                <Text style={[styles.nextButtonText, { marginLeft: 8 }]}>
+                  {isExtracting ? "Extracting..." : isValidating ? "Validating..." : "Submitting..."}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.nextButtonText}>
+                  {currentStep === 4
+                    ? isRejected
+                      ? "Resubmit Documents"
+                      : "Submit"
+                    : "Next"}
+                </Text>
+                <Ionicons
+                  name={currentStep === 4 ? "checkmark" : "arrow-forward"}
+                  size={20}
+                  color={Colors.white}
+                />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

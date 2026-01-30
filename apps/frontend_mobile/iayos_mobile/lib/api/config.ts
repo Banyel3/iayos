@@ -372,11 +372,13 @@ export const ENDPOINTS = {
   DELETE_NOTIFICATION: (id: number) =>
     `${API_URL}/api/accounts/notifications/${id}/delete`,
 
-  // Phase 7: KYC Document Upload & Verification (7 endpoints)
+  // Phase 7: KYC Document Upload & Verification (9 endpoints)
   KYC_STATUS: `${API_URL}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_URL}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_URL}/api/accounts/upload/kyc`, // Matches Next.js endpoint
   KYC_VALIDATE_DOCUMENT: `${API_URL}/api/accounts/kyc/validate-document`, // Per-step validation
+  KYC_EXTRACT_ID: `${API_URL}/api/accounts/kyc/extract-id`, // Per-step OCR extraction for ID
+  KYC_EXTRACT_CLEARANCE: `${API_URL}/api/accounts/kyc/extract-clearance`, // Per-step OCR extraction for clearance
   KYC_APPLICATION_HISTORY: `${API_URL}/api/accounts/kyc-application-history`,
   KYC_AUTOFILL: `${API_URL}/api/accounts/kyc/autofill`, // Get AI-extracted data for auto-fill
   KYC_CONFIRM: `${API_URL}/api/accounts/kyc/confirm`, // Confirm/edit extracted data

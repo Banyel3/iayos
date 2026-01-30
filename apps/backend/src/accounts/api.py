@@ -541,6 +541,244 @@ def get_kyc_status_endpoint(request):
 
 
 # =============================================================================
+# KYC PER-STEP OCR EXTRACTION ENDPOINTS (Mobile KYC Enhancement)
+# =============================================================================
+
+@router.post("/kyc/extract-id", auth=dual_auth)
+def extract_id_from_ocr(request):
+    """
+    Extract ID-related fields from uploaded ID image via OCR.
+    
+    Called AFTER document validation passes in Step 2.
+    Returns 5 key editable fields with confidence scores.
+    
+    Request: multipart/form-data with:
+    - id_front: ID front image (required)
+    - id_type: ID type (NATIONALID, DRIVERSLICENSE, PASSPORT, UMID, PHILHEALTH)
+    
+    Response:
+    - success: bool
+    - fields: dict with extracted fields (full_name, id_number, birth_date, address, sex)
+    - confidence: float (0-1) overall OCR quality
+    """
+    try:
+        from .kyc_extraction_parser import get_kyc_parser
+        from .document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        from django.utils import timezone
+        
+        user = request.auth
+        print(f"📝 [EXTRACT-ID] Starting extraction for user: {user.email}")
+        
+        id_front = request.FILES.get("id_front")
+        id_type = request.POST.get("id_type", "NATIONALID")
+        
+        if not id_front:
+            return Response({
+                "success": False, 
+                "error": "ID front image is required",
+                "error_code": "MISSING_FILE"
+            }, status=400)
+        
+        print(f"   📄 [EXTRACT-ID] Processing {id_type} ({id_front.size} bytes)")
+        
+        # Read image bytes
+        id_front.seek(0)
+        id_bytes = id_front.read()
+        
+        # Initialize OCR service (skip face detection for faster extraction)
+        doc_service = DocumentVerificationService(skip_face_service=True)
+        id_img = Image.open(io.BytesIO(id_bytes))
+        ocr_result = doc_service._extract_text(id_img)
+        ocr_text = ocr_result.get("text", "")
+        ocr_confidence = ocr_result.get("confidence", 0)
+        
+        print(f"   🔍 [EXTRACT-ID] OCR result: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
+        
+        if not ocr_text or len(ocr_text) < 10:
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not extract text from image. Please ensure the ID is clear and well-lit.",
+                "fields": {},
+                "confidence": 0
+            }
+        
+        # Parse OCR text using KYC parser
+        parser = get_kyc_parser()
+        parsed_data = parser.parse_ocr_text(ocr_text, id_type.upper())
+        
+        # Return 5 key fields for user editing
+        fields = {
+            "full_name": {
+                "value": parsed_data.full_name.value or "",
+                "confidence": parsed_data.full_name.confidence,
+                "editable": True
+            },
+            "id_number": {
+                "value": parsed_data.id_number.value or "",
+                "confidence": parsed_data.id_number.confidence,
+                "editable": True
+            },
+            "birth_date": {
+                "value": parsed_data.birth_date.value or "",
+                "confidence": parsed_data.birth_date.confidence,
+                "editable": True
+            },
+            "address": {
+                "value": parsed_data.address.value or "",
+                "confidence": parsed_data.address.confidence,
+                "editable": True
+            },
+            "sex": {
+                "value": parsed_data.sex.value or "",
+                "confidence": parsed_data.sex.confidence,
+                "editable": True
+            }
+        }
+        
+        print(f"✅ [EXTRACT-ID] Extracted: name='{fields['full_name']['value'][:30]}...', id={fields['id_number']['value']}")
+        
+        return {
+            "success": True,
+            "has_extraction": True,
+            "fields": fields,
+            "confidence": parsed_data.overall_confidence,
+            "id_type": id_type,
+            "extracted_at": timezone.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ [EXTRACT-ID] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "success": False, 
+            "error": "Failed to extract ID data. Please try again or fill in manually.",
+            "error_code": "EXTRACTION_FAILED"
+        }, status=500)
+
+
+@router.post("/kyc/extract-clearance", auth=dual_auth)
+def extract_clearance_from_ocr(request):
+    """
+    Extract clearance-related fields from uploaded clearance image via OCR.
+    
+    Called AFTER document validation passes in Step 3.
+    Returns 5 key editable fields with confidence scores.
+    
+    Request: multipart/form-data with:
+    - clearance: Clearance image (required)
+    - clearance_type: Clearance type (NBI or POLICE)
+    
+    Response:
+    - success: bool
+    - fields: dict with extracted fields (clearance_number, holder_name, issue_date, validity_date, clearance_type)
+    - confidence: float (0-1) overall OCR quality
+    """
+    try:
+        from .kyc_extraction_parser import get_kyc_parser
+        from .document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        from django.utils import timezone
+        
+        user = request.auth
+        print(f"📝 [EXTRACT-CLEARANCE] Starting extraction for user: {user.email}")
+        
+        clearance = request.FILES.get("clearance")
+        clearance_type = request.POST.get("clearance_type", "NBI")
+        
+        if not clearance:
+            return Response({
+                "success": False, 
+                "error": "Clearance image is required",
+                "error_code": "MISSING_FILE"
+            }, status=400)
+        
+        print(f"   📄 [EXTRACT-CLEARANCE] Processing {clearance_type} ({clearance.size} bytes)")
+        
+        # Read image bytes
+        clearance.seek(0)
+        clearance_bytes = clearance.read()
+        
+        # Initialize OCR service
+        doc_service = DocumentVerificationService(skip_face_service=True)
+        clearance_img = Image.open(io.BytesIO(clearance_bytes))
+        ocr_result = doc_service._extract_text(clearance_img)
+        ocr_text = ocr_result.get("text", "")
+        ocr_confidence = ocr_result.get("confidence", 0)
+        
+        print(f"   🔍 [EXTRACT-CLEARANCE] OCR result: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
+        
+        if not ocr_text or len(ocr_text) < 10:
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not extract text from image. Please ensure the clearance is clear and well-lit.",
+                "fields": {},
+                "confidence": 0
+            }
+        
+        # Parse OCR text - use clearance-specific parsing
+        parser = get_kyc_parser()
+        
+        # Extract clearance-specific fields from OCR text
+        clearance_fields = parser.parse_clearance_text(ocr_text, clearance_type.upper())
+        
+        # Return 5 key fields for user editing
+        fields = {
+            "clearance_number": {
+                "value": clearance_fields.get("clearance_number", ""),
+                "confidence": clearance_fields.get("clearance_number_confidence", 0),
+                "editable": True
+            },
+            "holder_name": {
+                "value": clearance_fields.get("holder_name", ""),
+                "confidence": clearance_fields.get("holder_name_confidence", 0),
+                "editable": True
+            },
+            "issue_date": {
+                "value": clearance_fields.get("issue_date", ""),
+                "confidence": clearance_fields.get("issue_date_confidence", 0),
+                "editable": True
+            },
+            "validity_date": {
+                "value": clearance_fields.get("validity_date", ""),
+                "confidence": clearance_fields.get("validity_date_confidence", 0),
+                "editable": True
+            },
+            "clearance_type": {
+                "value": clearance_type,
+                "confidence": 1.0,  # User selected, so 100% confident
+                "editable": False
+            }
+        }
+        
+        print(f"✅ [EXTRACT-CLEARANCE] Extracted: name='{fields['holder_name']['value']}', number={fields['clearance_number']['value']}")
+        
+        return {
+            "success": True,
+            "has_extraction": True,
+            "fields": fields,
+            "confidence": clearance_fields.get("overall_confidence", 0),
+            "clearance_type": clearance_type,
+            "extracted_at": timezone.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ [EXTRACT-CLEARANCE] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "success": False, 
+            "error": "Failed to extract clearance data. Please try again or fill in manually.",
+            "error_code": "EXTRACTION_FAILED"
+        }, status=500)
+
+
+# =============================================================================
 # KYC AUTO-FILL ENDPOINTS (Mobile KYC Enhancement)
 # =============================================================================
 
