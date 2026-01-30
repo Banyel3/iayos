@@ -17,6 +17,7 @@ import {
   Receipt,
   Bell,
   Wallet,
+  BarChart3,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -206,6 +207,30 @@ export default function AgencySidebar({ className }: { className?: string }) {
           )}
         >
           <Settings className="h-4 w-4" /> {!collapsed && <span>Settings</span>}
+        </Link>
+
+        <Link
+          href="/agency/analytics"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
+            isActive("/agency/analytics")
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <BarChart3 className="h-4 w-4" /> {!collapsed && <span>Analytics</span>}
+        </Link>
+
+        <Link
+          href="/agency/support"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
+            isActive("/agency/support")
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <HelpCircle className="h-4 w-4" /> {!collapsed && <span>Support</span>}
         </Link>
       </nav>
 
