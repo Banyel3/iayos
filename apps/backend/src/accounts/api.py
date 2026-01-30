@@ -402,13 +402,21 @@ def upload_kyc(request):
         backID = request.FILES.get("backID")
         clearance = request.FILES.get("clearance")
         selfie = request.FILES.get("selfie")
+        
+        # Get user-confirmed extraction data from per-step OCR
+        extracted_id_data = request.POST.get("extracted_id_data")
+        extracted_clearance_data = request.POST.get("extracted_clearance_data")
 
         payload = KYCUploadSchema(
             accountID=accountID,
             IDType=IDType,
             clearanceType=clearanceType
         )
-        result = upload_kyc_document(payload, frontID, backID, clearance, selfie)
+        result = upload_kyc_document(
+            payload, frontID, backID, clearance, selfie,
+            extracted_id_data=extracted_id_data,
+            extracted_clearance_data=extracted_clearance_data
+        )
         return result
     except ValueError as e:
         print(f"❌ ValueError in KYC upload: {str(e)}")
