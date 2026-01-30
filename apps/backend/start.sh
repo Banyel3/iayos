@@ -69,7 +69,39 @@ echo "Database test passed!"
 echo "=========================================="
 echo "Running database migrations..."
 echo "=========================================="
-# Run migrations with full error output
+
+# If DATABASE_TEST_URL is set, run migrations on test database first
+if [ -n "$DATABASE_TEST_URL" ]; then
+    echo "🧪 DATABASE_TEST_URL detected - migrating TEST database first..."
+    
+    # Temporarily override to force test database
+    export TEMP_DATABASE_URL="$DATABASE_URL"
+    export DATABASE_URL="$DATABASE_TEST_URL"
+    
+    echo "Running migrations on TEST database..."
+    if ! python manage.py migrate --noinput 2>&1; then
+        echo "❌ TEST DATABASE MIGRATION FAILED! Checking migration status..."
+        python manage.py showmigrations 2>&1 || true
+        echo "Trying to show the actual error..."
+        python manage.py migrate --noinput --verbosity=3 2>&1 || true
+        # Restore DATABASE_URL before exiting
+        export DATABASE_URL="$TEMP_DATABASE_URL"
+        exit 1
+    fi
+    echo "✅ Test database migrations completed successfully"
+    
+    # Restore original DATABASE_URL for production database
+    export DATABASE_URL="$TEMP_DATABASE_URL"
+    unset TEMP_DATABASE_URL
+fi
+
+# Run migrations on production database (or local if USE_LOCAL_DB=true)
+if [ -n "$DATABASE_TEST_URL" ]; then
+    echo "🌐 Now migrating PRODUCTION database..."
+else
+    echo "Running migrations on configured database..."
+fi
+
 if ! python manage.py migrate --noinput 2>&1; then
     echo "❌ MIGRATION FAILED! Checking migration status..."
     python manage.py showmigrations 2>&1 || true
