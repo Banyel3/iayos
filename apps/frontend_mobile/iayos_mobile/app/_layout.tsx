@@ -1,3 +1,4 @@
+import "react-native-reanimated";
 import React, { useEffect, Component, ErrorInfo, ReactNode } from "react";
 import {
   DarkTheme,
@@ -7,7 +8,6 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
-import "react-native-reanimated";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";

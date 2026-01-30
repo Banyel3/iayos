@@ -9,13 +9,17 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 
 // Configure how notifications are handled when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (error) {
+  console.warn("[Notifications] Failed to set notification handler:", error);
+}
 
 export interface NotificationResponse {
   notification: Notifications.Notification;
