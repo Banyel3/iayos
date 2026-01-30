@@ -42,7 +42,9 @@ export const Colors = {
   // Text Colors (kept - already matching)
   textPrimary: "#212121", // gray-900
   textSecondary: "#757575", // gray-600
+  textTertiary: "#9CA3AF", // gray-400 (alias for textHint for Next.js parity)
   textHint: "#9CA3AF", // gray-400 (UPDATED from #BDBDBD)
+  textDisabled: "#D1D5DB", // gray-300 (for disabled text)
   textLight: "#FFFFFF", // white
 
   // Borders (updated to match Next.js)
@@ -91,6 +93,7 @@ export const Typography = {
   fontSize: {
     xs: 12, // 0.75rem - Captions, small text (UPDATED from 11)
     sm: 14, // 0.875rem - Body small, labels (UPDATED from 12)
+    md: 16, // alias for base (for Next.js parity)
     base: 16, // 1rem - Base body text (UPDATED from 14)
     lg: 18, // 1.125rem - Large body, emphasis (UPDATED from 16)
     xl: 20, // 1.25rem - H4 headings (kept)

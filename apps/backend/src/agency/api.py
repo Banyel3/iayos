@@ -2759,3 +2759,287 @@ def get_agency_reviews_endpoint(request, page: int = 1, limit: int = 10, review_
             {'success': False, 'error': 'Internal server error'},
             status=500
         )
+
+
+# =============================================================================
+# AGENCY SUPPORT TICKETS
+# =============================================================================
+
+@router.post("/support/ticket", auth=cookie_auth)
+def create_agency_support_ticket(request):
+    """
+    Create a new support ticket from agency portal.
+    
+    Request JSON:
+    - subject: str (required)
+    - category: str (kyc, employees, payments, jobs, account, other)
+    - description: str (required, min 20 chars)
+    - contact_email: str (optional)
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket, SupportTicketReply
+        from django.utils import timezone
+        import json
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found for this account'}, status=404)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        subject = body.get('subject', '').strip()
+        category = body.get('category', 'general').strip()
+        description = body.get('description', '').strip()
+        contact_email = body.get('contact_email', '').strip()
+        
+        # Validation
+        if not subject:
+            return Response({'success': False, 'error': 'Subject is required'}, status=400)
+        if len(subject) > 200:
+            return Response({'success': False, 'error': 'Subject must be 200 characters or less'}, status=400)
+        if not description:
+            return Response({'success': False, 'error': 'Description is required'}, status=400)
+        if len(description) < 20:
+            return Response({'success': False, 'error': 'Description must be at least 20 characters'}, status=400)
+        
+        # Map frontend categories to backend categories
+        category_map = {
+            'kyc': 'kyc',
+            'employees': 'employees',
+            'payments': 'payment',
+            'jobs': 'jobs',
+            'account': 'account',
+            'other': 'general',
+            'general': 'general',
+        }
+        db_category = category_map.get(category, 'general')
+        
+        # Create ticket with agency context
+        ticket = SupportTicket.objects.create(
+            userFK=user,
+            agencyFK=agency,
+            ticketType='agency',
+            subject=subject,
+            category=db_category,
+            priority='medium',
+            status='open',
+        )
+        
+        # Create initial reply with description
+        SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=user,
+            content=description,
+        )
+        
+        ticket.lastReplyAt = timezone.now()
+        ticket.save()
+        
+        logger.info(f"✅ Agency support ticket #{ticket.ticketID} created by agency {agency.agencyID}")
+        
+        return {
+            'success': True,
+            'ticket_id': str(ticket.ticketID),
+            'message': 'Support ticket submitted successfully',
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating agency support ticket: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.get("/support/tickets", auth=cookie_auth)
+def get_agency_support_tickets(request, page: int = 1, limit: int = 20, status: str = None):
+    """
+    Get list of support tickets submitted by this agency.
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Query tickets for this agency
+        queryset = SupportTicket.objects.filter(agencyFK=agency).order_by('-createdAt')
+        
+        if status and status != 'all':
+            queryset = queryset.filter(status=status)
+        
+        total = queryset.count()
+        total_pages = (total + limit - 1) // limit
+        
+        offset = (page - 1) * limit
+        tickets = queryset[offset:offset + limit]
+        
+        return {
+            'success': True,
+            'tickets': [
+                {
+                    'id': str(t.ticketID),
+                    'subject': t.subject,
+                    'category': t.category,
+                    'priority': t.priority,
+                    'status': t.status,
+                    'created_at': t.createdAt.isoformat(),
+                    'last_reply_at': t.lastReplyAt.isoformat() if t.lastReplyAt else t.createdAt.isoformat(),
+                    'reply_count': t.reply_count,
+                }
+                for t in tickets
+            ],
+            'total': total,
+            'page': page,
+            'total_pages': total_pages,
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching agency tickets: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.get("/support/tickets/{ticket_id}", auth=cookie_auth)
+def get_agency_ticket_detail(request, ticket_id: int):
+    """
+    Get detailed view of a support ticket including all replies.
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Get ticket and verify ownership
+        try:
+            ticket = SupportTicket.objects.select_related('assignedTo').get(ticketID=ticket_id, agencyFK=agency)
+        except SupportTicket.DoesNotExist:
+            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
+        
+        replies = ticket.replies.select_related('senderFK').all().order_by('createdAt')
+        
+        return {
+            'success': True,
+            'ticket': {
+                'id': str(ticket.ticketID),
+                'subject': ticket.subject,
+                'category': ticket.category,
+                'priority': ticket.priority,
+                'status': ticket.status,
+                'assigned_to_name': ticket.assignedTo.email.split('@')[0] if ticket.assignedTo else None,
+                'created_at': ticket.createdAt.isoformat(),
+                'updated_at': ticket.updatedAt.isoformat(),
+                'last_reply_at': ticket.lastReplyAt.isoformat() if ticket.lastReplyAt else None,
+                'resolved_at': ticket.resolvedAt.isoformat() if ticket.resolvedAt else None,
+            },
+            'messages': [
+                {
+                    'id': str(r.replyID),
+                    'sender_name': r.senderFK.email.split('@')[0] if r.senderFK else 'Unknown',
+                    'is_admin': r.senderFK_id != user.accountID if r.senderFK else False,
+                    'content': r.content,
+                    'is_system_message': r.isSystemMessage,
+                    'created_at': r.createdAt.isoformat(),
+                }
+                for r in replies
+            ],
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching ticket detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.post("/support/tickets/{ticket_id}/reply", auth=cookie_auth)
+def reply_to_agency_ticket(request, ticket_id: int):
+    """
+    Add a reply to an existing support ticket.
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket, SupportTicketReply
+        from django.utils import timezone
+        import json
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Get ticket and verify ownership
+        try:
+            ticket = SupportTicket.objects.get(ticketID=ticket_id, agencyFK=agency)
+        except SupportTicket.DoesNotExist:
+            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
+        
+        # Check if ticket is closed
+        if ticket.status == 'closed':
+            return Response({'success': False, 'error': 'Cannot reply to a closed ticket'}, status=400)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        content = body.get('content', '').strip()
+        
+        if not content:
+            return Response({'success': False, 'error': 'Reply content is required'}, status=400)
+        if len(content) < 5:
+            return Response({'success': False, 'error': 'Reply must be at least 5 characters'}, status=400)
+        
+        # Create reply
+        reply = SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=user,
+            content=content,
+        )
+        
+        # Update ticket
+        ticket.lastReplyAt = timezone.now()
+        # If ticket was waiting_user, set back to open
+        if ticket.status == 'waiting_user':
+            ticket.status = 'open'
+        ticket.save()
+        
+        logger.info(f"✅ Reply added to ticket #{ticket_id} by agency")
+        
+        return {
+            'success': True,
+            'reply_id': str(reply.replyID),
+            'message': 'Reply sent successfully',
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error replying to ticket: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)

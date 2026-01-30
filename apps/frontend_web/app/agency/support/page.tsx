@@ -209,16 +209,26 @@ export default function AgencySupportPage() {
             <span>Back</span>
           </button>
 
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
-              <HelpCircle className="h-8 w-8 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
+                <HelpCircle className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Help & Support</h1>
+                <p className="text-blue-100 mt-1">
+                  Find answers or contact our support team
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Help & Support</h1>
-              <p className="text-blue-100 mt-1">
-                Find answers or contact our support team
-              </p>
-            </div>
+            <Button
+              onClick={() => router.push("/agency/support/tickets")}
+              className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+              variant="outline"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              View My Tickets
+            </Button>
           </div>
         </div>
       </div>
@@ -319,21 +329,30 @@ export default function AgencySupportPage() {
                       </p>
                     </div>
                   )}
-                  <Button
-                    onClick={() => {
-                      setTicketSubmitted(false);
-                      setFormData({
-                        subject: "",
-                        category: "kyc",
-                        description: "",
-                        email: "",
-                      });
-                    }}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Submit Another Request
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => router.push("/agency/support/tickets")}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View My Tickets
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setTicketSubmitted(false);
+                        setFormData({
+                          subject: "",
+                          category: "kyc",
+                          description: "",
+                          email: "",
+                        });
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Submit Another Request
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : (

@@ -20,6 +20,7 @@ import {
   Info,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface NotificationSettings {
   emailNotifications: boolean;
@@ -107,11 +108,12 @@ export default function AgencyNotificationSettingsPage() {
         toast.success("Settings saved successfully");
         setHasChanges(false);
       } else {
-        toast.error("Failed to save settings");
+        const data = await response.json().catch(() => ({}));
+        toast.error(getErrorMessage(data, "Failed to save settings"));
       }
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Error saving settings");
+      toast.error(getErrorMessage(error, "Failed to save settings"));
     } finally {
       setIsSaving(false);
     }

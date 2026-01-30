@@ -820,7 +820,7 @@ const AgencyKYCPage = () => {
     setIsDeletingFiles(true);
     
     try {
-      const response = await fetch(`${API_URL}/api/agency/kyc/files`, {
+      const response = await fetch(`${API_BASE}/api/agency/kyc/files`, {
         method: "DELETE",
         credentials: "include",
       });

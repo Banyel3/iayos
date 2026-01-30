@@ -7,6 +7,7 @@ import Image from "next/image";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import { useAuth } from "@/context/AuthContext";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface JobDetails {
   id: string;
@@ -160,7 +161,7 @@ export default function JobDetailsPage() {
       }
     } catch (error) {
       console.error("Error accepting application:", error);
-      alert("Failed to accept application");
+      alert(getErrorMessage(error, "Failed to accept application"));
     } finally {
       setProcessingApplicationId(null);
     }
@@ -196,7 +197,7 @@ export default function JobDetailsPage() {
       }
     } catch (error) {
       console.error("Error rejecting application:", error);
-      alert("Failed to reject application");
+      alert(getErrorMessage(error, "Failed to reject application"));
     } finally {
       setProcessingApplicationId(null);
     }
@@ -263,7 +264,7 @@ export default function JobDetailsPage() {
       }
     } catch (error) {
       console.error("Error sending proposal:", error);
-      alert("An error occurred while sending your proposal");
+      alert(getErrorMessage(error, "Failed to send proposal"));
     } finally {
       setIsSubmittingProposal(false);
     }

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "../../../components";
 import Link from "next/link";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface Skill {
   name: string;
@@ -170,7 +171,7 @@ export default function WorkerDetailPage() {
       }
     } catch (error) {
       console.error("Suspend error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to suspend worker"));
     } finally {
       setActionLoading(false);
     }
@@ -203,7 +204,7 @@ export default function WorkerDetailPage() {
       }
     } catch (error) {
       console.error("Ban error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to ban worker"));
     } finally {
       setActionLoading(false);
     }
@@ -230,7 +231,7 @@ export default function WorkerDetailPage() {
       }
     } catch (error) {
       console.error("Activate error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to activate worker"));
     } finally {
       setActionLoading(false);
     }
@@ -259,7 +260,7 @@ export default function WorkerDetailPage() {
       }
     } catch (error) {
       console.error("Delete error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to delete worker"));
     } finally {
       setActionLoading(false);
     }

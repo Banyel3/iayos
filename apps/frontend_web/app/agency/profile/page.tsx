@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Building2,
   Mail,
@@ -243,7 +244,7 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error adding payment method:", error);
-      toast.error("An error occurred");
+      toast.error(getErrorMessage(error, "Failed to add payment method"));
     } finally {
       setIsAddingPaymentMethod(false);
     }
@@ -275,7 +276,7 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error deleting payment method:", error);
-      toast.error("An error occurred");
+      toast.error(getErrorMessage(error, "Failed to remove payment method"));
     }
   };
 
@@ -298,7 +299,7 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error setting primary payment method:", error);
-      toast.error("An error occurred");
+      toast.error(getErrorMessage(error, "Failed to set primary payment method"));
     }
   };
 
@@ -1184,7 +1185,7 @@ export default function AgencyProfilePage() {
                     }
                   } catch (error) {
                     console.error("Withdrawal error:", error);
-                    toast.error("An error occurred");
+                    toast.error(getErrorMessage(error, "Failed to request withdrawal"));
                   } finally {
                     setIsWithdrawing(false);
                   }

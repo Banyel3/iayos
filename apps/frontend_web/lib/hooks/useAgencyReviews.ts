@@ -19,6 +19,7 @@ export interface AgencyReview {
   review_type: "AGENCY" | "EMPLOYEE";
   employee_name: string | null;
   employee_id: number | null;
+  agency_response?: string | null;
 }
 
 export interface AgencyReviewsStats {

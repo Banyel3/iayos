@@ -583,7 +583,7 @@ export default function AgencyBackjobDetailPage({
               Cancel
             </Button>
             <Button
-              onClick={handleCompleteBackjob}
+              onClick={handleMarkBackjobComplete}
               disabled={isCompleting}
               className="bg-green-600 hover:bg-green-700"
             >

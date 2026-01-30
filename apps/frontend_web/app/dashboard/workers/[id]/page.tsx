@@ -10,9 +10,30 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import {
   useWorkerReviews,
-  StarRating,
   formatReviewDate,
 } from "@/lib/hooks/useWorkerReviews";
+import { Star } from "lucide-react";
+
+// Local StarRating component
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`h-4 w-4 ${
+            star <= rating
+              ? "fill-yellow-400 text-yellow-400"
+              : star - 0.5 <= rating
+                ? "fill-yellow-400/50 text-yellow-400"
+                : "text-gray-300"
+          }`}
+        />
+      ))}
+      <span className="ml-1 text-sm font-medium">{rating.toFixed(1)}</span>
+    </div>
+  );
+}
 
 interface WorkerProfileData {
   id: string;

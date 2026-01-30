@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { UserProfileType } from "@/types";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { API_BASE_URL } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Temporary User interface extension for this page
 interface DashboardUser {
@@ -124,7 +125,8 @@ const TempDashboard = () => {
       if (!res.ok) {
         const errorData = await res.json();
         console.error("API Response Error:", errorData);
-        throw new Error(errorData.error || "An Error Occurred");
+        alert(getErrorMessage(errorData, "Failed to assign profile type"));
+        throw new Error(errorData.error || "Failed to assign profile type");
       } else {
         console.log("Profile type assigned successfully");
 

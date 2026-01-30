@@ -213,6 +213,26 @@ export default function KYCUploadScreen() {
         body: formData as any,
       });
 
+      // Check if response is OK before parsing JSON
+      if (!response.ok) {
+        // Check content-type to handle HTML error pages gracefully
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          console.error(`Validation API returned non-JSON response (${response.status}): ${contentType}`);
+          return {
+            valid: false,
+            error: `Server error (${response.status}). Please try again later.`,
+          };
+        }
+        
+        try {
+          const errorData = await response.json() as { error?: string };
+          return { valid: false, error: errorData.error || "Validation failed" };
+        } catch {
+          return { valid: false, error: `Server error (${response.status}). Please try again.` };
+        }
+      }
+
       const data = (await response.json()) as {
         valid: boolean;
         error?: string;

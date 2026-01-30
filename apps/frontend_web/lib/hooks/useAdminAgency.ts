@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api/config";
 
 interface AgencyEmployee {
+  id?: number; // Alias for employee_id
   employee_id: number;
   name: string;
   email: string;

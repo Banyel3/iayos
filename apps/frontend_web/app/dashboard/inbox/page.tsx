@@ -28,6 +28,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { inboxKeys } from "@/lib/hooks/useInboxQueries";
 import { EstimatedTimeCard } from "@/components/ui/estimated-time-card";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -526,11 +527,7 @@ const InboxPage = () => {
       },
       onError: (error) => {
         console.error("Error marking job as complete:", error);
-        alert(
-          error instanceof Error
-            ? error.message
-            : "An error occurred. Please try again."
-        );
+        alert(getErrorMessage(error, "Failed to mark job as complete"));
         setIsMarkingComplete(false);
       },
     });
@@ -615,11 +612,7 @@ const InboxPage = () => {
         },
         onError: (error) => {
           console.error("Error approving job completion:", error);
-          alert(
-            error instanceof Error
-              ? error.message
-              : "An error occurred. Please try again."
-          );
+          alert(getErrorMessage(error, "Failed to approve job completion"));
           setIsApprovingCompletion(false);
         },
       }
@@ -670,11 +663,7 @@ const InboxPage = () => {
         },
         onError: (error) => {
           console.error("Error submitting review:", error);
-          alert(
-            error instanceof Error
-              ? error.message
-              : "An error occurred. Please try again."
-          );
+          alert(getErrorMessage(error, "Failed to submit review"));
           setIsSubmittingReview(false);
         },
       }
@@ -720,7 +709,7 @@ const InboxPage = () => {
       }
     } catch (error) {
       console.error("Error confirming payment:", error);
-      alert("An error occurred. Please try again.");
+      alert(getErrorMessage(error, "Failed to confirm payment"));
     }
   };
 

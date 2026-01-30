@@ -207,7 +207,7 @@ export default function AgencySettingsPage() {
             action={
               <Switch
                 checked={emailNotifications}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setEmailNotifications(checked);
                   saveSetting("emailNotifications", checked);
                 }}
@@ -221,7 +221,7 @@ export default function AgencySettingsPage() {
             action={
               <Switch
                 checked={pushNotifications}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setPushNotifications(checked);
                   saveSetting("pushNotifications", checked);
                 }}
@@ -235,7 +235,7 @@ export default function AgencySettingsPage() {
             action={
               <Switch
                 checked={jobAlerts}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setJobAlerts(checked);
                   saveSetting("jobAlerts", checked);
                 }}
@@ -249,7 +249,7 @@ export default function AgencySettingsPage() {
             action={
               <Switch
                 checked={messageAlerts}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setMessageAlerts(checked);
                   saveSetting("messageAlerts", checked);
                 }}
