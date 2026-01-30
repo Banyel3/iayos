@@ -99,7 +99,10 @@ export function NotificationProvider({
 
   // Initialize notifications on mount
   useEffect(() => {
-    registerForPushNotifications();
+    registerForPushNotifications().catch((error) => {
+      console.error("Failed to register for push notifications:", error);
+      // Don't crash the app if notifications fail - just log the error
+    });
 
     // Notification received listener (when app is in foreground)
     notificationListener.current =
