@@ -340,7 +340,12 @@ export default function KYCUploadScreen() {
           setShowIdForm(true);
         } catch (extractError) {
           console.error("ID extraction error:", extractError);
-          // Extraction failed - allow manual entry
+          // Extraction failed - notify user and allow manual entry
+          Alert.alert(
+            "Auto-Fill Unavailable",
+            "We couldn't automatically extract your ID details. Please enter the information manually.",
+            [{ text: "OK", style: "default" }]
+          );
           setIdExtractionData(null);
           setIdFormValues({
             full_name: "",
@@ -415,7 +420,12 @@ export default function KYCUploadScreen() {
           setShowClearanceForm(true);
         } catch (extractError) {
           console.error("Clearance extraction error:", extractError);
-          // Extraction failed - allow manual entry
+          // Extraction failed - notify user and allow manual entry
+          Alert.alert(
+            "Auto-Fill Unavailable",
+            "We couldn't automatically extract your clearance details. Please enter the information manually.",
+            [{ text: "OK", style: "default" }]
+          );
           setClearanceExtractionData(null);
           setClearanceFormValues({
             holder_name: "",
