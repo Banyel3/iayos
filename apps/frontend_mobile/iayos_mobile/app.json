@@ -7,7 +7,7 @@
     "icon": "./assets/images/android-icon-foreground.png",
     "scheme": "iayosmobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.iayos.mobile"
