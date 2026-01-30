@@ -39,7 +39,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS, apiRequest, OCR_TIMEOUT } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, VALIDATION_TIMEOUT, OCR_TIMEOUT } from "@/lib/api/config";
 
 // Total steps in the KYC flow
 const TOTAL_STEPS = 7;
@@ -292,10 +292,11 @@ export default function KYCUploadScreen() {
       console.log(`[KYC Validate] Validating ${documentType} at: ${endpointUrl}`);
       
       // Use apiRequest instead of raw fetch for better error handling and auto-auth
+      // Use VALIDATION_TIMEOUT (30s) instead of OCR_TIMEOUT (5min) - validation doesn't do OCR
       const response = await apiRequest(endpointUrl, {
         method: "POST",
         body: formData as any,
-        timeout: OCR_TIMEOUT, // Use 5-minute timeout for validation
+        timeout: VALIDATION_TIMEOUT, // 30s for quality checks (no OCR)
       });
 
       console.log(`[KYC Validate] Response status: ${response.status}`);
