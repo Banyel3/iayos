@@ -25,6 +25,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
+
 import {
   useCreateMaterial,
   useUpdateMaterial,
@@ -34,6 +35,7 @@ import {
   type UpdateMaterialRequest,
   isValidPrice,
 } from "@/lib/hooks/useMaterials";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 const DEFAULT_UNIT_OPTIONS = [
   { label: "piece", value: "per piece" },
@@ -241,8 +243,8 @@ export default function MaterialForm({
             Alert.alert("Success", "Material updated successfully");
             onClose();
           },
-          onError: (error: Error) => {
-            Alert.alert("Error", error.message || "Failed to update material");
+          onError: (error: unknown) => {
+            Alert.alert("Error", getErrorMessage(error, "Failed to update material"));
           },
         }
       );
@@ -271,8 +273,8 @@ export default function MaterialForm({
           resetForm();
           onClose();
         },
-        onError: (error: Error) => {
-          Alert.alert("Error", error.message || "Failed to add material");
+        onError: (error: unknown) => {
+          Alert.alert("Error", getErrorMessage(error, "Failed to add material"));
         },
       });
     }

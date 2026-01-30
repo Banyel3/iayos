@@ -37,6 +37,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useWallet, useWithdraw } from "@/lib/hooks/useWallet";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
@@ -83,7 +84,7 @@ export default function WithdrawScreen() {
       queryKey: ["payment-methods"],
       queryFn: async () => {
         const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-        if (!response.ok) throw new Error("Failed to fetch payment methods");
+        if (!response.ok) throw new Error(await response.text() || "Failed to fetch payment methods");
         const data = (await response.json()) as PaymentMethodsResponse;
         return data;
       },
@@ -236,10 +237,10 @@ export default function WithdrawScreen() {
                   router.back();
                 }, 2000);
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert(
                 "Withdrawal Failed",
-                error.message || "An error occurred",
+                getErrorMessage(error, "An error occurred"),
               );
             }
           },
