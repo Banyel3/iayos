@@ -4,7 +4,7 @@
     "slug": "iayos",
     "version": "1.8.5",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/android-icon-foreground.png",
     "scheme": "iayosmobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
