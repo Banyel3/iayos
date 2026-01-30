@@ -27,6 +27,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { Image } from "react-native";
 
 const DEFAULT_COUNTRY = "Philippines";
 const MIN_PASSWORD_LENGTH = 8;
@@ -324,9 +325,11 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             {/* Title */}
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>i</Text>
-            </View>
+            <Image
+              source={require("../../assets/logo-white.png")}
+              style={{ width: 120, height: 120, resizeMode: "contain", marginBottom: Spacing["2xl"] }}
+              accessibilityLabel="iAyos Logo"
+            />
             <Text style={styles.headerTitle}>Create Account</Text>
             <Text style={styles.headerSubtitle}>Join iAyos today</Text>
           </View>
@@ -819,17 +822,7 @@ const styles = StyleSheet.create({
     top: Spacing["2xl"],
     zIndex: 1,
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-    marginTop: Spacing["2xl"],
-    ...Shadows.md,
-  },
+  // logoCircle removed
   logoText: {
     fontSize: 48,
     fontWeight: "700",

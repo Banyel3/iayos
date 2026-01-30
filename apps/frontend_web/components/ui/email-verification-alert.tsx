@@ -115,7 +115,7 @@ export function PasswordResetAlert({
         {/* Content */}
         <div className="p-6 text-center">
           {/* Success icon */}
-          <div className="mx-auto flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+          <div className="mx-auto flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
             <div className="text-2xl">🔑</div>
           </div>
 
@@ -126,7 +126,7 @@ export function PasswordResetAlert({
 
           {/* Email icon and message */}
           <div className="flex items-center justify-center mb-4">
-            <Mail className="w-5 h-5 text-orange-600 mr-2" />
+            <Mail className="w-5 h-5 text-[#54B7EC] mr-2" />
             <span className="text-sm text-gray-600 font-inter">
               Check your email
             </span>
@@ -140,17 +140,10 @@ export function PasswordResetAlert({
             ) : (
               "your email address"
             )}
-            . Click the link to create a new password for your account.
+            . Click the link to create a new password for your account. Link expires in 15 minutes.
           </p>
 
-          {/* Security info */}
-          <div className="bg-yellow-50 rounded-lg p-3 mb-4 border border-yellow-200">
-            <p className="text-xs text-yellow-800 font-inter">
-              <strong>🔒 Security Notice:</strong> This link will expire in 15
-              minutes for your protection. If you didn&apos;t request this
-              reset, you can safely ignore this email.
-            </p>
-          </div>
+
 
           {/* Additional info */}
           <div className="bg-blue-50 rounded-lg p-3 mb-4">
@@ -163,7 +156,7 @@ export function PasswordResetAlert({
           {/* Action button */}
           <button
             onClick={onClose}
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200 font-inter"
+            className="w-full bg-[#54B7EC] hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200 font-inter"
           >
             Got it!
           </button>

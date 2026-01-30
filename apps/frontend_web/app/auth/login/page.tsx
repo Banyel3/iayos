@@ -162,53 +162,29 @@ const Login = () => {
     const lastRedirect = sessionStorage.getItem("last_login_redirect");
     const now = Date.now();
 
-    console.log("🔍 Login Page useEffect:", {
-      authLoading,
-      isAuthenticated,
-      hasUser: !!user,
-      accountType: user?.accountType,
-      role: user?.role,
-      lastRedirect: lastRedirect ? new Date(parseInt(lastRedirect)) : "none",
-    });
-
     // Prevent redirect loops - if we redirected in the last 5 seconds, don't redirect again
     if (lastRedirect && now - parseInt(lastRedirect) < 5000) {
-      console.log("⏸️ Login Page: Recently redirected, preventing loop");
       return;
     }
 
     if (!authLoading && isAuthenticated && user) {
-      // Prefer backend accountType when available (more authoritative)
       const accountType = (user.accountType || "").toString().toLowerCase();
       const role = (user.role || "").toString().toUpperCase();
-
-      // Mark that we're redirecting
       sessionStorage.setItem("last_login_redirect", now.toString());
-
+      // Always use window.location.href for these redirects
       if (accountType === "agency") {
-        console.log(
-          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard",
-        );
-        router.replace("/agency/dashboard"); // Use replace instead of push
+        window.location.href = "/agency/dashboard";
       } else if (role === "ADMIN") {
-        console.log(
-          "🔐 Login Page: Admin user detected, redirecting to admin panel",
-        );
-        router.replace("/admin/dashboard");
+        window.location.href = "/admin/dashboard";
       } else {
-        console.log("👤 Login Page: Regular user, redirecting to dashboard");
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     } else if (!authLoading && isAuthenticated && !user) {
-      console.log(
-        "⚠️ Login Page: Authenticated but no user data - staying on login",
-      );
+      // Stay on login
     } else if (!authLoading && !isAuthenticated) {
-      console.log("ℹ️ Login Page: Not authenticated - showing login form");
-      // Clear redirect timestamp when showing login form
       sessionStorage.removeItem("last_login_redirect");
     }
-  }, [authLoading, isAuthenticated, user, router]);
+  }, [authLoading, isAuthenticated, user]);
 
   // 🔥 FIX: Show loading only during initial auth check, not the form
   if (authLoading) {
@@ -222,8 +198,9 @@ const Login = () => {
     );
   }
 
-  // 🔥 FIX: Only show login form if NOT authenticated
-  if (isAuthenticated) {
+  // 🔥 FIX: Only show redirect spinner if authenticated AND user is loaded
+  // This prevents showing spinner when cache is stale but backend returns 401
+  if (isAuthenticated && user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -244,73 +221,43 @@ const Login = () => {
   };
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
-
     try {
-      // Use the AuthContext login function which handles everything
       await login(values.email, values.password);
-      console.log("✅ Login successful");
       localStorage.removeItem("rateLimitEndTime");
       setIsRateLimited(false);
       setRateLimitTime(0);
-
       // Fetch fresh user data to get the role
       const userResponse = await fetch(`${API_BASE}/api/accounts/me`, {
         credentials: "include",
       });
-
       if (userResponse.ok) {
         const userData = await userResponse.json();
-
-        // Check if user is a worker or client - redirect to download app
         const backendRole = (userData.role || "").toString().toUpperCase();
-        const accountType = (userData.accountType || "")
-          .toString()
-          .toLowerCase();
-
-        // Workers and Clients must use mobile app
+        const accountType = (userData.accountType || "").toString().toLowerCase();
         if (backendRole === "WORKER" || backendRole === "CLIENT") {
-          console.log(
-            `⚠️ ${backendRole} login detected - redirecting to download app`,
-          );
-          // Logout immediately
           await fetch(`${API_BASE}/api/accounts/logout`, {
             method: "POST",
             credentials: "include",
           });
-          router.replace("/auth/download-app");
+          window.location.href = "/auth/download-app";
           return;
         }
-
-        // Agency users
+        // Always use window.location.href for these redirects
         if (accountType === "agency") {
-          console.log(
-            "🏢 Account type 'agency' detected, redirecting to agency dashboard",
-          );
           sessionStorage.setItem("last_login_redirect", Date.now().toString());
-          router.replace("/agency/dashboard");
-        }
-        // Admin users
-        else if (backendRole === "ADMIN") {
-          console.log("🔐 Admin login, redirecting to admin panel");
+          window.location.href = "/agency/dashboard";
+        } else if (backendRole === "ADMIN") {
           sessionStorage.setItem("last_login_redirect", Date.now().toString());
-          router.replace("/admin/dashboard");
-        }
-        // Unknown role - should not happen
-        else {
-          console.log("⚠️ Unknown role, redirecting to download app");
-          await fetch(`${API_BASE}/api/accounts/logout`, {
-            method: "POST",
-            credentials: "include",
-          });
-          router.replace("/auth/download-app");
+          window.location.href = "/admin/dashboard";
+        } else {
+          sessionStorage.setItem("last_login_redirect", Date.now().toString());
+          window.location.href = "/dashboard";
         }
       } else {
-        // Fallback to regular dashboard if can't fetch user data
         sessionStorage.setItem("last_login_redirect", Date.now().toString());
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (error) {
-      console.error("Login error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -409,7 +356,7 @@ const Login = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                            Email<span className="text-red-500 ml-1">*</span>
+                            Email
                           </FormLabel>
                           <FormControl>
                             <Input
@@ -417,11 +364,10 @@ const Login = () => {
                               type="email"
                               autoComplete="email"
                               disabled={isLoading}
-                              className={`h-11 ${
-                                form.formState.errors.email
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                  : ""
-                              }`}
+                              className={`h-11 ${form.formState.errors.email
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                : ""
+                                }`}
                               {...field}
                             />
                           </FormControl>
@@ -435,7 +381,7 @@ const Login = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                            Password<span className="text-red-500 ml-1">*</span>
+                            Password
                           </FormLabel>
                           <FormControl>
                             <div className="relative">
@@ -444,11 +390,10 @@ const Login = () => {
                                 placeholder="Enter your password"
                                 autoComplete="current-password"
                                 disabled={isLoading}
-                                className={`h-11 pr-10 ${
-                                  form.formState.errors.password
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                    : ""
-                                }`}
+                                className={`h-11 pr-10 ${form.formState.errors.password
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                  : ""
+                                  }`}
                                 {...field}
                               />
                               <button
@@ -610,9 +555,16 @@ const Login = () => {
                         <Button
                           type="button"
                           variant="outline"
-                          className="bg-[#54B7EC] text-white hover:bg-blue-50 p-7 font-bold text-lg"
+                          className="bg-[#54B7EC] text-white hover:bg-blue-50 p-7 font-bold text-lg flex items-center gap-2 group"
                         >
-                          ⬇ Download App
+                          <Image
+                            src="/download-icon.png"
+                            alt="Download"
+                            width={20}
+                            height={20}
+                            className="inline-block brightness-0 invert group-hover:invert-0 group-hover:brightness-100 transition-all"
+                          />
+                          Download App
                         </Button>
                       </Link>
                     </div>
@@ -672,7 +624,7 @@ const Login = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                              Email<span className="text-red-500 ml-1">*</span>
+                              Email
                             </FormLabel>
                             <FormControl>
                               <Input
@@ -680,11 +632,10 @@ const Login = () => {
                                 type="email"
                                 autoComplete="email"
                                 disabled={isLoading}
-                                className={`h-12 ${
-                                  form.formState.errors.email
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                    : ""
-                                }`}
+                                className={`h-12 ${form.formState.errors.email
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                  : ""
+                                  }`}
                                 {...field}
                               />
                             </FormControl>
@@ -700,7 +651,6 @@ const Login = () => {
                           <FormItem>
                             <FormLabel className="font-inter text-sm font-medium text-gray-700">
                               Password
-                              <span className="text-red-500 ml-1">*</span>
                             </FormLabel>
                             <FormControl>
                               <div className="relative">
@@ -709,11 +659,10 @@ const Login = () => {
                                   placeholder="Enter your password"
                                   autoComplete="current-password"
                                   disabled={isLoading}
-                                  className={`h-12 pr-10 ${
-                                    form.formState.errors.password
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                      : ""
-                                  }`}
+                                  className={`h-12 pr-10 ${form.formState.errors.password
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                    : ""
+                                    }`}
                                   {...field}
                                 />
                                 <button
