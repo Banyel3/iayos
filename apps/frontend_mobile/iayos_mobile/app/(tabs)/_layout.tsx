@@ -1,5 +1,5 @@
-import { Redirect, Tabs, useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import { Redirect, Tabs } from "expo-router";
+import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
@@ -12,24 +12,6 @@ import { KYCBanner } from "@/components/KYCBanner";
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const router = useRouter();
-  const hasRedirectedRef = useRef(false);
-
-  // Redirect logic based on authentication and profile type
-  // Use ref to prevent race conditions from multiple simultaneous redirects
-  useEffect(() => {
-    if (!isLoading && !hasRedirectedRef.current) {
-      if (!isAuthenticated) {
-        // Not logged in - redirect to login
-        hasRedirectedRef.current = true;
-        router.replace("/auth/login");
-      } else if (!user?.profile_data?.profileType) {
-        // Logged in but no role selected - redirect to role selection
-        hasRedirectedRef.current = true;
-        router.replace("/auth/select-role");
-      }
-    }
-  }, [isAuthenticated, isLoading, user]);
 
   if (isLoading) {
     return null; // Wait for auth state before deciding what to render

@@ -8,6 +8,9 @@ import { Platform } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import Constants from "expo-constants";
 
+// PRODUCTION URL - hardcoded as the authoritative production endpoint
+const PRODUCTION_API_URL = "https://api.iayos.online";
+
 // AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
 // When you switch networks, Expo will automatically use the new IP
 const getDevIP = (): string => {
@@ -38,9 +41,6 @@ const getDevIP = (): string => {
 };
 
 const DEV_IP = getDevIP();
-
-// PRODUCTION URL - hardcoded as the authoritative production endpoint
-const PRODUCTION_API_URL = "https://api.iayos.online";
 
 // Allow environment variable override for CI/CD (e.g., staging backend in Detox tests)
 // In production builds (__DEV__ = false), ALWAYS use production URL
