@@ -444,6 +444,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const DEFAULT_REQUEST_TIMEOUT = 15000; // 15 seconds
 export const VALIDATION_TIMEOUT = 30000; // 30 seconds for document validation (quality checks, no OCR)
 export const OCR_TIMEOUT = 300000; // 5 minutes for OCR extraction operations (Tesseract can take 2-4 min)
+export const KYC_UPLOAD_TIMEOUT = 120000; // 2 minutes for KYC upload (multiple compressed images)
 
 export const apiRequest = async (
   url: string,

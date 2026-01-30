@@ -9,8 +9,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import {
   Colors,
   Typography,
@@ -69,6 +71,7 @@ export const KYCFieldEditor: React.FC<KYCFieldEditorProps> = ({
   errorMessage,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   // Determine if value was modified from OCR extraction
   const isModified = field?.value && value !== field.value;
@@ -129,42 +132,85 @@ export const KYCFieldEditor: React.FC<KYCFieldEditorProps> = ({
         )}
       </View>
       
-      {/* Input Field */}
-      <View
-        style={[
-          styles.inputContainer,
-          isFocused && styles.inputContainerFocused,
-          errorMessage && styles.inputContainerError,
-          !editable && styles.inputContainerDisabled,
-        ]}
-      >
-        <TextInput
-          style={[styles.input, !editable && styles.inputDisabled]}
-          value={value}
-          onChangeText={onValueChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-          placeholderTextColor={Colors.textSecondary}
-          editable={editable}
-          autoCapitalize="words"
-          autoCorrect={false}
-        />
-        
-        {/* Clear Button (when has value and editable) */}
-        {value.length > 0 && editable && (
+      {inputType === "date" ? (
+        <>
           <TouchableOpacity
-            style={styles.clearButton}
-            onPress={() => onValueChange("")}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={[
+              styles.inputContainer,
+              isFocused && styles.inputContainerFocused,
+              errorMessage && styles.inputContainerError,
+              !editable && styles.inputContainerDisabled,
+            ]}
+            onPress={() => editable && setShowDatePicker(true)}
+            activeOpacity={0.7}
           >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color={Colors.textSecondary}
-            />
+            <Text
+              style={[
+                styles.input,
+                { flex: 1 },
+                !value && { color: Colors.textSecondary },
+                !editable && styles.inputDisabled,
+              ]}
+            >
+              {value || placeholder || `Select ${label.toLowerCase()}`}
+            </Text>
+            <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
           </TouchableOpacity>
-        )}
+          
+          {showDatePicker && (
+            <DateTimePicker
+              value={value ? new Date(value) : new Date()}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                setShowDatePicker(Platform.OS === "ios");
+                if (event.type === "set" && selectedDate) {
+                  // Format as YYYY-MM-DD for consistent storage
+                  const formatted = selectedDate.toISOString().split("T")[0];
+                  onValueChange(formatted);
+                }
+              }}
+            />
+          )}
+        </>
+      ) : (
+        <View
+          style={[
+            styles.inputContainer,
+            isFocused && styles.inputContainerFocused,
+            errorMessage && styles.inputContainerError,
+            !editable && styles.inputContainerDisabled,
+          ]}
+        >
+          <TextInput
+            style={[styles.input, !editable && styles.inputDisabled]}
+            value={value}
+            onChangeText={onValueChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            placeholder={placeholder || `Enter ${label.toLowerCase()}`}
+            placeholderTextColor={Colors.textSecondary}
+            editable={editable}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+          
+          {/* Clear Button (when has value and editable) */}
+          {value.length > 0 && editable && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={() => onValueChange("")}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons
+                name="close-circle"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       </View>
       
       {/* Error Message */}

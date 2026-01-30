@@ -39,7 +39,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS, apiRequest, VALIDATION_TIMEOUT, OCR_TIMEOUT } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, VALIDATION_TIMEOUT, OCR_TIMEOUT, KYC_UPLOAD_TIMEOUT } from "@/lib/api/config";
 import { compressImage } from "@/lib/utils/image-utils";
 
 // Total steps in the KYC flow
@@ -715,6 +715,7 @@ export default function KYCUploadScreen() {
       const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
         method: "POST",
         body: formData as any, // React Native FormData compatible with apiRequest
+        timeout: KYC_UPLOAD_TIMEOUT, // 2 minutes for large file uploads
       });
 
       const responseData = (await response.json().catch(() => ({}))) as {
