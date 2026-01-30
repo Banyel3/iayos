@@ -15,7 +15,6 @@ from accounts.models import (
     JobApplication,
     Transaction,
     UserPaymentMethod,
-    SavedJob,
     Accounts,
 )
 import logging
@@ -46,7 +45,6 @@ def cleanup_test_data(request):
     - Job applications from test users
     - Transactions involving test users
     - Payment methods for test users
-    - Saved jobs for test users
     
     This endpoint only works on test databases (DB name contains 'test').
     Returns 403 Forbidden if called on production database.
@@ -86,31 +84,26 @@ def cleanup_test_data(request):
     deleted_counts = {}
 
     try:
-        # 1. Delete SavedJobs
-        saved_count = SavedJob.objects.filter(user_id__in=test_user_ids).delete()[0]
-        deleted_counts["saved_jobs"] = saved_count
-        logger.info(f"[TEST CLEANUP] Deleted {saved_count} saved jobs")
-
-        # 2. Delete JobApplications (as applicant or for jobs owned by test clients)
+        # 1. Delete JobApplications (as applicant or for jobs owned by test clients)
         app_count = JobApplication.objects.filter(
             workerID__in=test_user_ids
         ).delete()[0]
         deleted_counts["job_applications"] = app_count
         logger.info(f"[TEST CLEANUP] Deleted {app_count} job applications")
 
-        # 3. Delete Transactions (by test users)
+        # 2. Delete Transactions (by test users)
         txn_count = Transaction.objects.filter(user_id__in=test_user_ids).delete()[0]
         deleted_counts["transactions"] = txn_count
         logger.info(f"[TEST CLEANUP] Deleted {txn_count} transactions")
 
-        # 4. Delete PaymentMethods
+        # 3. Delete PaymentMethods
         payment_count = UserPaymentMethod.objects.filter(
             accountFK_id__in=test_user_ids
         ).delete()[0]
         deleted_counts["payment_methods"] = payment_count
         logger.info(f"[TEST CLEANUP] Deleted {payment_count} payment methods")
 
-        # 5. Delete Jobs (created by test clients)
+        # 4. Delete Jobs (created by test clients)
         job_count = Job.objects.filter(clientID__in=test_user_ids).delete()[0]
         deleted_counts["jobs"] = job_count
         logger.info(f"[TEST CLEANUP] Deleted {job_count} jobs")
