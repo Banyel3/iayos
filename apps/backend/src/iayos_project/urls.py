@@ -13,6 +13,7 @@ from agency.api import router as agency_router
 from jobs.api import router as jobs_router
 from client.api import router as client_router
 from ml.api import router as ml_router  # Machine Learning predictions
+from testing.api import router as testing_router  # E2E testing support
 
 # Import health check views
 from iayos_project.health import liveness_check, readiness_check, detailed_status
@@ -28,6 +29,7 @@ api.add_router("/agency/", agency_router)
 api.add_router("/client/", client_router)  # Client-specific endpoints (agency discovery, INVITE jobs)
 api.add_router("/jobs/", jobs_router)
 api.add_router("/ml/", ml_router)  # Machine Learning predictions
+api.add_router("/tests/", testing_router)  # E2E testing endpoints (test DB only)
 
 urlpatterns = [
     path("admin/", admin.site.urls),

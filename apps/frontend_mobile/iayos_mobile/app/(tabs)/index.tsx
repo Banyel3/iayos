@@ -525,7 +525,7 @@ export default function BrowseJobsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="home-screen">
       {/* Search Bar - Outside FlatList to prevent keyboard dismissal */}
       <View style={styles.fixedSearchContainer}>
         <SearchBar

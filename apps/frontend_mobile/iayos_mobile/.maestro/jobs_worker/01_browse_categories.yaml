@@ -50,22 +50,24 @@ tags:
 - waitForAnimationToEnd:
     timeout: 10000
 
+# Wait for navigation to complete
+- extendedWaitUntil:
+    notVisible:
+      id: "login-screen"
+    timeout: 15000
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Navigate to Jobs Tab
 # ─────────────────────────────────────────────────────────────────────────────
-- assertVisible:
-    id: "jobs-screen"
-    optional: true
-      - text: "Jobs"
-      - text: "Home"
-    timeout: 15000
-
-# Tap Jobs tab if not already there
+# Explicitly tap Jobs tab (app lands on Home by default)
 - tapOn:
     text: "Jobs"
-    optional: true
 
 - waitForAnimationToEnd
+
+# Verify we're on jobs screen
+- assertVisible:
+    id: "jobs-screen"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Verify Categories Are Displayed

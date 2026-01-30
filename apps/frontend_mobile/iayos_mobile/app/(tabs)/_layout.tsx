@@ -98,6 +98,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
+            tabBarTestID: "tab-home",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="house.fill" color={color} />
             ),
@@ -107,6 +108,7 @@ export default function TabLayout() {
           name="jobs"
           options={{
             title: "Jobs",
+            tabBarTestID: "tab-jobs",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="briefcase.fill" color={color} />
             ),
@@ -123,6 +125,7 @@ export default function TabLayout() {
           name="messages"
           options={{
             title: "Messages",
+            tabBarTestID: "tab-messages",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="message.fill" color={color} />
             ),
@@ -132,6 +135,7 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Profile",
+            tabBarTestID: "tab-profile",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="person.fill" color={color} />
             ),

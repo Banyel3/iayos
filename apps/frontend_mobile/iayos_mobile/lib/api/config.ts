@@ -29,9 +29,9 @@ const getDevIP = (): string => {
     return process.env.EXPO_PUBLIC_DEV_IP;
   }
 
-  // Priority 3: Fallback to localhost (will fail on physical devices)
-  console.warn("[API Config] Falling back to localhost - may fail on device!");
-  return "localhost";
+  // Priority 3: Fallback to production URL (safe for all environments)
+  console.warn("[API Config] No dev IP found, using production URL");
+  return PRODUCTION_API_URL.replace("https://", "").replace("http://", "");
 };
 
 const DEV_IP = getDevIP();
