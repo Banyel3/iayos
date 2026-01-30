@@ -267,15 +267,25 @@ WSGI_APPLICATION = 'iayos_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Toggle between local PostgreSQL and Neon cloud database
-USE_LOCAL_DB = os.getenv("USE_LOCAL_DB", "false").lower() == "true"
-
 # Connection pooling settings
 DB_CONN_MAX_AGE = int(os.getenv("DB_CONN_MAX_AGE", "60"))  # Persistent connections for 60 seconds
 DB_CONN_HEALTH_CHECKS = os.getenv("DB_CONN_HEALTH_CHECKS", "true").lower() == "true"
 
-if USE_LOCAL_DB:
-    # Local PostgreSQL - no SSL required, with connection pooling
+# Priority 1: Use test database if DATABASE_TEST_URL is set (for E2E tests)
+TEST_DB_URL = os.getenv("DATABASE_TEST_URL")
+if TEST_DB_URL:
+    print("🧪 Using TEST database from DATABASE_TEST_URL")
+    DATABASES = {
+        'default': dj_database_url.parse(
+            TEST_DB_URL,
+            conn_max_age=DB_CONN_MAX_AGE,
+            conn_health_checks=DB_CONN_HEALTH_CHECKS,
+            ssl_require=True,
+        )
+    }
+# Priority 2: Use local database if USE_LOCAL_DB is set
+elif os.getenv("USE_LOCAL_DB", "false").lower() == "true":
+    print("🏠 Using LOCAL database from DATABASE_URL_LOCAL")
     DATABASES = {
         'default': dj_database_url.parse(
             os.getenv("DATABASE_URL_LOCAL", "postgresql://iayos_user:iayos_local_pass@postgres:5432/iayos_db"),
@@ -284,8 +294,9 @@ if USE_LOCAL_DB:
             ssl_require=False,
         )
     }
+# Priority 3: Use production database from DATABASE_URL (default)
 else:
-    # Neon Cloud PostgreSQL - SSL required, with connection pooling
+    print("🌐 Using PRODUCTION database from DATABASE_URL")
     DATABASES = {
         'default': dj_database_url.parse(
             os.getenv("DATABASE_URL"),
