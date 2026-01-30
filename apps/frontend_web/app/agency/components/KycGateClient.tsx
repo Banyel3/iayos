@@ -86,7 +86,7 @@ export default function KycGateClient({
             </div>
 
             <div className="mt-6 flex items-center gap-3">
-              <Link href="/support">
+              <Link href="/agency/support">
                 <Button
                   variant="ghost"
                   className="text-red-700 border border-red-100"
@@ -181,7 +181,7 @@ export default function KycGateClient({
             )}
 
             <div className="mt-6 flex items-center gap-3">
-              <Link href="/support">
+              <Link href="/agency/support">
                 <Button
                   variant="ghost"
                   className="text-blue-600 agency-verified:text-blue-800 border border-blue-100 agency-verified:border-blue-200"
@@ -272,7 +272,7 @@ export default function KycGateClient({
                 Start verification
               </Button>
             </Link>
-            <Link href="/support" className="text-sm text-slate-600">
+            <Link href="/agency/support" className="text-sm text-slate-600">
               Contact support
             </Link>
           </div>
