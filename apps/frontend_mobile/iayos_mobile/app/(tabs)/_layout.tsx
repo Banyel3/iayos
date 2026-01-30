@@ -20,7 +20,7 @@ try {
       typeof useColorScheme !== "undefined" ? "defined" : "undefined",
     useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
   });
-} catch (e) {}
+} catch (e) { }
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -54,7 +54,6 @@ export default function TabLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <KYCBanner />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors.primary,
