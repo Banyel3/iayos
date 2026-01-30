@@ -318,13 +318,13 @@ export interface ClearanceExtractionResponse {
 
 /**
  * Extract ID data from uploaded image
- * Uses extended timeout (90s) since OCR processing can take 20-45 seconds
+ * Uses extended timeout (5 min) since OCR processing can take 2-4 minutes
  */
 const extractIDData = async (formData: FormData): Promise<IDExtractionResponse> => {
   const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_ID, {
     method: "POST",
     body: formData as any,
-    timeout: OCR_TIMEOUT, // 90s timeout for OCR
+    timeout: OCR_TIMEOUT, // 5 min timeout for OCR
   });
 
   const data = await response.json() as { error?: string } & IDExtractionResponse;
@@ -338,13 +338,13 @@ const extractIDData = async (formData: FormData): Promise<IDExtractionResponse> 
 
 /**
  * Extract clearance data from uploaded image
- * Uses extended timeout (90s) since OCR processing can take 20-45 seconds
+ * Uses extended timeout (5 min) since OCR processing can take 2-4 minutes
  */
 const extractClearanceData = async (formData: FormData): Promise<ClearanceExtractionResponse> => {
   const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_CLEARANCE, {
     method: "POST",
     body: formData as any,
-    timeout: OCR_TIMEOUT, // 90s timeout for OCR
+    timeout: OCR_TIMEOUT, // 5 min timeout for OCR
   });
 
   const data = await response.json() as { error?: string } & ClearanceExtractionResponse;
