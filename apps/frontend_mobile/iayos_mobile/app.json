@@ -2,7 +2,7 @@
   "expo": {
     "name": "iayos_mobile",
     "slug": "iayos_mobile",
-    "version": "1.8.3",
+    "version": "1.8.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "iayosmobile",
