@@ -114,11 +114,10 @@ export default function ReviewsPage() {
         {Array.from({ length: 5 }, (_, i) => (
           <Star
             key={i}
-            className={`h-4 w-4 ${
-              i < rating
+            className={`h-4 w-4 ${i < rating
                 ? "fill-yellow-400 text-yellow-400"
                 : "fill-gray-200 text-gray-200"
-            }`}
+              }`}
           />
         ))}
       </div>
@@ -130,15 +129,15 @@ export default function ReviewsPage() {
   const avgRating =
     reviews.length > 0
       ? (
-          reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-        ).toFixed(1)
+        reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+      ).toFixed(1)
       : "0.0";
 
   if (loading && reviews.length === 0) {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-8 pl-72">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
@@ -163,7 +162,7 @@ export default function ReviewsPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 pl-72">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">

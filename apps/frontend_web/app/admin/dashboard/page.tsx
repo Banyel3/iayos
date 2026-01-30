@@ -71,9 +71,9 @@ export default function AdminDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div>
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className="p-6 bg-gray-50 pl-72 min-h-screen">
           <div className="max-w-7xl mx-auto">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">
               Admin Dashboard
@@ -99,9 +99,9 @@ export default function AdminDashboardPage() {
 
   if (!stats) {
     return (
-      <div className="flex">
+      <div>
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className="p-6 bg-gray-50 pl-72 min-h-screen">
           <div className="max-w-7xl mx-auto">
             <p className="text-red-600">Failed to load dashboard data</p>
           </div>
@@ -110,9 +110,9 @@ export default function AdminDashboardPage() {
     );
   }
   return (
-    <div className="flex">
+    <div>
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="p-6 bg-gray-50 pl-72 min-h-screen">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-6">
@@ -217,8 +217,8 @@ export default function AdminDashboardPage() {
                 <div className="text-3xl font-bold text-purple-900">
                   {stats.total_jobs > 0
                     ? ((stats.completed_jobs / stats.total_jobs) * 100).toFixed(
-                        1,
-                      )
+                      1,
+                    )
                     : 0}
                   %
                 </div>
@@ -356,9 +356,9 @@ export default function AdminDashboardPage() {
                     <span className="text-xs text-gray-500 mt-1">
                       {stats.total_users > 0
                         ? (
-                            (stats.total_clients / stats.total_users) *
-                            100
-                          ).toFixed(1)
+                          (stats.total_clients / stats.total_users) *
+                          100
+                        ).toFixed(1)
                         : 0}
                       % of total users
                     </span>
@@ -385,9 +385,9 @@ export default function AdminDashboardPage() {
                     <span className="text-xs text-gray-500 mt-1">
                       {stats.total_users > 0
                         ? (
-                            (stats.total_workers / stats.total_users) *
-                            100
-                          ).toFixed(1)
+                          (stats.total_workers / stats.total_users) *
+                          100
+                        ).toFixed(1)
                         : 0}
                       % of total users
                     </span>
@@ -414,9 +414,9 @@ export default function AdminDashboardPage() {
                     <span className="text-xs text-gray-500 mt-1">
                       {stats.total_users > 0
                         ? (
-                            (stats.total_agencies / stats.total_users) *
-                            100
-                          ).toFixed(1)
+                          (stats.total_agencies / stats.total_users) *
+                          100
+                        ).toFixed(1)
                         : 0}
                       % of total users
                     </span>
@@ -444,9 +444,9 @@ export default function AdminDashboardPage() {
                     <span className="text-xs text-gray-500 mt-1">
                       {stats.total_users > 0
                         ? (
-                            (stats.active_users / stats.total_users) *
-                            100
-                          ).toFixed(1)
+                          (stats.active_users / stats.total_users) *
+                          100
+                        ).toFixed(1)
                         : 0}
                       % verification rate
                     </span>
@@ -542,9 +542,9 @@ export default function AdminDashboardPage() {
                   <div className="text-3xl font-bold text-blue-900">
                     {stats.total_users > 0
                       ? (
-                          (stats.active_users / stats.total_users) *
-                          100
-                        ).toFixed(1)
+                        (stats.active_users / stats.total_users) *
+                        100
+                      ).toFixed(1)
                       : 0}
                     %
                   </div>
@@ -561,9 +561,9 @@ export default function AdminDashboardPage() {
                   <div className="text-3xl font-bold text-green-900">
                     {stats.total_jobs > 0
                       ? (
-                          (stats.completed_jobs / stats.total_jobs) *
-                          100
-                        ).toFixed(1)
+                        (stats.completed_jobs / stats.total_jobs) *
+                        100
+                      ).toFixed(1)
                       : 0}
                     %
                   </div>
@@ -580,9 +580,9 @@ export default function AdminDashboardPage() {
                   <div className="text-3xl font-bold text-red-900">
                     {stats.total_jobs > 0
                       ? (
-                          (stats.cancelled_jobs / stats.total_jobs) *
-                          100
-                        ).toFixed(1)
+                        (stats.cancelled_jobs / stats.total_jobs) *
+                        100
+                      ).toFixed(1)
                       : 0}
                     %
                   </div>

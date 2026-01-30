@@ -145,11 +145,10 @@ export default function KYCStatusScreen() {
           <View style={styles.statusHeader}>
             <Ionicons
               name={statusInfo.icon as any}
-              size={48}
+              size={56}
               color={statusInfo.color}
             />
             <Text style={styles.statusTitle}>{statusInfo.label}</Text>
-            <KYCStatusBadge status={kycStatus} size="large" showIcon={false} />
           </View>
 
           <Text style={styles.statusDescription}>{statusInfo.description}</Text>
@@ -243,16 +242,6 @@ export default function KYCStatusScreen() {
             >
               Upload Documents
             </Button>
-          )}
-
-          {isPending && (
-            <View style={styles.pendingInfo}>
-              <Ionicons name="time-outline" size={20} color={Colors.warning} />
-              <Text style={styles.pendingText}>
-                Your documents are being reviewed. This usually takes 1-3
-                business days.
-              </Text>
-            </View>
           )}
 
           {isRejected && (
