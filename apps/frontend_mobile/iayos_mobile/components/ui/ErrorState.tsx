@@ -32,6 +32,7 @@ interface ErrorStateProps {
   style?: ViewStyle;
 }
 
+export default function ErrorState({
   title = 'Something went wrong',
   message,
   onRetry,
