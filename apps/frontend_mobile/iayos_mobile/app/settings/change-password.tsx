@@ -69,7 +69,12 @@ export default function ChangePasswordScreen() {
       );
 
       if (!response.ok) {
-        const error = await response.json();
+        // Check content-type before parsing JSON (handle 502/503/504 HTML responses)
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error(`Server error (${response.status}). Please try again later.`);
+        }
+        const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
         throw new Error(error.detail || 'Failed to change password');
       }
 
