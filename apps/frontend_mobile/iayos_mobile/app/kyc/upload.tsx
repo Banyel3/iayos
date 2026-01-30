@@ -40,6 +40,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS, apiRequest, VALIDATION_TIMEOUT, OCR_TIMEOUT } from "@/lib/api/config";
+import { compressImage } from "@/lib/utils/image-utils";
 
 // Total steps in the KYC flow
 const TOTAL_STEPS = 7;
@@ -184,8 +185,25 @@ export default function KYCUploadScreen() {
     type: "front" | "back" | "clearance" | "selfie",
     asset: ImagePicker.ImagePickerAsset,
   ) => {
+    // Compress image aggressively for fast upload while preserving OCR readability
+    // Target: ~1MB or less, 1600px max dimension, 0.7 quality (good balance)
+    let finalUri = asset.uri;
+    try {
+      console.log(`[KYC] Compressing ${type} image...`);
+      const compressed = await compressImage(asset.uri, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.7,
+        format: "jpeg",
+      });
+      finalUri = compressed.uri;
+      console.log(`[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
+    } catch (compressError) {
+      console.warn(`[KYC] Compression failed for ${type}, using original:`, compressError);
+    }
+
     const imageFile: ImageFile = {
-      uri: asset.uri,
+      uri: finalUri,
       name: `${type}_${Date.now()}.jpg`,
       type: "image/jpeg",
     };

@@ -84,6 +84,15 @@ if not ALLOWED_HOSTS:
         ALLOWED_HOSTS = PRODUCTION_HOSTS.copy()
 
 
+# ============================================================================
+# FILE UPLOAD LIMITS
+# ============================================================================
+# Allow up to 15MB for KYC document uploads (phone cameras produce large images)
+# This prevents ASGI streaming issues with Daphne
+DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
+
+
 # Application definition
 
 INSTALLED_APPS = [
