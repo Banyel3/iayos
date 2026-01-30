@@ -642,26 +642,36 @@ def extract_id_from_ocr(request):
     - success: bool
     - fields: dict with extracted fields (full_name, id_number, birth_date, address, sex)
     - confidence: float (0-1) overall OCR quality
+    
+    NOTE: Always returns JSON (never HTTP 500) - graceful fallback if OCR fails.
     """
+    from django.utils import timezone
+    
+    # Get id_type early for error responses
+    id_type = request.POST.get("id_type", "NATIONALID")
+    
     try:
         from .kyc_extraction_parser import get_kyc_parser
         from .document_verification_service import DocumentVerificationService
         from PIL import Image
         import io
-        from django.utils import timezone
         
         user = request.auth
         print(f"📝 [EXTRACT-ID] Starting extraction for user: {user.email}")
         
         id_front = request.FILES.get("id_front")
-        id_type = request.POST.get("id_type", "NATIONALID")
         
         if not id_front:
-            return Response({
+            return {
                 "success": False, 
+                "has_extraction": False,
                 "error": "ID front image is required",
-                "error_code": "MISSING_FILE"
-            }, status=400)
+                "error_code": "MISSING_FILE",
+                "fields": {},
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat()
+            }
         
         print(f"   📄 [EXTRACT-ID] Processing {id_type} ({id_front.size} bytes)")
         
@@ -670,11 +680,31 @@ def extract_id_from_ocr(request):
         id_bytes = id_front.read()
         
         # Initialize OCR service (skip face detection for faster extraction)
-        doc_service = DocumentVerificationService(skip_face_service=True)
-        id_img = Image.open(io.BytesIO(id_bytes))
-        ocr_result = doc_service._extract_text(id_img)
-        ocr_text = ocr_result.get("text", "")
-        ocr_confidence = ocr_result.get("confidence", 0)
+        try:
+            doc_service = DocumentVerificationService(skip_face_service=True)
+            id_img = Image.open(io.BytesIO(id_bytes))
+            ocr_result = doc_service._extract_text(id_img)
+            ocr_text = ocr_result.get("text", "")
+            ocr_confidence = ocr_result.get("confidence", 0)
+        except Exception as ocr_error:
+            print(f"   ⚠️ [EXTRACT-ID] OCR failed: {ocr_error}")
+            # Return graceful fallback - let user fill manually
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "OCR extraction temporarily unavailable. Please fill in your details manually.",
+                "fields": {
+                    "full_name": {"value": "", "confidence": 0, "editable": True},
+                    "id_number": {"value": "", "confidence": 0, "editable": True},
+                    "birth_date": {"value": "", "confidence": 0, "editable": True},
+                    "address": {"value": "", "confidence": 0, "editable": True},
+                    "sex": {"value": "", "confidence": 0, "editable": True}
+                },
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat(),
+                "ocr_error": True
+            }
         
         print(f"   🔍 [EXTRACT-ID] OCR result: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
         
@@ -683,63 +713,104 @@ def extract_id_from_ocr(request):
                 "success": True,
                 "has_extraction": False,
                 "message": "Could not extract text from image. Please ensure the ID is clear and well-lit.",
-                "fields": {},
-                "confidence": 0
+                "fields": {
+                    "full_name": {"value": "", "confidence": 0, "editable": True},
+                    "id_number": {"value": "", "confidence": 0, "editable": True},
+                    "birth_date": {"value": "", "confidence": 0, "editable": True},
+                    "address": {"value": "", "confidence": 0, "editable": True},
+                    "sex": {"value": "", "confidence": 0, "editable": True}
+                },
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat()
             }
         
         # Parse OCR text using KYC parser
-        parser = get_kyc_parser()
-        parsed_data = parser.parse_ocr_text(ocr_text, id_type.upper())
-        
-        # Return 5 key fields for user editing
-        fields = {
-            "full_name": {
-                "value": parsed_data.full_name.value or "",
-                "confidence": parsed_data.full_name.confidence,
-                "editable": True
-            },
-            "id_number": {
-                "value": parsed_data.id_number.value or "",
-                "confidence": parsed_data.id_number.confidence,
-                "editable": True
-            },
-            "birth_date": {
-                "value": parsed_data.birth_date.value or "",
-                "confidence": parsed_data.birth_date.confidence,
-                "editable": True
-            },
-            "address": {
-                "value": parsed_data.address.value or "",
-                "confidence": parsed_data.address.confidence,
-                "editable": True
-            },
-            "sex": {
-                "value": parsed_data.sex.value or "",
-                "confidence": parsed_data.sex.confidence,
-                "editable": True
+        try:
+            parser = get_kyc_parser()
+            parsed_data = parser.parse_ocr_text(ocr_text, id_type.upper())
+            
+            # Return 5 key fields for user editing
+            fields = {
+                "full_name": {
+                    "value": parsed_data.full_name.value or "",
+                    "confidence": parsed_data.full_name.confidence,
+                    "editable": True
+                },
+                "id_number": {
+                    "value": parsed_data.id_number.value or "",
+                    "confidence": parsed_data.id_number.confidence,
+                    "editable": True
+                },
+                "birth_date": {
+                    "value": parsed_data.birth_date.value or "",
+                    "confidence": parsed_data.birth_date.confidence,
+                    "editable": True
+                },
+                "address": {
+                    "value": parsed_data.address.value or "",
+                    "confidence": parsed_data.address.confidence,
+                    "editable": True
+                },
+                "sex": {
+                    "value": parsed_data.sex.value or "",
+                    "confidence": parsed_data.sex.confidence,
+                    "editable": True
+                }
             }
-        }
-        
-        print(f"✅ [EXTRACT-ID] Extracted: name='{fields['full_name']['value'][:30]}...', id={fields['id_number']['value']}")
-        
-        return {
-            "success": True,
-            "has_extraction": True,
-            "fields": fields,
-            "confidence": parsed_data.overall_confidence,
-            "id_type": id_type,
-            "extracted_at": timezone.now().isoformat()
-        }
+            
+            print(f"✅ [EXTRACT-ID] Extracted: name='{fields['full_name']['value'][:30] if fields['full_name']['value'] else ''}...', id={fields['id_number']['value']}")
+            
+            return {
+                "success": True,
+                "has_extraction": True,
+                "fields": fields,
+                "confidence": parsed_data.overall_confidence,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        except Exception as parse_error:
+            print(f"   ⚠️ [EXTRACT-ID] Parser failed: {parse_error}")
+            # Return graceful fallback with empty fields
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not parse extracted text. Please fill in your details manually.",
+                "fields": {
+                    "full_name": {"value": "", "confidence": 0, "editable": True},
+                    "id_number": {"value": "", "confidence": 0, "editable": True},
+                    "birth_date": {"value": "", "confidence": 0, "editable": True},
+                    "address": {"value": "", "confidence": 0, "editable": True},
+                    "sex": {"value": "", "confidence": 0, "editable": True}
+                },
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat(),
+                "parse_error": True
+            }
         
     except Exception as e:
         print(f"❌ [EXTRACT-ID] Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return Response({
-            "success": False, 
-            "error": "Failed to extract ID data. Please try again or fill in manually.",
-            "error_code": "EXTRACTION_FAILED"
-        }, status=500)
+        # ALWAYS return JSON - never HTTP 500
+        # This prevents Render proxy from returning HTML error pages
+        return {
+            "success": True,
+            "has_extraction": False,
+            "message": "Extraction failed. Please fill in your details manually.",
+            "fields": {
+                "full_name": {"value": "", "confidence": 0, "editable": True},
+                "id_number": {"value": "", "confidence": 0, "editable": True},
+                "birth_date": {"value": "", "confidence": 0, "editable": True},
+                "address": {"value": "", "confidence": 0, "editable": True},
+                "sex": {"value": "", "confidence": 0, "editable": True}
+            },
+            "confidence": 0,
+            "id_type": id_type,
+            "extracted_at": timezone.now().isoformat(),
+            "error": str(e)
+        }
 
 
 @router.post("/kyc/extract-clearance", auth=dual_auth)
@@ -758,26 +829,46 @@ def extract_clearance_from_ocr(request):
     - success: bool
     - fields: dict with extracted fields (clearance_number, holder_name, issue_date, validity_date, clearance_type)
     - confidence: float (0-1) overall OCR quality
+    
+    NOTE: Always returns JSON (never HTTP 500) - graceful fallback if OCR fails.
     """
+    from django.utils import timezone
+    
+    # Get clearance_type early for error responses
+    clearance_type = request.POST.get("clearance_type", "NBI")
+    
+    # Define empty fields template for fallback responses
+    def get_empty_fields():
+        return {
+            "clearance_number": {"value": "", "confidence": 0, "editable": True},
+            "holder_name": {"value": "", "confidence": 0, "editable": True},
+            "issue_date": {"value": "", "confidence": 0, "editable": True},
+            "validity_date": {"value": "", "confidence": 0, "editable": True},
+            "clearance_type": {"value": clearance_type, "confidence": 1.0, "editable": False}
+        }
+    
     try:
         from .kyc_extraction_parser import get_kyc_parser
         from .document_verification_service import DocumentVerificationService
         from PIL import Image
         import io
-        from django.utils import timezone
         
         user = request.auth
         print(f"📝 [EXTRACT-CLEARANCE] Starting extraction for user: {user.email}")
         
         clearance = request.FILES.get("clearance")
-        clearance_type = request.POST.get("clearance_type", "NBI")
         
         if not clearance:
-            return Response({
+            return {
                 "success": False, 
+                "has_extraction": False,
                 "error": "Clearance image is required",
-                "error_code": "MISSING_FILE"
-            }, status=400)
+                "error_code": "MISSING_FILE",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat()
+            }
         
         print(f"   📄 [EXTRACT-CLEARANCE] Processing {clearance_type} ({clearance.size} bytes)")
         
@@ -786,11 +877,25 @@ def extract_clearance_from_ocr(request):
         clearance_bytes = clearance.read()
         
         # Initialize OCR service
-        doc_service = DocumentVerificationService(skip_face_service=True)
-        clearance_img = Image.open(io.BytesIO(clearance_bytes))
-        ocr_result = doc_service._extract_text(clearance_img)
-        ocr_text = ocr_result.get("text", "")
-        ocr_confidence = ocr_result.get("confidence", 0)
+        try:
+            doc_service = DocumentVerificationService(skip_face_service=True)
+            clearance_img = Image.open(io.BytesIO(clearance_bytes))
+            ocr_result = doc_service._extract_text(clearance_img)
+            ocr_text = ocr_result.get("text", "")
+            ocr_confidence = ocr_result.get("confidence", 0)
+        except Exception as ocr_error:
+            print(f"   ⚠️ [EXTRACT-CLEARANCE] OCR failed: {ocr_error}")
+            # Return graceful fallback - let user fill manually
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "OCR extraction temporarily unavailable. Please fill in your details manually.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat(),
+                "ocr_error": True
+            }
         
         print(f"   🔍 [EXTRACT-CLEARANCE] OCR result: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
         
@@ -799,65 +904,88 @@ def extract_clearance_from_ocr(request):
                 "success": True,
                 "has_extraction": False,
                 "message": "Could not extract text from image. Please ensure the clearance is clear and well-lit.",
-                "fields": {},
-                "confidence": 0
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat()
             }
         
         # Parse OCR text - use clearance-specific parsing
-        parser = get_kyc_parser()
-        
-        # Extract clearance-specific fields from OCR text
-        clearance_fields = parser.parse_clearance_text(ocr_text, clearance_type.upper())
-        
-        # Return 5 key fields for user editing
-        fields = {
-            "clearance_number": {
-                "value": clearance_fields.get("clearance_number", ""),
-                "confidence": clearance_fields.get("clearance_number_confidence", 0),
-                "editable": True
-            },
-            "holder_name": {
-                "value": clearance_fields.get("holder_name", ""),
-                "confidence": clearance_fields.get("holder_name_confidence", 0),
-                "editable": True
-            },
-            "issue_date": {
-                "value": clearance_fields.get("issue_date", ""),
-                "confidence": clearance_fields.get("issue_date_confidence", 0),
-                "editable": True
-            },
-            "validity_date": {
-                "value": clearance_fields.get("validity_date", ""),
-                "confidence": clearance_fields.get("validity_date_confidence", 0),
-                "editable": True
-            },
-            "clearance_type": {
-                "value": clearance_type,
-                "confidence": 1.0,  # User selected, so 100% confident
-                "editable": False
+        try:
+            parser = get_kyc_parser()
+            
+            # Extract clearance-specific fields from OCR text
+            clearance_fields = parser.parse_clearance_text(ocr_text, clearance_type.upper())
+            
+            # Return 5 key fields for user editing
+            fields = {
+                "clearance_number": {
+                    "value": clearance_fields.get("clearance_number", ""),
+                    "confidence": clearance_fields.get("clearance_number_confidence", 0),
+                    "editable": True
+                },
+                "holder_name": {
+                    "value": clearance_fields.get("holder_name", ""),
+                    "confidence": clearance_fields.get("holder_name_confidence", 0),
+                    "editable": True
+                },
+                "issue_date": {
+                    "value": clearance_fields.get("issue_date", ""),
+                    "confidence": clearance_fields.get("issue_date_confidence", 0),
+                    "editable": True
+                },
+                "validity_date": {
+                    "value": clearance_fields.get("validity_date", ""),
+                    "confidence": clearance_fields.get("validity_date_confidence", 0),
+                    "editable": True
+                },
+                "clearance_type": {
+                    "value": clearance_type,
+                    "confidence": 1.0,  # User selected, so 100% confident
+                    "editable": False
+                }
             }
-        }
-        
-        print(f"✅ [EXTRACT-CLEARANCE] Extracted: name='{fields['holder_name']['value']}', number={fields['clearance_number']['value']}")
-        
-        return {
-            "success": True,
-            "has_extraction": True,
-            "fields": fields,
-            "confidence": clearance_fields.get("overall_confidence", 0),
-            "clearance_type": clearance_type,
-            "extracted_at": timezone.now().isoformat()
-        }
+            
+            print(f"✅ [EXTRACT-CLEARANCE] Extracted: name='{fields['holder_name']['value']}', number={fields['clearance_number']['value']}")
+            
+            return {
+                "success": True,
+                "has_extraction": True,
+                "fields": fields,
+                "confidence": clearance_fields.get("overall_confidence", 0),
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        except Exception as parse_error:
+            print(f"   ⚠️ [EXTRACT-CLEARANCE] Parser failed: {parse_error}")
+            # Return graceful fallback with empty fields
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not parse extracted text. Please fill in your details manually.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat(),
+                "parse_error": True
+            }
         
     except Exception as e:
         print(f"❌ [EXTRACT-CLEARANCE] Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return Response({
-            "success": False, 
-            "error": "Failed to extract clearance data. Please try again or fill in manually.",
-            "error_code": "EXTRACTION_FAILED"
-        }, status=500)
+        # ALWAYS return JSON - never HTTP 500
+        # This prevents Render proxy from returning HTML error pages
+        return {
+            "success": True,
+            "has_extraction": False,
+            "message": "Extraction failed. Please fill in your details manually.",
+            "fields": get_empty_fields(),
+            "confidence": 0,
+            "clearance_type": clearance_type,
+            "extracted_at": timezone.now().isoformat(),
+            "error": str(e)
+        }
 
 
 # =============================================================================
