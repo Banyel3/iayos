@@ -742,10 +742,15 @@ class DocumentVerificationService:
         # Simple Laplacian kernel
         kernel = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=np.float32)
         
-        # Apply convolution manually (avoiding scipy dependency)
-        from scipy.ndimage import convolve
-        laplacian = convolve(gray_image.astype(np.float32), kernel)
-        return float(np.var(laplacian))
+        # Try scipy for convolution, fallback to numpy if not available
+        try:
+            from scipy.ndimage import convolve
+            laplacian = convolve(gray_image.astype(np.float32), kernel)
+            return float(np.var(laplacian))
+        except ImportError:
+            logger.warning("scipy not available, using numpy fallback for blur detection")
+            # Simple numpy-only variance (less accurate but works)
+            return float(np.var(gray_image.astype(np.float32)))
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
@@ -856,76 +861,6 @@ class DocumentVerificationService:
                 "error": str(e)
             }
 
-    def _extract_face_embedding(self, image_data: bytes) -> Dict[str, Any]:
-        """
-        Extract face embedding from image using CompreFace recognition API
-        
-        Returns dict with:
-            - success: bool
-            - embedding: list of floats (face vector)
-            - box: face bounding box
-            - confidence: detection confidence
-        """
-        if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping embedding extraction")
-            return {
-                "success": False,
-                "embedding": None,
-                "error": "CompreFace service not available"
-            }
-        
-        try:
-            headers = {"x-api-key": self.compreface_api_key}
-            files = {"file": ("image.jpg", image_data, "image/jpeg")}
-            
-            # Use detection endpoint (Detection service API)
-            # Detection API: /api/v1/detection/detect
-            response = httpx.post(
-                f"{self.compreface_url}/api/v1/detection/detect",
-                headers=headers,
-                files=files,
-                params={"limit": 1, "det_prob_threshold": 0.5},
-                timeout=30.0
-            )
-            
-            if response.status_code != 200:
-                logger.warning(f"CompreFace embedding API returned {response.status_code}: {response.text}")
-                return {
-                    "success": False,
-                    "embedding": None,
-                    "error": f"API error: {response.status_code}"
-                }
-            
-            result = response.json()
-            faces = result.get("result", [])
-            
-            if not faces:
-                return {
-                    "success": False,
-                    "embedding": None,
-                    "error": "No face found for embedding"
-                }
-            
-            # Get the first (largest/most prominent) face
-            face = faces[0]
-            embedding = face.get("embedding", [])
-            box = face.get("box", {})
-            
-            return {
-                "success": True,
-                "embedding": embedding,
-                "box": box,
-                "confidence": box.get("probability", 0)
-            }
-            
-        except Exception as e:
-            logger.error(f"Face embedding extraction error: {e}", exc_info=True)
-            return {
-                "success": False,
-                "embedding": None,
-                "error": str(e)
-            }
-
     def compare_faces(
         self, 
         id_image_data: bytes, 
@@ -949,12 +884,13 @@ class DocumentVerificationService:
         """
         logger.info("🔍 Checking for faces in ID and selfie images...")
         
-        if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping face detection")
+        # Skip face detection if service is disabled
+        if self.skip_face_service:
+            logger.warning("Face detection disabled, skipping face comparison")
             return {
                 "faces_detected": None,
                 "skipped": True,
-                "reason": "CompreFace service not available - manual verification required"
+                "reason": "Face detection disabled - manual verification required"
             }
         
         try:
