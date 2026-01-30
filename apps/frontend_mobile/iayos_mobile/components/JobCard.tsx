@@ -19,7 +19,6 @@ import {
   Animated,
   Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -122,104 +121,52 @@ export default function JobCard({
         activeOpacity={1}
         style={styles.card}
       >
-        {/* Left Side - Job Info */}
-        <View style={styles.leftSection}>
-          {/* Category Badge with Icon */}
-          {category && (
-            <View style={styles.categoryRow}>
-              <View style={styles.categoryBadge}>
-                <Ionicons name="briefcase" size={11} color={Colors.primary} />
-                <Text style={styles.categoryText}>{category}</Text>
-              </View>
+        {/* Job Title */}
+        <Text style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* Location/Distance and Budget Row */}
+        <View style={styles.infoRow}>
+          <View style={styles.locationSection}>
+            <View style={styles.locationRow}>
+              <Ionicons
+                name="location-outline"
+                size={18}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {location || "Location not specified"}
+              </Text>
             </View>
-          )}
-
-          {/* Title with bold modern typography */}
-          <Text style={styles.title} numberOfLines={2}>
-            {title}
-          </Text>
-
-          {/* Location & Time Row with Icons */}
-          <View style={styles.metaRow}>
-            {location && (
-              <View style={styles.metaItem}>
-                <Ionicons
-                  name="location"
-                  size={13}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {location}
-                  {distance !== undefined && distance !== null && (
-                    <Text style={styles.distanceText}>
-                      {" "}
-                      • {distance.toFixed(1)} km
-                    </Text>
-                  )}
-                </Text>
-              </View>
-            )}
-            {postedAt && (
-              <View style={styles.metaItem}>
-                <Ionicons
-                  name="time-outline"
-                  size={13}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.metaText}>
-                  {formatPostedDate(postedAt)}
-                </Text>
-              </View>
+            {distance !== undefined && distance !== null && (
+              <Text style={styles.distanceText}>
+                {distance.toFixed(1)} km away
+              </Text>
             )}
           </View>
 
-          {/* Application Count Badge */}
-          {typeof applicationCount === "number" && applicationCount > 0 && (
-            <View style={styles.applicationBadgeRow}>
-              <Ionicons name="people" size={13} color={Colors.primary} />
-              <Text style={styles.applicationText}>
-                {applicationCount}{" "}
-                {applicationCount === 1 ? "applicant" : "applicants"}
-              </Text>
-            </View>
-          )}
-
-          {/* Team Job Badge */}
-          {isTeamJob && (
-            <View style={styles.teamJobBadgeRow}>
-              <View style={styles.teamJobBadge}>
-                <Ionicons name="people-circle" size={14} color={Colors.white} />
-                <Text style={styles.teamJobBadgeText}>Team Job</Text>
-              </View>
-              <View style={styles.teamJobProgress}>
-                <View style={styles.teamJobProgressBar}>
-                  <View
-                    style={[
-                      styles.teamJobProgressFill,
-                      { width: `${teamFillPercentage || 0}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.teamJobProgressText}>
-                  {totalWorkersAssigned || 0}/{totalWorkersNeeded || 0} workers
-                </Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Right Side - Budget with Gradient */}
-        <View style={styles.rightSection}>
-          <LinearGradient
-            colors={[Colors.primary, Colors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.budgetGradient}
-          >
+          <View style={styles.budgetSection}>
             <Text style={styles.budgetLabel}>BUDGET</Text>
             <Text style={styles.budgetAmount}>{formatBudget(budget)}</Text>
-          </LinearGradient>
+          </View>
         </View>
+
+        {/* Team Job Badge and Progress - Only for team jobs */}
+        {isTeamJob && (
+          <View style={styles.teamJobFooter}>
+            <View style={styles.teamJobBadge}>
+              <Ionicons name="people" size={16} color={Colors.primary} />
+              <Text style={styles.teamJobBadgeText}>TEAM JOB</Text>
+            </View>
+            <Text style={styles.teamJobProgressText}>
+              {totalWorkersAssigned || 0} of {totalWorkersNeeded || 0} spots filled
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -229,11 +176,9 @@ const styles = StyleSheet.create({
   cardWrapper: {},
 
   card: {
-    flexDirection: "row",
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    borderRadius: 24,
+    padding: 20,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -246,142 +191,84 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  leftSection: {
-    flex: 1,
-    gap: Spacing.xs,
-  },
-  categoryRow: {
-    flexDirection: "row",
-  },
-  categoryBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.pill,
-    gap: 4,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.primary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
   title: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
+    fontSize: 24,
+    fontWeight: "800",
     color: Colors.textPrimary,
-    lineHeight: 24,
-    marginTop: 2,
+    marginBottom: 16,
+    lineHeight: 30,
   },
-  metaRow: {
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginBottom: 16,
+  },
+  infoRow: {
     flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: 2,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
-  metaItem: {
+  locationSection: {
+    flex: 1,
+    marginRight: 16,
+  },
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    flex: 1,
+    marginBottom: 4,
   },
-  metaText: {
-    fontSize: Typography.fontSize.xs,
+  locationText: {
+    fontSize: 16,
     color: Colors.textSecondary,
-    fontWeight: Typography.fontWeight.medium,
     flex: 1,
+    marginLeft: 4,
   },
   distanceText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.primary,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginLeft: 22, // Align with location text (icon width + gap)
   },
-  applicationBadgeRow: {
+  budgetSection: {
+    alignItems: "flex-end",
+  },
+  budgetLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  budgetAmount: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  teamJobFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    marginTop: Spacing.xs,
-  },
-  applicationText: {
-    fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.semiBold,
-    color: Colors.primary,
-  },
-  // Team Job Styles
-  teamJobBadgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.xs,
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   teamJobBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.pill,
-    gap: 4,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   teamJobBadgeText: {
-    fontSize: 10,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  teamJobProgress: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  teamJobProgressBar: {
-    flex: 1,
-    height: 6,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  teamJobProgressFill: {
-    height: "100%",
-    backgroundColor: Colors.success,
-    borderRadius: 3,
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.primary,
+    letterSpacing: 0.5,
+    marginLeft: 6,
   },
   teamJobProgressText: {
-    fontSize: 10,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontSize: 14,
     color: Colors.textSecondary,
-    minWidth: 55,
-  },
-  rightSection: {
-    minWidth: 95,
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  budgetGradient: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 72,
-    minWidth: 95,
-  },
-  budgetLabel: {
-    fontSize: 9,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
-    opacity: 0.85,
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  budgetAmount: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
   },
 });

@@ -63,14 +63,12 @@ export default function TabLayout() {
           tabBarStyle: {
             position: "absolute",
             bottom: 25,
-            left: 20,
-            right: 20,
-            backgroundColor:
-              Platform.OS === "ios" ? "rgba(255, 255, 255, 0.9)" : Colors.white,
+            marginHorizontal: 14,
+            backgroundColor: Colors.white,
             borderRadius: 25,
             borderTopWidth: 0,
-            paddingTop: 12,
-            paddingBottom: Platform.OS === "ios" ? 20 : 12,
+            paddingTop: 8,
+            paddingBottom: Platform.OS === "ios" ? 16 : 8,
             height: Platform.OS === "ios" ? 85 : 70,
             elevation: 20,
             shadowColor: Colors.black,
@@ -83,13 +81,13 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: "600",
-            marginTop: 4,
-          },
-          tabBarIconStyle: {
             marginTop: 2,
           },
+          tabBarIconStyle: {
+            marginTop: 0,
+          },
           tabBarItemStyle: {
-            paddingVertical: 8,
+            paddingVertical: 4,
           },
         }}
       >

@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   connectionBannerError: {
-    backgroundColor: Colors.error,
+    backgroundColor: Colors.textSecondary,
   },
   connectionText: {
     ...Typography.caption,

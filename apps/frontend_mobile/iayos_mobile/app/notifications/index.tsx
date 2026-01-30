@@ -10,11 +10,11 @@ import {
   FlatList,
   RefreshControl,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import {
   Text,
   Appbar,
-  SegmentedButtons,
   FAB,
   Portal,
   Dialog,
@@ -218,27 +218,40 @@ export default function NotificationsScreen() {
 
         {/* Filter Tabs */}
         <View style={styles.filterContainer}>
-          <SegmentedButtons
-            value={filter}
-            onValueChange={(value) => setFilter(value as "all" | "unread")}
-            style={styles.segmentedButtons}
-            theme={{
-              colors: {
-                secondaryContainer: Colors.primary,
-                onSecondaryContainer: Colors.white,
-              },
-            }}
-            buttons={[
-              {
-                value: "all",
-                label: `All (${notifications?.length || 0})`,
-              },
-              {
-                value: "unread",
-                label: `Unread (${unreadCount})`,
-              },
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              filter === "all" && styles.tabButtonActive,
             ]}
-          />
+            onPress={() => setFilter("all")}
+          >
+            <Text
+              style={[
+                styles.tabButtonText,
+                filter === "all" && styles.tabButtonTextActive,
+              ]}
+            >
+              All ({notifications?.length || 0})
+            </Text>
+            {filter === "all" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              filter === "unread" && styles.tabButtonActive,
+            ]}
+            onPress={() => setFilter("unread")}
+          >
+            <Text
+              style={[
+                styles.tabButtonText,
+                filter === "unread" && styles.tabButtonTextActive,
+              ]}
+            >
+              Unread ({unreadCount})
+            </Text>
+            {filter === "unread" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
         </View>
 
         {/* Notifications List */}
@@ -327,20 +340,45 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   headerTitle: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     color: Colors.textPrimary,
     flex: 1,
     textAlign: "center",
     fontWeight: "600",
   },
   filterContainer: {
+    flexDirection: "row",
+    gap: Spacing.md,
     padding: Spacing.md,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  segmentedButtons: {
-    backgroundColor: Colors.backgroundSecondary,
+  tabButton: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabButtonActive: {
+    // Active state - no additional styling needed, text color handles it
+  },
+  tabButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: `${Colors.primary}99`, // 60% opacity (99 in hex = 60%)
+  },
+  tabButtonTextActive: {
+    color: Colors.primary, // Full blue
+  },
+  tabIndicator: {
+    position: "absolute",
+    bottom: -Spacing.md,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: Colors.primary,
   },
   listContent: {
     paddingVertical: Spacing.sm,
