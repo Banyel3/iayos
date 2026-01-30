@@ -14,9 +14,6 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-    // Newer versions of Expo expect these fields as well
-    shouldShowBanner: true,
-    shouldShowList: true,
   }),
 });
 
@@ -81,7 +78,7 @@ export class NotificationService {
 
       if (!projectId) {
         console.warn(
-          "No Expo projectId found in manifest. Skipping push token request."
+          "No Expo projectId found in manifest. Skipping push token request.",
         );
         return null;
       }
@@ -167,7 +164,7 @@ export class NotificationService {
    * Add notification received listener
    */
   static addNotificationReceivedListener(
-    callback: (notification: Notifications.Notification) => void
+    callback: (notification: Notifications.Notification) => void,
   ): Notifications.Subscription {
     return Notifications.addNotificationReceivedListener(callback);
   }
@@ -176,7 +173,7 @@ export class NotificationService {
    * Add notification response listener (when user taps notification)
    */
   static addNotificationResponseReceivedListener(
-    callback: (response: Notifications.NotificationResponse) => void
+    callback: (response: Notifications.NotificationResponse) => void,
   ): Notifications.Subscription {
     return Notifications.addNotificationResponseReceivedListener(callback);
   }
@@ -188,7 +185,7 @@ export class NotificationService {
     title: string,
     body: string,
     data?: any,
-    channelId: string = "default"
+    channelId: string = "default",
   ) {
     await Notifications.scheduleNotificationAsync({
       content: {

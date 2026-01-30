@@ -224,6 +224,16 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
+      - name: Run Expo Doctor
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          echo "🩺 Running Expo Doctor to validate project configuration..."
+          npx expo-doctor || {
+            echo "❌ Expo Doctor failed! Fix configuration issues before building."
+            exit 1
+          }
+
       # ============================================
       # EAS CLOUD BUILD (Managed Environment - STABLE)
       # ============================================

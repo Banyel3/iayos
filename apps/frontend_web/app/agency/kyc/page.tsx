@@ -818,21 +818,20 @@ const AgencyKYCPage = () => {
   const handleResubmit = async () => {
     // First, delete old files from backend (Supabase + DB)
     setIsDeletingFiles(true);
-    
+
     try {
       const response = await fetch(`${API_BASE}/api/agency/kyc/files`, {
         method: "DELETE",
         credentials: "include",
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || "Failed to delete old files");
       }
-      
+
       console.log("🗑️ Old KYC files deleted:", data);
-      
     } catch (error) {
       console.error("Error deleting old files:", error);
       showToast({
@@ -843,9 +842,9 @@ const AgencyKYCPage = () => {
       setIsDeletingFiles(false);
       return;
     }
-    
+
     setIsDeletingFiles(false);
-    
+
     // Clear ALL local state for a fresh resubmission
 
     // Clear KYC status
@@ -1069,7 +1068,9 @@ const AgencyKYCPage = () => {
               {isValidatingPermit ? (
                 <div className="flex flex-col items-center">
                   <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                  <p className="text-sm text-blue-600">Processing document...</p>
+                  <p className="text-sm text-blue-600">
+                    Processing document...
+                  </p>
                 </div>
               ) : permitPreview ? (
                 <div className="relative">

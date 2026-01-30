@@ -39,7 +39,13 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS, apiRequest, VALIDATION_TIMEOUT, OCR_TIMEOUT, KYC_UPLOAD_TIMEOUT } from "@/lib/api/config";
+import {
+  ENDPOINTS,
+  apiRequest,
+  VALIDATION_TIMEOUT,
+  OCR_TIMEOUT,
+  KYC_UPLOAD_TIMEOUT,
+} from "@/lib/api/config";
 import { compressImage } from "@/lib/utils/image-utils";
 
 // Total steps in the KYC flow
@@ -99,32 +105,40 @@ export default function KYCUploadScreen() {
   const extractClearanceMutation = useExtractClearance();
 
   // ID extraction data and editable values
-  const [idExtractionData, setIdExtractionData] = useState<IDExtractionResponse | null>(null);
+  const [idExtractionData, setIdExtractionData] =
+    useState<IDExtractionResponse | null>(null);
   const [idFormValues, setIdFormValues] = useState<Record<string, string>>({});
 
   // Clearance extraction data and editable values
-  const [clearanceExtractionData, setClearanceExtractionData] = useState<ClearanceExtractionResponse | null>(null);
-  const [clearanceFormValues, setClearanceFormValues] = useState<Record<string, string>>({});
+  const [clearanceExtractionData, setClearanceExtractionData] =
+    useState<ClearanceExtractionResponse | null>(null);
+  const [clearanceFormValues, setClearanceFormValues] = useState<
+    Record<string, string>
+  >({});
 
   // Track if extraction is happening
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Per-document validation states (validate on upload like agency KYC)
   // This spreads memory usage over time instead of batching all validations on "Next"
   const [isValidatingFrontID, setIsValidatingFrontID] = useState(false);
   const [isValidatingBackID, setIsValidatingBackID] = useState(false);
   const [isValidatingClearance, setIsValidatingClearance] = useState(false);
   const [isValidatingSelfie, setIsValidatingSelfie] = useState(false);
-  
+
   // Per-document error states for UI feedback
   const [frontIDError, setFrontIDError] = useState<string | null>(null);
   const [backIDError, setBackIDError] = useState<string | null>(null);
   const [clearanceError, setClearanceError] = useState<string | null>(null);
   const [selfieError, setSelfieError] = useState<string | null>(null);
-  
+
   // Computed: is ANY validation in progress?
-  const isValidating = isValidatingFrontID || isValidatingBackID || isValidatingClearance || isValidatingSelfie;
+  const isValidating =
+    isValidatingFrontID ||
+    isValidatingBackID ||
+    isValidatingClearance ||
+    isValidatingSelfie;
 
   // Redirect if KYC already submitted and pending (not rejected)
   useEffect(() => {
@@ -197,9 +211,14 @@ export default function KYCUploadScreen() {
         format: "jpeg",
       });
       finalUri = compressed.uri;
-      console.log(`[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
+      console.log(
+        `[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`,
+      );
     } catch (compressError) {
-      console.warn(`[KYC] Compression failed for ${type}, using original:`, compressError);
+      console.warn(
+        `[KYC] Compression failed for ${type}, using original:`,
+        compressError,
+      );
     }
 
     const imageFile: ImageFile = {
@@ -247,26 +266,26 @@ export default function KYCUploadScreen() {
     // 2. Validate immediately (like agency KYC pattern)
     // This prevents 502/503 errors from batch validation by spreading load
     config.setValidating(true);
-    
+
     try {
       const result = await validateDocument(imageFile, config.docType);
-      
+
       if (!result.valid) {
         // Validation failed - clear file and show error
         config.setFile(null);
         config.setError(result.error || "Validation failed");
-        
+
         // Show alert with retry option
         Alert.alert(
           `${config.label} Issue`,
           result.error || "Please try again with a clearer image",
           [
             { text: "Cancel", style: "cancel" },
-            { 
-              text: "Retry", 
+            {
+              text: "Retry",
               onPress: () => pickImage(type),
             },
-          ]
+          ],
         );
       }
       // If valid, file is already set from step 1
@@ -274,17 +293,17 @@ export default function KYCUploadScreen() {
       console.error(`[KYC] ${config.label} validation error:`, error);
       config.setFile(null);
       config.setError("Validation failed. Please try again.");
-      
+
       Alert.alert(
         "Validation Error",
         "Failed to validate your document. Please check your connection and try again.",
         [
           { text: "Cancel", style: "cancel" },
-          { 
-            text: "Retry", 
+          {
+            text: "Retry",
             onPress: () => pickImage(type),
           },
-        ]
+        ],
       );
     } finally {
       config.setValidating(false);
@@ -307,8 +326,10 @@ export default function KYCUploadScreen() {
 
       // Log the endpoint URL for debugging
       const endpointUrl = ENDPOINTS.KYC_VALIDATE_DOCUMENT;
-      console.log(`[KYC Validate] Validating ${documentType} at: ${endpointUrl}`);
-      
+      console.log(
+        `[KYC Validate] Validating ${documentType} at: ${endpointUrl}`,
+      );
+
       // Use apiRequest instead of raw fetch for better error handling and auto-auth
       // Use VALIDATION_TIMEOUT (30s) instead of OCR_TIMEOUT (5min) - validation doesn't do OCR
       const response = await apiRequest(endpointUrl, {
@@ -322,19 +343,23 @@ export default function KYCUploadScreen() {
       // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        console.error(`[KYC Validate] Non-JSON response (${response.status}): ${contentType}`);
+        console.error(
+          `[KYC Validate] Non-JSON response (${response.status}): ${contentType}`,
+        );
         console.error(`[KYC Validate] Endpoint was: ${endpointUrl}`);
         // Provide user-friendly messages for common gateway errors
         if (response.status === 502) {
           return {
             valid: false,
-            error: "Cannot reach server. Please check your connection and try again.",
+            error:
+              "Cannot reach server. Please check your connection and try again.",
           };
         }
         if (response.status === 503) {
           return {
             valid: false,
-            error: "Service is temporarily unavailable. Please try again later.",
+            error:
+              "Service is temporarily unavailable. Please try again later.",
           };
         }
         if (response.status === 504) {
@@ -351,7 +376,9 @@ export default function KYCUploadScreen() {
 
       // Handle 403 Forbidden specifically
       if (response.status === 403) {
-        console.error("[KYC Validate] 403 Forbidden - token may be expired or invalid");
+        console.error(
+          "[KYC Validate] 403 Forbidden - token may be expired or invalid",
+        );
         return {
           valid: false,
           error: "Session expired. Please log in again to continue.",
@@ -361,10 +388,16 @@ export default function KYCUploadScreen() {
       // Check if response is OK before parsing JSON
       if (!response.ok) {
         try {
-          const errorData = await response.json() as { error?: string };
-          return { valid: false, error: errorData.error || "Validation failed" };
+          const errorData = (await response.json()) as { error?: string };
+          return {
+            valid: false,
+            error: errorData.error || "Validation failed",
+          };
         } catch {
-          return { valid: false, error: `Server error (${response.status}). Please try again.` };
+          return {
+            valid: false,
+            error: `Server error (${response.status}). Please try again.`,
+          };
         }
       }
 
@@ -376,7 +409,10 @@ export default function KYCUploadScreen() {
         };
         return { valid: data.valid, error: data.error };
       } catch (parseError) {
-        console.error("[KYC Validate] Failed to parse JSON response:", parseError);
+        console.error(
+          "[KYC Validate] Failed to parse JSON response:",
+          parseError,
+        );
         return {
           valid: false,
           error: "Invalid server response. Please try again.",
@@ -389,7 +425,8 @@ export default function KYCUploadScreen() {
         if (error.name === "AbortError" || error.message.includes("aborted")) {
           return {
             valid: false,
-            error: "Request timed out. Please check your connection and try again.",
+            error:
+              "Request timed out. Please check your connection and try again.",
           };
         }
         if (error.message.includes("Network request failed")) {
@@ -415,7 +452,7 @@ export default function KYCUploadScreen() {
     // Step 5: Verify/Edit Clearance Information (OCR extracted)
     // Step 6: Take Selfie - validation now happens on upload
     // Step 7: Review & Submit
-    
+
     // NOTE: Document validation is now done inline when each image is captured.
     // This reduces memory pressure by spreading validation over time instead of batching.
     // handleNext now just checks files exist and runs OCR extraction.
@@ -432,7 +469,7 @@ export default function KYCUploadScreen() {
         Alert.alert("Required", "Please capture both sides of your ID");
         return;
       }
-      
+
       // Check for validation errors
       if (frontIDError) {
         Alert.alert("Front ID Issue", frontIDError);
@@ -445,7 +482,7 @@ export default function KYCUploadScreen() {
 
       // ===== OCR EXTRACTION: Extract ID data (no re-validation needed) =====
       setIsExtracting(true);
-      
+
       try {
         const idFormData = new FormData();
         idFormData.append("id_front", {
@@ -454,11 +491,11 @@ export default function KYCUploadScreen() {
           type: frontIDFile.type,
         } as any);
         idFormData.append("id_type", selectedIDType);
-        
+
         const extractResult = await extractIDMutation.mutateAsync(idFormData);
-        
+
         setIdExtractionData(extractResult);
-        
+
         // Initialize form values from extraction
         if (extractResult.has_extraction && extractResult.fields) {
           const initialValues: Record<string, string> = {};
@@ -484,7 +521,7 @@ export default function KYCUploadScreen() {
         Alert.alert(
           "Auto-Fill Unavailable",
           "We couldn't automatically extract your ID details. Please enter the information manually on the next screen.",
-          [{ text: "OK", style: "default" }]
+          [{ text: "OK", style: "default" }],
         );
         setIdExtractionData(null);
         setIdFormValues({
@@ -497,7 +534,7 @@ export default function KYCUploadScreen() {
       } finally {
         setIsExtracting(false);
       }
-      
+
       // Proceed to Step 3 (ID verification)
       setCurrentStep(3);
       return;
@@ -506,7 +543,10 @@ export default function KYCUploadScreen() {
     // Step 3: ID verification - just check form values exist
     if (currentStep === 3) {
       if (!idFormValues.full_name?.trim() || !idFormValues.id_number?.trim()) {
-        Alert.alert("Required", "Please fill in at least your full name and ID number");
+        Alert.alert(
+          "Required",
+          "Please fill in at least your full name and ID number",
+        );
         return;
       }
       // Proceed to step 4
@@ -517,10 +557,13 @@ export default function KYCUploadScreen() {
     // Step 4: Clearance type + upload - check file exists (already validated on capture)
     if (currentStep === 4) {
       if (!selectedClearanceType || !clearanceFile) {
-        Alert.alert("Required", "Please select clearance type and upload the document");
+        Alert.alert(
+          "Required",
+          "Please select clearance type and upload the document",
+        );
         return;
       }
-      
+
       // Check for validation error
       if (clearanceError) {
         Alert.alert("Clearance Issue", clearanceError);
@@ -529,7 +572,7 @@ export default function KYCUploadScreen() {
 
       // ===== OCR EXTRACTION: Extract clearance data (no re-validation needed) =====
       setIsExtracting(true);
-      
+
       try {
         const clearanceFormData = new FormData();
         clearanceFormData.append("clearance", {
@@ -538,11 +581,12 @@ export default function KYCUploadScreen() {
           type: clearanceFile.type,
         } as any);
         clearanceFormData.append("clearance_type", selectedClearanceType);
-        
-        const extractResult = await extractClearanceMutation.mutateAsync(clearanceFormData);
-        
+
+        const extractResult =
+          await extractClearanceMutation.mutateAsync(clearanceFormData);
+
         setClearanceExtractionData(extractResult);
-        
+
         // Initialize form values from extraction
         if (extractResult.has_extraction && extractResult.fields) {
           const initialValues: Record<string, string> = {};
@@ -570,7 +614,7 @@ export default function KYCUploadScreen() {
         Alert.alert(
           "Auto-Fill Unavailable",
           "We couldn't automatically extract your clearance details. Please enter the information manually on the next screen.",
-          [{ text: "OK", style: "default" }]
+          [{ text: "OK", style: "default" }],
         );
         setClearanceExtractionData(null);
         setClearanceFormValues({
@@ -583,7 +627,7 @@ export default function KYCUploadScreen() {
       } finally {
         setIsExtracting(false);
       }
-      
+
       // Proceed to Step 5 (Clearance verification)
       setCurrentStep(5);
       return;
@@ -606,13 +650,13 @@ export default function KYCUploadScreen() {
         Alert.alert("Required", "Please take a selfie");
         return;
       }
-      
+
       // Check for validation error
       if (selfieError) {
         Alert.alert("Selfie Issue", selfieError);
         return;
       }
-      
+
       // Proceed to Step 7 (Review & Submit) - no re-validation needed
       setCurrentStep(7);
       return;
@@ -652,7 +696,7 @@ export default function KYCUploadScreen() {
 
   // Handle field value changes in ID form
   const handleIdFieldChange = (fieldName: string, value: string) => {
-    setIdFormValues(prev => ({
+    setIdFormValues((prev) => ({
       ...prev,
       [fieldName]: value,
     }));
@@ -660,7 +704,7 @@ export default function KYCUploadScreen() {
 
   // Handle field value changes in Clearance form
   const handleClearanceFieldChange = (fieldName: string, value: string) => {
-    setClearanceFormValues(prev => ({
+    setClearanceFormValues((prev) => ({
       ...prev,
       [fieldName]: value,
     }));
@@ -709,7 +753,10 @@ export default function KYCUploadScreen() {
 
       // Include extracted/edited clearance fields
       if (Object.keys(clearanceFormValues).length > 0) {
-        formData.append("extracted_clearance_data", JSON.stringify(clearanceFormValues));
+        formData.append(
+          "extracted_clearance_data",
+          JSON.stringify(clearanceFormValues),
+        );
       }
 
       const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
@@ -773,7 +820,9 @@ export default function KYCUploadScreen() {
       console.error("KYC upload error:", error);
       Alert.alert(
         "Upload Failed",
-        error instanceof Error ? error.message : "Failed to upload. Please check your connection and try again.",
+        error instanceof Error
+          ? error.message
+          : "Failed to upload. Please check your connection and try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -854,7 +903,8 @@ export default function KYCUploadScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.title}>Upload ID Photos</Text>
       <Text style={styles.description}>
-        Take clear photos of front and back. Each photo is validated automatically.
+        Take clear photos of front and back. Each photo is validated
+        automatically.
       </Text>
 
       <View style={styles.uploadSection}>
@@ -881,7 +931,11 @@ export default function KYCUploadScreen() {
               />
               {!frontIDError && (
                 <View style={styles.uploadSuccessBadge}>
-                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
+                  />
                 </View>
               )}
             </>
@@ -925,7 +979,11 @@ export default function KYCUploadScreen() {
               />
               {!backIDError && (
                 <View style={styles.uploadSuccessBadge}>
-                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
+                  />
                 </View>
               )}
             </>
@@ -952,15 +1010,19 @@ export default function KYCUploadScreen() {
     <View style={styles.stepContent}>
       <KYCExtractionForm
         title="Verify ID Information"
-        subtitle={idExtractionData?.has_extraction 
-          ? "Review and edit the extracted details"
-          : "Please enter your ID details manually"}
+        subtitle={
+          idExtractionData?.has_extraction
+            ? "Review and edit the extracted details"
+            : "Please enter your ID details manually"
+        }
         documentType="id"
         fields={idExtractionData?.fields || {}}
         values={idFormValues}
         onFieldChange={handleIdFieldChange}
         isLoading={isExtracting}
-        error={extractIDMutation.error ? String(extractIDMutation.error) : undefined}
+        error={
+          extractIDMutation.error ? String(extractIDMutation.error) : undefined
+        }
       />
     </View>
   );
@@ -1031,7 +1093,11 @@ export default function KYCUploadScreen() {
               />
               {!clearanceError && (
                 <View style={styles.uploadSuccessBadge}>
-                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
+                  />
                 </View>
               )}
             </>
@@ -1058,15 +1124,21 @@ export default function KYCUploadScreen() {
     <View style={styles.stepContent}>
       <KYCExtractionForm
         title="Verify Clearance Information"
-        subtitle={clearanceExtractionData?.has_extraction 
-          ? "Review and edit the extracted details"
-          : "Please enter your clearance details manually"}
+        subtitle={
+          clearanceExtractionData?.has_extraction
+            ? "Review and edit the extracted details"
+            : "Please enter your clearance details manually"
+        }
         documentType="clearance"
         fields={clearanceExtractionData?.fields || {}}
         values={clearanceFormValues}
         onFieldChange={handleClearanceFieldChange}
         isLoading={isExtracting}
-        error={extractClearanceMutation.error ? String(extractClearanceMutation.error) : undefined}
+        error={
+          extractClearanceMutation.error
+            ? String(extractClearanceMutation.error)
+            : undefined
+        }
       />
     </View>
   );
@@ -1075,7 +1147,10 @@ export default function KYCUploadScreen() {
   const renderStep6 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.title}>Take a Selfie</Text>
-      <Text style={styles.description}>Hold your ID next to your face. Your photo will be validated automatically.</Text>
+      <Text style={styles.description}>
+        Hold your ID next to your face. Your photo will be validated
+        automatically.
+      </Text>
 
       <View style={styles.uploadSection}>
         <TouchableOpacity
@@ -1100,7 +1175,11 @@ export default function KYCUploadScreen() {
               />
               {!selfieError && (
                 <View style={styles.uploadSuccessBadge}>
-                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
+                  />
                 </View>
               )}
             </>
@@ -1151,30 +1230,50 @@ export default function KYCUploadScreen() {
           <View style={styles.reviewItemHeader}>
             <Ionicons name="card-outline" size={24} color={Colors.primary} />
             <Text style={styles.reviewItemTitle}>Government ID</Text>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={Colors.success}
+            />
           </View>
           <Text style={styles.reviewItemText}>
-            {ID_TYPES.find(t => t.value === selectedIDType)?.label || selectedIDType}
+            {ID_TYPES.find((t) => t.value === selectedIDType)?.label ||
+              selectedIDType}
           </Text>
           {idFormValues.full_name && (
-            <Text style={styles.reviewItemDetail}>Name: {idFormValues.full_name}</Text>
+            <Text style={styles.reviewItemDetail}>
+              Name: {idFormValues.full_name}
+            </Text>
           )}
           {idFormValues.id_number && (
-            <Text style={styles.reviewItemDetail}>ID #: {idFormValues.id_number}</Text>
+            <Text style={styles.reviewItemDetail}>
+              ID #: {idFormValues.id_number}
+            </Text>
           )}
         </View>
 
         <View style={styles.reviewItem}>
           <View style={styles.reviewItemHeader}>
-            <Ionicons name="shield-checkmark-outline" size={24} color={Colors.primary} />
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={24}
+              color={Colors.primary}
+            />
             <Text style={styles.reviewItemTitle}>Clearance</Text>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={Colors.success}
+            />
           </View>
           <Text style={styles.reviewItemText}>
-            {CLEARANCE_TYPES.find(t => t.value === selectedClearanceType)?.label || selectedClearanceType}
+            {CLEARANCE_TYPES.find((t) => t.value === selectedClearanceType)
+              ?.label || selectedClearanceType}
           </Text>
           {clearanceFormValues.clearance_number && (
-            <Text style={styles.reviewItemDetail}>Clearance #: {clearanceFormValues.clearance_number}</Text>
+            <Text style={styles.reviewItemDetail}>
+              Clearance #: {clearanceFormValues.clearance_number}
+            </Text>
           )}
         </View>
 
@@ -1182,7 +1281,11 @@ export default function KYCUploadScreen() {
           <View style={styles.reviewItemHeader}>
             <Ionicons name="camera-outline" size={24} color={Colors.primary} />
             <Text style={styles.reviewItemTitle}>Selfie</Text>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={Colors.success}
+            />
           </View>
           <Text style={styles.reviewItemText}>Photo captured</Text>
         </View>
@@ -1197,9 +1300,8 @@ export default function KYCUploadScreen() {
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.infoTitle}>What happens next?</Text>
           <Text style={styles.infoText}>
-            • Your documents will be verified{"\n"}
-            • This usually takes 1-2 business days{"\n"}
-            • You'll receive a notification once verified
+            • Your documents will be verified{"\n"}• This usually takes 1-2
+            business days{"\n"}• You'll receive a notification once verified
           </Text>
         </View>
       </View>
@@ -1295,7 +1397,11 @@ export default function KYCUploadScreen() {
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <ActivityIndicator color={Colors.white} size="small" />
               <Text style={[styles.nextButtonText, { marginLeft: 8 }]}>
-                {isExtracting ? "Extracting..." : isValidating ? "Validating..." : "Submitting..."}
+                {isExtracting
+                  ? "Extracting..."
+                  : isValidating
+                    ? "Validating..."
+                    : "Submitting..."}
               </Text>
             </View>
           ) : (

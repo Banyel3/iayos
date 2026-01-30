@@ -134,10 +134,18 @@ export default function AgencyNotificationsPage() {
     // Type filter
     if (typeFilter !== "all") {
       const type = notif.type?.toLowerCase() || "";
-      if (typeFilter === "job" && !type.includes("job") && !type.includes("application"))
+      if (
+        typeFilter === "job" &&
+        !type.includes("job") &&
+        !type.includes("application")
+      )
         return false;
       if (typeFilter === "kyc" && !type.includes("kyc")) return false;
-      if (typeFilter === "payment" && !type.includes("payment") && !type.includes("escrow"))
+      if (
+        typeFilter === "payment" &&
+        !type.includes("payment") &&
+        !type.includes("escrow")
+      )
         return false;
       if (typeFilter === "message" && type !== "message") return false;
       if (typeFilter === "review" && !type.includes("review")) return false;
@@ -158,7 +166,7 @@ export default function AgencyNotificationsPage() {
 
   // Handle notification click - navigate to related page
   const handleNotificationClick = useCallback(
-    async (notif: typeof notifications[0]) => {
+    async (notif: (typeof notifications)[0]) => {
       // Mark as read if unread
       if (!notif.isRead) {
         await markAsRead(notif.notificationID);
@@ -178,7 +186,7 @@ export default function AgencyNotificationsPage() {
         router.push("/agency/reviews");
       }
     },
-    [markAsRead, router]
+    [markAsRead, router],
   );
 
   // Handle delete notification
@@ -192,7 +200,7 @@ export default function AgencyNotificationsPage() {
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
 
       if (response.ok) {
@@ -335,7 +343,9 @@ export default function AgencyNotificationsPage() {
             <Filter className="h-4 w-4 text-gray-500" />
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as NotificationType)}
+              onChange={(e) =>
+                setTypeFilter(e.target.value as NotificationType)
+              }
               className="text-sm border rounded-lg px-3 py-1.5 bg-white"
             >
               <option value="all">All Types</option>
@@ -377,15 +387,15 @@ export default function AgencyNotificationsPage() {
               {searchQuery
                 ? "No notifications found"
                 : filter === "unread"
-                ? "No unread notifications"
-                : "No notifications yet"}
+                  ? "No unread notifications"
+                  : "No notifications yet"}
             </h3>
             <p className="text-gray-500 mt-2 text-center max-w-md">
               {searchQuery
                 ? "Try a different search term"
                 : filter === "unread"
-                ? "You're all caught up! 🎉"
-                : "Notifications about your jobs, payments, and more will appear here."}
+                  ? "You're all caught up! 🎉"
+                  : "Notifications about your jobs, payments, and more will appear here."}
             </p>
           </div>
         ) : (
@@ -410,7 +420,9 @@ export default function AgencyNotificationsPage() {
                       <div
                         className={`p-3 rounded-xl ${style.bgColor} flex-shrink-0`}
                       >
-                        <IconComponent className={`h-5 w-5 ${style.iconColor}`} />
+                        <IconComponent
+                          className={`h-5 w-5 ${style.iconColor}`}
+                        />
                       </div>
 
                       {/* Content */}
@@ -440,9 +452,12 @@ export default function AgencyNotificationsPage() {
                               </Badge>
                               <span className="text-xs text-gray-400 flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {formatDistanceToNow(new Date(notif.createdAt), {
-                                  addSuffix: true,
-                                })}
+                                {formatDistanceToNow(
+                                  new Date(notif.createdAt),
+                                  {
+                                    addSuffix: true,
+                                  },
+                                )}
                               </span>
                             </div>
                           </div>
@@ -465,7 +480,9 @@ export default function AgencyNotificationsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={(e) => handleDelete(e, notif.notificationID)}
+                              onClick={(e) =>
+                                handleDelete(e, notif.notificationID)
+                              }
                               disabled={isDeleting === notif.notificationID}
                               className="text-red-600 hover:bg-red-100"
                             >

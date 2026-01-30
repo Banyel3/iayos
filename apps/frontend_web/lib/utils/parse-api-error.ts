@@ -1,20 +1,20 @@
 /**
  * Utility functions for parsing API errors and displaying user-friendly messages.
- * 
+ *
  * Backend returns errors in various formats:
  * - { error: "message" }
  * - { message: "detailed explanation" }
  * - { error: "short", message: "detailed" }
  * - { error: ["validation error 1", "validation error 2"] }
  * - { detail: "Django Ninja validation error" }
- * 
+ *
  * This utility standardizes error extraction across the frontend.
  */
 
 /**
  * Parse error from a Response object.
  * Use this when you have access to the raw fetch Response.
- * 
+ *
  * @param response - The fetch Response object
  * @returns A user-friendly error message string
  */
@@ -31,14 +31,15 @@ export async function parseApiError(response: Response): Promise<string> {
 /**
  * Extract error message from an error object or Error instance.
  * Use this in catch blocks or React Query onError handlers.
- * 
+ *
  * @param error - The caught error (Error instance, string, or object)
  * @param fallback - Fallback message if error cannot be parsed (default: "An unexpected error occurred")
  * @returns A user-friendly error message string
  */
 export function getErrorMessage(error: unknown, fallback?: string): string {
-  const defaultFallback = fallback || "An unexpected error occurred. Please try again.";
-  
+  const defaultFallback =
+    fallback || "An unexpected error occurred. Please try again.";
+
   if (!error) {
     return defaultFallback;
   }
@@ -68,7 +69,7 @@ export function getErrorMessage(error: unknown, fallback?: string): string {
 function extractErrorMessage(
   data: Record<string, unknown>,
   status?: number,
-  statusText?: string
+  statusText?: string,
 ): string {
   // Priority 1: message field (detailed explanation)
   if (typeof data.message === "string" && data.message) {
@@ -83,17 +84,19 @@ function extractErrorMessage(
         .map((e) => {
           if (typeof e === "string") return e;
           if (typeof e === "object" && e !== null) {
-            return (e as Record<string, unknown>).message || 
-                   (e as Record<string, unknown>).msg || 
-                   JSON.stringify(e);
+            return (
+              (e as Record<string, unknown>).message ||
+              (e as Record<string, unknown>).msg ||
+              JSON.stringify(e)
+            );
           }
           return String(e);
         })
         .filter(Boolean);
-      
+
       return messages.length > 0 ? messages.join("; ") : "Validation error";
     }
-    
+
     // Handle string error
     if (typeof data.error === "string") {
       return data.error;
@@ -121,11 +124,11 @@ function extractErrorMessage(
 /**
  * Helper to show error in toast notification (web) or alert (mobile).
  * Import sonner's toast where this is used.
- * 
+ *
  * Usage:
  * import { toast } from "sonner";
  * import { showError } from "@/lib/utils/parse-api-error";
- * 
+ *
  * catch (error) {
  *   showError(error, toast, "Failed to update profile");
  * }
@@ -133,7 +136,7 @@ function extractErrorMessage(
 export function showError(
   error: unknown,
   toastFn: { error: (msg: string) => void },
-  fallback?: string
+  fallback?: string,
 ): void {
   const message = getErrorMessage(error, fallback);
   toastFn.error(message);

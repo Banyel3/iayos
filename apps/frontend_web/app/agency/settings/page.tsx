@@ -40,7 +40,9 @@ function SettingsSection({ title, children }: SettingsSectionProps) {
         {title}
       </h3>
       <Card>
-        <CardContent className="p-0 divide-y divide-gray-100">{children}</CardContent>
+        <CardContent className="p-0 divide-y divide-gray-100">
+          {children}
+        </CardContent>
       </Card>
     </div>
   );
@@ -55,22 +57,41 @@ interface SettingsRowProps {
   danger?: boolean;
 }
 
-function SettingsRow({ icon, title, description, action, onClick, danger }: SettingsRowProps) {
+function SettingsRow({
+  icon,
+  title,
+  description,
+  action,
+  onClick,
+  danger,
+}: SettingsRowProps) {
   return (
     <div
       className={`flex items-center justify-between p-4 ${onClick ? "cursor-pointer hover:bg-gray-50" : ""} ${danger ? "text-red-600" : ""}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${danger ? "bg-red-100" : "bg-gray-100"}`}>
+        <div
+          className={`p-2 rounded-lg ${danger ? "bg-red-100" : "bg-gray-100"}`}
+        >
           {icon}
         </div>
         <div>
-          <p className={`font-medium ${danger ? "text-red-600" : "text-gray-900"}`}>{title}</p>
-          {description && <p className="text-sm text-gray-500">{description}</p>}
+          <p
+            className={`font-medium ${danger ? "text-red-600" : "text-gray-900"}`}
+          >
+            {title}
+          </p>
+          {description && (
+            <p className="text-sm text-gray-500">{description}</p>
+          )}
         </div>
       </div>
-      {action ? action : onClick ? <ChevronRight className="h-5 w-5 text-gray-400" /> : null}
+      {action ? (
+        action
+      ) : onClick ? (
+        <ChevronRight className="h-5 w-5 text-gray-400" />
+      ) : null}
     </div>
   );
 }
@@ -131,7 +152,11 @@ export default function AgencySettingsPage() {
   };
 
   const handleDeleteAccount = () => {
-    if (confirm("This will permanently delete your account and all associated data. This action cannot be undone.")) {
+    if (
+      confirm(
+        "This will permanently delete your account and all associated data. This action cannot be undone.",
+      )
+    ) {
       if (prompt('Type "DELETE" to confirm account deletion:') === "DELETE") {
         toast.error("Please contact support to delete your account.");
       }
@@ -167,7 +192,9 @@ export default function AgencySettingsPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold">Settings</h1>
-              <p className="text-gray-300 mt-1">Manage your agency preferences</p>
+              <p className="text-gray-300 mt-1">
+                Manage your agency preferences
+              </p>
             </div>
           </div>
         </div>
@@ -178,7 +205,13 @@ export default function AgencySettingsPage() {
         {/* Appearance */}
         <SettingsSection title="Appearance">
           <SettingsRow
-            icon={isDarkMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            icon={
+              isDarkMode ? (
+                <Moon className="h-5 w-5" />
+              ) : (
+                <Sun className="h-5 w-5" />
+              )
+            }
             title="Dark Mode"
             description="Switch between light and dark themes"
             action={
