@@ -228,6 +228,35 @@ export default function KYCUploadScreen() {
 
       console.log(`[KYC Validate] Response status: ${response.status}`);
 
+      // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        console.error(`[KYC Validate] Non-JSON response (${response.status}): ${contentType}`);
+        // Provide user-friendly messages for common gateway errors
+        if (response.status === 502) {
+          return {
+            valid: false,
+            error: "Server is temporarily unavailable. Please try again in a moment.",
+          };
+        }
+        if (response.status === 503) {
+          return {
+            valid: false,
+            error: "Service is temporarily unavailable. Please try again later.",
+          };
+        }
+        if (response.status === 504) {
+          return {
+            valid: false,
+            error: "Request timed out. Please try again.",
+          };
+        }
+        return {
+          valid: false,
+          error: `Server error (${response.status}). Please try again later.`,
+        };
+      }
+
       // Handle 403 Forbidden specifically
       if (response.status === 403) {
         console.error("[KYC Validate] 403 Forbidden - token may be expired or invalid");
@@ -239,16 +268,6 @@ export default function KYCUploadScreen() {
 
       // Check if response is OK before parsing JSON
       if (!response.ok) {
-        // Check content-type to handle HTML error pages gracefully
-        const contentType = response.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          console.error(`[KYC Validate] Non-JSON response (${response.status}): ${contentType}`);
-          return {
-            valid: false,
-            error: `Server error (${response.status}). Please try again later.`,
-          };
-        }
-        
         try {
           const errorData = await response.json() as { error?: string };
           return { valid: false, error: errorData.error || "Validation failed" };
@@ -257,11 +276,20 @@ export default function KYCUploadScreen() {
         }
       }
 
-      const data = (await response.json()) as {
-        valid: boolean;
-        error?: string;
-      };
-      return { valid: data.valid, error: data.error };
+      // Parse successful JSON response with error handling
+      try {
+        const data = (await response.json()) as {
+          valid: boolean;
+          error?: string;
+        };
+        return { valid: data.valid, error: data.error };
+      } catch (parseError) {
+        console.error("[KYC Validate] Failed to parse JSON response:", parseError);
+        return {
+          valid: false,
+          error: "Invalid server response. Please try again.",
+        };
+      }
     } catch (error) {
       console.error("[KYC Validate] Error:", error);
       // Check for network timeout
@@ -1207,7 +1235,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     backgroundColor: Colors.surface,
   },
   stepItem: {
@@ -1215,9 +1244,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   stepCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: Colors.backgroundSecondary,
     alignItems: "center",
     justifyContent: "center",
@@ -1226,7 +1255,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   stepNumber: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
     color: Colors.textHint,
   },
@@ -1234,10 +1263,10 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   stepLine: {
-    width: 40,
+    width: 24,
     height: 2,
     backgroundColor: Colors.backgroundSecondary,
-    marginHorizontal: 4,
+    marginHorizontal: 2,
   },
   scrollView: {
     flex: 1,
