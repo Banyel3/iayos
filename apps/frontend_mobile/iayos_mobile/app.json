@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "iayos_mobile",
-    "slug": "iayos_mobile",
+    "slug": "iayos",
     "version": "1.8.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -68,9 +68,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "9aefe802-18a0-41ab-9d65-c112999529f8"
+        "projectId": "24252bfc-2034-404b-bc64-1bf5a808c55c"
       }
     },
-    "owner": "banyel"
+    "owner": "banyel33s-organization"
   }
 }

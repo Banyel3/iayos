@@ -225,33 +225,12 @@ jobs:
         run: npm ci
 
       # ============================================
-      # LOCAL BUILD SETUP (No EAS Cloud Credits!)
+      # EAS CLOUD BUILD (Managed Environment - STABLE)
       # ============================================
+      # Using EAS Cloud builds for stability - Expo manages all native tooling.
+      # Local builds with custom NDK/Gradle caused native crashes.
 
-      - name: Setup Java JDK 17
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Setup Android SDK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708 # Latest stable
-
-      - name: Accept Android Licenses
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install Android Build Tools
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;26.3.11579264"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
-
-      - name: Build Android APK (Local - No EAS Credits!)
+      - name: Build Android APK (EAS Cloud)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         env:
@@ -259,31 +238,35 @@ jobs:
         run: |
           BUILD_PROFILE="production"
 
-          echo "🏗️ LOCAL BUILD with profile: $BUILD_PROFILE"
-          echo "✅ No EAS cloud credits consumed - building locally!"
-
+          echo "🏗️ EAS CLOUD BUILD with profile: $BUILD_PROFILE"
+          echo "☁️ Using Expo's managed build environment for stability"
           echo "📦 Production build - ready for app store distribution"
 
-          # Run local build (outputs APK directly, no cloud needed!)
-          # The --local flag builds on this runner instead of EAS servers
-          eas build --platform android --profile $BUILD_PROFILE --local --non-interactive --output=./build-output.apk
+          # Run EAS Cloud build (uses Expo's managed native tooling)
+          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
 
-          # Rename to versioned filename
-          mv ./build-output.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
+          # Download the built APK
+          echo "📥 Downloading built APK..."
+          sleep 5
+          BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive)
+          BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl')
+          
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            echo "❌ Failed to get build URL"
+            exit 1
+          fi
 
-          echo "✅ Local build complete!"
+          echo "Downloading from: $BUILD_URL"
+          curl -L --fail --retry 3 -o ./iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+          
+          echo "✅ EAS Cloud build complete!"
           ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
       - name: Download APK from EAS (if using latest build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          echo "♻️ Attempting to use latest existing build from Expo..."
-          echo ""
-          echo "⚠️  NOTE: This option only works for CLOUD (EAS) builds!"
-          echo "   Local builds are not uploaded to Expo and cannot be reused."
-          echo "   If you've been using local builds, you need to build fresh."
-          echo ""
+          echo "♻️ Fetching latest existing build from Expo..."
 
           # Get build info
           BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
