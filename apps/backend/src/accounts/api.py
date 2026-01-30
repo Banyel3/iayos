@@ -427,6 +427,11 @@ def validate_kyc_document(request):
     Checks resolution, blur, and face detection (for ID/selfie).
     Does NOT run OCR - that happens on final submission.
     
+    OPTIMIZATIONS (matching Agency KYC performance):
+    - Redis caching: Same file hash returns cached result (10 min TTL)
+    - Fast path for BACKID/CLEARANCE: skip face service initialization
+    - Fallback: Accept for manual review if Face API unavailable
+    
     NOTE: This endpoint is for INDIVIDUAL/MOBILE KYC only.
     Agency KYC uses /api/agency/kyc/validate-document with different document types.
     
@@ -438,6 +443,8 @@ def validate_kyc_document(request):
     - valid: boolean - whether document passes validation
     - error: string - user-friendly error message if invalid
     - details: object - validation details
+    - cached: boolean - whether result was from cache
+    - file_hash: string - SHA-256 hash of file (for debugging)
     """
     try:
         file = request.FILES.get("file")
@@ -455,24 +462,99 @@ def validate_kyc_document(request):
         if document_type not in valid_types:
             return {"valid": False, "error": f"Invalid document_type for individual KYC. Must be one of: {', '.join(valid_types)}", "details": {}}
         
-        print(f"🔍 [VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
+        print(f"🔍 [MOBILE VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
         
         # Read file data
         file_data = file.read()
         
-        # Determine if face detection is required
+        # ============================================
+        # OPTIMIZATION 1: Redis Cache Check
+        # Same file hash returns cached result instantly
+        # ============================================
+        from agency.validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
+        
+        file_hash = generate_file_hash(file_data)
+        cache_key = f"mobile_{document_type}"  # Prefix to distinguish from agency cache
+        
+        cached_result = get_cached_validation(file_hash, cache_key)
+        if cached_result:
+            print(f"   ⚡ [CACHE HIT] Returning cached validation for {document_type}")
+            return {
+                "valid": cached_result.get('ai_status') != 'FAILED',
+                "error": cached_result.get('ai_rejection_message'),
+                "details": cached_result,
+                "file_hash": file_hash,
+                "cached": True
+            }
+        
+        # ============================================
+        # OPTIMIZATION 2: Fast path for non-face documents
+        # BACKID and CLEARANCE don't need face detection
+        # Skip face service initialization entirely
+        # ============================================
+        from accounts.document_verification_service import DocumentVerificationService
+        
         # Face required for: Front ID (has photo), Selfie
         # Face NOT required for: Back ID (usually no photo), Clearance (certificate)
         require_face = document_type in ["FRONTID", "SELFIE"]
         
-        # Run quick validation
-        from accounts.document_verification_service import DocumentVerificationService
-        verifier = DocumentVerificationService()
-        result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+        # Use skip_face_service=True for documents that don't need face detection
+        # This avoids Face API cold start delays
+        skip_face = document_type in ["BACKID", "CLEARANCE"]
         
-        print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
-        
-        return result
+        try:
+            verifier = DocumentVerificationService(skip_face_service=skip_face)
+            result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+            
+            print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
+            
+            # Cache successful validation result (10 min TTL via validation_cache default)
+            validation_data = {
+                'ai_status': 'PASSED' if result['valid'] else 'FAILED',
+                'ai_rejection_message': result.get('error'),
+                'quality_score': result.get('details', {}).get('quality_score', 0),
+                'resolution': result.get('details', {}).get('resolution', ''),
+                'warnings': result.get('details', {}).get('warnings', []),
+                'face_detection_skipped': result.get('details', {}).get('face_detection_skipped', False),
+                'needs_manual_review': result.get('details', {}).get('needs_manual_review', False),
+            }
+            cache_validation_result(file_hash, cache_key, validation_data)
+            
+            # Add file_hash and cached flag to result
+            result['file_hash'] = file_hash
+            result['cached'] = False
+            return result
+            
+        except Exception as service_error:
+            # ============================================
+            # OPTIMIZATION 3: Fallback - Accept for manual review
+            # If Face API or verification service fails, accept document
+            # for manual review rather than blocking user
+            # ============================================
+            print(f"   ⚠️ Service error, accepting for manual review: {service_error}")
+            
+            fallback_result = {
+                "valid": True,
+                "error": None,
+                "details": {
+                    "skipped": True,
+                    "reason": "Validation service temporarily unavailable - document accepted for manual review",
+                    "needs_manual_review": True
+                },
+                "file_hash": file_hash,
+                "cached": False
+            }
+            
+            # Cache fallback result too
+            validation_data = {
+                'ai_status': 'PASSED',
+                'ai_rejection_message': None,
+                'needs_manual_review': True,
+                'skipped': True,
+            }
+            cache_validation_result(file_hash, cache_key, validation_data)
+            
+            return fallback_result
         
     except Exception as e:
         print(f"❌ Exception in document validation: {str(e)}")
