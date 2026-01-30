@@ -327,7 +327,31 @@ const extractIDData = async (formData: FormData): Promise<IDExtractionResponse> 
     timeout: OCR_TIMEOUT, // 5 min timeout for OCR
   });
 
-  const data = await response.json() as { error?: string } & IDExtractionResponse;
+  // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    console.error(`[KYC Extract ID] Non-JSON response (${response.status}): ${contentType}`);
+    // Provide user-friendly messages for common gateway errors
+    if (response.status === 502) {
+      throw new Error("Cannot reach server. Please check your connection and try again.");
+    }
+    if (response.status === 503) {
+      throw new Error("Service is temporarily unavailable. Please try again later.");
+    }
+    if (response.status === 504) {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw new Error(`Server error (${response.status}). Please try again later.`);
+  }
+
+  // Safely parse JSON
+  let data: { error?: string } & IDExtractionResponse;
+  try {
+    data = await response.json() as { error?: string } & IDExtractionResponse;
+  } catch (parseError) {
+    console.error("[KYC Extract ID] Failed to parse JSON response:", parseError);
+    throw new Error("Invalid server response. Please try again.");
+  }
   
   if (!response.ok) {
     throw new Error(data.error || "Failed to extract ID data");
@@ -347,7 +371,31 @@ const extractClearanceData = async (formData: FormData): Promise<ClearanceExtrac
     timeout: OCR_TIMEOUT, // 5 min timeout for OCR
   });
 
-  const data = await response.json() as { error?: string } & ClearanceExtractionResponse;
+  // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    console.error(`[KYC Extract Clearance] Non-JSON response (${response.status}): ${contentType}`);
+    // Provide user-friendly messages for common gateway errors
+    if (response.status === 502) {
+      throw new Error("Cannot reach server. Please check your connection and try again.");
+    }
+    if (response.status === 503) {
+      throw new Error("Service is temporarily unavailable. Please try again later.");
+    }
+    if (response.status === 504) {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw new Error(`Server error (${response.status}). Please try again later.`);
+  }
+
+  // Safely parse JSON
+  let data: { error?: string } & ClearanceExtractionResponse;
+  try {
+    data = await response.json() as { error?: string } & ClearanceExtractionResponse;
+  } catch (parseError) {
+    console.error("[KYC Extract Clearance] Failed to parse JSON response:", parseError);
+    throw new Error("Invalid server response. Please try again.");
+  }
   
   if (!response.ok) {
     throw new Error(data.error || "Failed to extract clearance data");
