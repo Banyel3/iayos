@@ -211,7 +211,6 @@ export const KYCFieldEditor: React.FC<KYCFieldEditorProps> = ({
           )}
         </View>
       )}
-      </View>
       
       {/* Error Message */}
       {errorMessage && (
