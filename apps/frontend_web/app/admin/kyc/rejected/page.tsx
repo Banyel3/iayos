@@ -150,9 +150,9 @@ export default function RejectedKYCPage() {
   });
 
   return (
-    <div className="flex">
+    <div className="min-h-screen">
       <Sidebar />
-      <main className="flex-1 p-6">
+      <main className="pl-72 p-6 min-h-screen">
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -273,10 +273,10 @@ export default function RejectedKYCPage() {
                   onChange={(e) =>
                     setResubmissionFilter(
                       e.target.value as
-                        | "all"
-                        | "allowed"
-                        | "not_allowed"
-                        | "resubmitted",
+                      | "all"
+                      | "allowed"
+                      | "not_allowed"
+                      | "resubmitted",
                     )
                   }
                   className="px-3 py-2 border rounded-md"
@@ -312,11 +312,10 @@ export default function RejectedKYCPage() {
                         </p>
                         <div className="flex items-center space-x-2 mt-1 mb-3">
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              record.userType === "worker"
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-green-100 text-green-800"
-                            }`}
+                              }`}
                           >
                             {record.userType}
                           </span>
@@ -409,8 +408,8 @@ export default function RejectedKYCPage() {
                 </h3>
                 <p className="text-muted-foreground">
                   {searchTerm ||
-                  typeFilter !== "all" ||
-                  resubmissionFilter !== "all"
+                    typeFilter !== "all" ||
+                    resubmissionFilter !== "all"
                     ? "Try adjusting your search criteria"
                     : "No KYC submissions have been rejected"}
                 </p>

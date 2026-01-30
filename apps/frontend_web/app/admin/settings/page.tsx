@@ -84,9 +84,9 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Modern Header with Gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-600 via-gray-700 to-zinc-700 p-8 text-white shadow-xl">

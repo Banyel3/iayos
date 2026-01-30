@@ -70,12 +70,12 @@ export default function PendingCertificationsPage() {
       item?.days_pending ??
       (submittedAt
         ? Math.max(
-            0,
-            Math.round(
-              (Date.now() - new Date(submittedAt).getTime()) /
-                (1000 * 60 * 60 * 24),
-            ),
-          )
+          0,
+          Math.round(
+            (Date.now() - new Date(submittedAt).getTime()) /
+            (1000 * 60 * 60 * 24),
+          ),
+        )
         : 0);
 
     const computedName = [item?.worker_first_name, item?.worker_last_name]
@@ -218,9 +218,9 @@ export default function PendingCertificationsPage() {
 
   if (isLoading && (!certifications || certifications.length === 0)) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-[80vh]">
             <div className="text-center">
               <div className="relative">
@@ -241,9 +241,9 @@ export default function PendingCertificationsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         {/* Header with Gradient */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 p-8 text-white shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 pointer-events-none"></div>

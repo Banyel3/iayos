@@ -126,9 +126,9 @@ export default function ActiveJobsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -149,9 +149,9 @@ export default function ActiveJobsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
@@ -174,7 +174,6 @@ export default function ActiveJobsPage() {
           {/* Modern Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -192,7 +191,6 @@ export default function ActiveJobsPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl">
@@ -210,7 +208,6 @@ export default function ActiveJobsPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -228,7 +225,6 @@ export default function ActiveJobsPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-orange-100 rounded-xl">
@@ -277,7 +273,6 @@ export default function ActiveJobsPage() {
                 key={job.id}
                 className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 via-blue-50/50 to-blue-50/0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <CardContent className="relative p-6">
                   <div className="flex items-start justify-between gap-6">
                     <div className="flex-1 space-y-4">
@@ -354,7 +349,7 @@ export default function ActiveJobsPage() {
                               {Math.ceil(
                                 (new Date().getTime() -
                                   new Date(job.created_at).getTime()) /
-                                  (1000 * 60 * 60 * 24),
+                                (1000 * 60 * 60 * 24),
                               )}{" "}
                               days
                             </p>

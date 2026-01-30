@@ -270,9 +270,9 @@ export default function AgencyDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div className="min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="pl-72 flex items-center justify-center min-h-screen">
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
             <p className="text-gray-600">Loading agency details...</p>
@@ -284,9 +284,9 @@ export default function AgencyDetailPage() {
 
   if (error || !agency) {
     return (
-      <div className="flex">
+      <div className="min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="pl-72 flex items-center justify-center min-h-screen">
           <Card className="p-8 text-center max-w-md">
             <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error</h2>
@@ -307,9 +307,9 @@ export default function AgencyDetailPage() {
       : 0;
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="pl-72 p-6 min-h-screen">
         {/* Header */}
         <div className="mb-6">
           <Button
@@ -332,26 +332,24 @@ export default function AgencyDetailPage() {
               {/* Status Badges */}
               <div className="flex gap-2">
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    agency.status === "active"
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${agency.status === "active"
                       ? "bg-green-100 text-green-800"
                       : agency.status === "inactive"
                         ? "bg-gray-100 text-gray-800"
                         : "bg-red-100 text-red-800"
-                  }`}
+                    }`}
                 >
                   {(agency.status || "inactive").toUpperCase()}
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                    agency.kyc_status === "APPROVED"
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${agency.kyc_status === "APPROVED"
                       ? "bg-green-100 text-green-800"
                       : agency.kyc_status === "PENDING"
                         ? "bg-yellow-100 text-yellow-800"
                         : agency.kyc_status === "REJECTED"
                           ? "bg-red-100 text-red-800"
                           : "bg-gray-100 text-gray-600"
-                  }`}
+                    }`}
                 >
                   {agency.kyc_status === "APPROVED" && (
                     <CheckCircle className="h-3 w-3" />
@@ -468,8 +466,8 @@ export default function AgencyDetailPage() {
                       {agency.address.city && agency.address.province
                         ? `${agency.address.city}, ${agency.address.province}`
                         : agency.address.city ||
-                          agency.address.province ||
-                          "Not provided"}
+                        agency.address.province ||
+                        "Not provided"}
                     </div>
                   </div>
                   <div>
@@ -639,15 +637,14 @@ export default function AgencyDetailPage() {
                   <div className="flex justify-between py-2 border-b">
                     <span className="text-gray-600">KYC Status</span>
                     <span
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                        agency.kyc_status === "APPROVED"
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${agency.kyc_status === "APPROVED"
                           ? "bg-green-100 text-green-800"
                           : agency.kyc_status === "PENDING"
                             ? "bg-yellow-100 text-yellow-800"
                             : agency.kyc_status === "REJECTED"
                               ? "bg-red-100 text-red-800"
                               : "bg-gray-100 text-gray-800"
-                      }`}
+                        }`}
                     >
                       {agency.kyc_status}
                     </span>
@@ -655,13 +652,12 @@ export default function AgencyDetailPage() {
                   <div className="flex justify-between py-2">
                     <span className="text-gray-600">Account Status</span>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        agency.status === "active"
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${agency.status === "active"
                           ? "bg-green-100 text-green-800"
                           : agency.status === "inactive"
                             ? "bg-gray-100 text-gray-800"
                             : "bg-red-100 text-red-800"
-                      }`}
+                        }`}
                     >
                       {(agency.status || "inactive").toUpperCase()}
                     </span>
@@ -704,7 +700,7 @@ export default function AgencyDetailPage() {
               <CardContent>
                 <div className="space-y-3">
                   {agency.employee_stats?.employees &&
-                  agency.employee_stats.employees.length > 0 ? (
+                    agency.employee_stats.employees.length > 0 ? (
                     agency.employee_stats.employees.map(
                       (employee: Employee) => (
                         <div

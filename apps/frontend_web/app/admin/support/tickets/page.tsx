@@ -234,9 +234,9 @@ export default function SupportTicketsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
@@ -388,7 +388,7 @@ export default function SupportTicketsPage() {
                       {status === "all"
                         ? "All"
                         : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-                            ?.label || status}
+                          ?.label || status}
                     </Button>
                   ))}
                 </div>

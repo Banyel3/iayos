@@ -18,9 +18,9 @@ import {
 
 export default function GeographicAnalytics() {
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-cyan-50">
+      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-cyan-50">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
