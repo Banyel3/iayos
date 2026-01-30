@@ -114,14 +114,34 @@ def fetchAll_kyc(request):
         })
 
     # Serialize KYC files with proper field naming
+    # Helper function to derive fileType from fileName pattern
+    def derive_file_type(filename: str) -> str:
+        """Derive fileType from fileName pattern (FRONTID→front, BACKID→back, etc.)"""
+        if not filename:
+            return "unknown"
+        filename_upper = filename.upper()
+        if "FRONTID" in filename_upper or "FRONT_ID" in filename_upper:
+            return "front"
+        elif "BACKID" in filename_upper or "BACK_ID" in filename_upper:
+            return "back"
+        elif "SELFIE" in filename_upper:
+            return "selfie"
+        elif "CLEARANCE" in filename_upper or "NBI" in filename_upper:
+            return "clearance"
+        else:
+            return "unknown"
+    
     kyc_files_serialized = []
     for file in kyc_files:
+        file_type = derive_file_type(file.fileName)
         kyc_files_serialized.append({
             "kycFileID": file.kycFileID,
             "kycID_id": file.kycID.kycID,
             "idType": file.idType,
             "fileName": file.fileName,
             "fileURL": file.fileURL,
+            "filePath": file.fileURL,  # Alias for frontend compatibility
+            "fileType": file_type,  # Derived from fileName pattern
         })
 
     data = {
