@@ -178,18 +178,6 @@ export const useKYCAutofill = () => {
     return (field?.confidence ?? 0) < threshold;
   };
 
-  /**
-   * Get confidence color for UI (red/yellow/green)
-   */
-  const getConfidenceColor = (
-    fieldName: keyof typeof extractedFields,
-  ): string => {
-    const confidence = extractedFields[fieldName]?.confidence ?? 0;
-    if (confidence >= 0.9) return "#22c55e"; // green-500
-    if (confidence >= 0.7) return "#eab308"; // yellow-500
-    return "#ef4444"; // red-500
-  };
-
   return {
     // Data
     autofillData: data,
@@ -217,7 +205,6 @@ export const useKYCAutofill = () => {
     getFieldValue,
     getFieldConfidence,
     isLowConfidence,
-    getConfidenceColor,
   };
 };
 
