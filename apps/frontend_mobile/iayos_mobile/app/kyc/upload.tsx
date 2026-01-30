@@ -108,7 +108,22 @@ export default function KYCUploadScreen() {
   // Track if extraction is happening
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
+  
+  // Per-document validation states (validate on upload like agency KYC)
+  // This spreads memory usage over time instead of batching all validations on "Next"
+  const [isValidatingFrontID, setIsValidatingFrontID] = useState(false);
+  const [isValidatingBackID, setIsValidatingBackID] = useState(false);
+  const [isValidatingClearance, setIsValidatingClearance] = useState(false);
+  const [isValidatingSelfie, setIsValidatingSelfie] = useState(false);
+  
+  // Per-document error states for UI feedback
+  const [frontIDError, setFrontIDError] = useState<string | null>(null);
+  const [backIDError, setBackIDError] = useState<string | null>(null);
+  const [clearanceError, setClearanceError] = useState<string | null>(null);
+  const [selfieError, setSelfieError] = useState<string | null>(null);
+  
+  // Computed: is ANY validation in progress?
+  const isValidating = isValidatingFrontID || isValidatingBackID || isValidatingClearance || isValidatingSelfie;
 
   // Redirect if KYC already submitted and pending (not rejected)
   useEffect(() => {
@@ -165,7 +180,7 @@ export default function KYCUploadScreen() {
     }
   };
 
-  const handleImageSelected = (
+  const handleImageSelected = async (
     type: "front" | "back" | "clearance" | "selfie",
     asset: ImagePicker.ImagePickerAsset,
   ) => {
@@ -175,19 +190,86 @@ export default function KYCUploadScreen() {
       type: "image/jpeg",
     };
 
-    switch (type) {
-      case "front":
-        setFrontIDFile(imageFile);
-        break;
-      case "back":
-        setBackIDFile(imageFile);
-        break;
-      case "clearance":
-        setClearanceFile(imageFile);
-        break;
-      case "selfie":
-        setSelfieFile(imageFile);
-        break;
+    // Map type to document type and state setters
+    const config = {
+      front: {
+        docType: "FRONTID",
+        setFile: setFrontIDFile,
+        setValidating: setIsValidatingFrontID,
+        setError: setFrontIDError,
+        label: "Front ID",
+      },
+      back: {
+        docType: "BACKID",
+        setFile: setBackIDFile,
+        setValidating: setIsValidatingBackID,
+        setError: setBackIDError,
+        label: "Back ID",
+      },
+      clearance: {
+        docType: "CLEARANCE",
+        setFile: setClearanceFile,
+        setValidating: setIsValidatingClearance,
+        setError: setClearanceError,
+        label: "Clearance",
+      },
+      selfie: {
+        docType: "SELFIE",
+        setFile: setSelfieFile,
+        setValidating: setIsValidatingSelfie,
+        setError: setSelfieError,
+        label: "Selfie",
+      },
+    }[type];
+
+    // 1. Show preview immediately (optimistic UI)
+    config.setFile(imageFile);
+    config.setError(null);
+
+    // 2. Validate immediately (like agency KYC pattern)
+    // This prevents 502/503 errors from batch validation by spreading load
+    config.setValidating(true);
+    
+    try {
+      const result = await validateDocument(imageFile, config.docType);
+      
+      if (!result.valid) {
+        // Validation failed - clear file and show error
+        config.setFile(null);
+        config.setError(result.error || "Validation failed");
+        
+        // Show alert with retry option
+        Alert.alert(
+          `${config.label} Issue`,
+          result.error || "Please try again with a clearer image",
+          [
+            { text: "Cancel", style: "cancel" },
+            { 
+              text: "Retry", 
+              onPress: () => pickImage(type),
+            },
+          ]
+        );
+      }
+      // If valid, file is already set from step 1
+    } catch (error) {
+      console.error(`[KYC] ${config.label} validation error:`, error);
+      config.setFile(null);
+      config.setError("Validation failed. Please try again.");
+      
+      Alert.alert(
+        "Validation Error",
+        "Failed to validate your document. Please check your connection and try again.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Retry", 
+            onPress: () => pickImage(type),
+          },
+        ]
+      );
+    } finally {
+      config.setValidating(false);
     }
   };
 
@@ -308,12 +390,16 @@ export default function KYCUploadScreen() {
   const handleNext = async () => {
     // ==== 7-STEP KYC FLOW ====
     // Step 1: Select ID Type
-    // Step 2: Upload ID Photos (front + back)
+    // Step 2: Upload ID Photos (front + back) - validation now happens on upload
     // Step 3: Verify/Edit ID Information (OCR extracted)
-    // Step 4: Select Clearance Type + Upload
+    // Step 4: Select Clearance Type + Upload - validation now happens on upload
     // Step 5: Verify/Edit Clearance Information (OCR extracted)
-    // Step 6: Take Selfie
+    // Step 6: Take Selfie - validation now happens on upload
     // Step 7: Review & Submit
+    
+    // NOTE: Document validation is now done inline when each image is captured.
+    // This reduces memory pressure by spreading validation over time instead of batching.
+    // handleNext now just checks files exist and runs OCR extraction.
 
     // Step 1: ID Type selection
     if (currentStep === 1 && !selectedIDType) {
@@ -321,9 +407,80 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 2: Front/Back ID upload
-    if (currentStep === 2 && (!frontIDFile || !backIDFile)) {
-      Alert.alert("Required", "Please upload both sides of your ID");
+    // Step 2: Front/Back ID upload - check files exist (already validated on capture)
+    if (currentStep === 2) {
+      if (!frontIDFile || !backIDFile) {
+        Alert.alert("Required", "Please capture both sides of your ID");
+        return;
+      }
+      
+      // Check for validation errors
+      if (frontIDError) {
+        Alert.alert("Front ID Issue", frontIDError);
+        return;
+      }
+      if (backIDError) {
+        Alert.alert("Back ID Issue", backIDError);
+        return;
+      }
+
+      // ===== OCR EXTRACTION: Extract ID data (no re-validation needed) =====
+      setIsExtracting(true);
+      
+      try {
+        const idFormData = new FormData();
+        idFormData.append("id_front", {
+          uri: frontIDFile.uri,
+          name: frontIDFile.name,
+          type: frontIDFile.type,
+        } as any);
+        idFormData.append("id_type", selectedIDType);
+        
+        const extractResult = await extractIDMutation.mutateAsync(idFormData);
+        
+        setIdExtractionData(extractResult);
+        
+        // Initialize form values from extraction
+        if (extractResult.has_extraction && extractResult.fields) {
+          const initialValues: Record<string, string> = {};
+          Object.entries(extractResult.fields).forEach(([key, field]) => {
+            if (field) {
+              initialValues[key] = field.value || "";
+            }
+          });
+          setIdFormValues(initialValues);
+        } else {
+          // No extraction - enable manual entry mode
+          setIdFormValues({
+            full_name: "",
+            id_number: "",
+            birth_date: "",
+            address: "",
+            sex: "",
+          });
+        }
+      } catch (extractError) {
+        console.error("ID extraction error:", extractError);
+        // Extraction failed - notify user and allow manual entry
+        Alert.alert(
+          "Auto-Fill Unavailable",
+          "We couldn't automatically extract your ID details. Please enter the information manually on the next screen.",
+          [{ text: "OK", style: "default" }]
+        );
+        setIdExtractionData(null);
+        setIdFormValues({
+          full_name: "",
+          id_number: "",
+          birth_date: "",
+          address: "",
+          sex: "",
+        });
+      } finally {
+        setIsExtracting(false);
+      }
+      
+      // Proceed to Step 3 (ID verification)
+      setCurrentStep(3);
       return;
     }
 
@@ -338,9 +495,78 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 4: Clearance type + upload
-    if (currentStep === 4 && (!selectedClearanceType || !clearanceFile)) {
-      Alert.alert("Required", "Please select clearance type and upload the document");
+    // Step 4: Clearance type + upload - check file exists (already validated on capture)
+    if (currentStep === 4) {
+      if (!selectedClearanceType || !clearanceFile) {
+        Alert.alert("Required", "Please select clearance type and upload the document");
+        return;
+      }
+      
+      // Check for validation error
+      if (clearanceError) {
+        Alert.alert("Clearance Issue", clearanceError);
+        return;
+      }
+
+      // ===== OCR EXTRACTION: Extract clearance data (no re-validation needed) =====
+      setIsExtracting(true);
+      
+      try {
+        const clearanceFormData = new FormData();
+        clearanceFormData.append("clearance", {
+          uri: clearanceFile.uri,
+          name: clearanceFile.name,
+          type: clearanceFile.type,
+        } as any);
+        clearanceFormData.append("clearance_type", selectedClearanceType);
+        
+        const extractResult = await extractClearanceMutation.mutateAsync(clearanceFormData);
+        
+        setClearanceExtractionData(extractResult);
+        
+        // Initialize form values from extraction
+        if (extractResult.has_extraction && extractResult.fields) {
+          const initialValues: Record<string, string> = {};
+          Object.entries(extractResult.fields).forEach(([key, field]) => {
+            if (field) {
+              initialValues[key] = field.value || "";
+            }
+          });
+          // Set clearance type from selection
+          initialValues.clearance_type = selectedClearanceType;
+          setClearanceFormValues(initialValues);
+        } else {
+          // No extraction - enable manual entry mode
+          setClearanceFormValues({
+            holder_name: "",
+            clearance_number: "",
+            issue_date: "",
+            validity_date: "",
+            clearance_type: selectedClearanceType,
+          });
+        }
+      } catch (extractError) {
+        console.error("Clearance extraction error:", extractError);
+        // Extraction failed - notify user and allow manual entry
+        Alert.alert(
+          "Auto-Fill Unavailable",
+          "We couldn't automatically extract your clearance details. Please enter the information manually on the next screen.",
+          [{ text: "OK", style: "default" }]
+        );
+        setClearanceExtractionData(null);
+        setClearanceFormValues({
+          holder_name: "",
+          clearance_number: "",
+          issue_date: "",
+          validity_date: "",
+          clearance_type: selectedClearanceType,
+        });
+      } finally {
+        setIsExtracting(false);
+      }
+      
+      // Proceed to Step 5 (Clearance verification)
+      setCurrentStep(5);
       return;
     }
 
@@ -355,215 +581,31 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 6: Selfie upload
-    if (currentStep === 6 && !selfieFile) {
-      Alert.alert("Required", "Please take a selfie");
+    // Step 6: Selfie upload - check file exists (already validated on capture)
+    if (currentStep === 6) {
+      if (!selfieFile) {
+        Alert.alert("Required", "Please take a selfie");
+        return;
+      }
+      
+      // Check for validation error
+      if (selfieError) {
+        Alert.alert("Selfie Issue", selfieError);
+        return;
+      }
+      
+      // Proceed to Step 7 (Review & Submit) - no re-validation needed
+      setCurrentStep(7);
       return;
     }
 
-    // Per-step validation with AI (resolution, blur, face detection)
-    setIsValidating(true);
-
-    try {
-      // Step 2: Validate ID documents + extract OCR
-      if (currentStep === 2) {
-        // Validate front ID
-        const frontResult = await validateDocument(frontIDFile!, "FRONTID");
-        if (!frontResult.valid) {
-          Alert.alert(
-            "Front ID Issue",
-            frontResult.error || "Please retake the front of your ID",
-          );
-          setIsValidating(false);
-          return;
-        }
-
-        // Validate back ID
-        const backResult = await validateDocument(backIDFile!, "BACKID");
-        if (!backResult.valid) {
-          Alert.alert(
-            "Back ID Issue",
-            backResult.error || "Please retake the back of your ID",
-          );
-          setIsValidating(false);
-          return;
-        }
-
-        // ===== OCR EXTRACTION: Extract ID data after validation =====
-        setIsValidating(false);
-        setIsExtracting(true);
-        
-        try {
-          const idFormData = new FormData();
-          idFormData.append("id_front", {
-            uri: frontIDFile!.uri,
-            name: frontIDFile!.name,
-            type: frontIDFile!.type,
-          } as any);
-          idFormData.append("id_type", selectedIDType);
-          
-          const extractResult = await extractIDMutation.mutateAsync(idFormData);
-          
-          setIdExtractionData(extractResult);
-          
-          // Initialize form values from extraction
-          if (extractResult.has_extraction && extractResult.fields) {
-            const initialValues: Record<string, string> = {};
-            Object.entries(extractResult.fields).forEach(([key, field]) => {
-              if (field) {
-                initialValues[key] = field.value || "";
-              }
-            });
-            setIdFormValues(initialValues);
-          } else {
-            // No extraction - enable manual entry mode
-            setIdFormValues({
-              full_name: "",
-              id_number: "",
-              birth_date: "",
-              address: "",
-              sex: "",
-            });
-          }
-        } catch (extractError) {
-          console.error("ID extraction error:", extractError);
-          // Extraction failed - notify user and allow manual entry
-          Alert.alert(
-            "Auto-Fill Unavailable",
-            "We couldn't automatically extract your ID details. Please enter the information manually on the next screen.",
-            [{ text: "OK", style: "default" }]
-          );
-          setIdExtractionData(null);
-          setIdFormValues({
-            full_name: "",
-            id_number: "",
-            birth_date: "",
-            address: "",
-            sex: "",
-          });
-        } finally {
-          setIsExtracting(false);
-        }
-        
-        // Proceed to Step 3 (ID verification)
-        setCurrentStep(3);
-        return;
-      }
-
-      // Step 4: Validate clearance document + extract OCR
-      if (currentStep === 4) {
-        const clearanceResult = await validateDocument(
-          clearanceFile!,
-          "CLEARANCE",
-        );
-        if (!clearanceResult.valid) {
-          Alert.alert(
-            "Clearance Issue",
-            clearanceResult.error || "Please retake your clearance document",
-          );
-          setIsValidating(false);
-          return;
-        }
-
-        // ===== OCR EXTRACTION: Extract clearance data after validation =====
-        setIsValidating(false);
-        setIsExtracting(true);
-        
-        try {
-          const clearanceFormData = new FormData();
-          clearanceFormData.append("clearance", {
-            uri: clearanceFile!.uri,
-            name: clearanceFile!.name,
-            type: clearanceFile!.type,
-          } as any);
-          clearanceFormData.append("clearance_type", selectedClearanceType);
-          
-          const extractResult = await extractClearanceMutation.mutateAsync(clearanceFormData);
-          
-          setClearanceExtractionData(extractResult);
-          
-          // Initialize form values from extraction
-          if (extractResult.has_extraction && extractResult.fields) {
-            const initialValues: Record<string, string> = {};
-            Object.entries(extractResult.fields).forEach(([key, field]) => {
-              if (field) {
-                initialValues[key] = field.value || "";
-              }
-            });
-            // Set clearance type from selection
-            initialValues.clearance_type = selectedClearanceType;
-            setClearanceFormValues(initialValues);
-          } else {
-            // No extraction - enable manual entry mode
-            setClearanceFormValues({
-              holder_name: "",
-              clearance_number: "",
-              issue_date: "",
-              validity_date: "",
-              clearance_type: selectedClearanceType,
-            });
-          }
-        } catch (extractError) {
-          console.error("Clearance extraction error:", extractError);
-          // Extraction failed - notify user and allow manual entry
-          Alert.alert(
-            "Auto-Fill Unavailable",
-            "We couldn't automatically extract your clearance details. Please enter the information manually on the next screen.",
-            [{ text: "OK", style: "default" }]
-          );
-          setClearanceExtractionData(null);
-          setClearanceFormValues({
-            holder_name: "",
-            clearance_number: "",
-            issue_date: "",
-            validity_date: "",
-            clearance_type: selectedClearanceType,
-          });
-        } finally {
-          setIsExtracting(false);
-        }
-        
-        // Proceed to Step 5 (Clearance verification)
-        setCurrentStep(5);
-        return;
-      }
-
-      // Step 6: Validate selfie (with face detection)
-      if (currentStep === 6) {
-        const selfieResult = await validateDocument(selfieFile!, "SELFIE");
-        if (!selfieResult.valid) {
-          Alert.alert(
-            "Selfie Issue",
-            selfieResult.error || "Please retake your selfie",
-          );
-          setIsValidating(false);
-          return;
-        }
-        // Proceed to Step 7 (Review & Submit)
-        setIsValidating(false);
-        setCurrentStep(7);
-        return;
-      }
-
-      // Step 7: Submit
-      if (currentStep === 7) {
-        setIsValidating(false);
-        handleSubmit();
-        return;
-      }
-    } catch (error) {
-      console.error("Validation error:", error);
-      Alert.alert(
-        "Validation Error",
-        "Failed to validate your document. Please try again.",
-      );
-      setIsValidating(false);
+    // Step 7: Submit
+    if (currentStep === 7) {
+      handleSubmit();
       return;
-    } finally {
-      setIsValidating(false);
     }
 
-    // Default: proceed to next step
+    // Default: proceed to next step (shouldn't reach here)
     if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
     }
@@ -792,20 +834,37 @@ export default function KYCUploadScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.title}>Upload ID Photos</Text>
       <Text style={styles.description}>
-        Take clear photos of front and back
+        Take clear photos of front and back. Each photo is validated automatically.
       </Text>
 
       <View style={styles.uploadSection}>
         <Text style={styles.uploadLabel}>Front Side</Text>
         <TouchableOpacity
-          style={styles.uploadBox}
+          style={[
+            styles.uploadBox,
+            frontIDFile && !frontIDError && styles.uploadBoxSuccess,
+            frontIDError && styles.uploadBoxError,
+          ]}
           onPress={() => pickImage("front")}
+          disabled={isValidatingFrontID}
         >
-          {frontIDFile ? (
-            <Image
-              source={{ uri: frontIDFile.uri }}
-              style={styles.previewImage}
-            />
+          {isValidatingFrontID ? (
+            <View style={styles.validatingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.validatingText}>Validating...</Text>
+            </View>
+          ) : frontIDFile ? (
+            <>
+              <Image
+                source={{ uri: frontIDFile.uri }}
+                style={styles.previewImage}
+              />
+              {!frontIDError && (
+                <View style={styles.uploadSuccessBadge}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                </View>
+              )}
+            </>
           ) : (
             <>
               <Ionicons
@@ -813,23 +872,43 @@ export default function KYCUploadScreen() {
                 size={48}
                 color={Colors.primary}
               />
-              <Text style={styles.uploadText}>Tap to upload</Text>
+              <Text style={styles.uploadText}>Tap to capture</Text>
             </>
           )}
         </TouchableOpacity>
+        {frontIDError && (
+          <Text style={styles.uploadErrorText}>{frontIDError}</Text>
+        )}
       </View>
 
       <View style={styles.uploadSection}>
         <Text style={styles.uploadLabel}>Back Side</Text>
         <TouchableOpacity
-          style={styles.uploadBox}
+          style={[
+            styles.uploadBox,
+            backIDFile && !backIDError && styles.uploadBoxSuccess,
+            backIDError && styles.uploadBoxError,
+          ]}
           onPress={() => pickImage("back")}
+          disabled={isValidatingBackID}
         >
-          {backIDFile ? (
-            <Image
-              source={{ uri: backIDFile.uri }}
-              style={styles.previewImage}
-            />
+          {isValidatingBackID ? (
+            <View style={styles.validatingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.validatingText}>Validating...</Text>
+            </View>
+          ) : backIDFile ? (
+            <>
+              <Image
+                source={{ uri: backIDFile.uri }}
+                style={styles.previewImage}
+              />
+              {!backIDError && (
+                <View style={styles.uploadSuccessBadge}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                </View>
+              )}
+            </>
           ) : (
             <>
               <Ionicons
@@ -837,10 +916,13 @@ export default function KYCUploadScreen() {
                 size={48}
                 color={Colors.primary}
               />
-              <Text style={styles.uploadText}>Tap to upload</Text>
+              <Text style={styles.uploadText}>Tap to capture</Text>
             </>
           )}
         </TouchableOpacity>
+        {backIDError && (
+          <Text style={styles.uploadErrorText}>{backIDError}</Text>
+        )}
       </View>
     </View>
   );
@@ -908,14 +990,31 @@ export default function KYCUploadScreen() {
       <View style={styles.uploadSection}>
         <Text style={styles.uploadLabel}>Upload Clearance</Text>
         <TouchableOpacity
-          style={styles.uploadBox}
+          style={[
+            styles.uploadBox,
+            clearanceFile && !clearanceError && styles.uploadBoxSuccess,
+            clearanceError && styles.uploadBoxError,
+          ]}
           onPress={() => pickImage("clearance")}
+          disabled={isValidatingClearance}
         >
-          {clearanceFile ? (
-            <Image
-              source={{ uri: clearanceFile.uri }}
-              style={styles.previewImage}
-            />
+          {isValidatingClearance ? (
+            <View style={styles.validatingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.validatingText}>Validating...</Text>
+            </View>
+          ) : clearanceFile ? (
+            <>
+              <Image
+                source={{ uri: clearanceFile.uri }}
+                style={styles.previewImage}
+              />
+              {!clearanceError && (
+                <View style={styles.uploadSuccessBadge}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                </View>
+              )}
+            </>
           ) : (
             <>
               <Ionicons
@@ -923,10 +1022,13 @@ export default function KYCUploadScreen() {
                 size={48}
                 color={Colors.primary}
               />
-              <Text style={styles.uploadText}>Tap to upload</Text>
+              <Text style={styles.uploadText}>Tap to capture</Text>
             </>
           )}
         </TouchableOpacity>
+        {clearanceError && (
+          <Text style={styles.uploadErrorText}>{clearanceError}</Text>
+        )}
       </View>
     </View>
   );
@@ -953,18 +1055,35 @@ export default function KYCUploadScreen() {
   const renderStep6 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.title}>Take a Selfie</Text>
-      <Text style={styles.description}>Hold your ID next to your face</Text>
+      <Text style={styles.description}>Hold your ID next to your face. Your photo will be validated automatically.</Text>
 
       <View style={styles.uploadSection}>
         <TouchableOpacity
-          style={styles.uploadBox}
+          style={[
+            styles.uploadBox,
+            selfieFile && !selfieError && styles.uploadBoxSuccess,
+            selfieError && styles.uploadBoxError,
+          ]}
           onPress={() => pickImage("selfie")}
+          disabled={isValidatingSelfie}
         >
-          {selfieFile ? (
-            <Image
-              source={{ uri: selfieFile.uri }}
-              style={styles.previewImage}
-            />
+          {isValidatingSelfie ? (
+            <View style={styles.validatingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.validatingText}>Validating...</Text>
+            </View>
+          ) : selfieFile ? (
+            <>
+              <Image
+                source={{ uri: selfieFile.uri }}
+                style={styles.previewImage}
+              />
+              {!selfieError && (
+                <View style={styles.uploadSuccessBadge}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                </View>
+              )}
+            </>
           ) : (
             <>
               <Ionicons
@@ -976,6 +1095,9 @@ export default function KYCUploadScreen() {
             </>
           )}
         </TouchableOpacity>
+        {selfieError && (
+          <Text style={styles.uploadErrorText}>{selfieError}</Text>
+        )}
       </View>
 
       <View style={styles.infoCard}>
@@ -1163,11 +1285,7 @@ export default function KYCUploadScreen() {
                   ? isRejected
                     ? "Resubmit"
                     : "Submit"
-                  : currentStep === 2 || currentStep === 4
-                    ? "Validate & Continue"
-                    : currentStep === 6
-                      ? "Validate Selfie"
-                      : "Next"}
+                  : "Continue"}
               </Text>
               <Ionicons
                 name={currentStep === 7 ? "checkmark" : "arrow-forward"}
@@ -1435,5 +1553,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.white,
+  },
+  // Per-document validation states
+  uploadBoxSuccess: {
+    borderColor: Colors.success,
+    borderWidth: 2,
+  },
+  uploadBoxError: {
+    borderColor: Colors.error,
+    borderWidth: 2,
+  },
+  validatingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  validatingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  uploadSuccessBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 2,
+  },
+  uploadErrorText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: Colors.error,
+    textAlign: "center",
   },
 });
