@@ -2,7 +2,7 @@
 // Hook for fetching and confirming AI-extracted KYC data
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, OCR_TIMEOUT } from "@/lib/api/config";
 
 /**
  * Interface for extracted KYC field with confidence
@@ -318,11 +318,13 @@ export interface ClearanceExtractionResponse {
 
 /**
  * Extract ID data from uploaded image
+ * Uses extended timeout (90s) since OCR processing can take 20-45 seconds
  */
 const extractIDData = async (formData: FormData): Promise<IDExtractionResponse> => {
   const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_ID, {
     method: "POST",
     body: formData as any,
+    timeout: OCR_TIMEOUT, // 90s timeout for OCR
   });
 
   const data = await response.json() as { error?: string } & IDExtractionResponse;
@@ -336,11 +338,13 @@ const extractIDData = async (formData: FormData): Promise<IDExtractionResponse> 
 
 /**
  * Extract clearance data from uploaded image
+ * Uses extended timeout (90s) since OCR processing can take 20-45 seconds
  */
 const extractClearanceData = async (formData: FormData): Promise<ClearanceExtractionResponse> => {
   const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_CLEARANCE, {
     method: "POST",
     body: formData as any,
+    timeout: OCR_TIMEOUT, // 90s timeout for OCR
   });
 
   const data = await response.json() as { error?: string } & ClearanceExtractionResponse;
