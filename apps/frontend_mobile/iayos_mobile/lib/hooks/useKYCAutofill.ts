@@ -79,11 +79,11 @@ const fetchKYCAutofill = async (): Promise<KYCAutofillResponse> => {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = await response.json().catch(() => ({})) as { error?: string };
     throw new Error(errorData.error || "Failed to fetch KYC auto-fill data");
   }
 
-  return response.json();
+  return response.json() as Promise<KYCAutofillResponse>;
 };
 
 /**
@@ -99,7 +99,7 @@ const confirmKYCData = async (payload: KYCConfirmPayload): Promise<any> => {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = await response.json().catch(() => ({})) as { error?: string };
     throw new Error(errorData.error || "Failed to confirm KYC data");
   }
 
@@ -272,4 +272,139 @@ export const formatFieldName = (fieldName: string): string => {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+};
+
+// =============================================================================
+// PER-STEP OCR EXTRACTION HOOKS (New KYC Flow)
+// =============================================================================
+
+/**
+ * Interface for extracted field with confidence
+ */
+export interface ExtractedFieldWithConfidence {
+  value: string;
+  confidence: number;
+  editable: boolean;
+}
+
+/**
+ * Interface for ID extraction response
+ */
+export interface IDExtractionResponse {
+  success: boolean;
+  has_extraction: boolean;
+  fields: {
+    full_name?: ExtractedFieldWithConfidence;
+    id_number?: ExtractedFieldWithConfidence;
+    birth_date?: ExtractedFieldWithConfidence;
+    address?: ExtractedFieldWithConfidence;
+    sex?: ExtractedFieldWithConfidence;
+  };
+  confidence: number;
+  id_type: string;
+  extracted_at: string;
+  message?: string;
+  error?: string;
+  error_code?: string;
+}
+
+/**
+ * Interface for clearance extraction response
+ */
+export interface ClearanceExtractionResponse {
+  success: boolean;
+  has_extraction: boolean;
+  fields: {
+    clearance_number?: ExtractedFieldWithConfidence;
+    holder_name?: ExtractedFieldWithConfidence;
+    issue_date?: ExtractedFieldWithConfidence;
+    validity_date?: ExtractedFieldWithConfidence;
+    clearance_type?: ExtractedFieldWithConfidence;
+  };
+  confidence: number;
+  clearance_type: string;
+  extracted_at: string;
+  message?: string;
+  error?: string;
+  error_code?: string;
+}
+
+/**
+ * Extract ID data from uploaded image
+ */
+const extractIDData = async (formData: FormData): Promise<IDExtractionResponse> => {
+  const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_ID, {
+    method: "POST",
+    body: formData as any,
+  });
+
+  const data = await response.json() as { error?: string } & IDExtractionResponse;
+  
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to extract ID data");
+  }
+  
+  return data;
+};
+
+/**
+ * Extract clearance data from uploaded image
+ */
+const extractClearanceData = async (formData: FormData): Promise<ClearanceExtractionResponse> => {
+  const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_CLEARANCE, {
+    method: "POST",
+    body: formData as any,
+  });
+
+  const data = await response.json() as { error?: string } & ClearanceExtractionResponse;
+  
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to extract clearance data");
+  }
+  
+  return data;
+};
+
+/**
+ * Hook for extracting ID data from front ID image
+ * Called after Step 2 validation passes
+ */
+export const useExtractID = () => {
+  return useMutation({
+    mutationFn: extractIDData,
+    onError: (error: Error) => {
+      console.error("[KYC Extract ID] Error:", error.message);
+    },
+  });
+};
+
+/**
+ * Hook for extracting clearance data from clearance image
+ * Called after Step 3 validation passes
+ */
+export const useExtractClearance = () => {
+  return useMutation({
+    mutationFn: extractClearanceData,
+    onError: (error: Error) => {
+      console.error("[KYC Extract Clearance] Error:", error.message);
+    },
+  });
+};
+
+/**
+ * Get confidence color based on score (for UI badges)
+ */
+export const getConfidenceColor = (confidence: number): string => {
+  if (confidence >= 0.8) return "#22c55e"; // green-500
+  if (confidence >= 0.6) return "#eab308"; // yellow-500
+  return "#ef4444"; // red-500
+};
+
+/**
+ * Get confidence label based on score
+ */
+export const getConfidenceLabel = (confidence: number): string => {
+  if (confidence >= 0.8) return "High";
+  if (confidence >= 0.6) return "Medium";
+  return "Low";
 };

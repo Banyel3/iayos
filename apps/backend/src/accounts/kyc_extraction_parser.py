@@ -1031,6 +1031,156 @@ class KYCExtractionParser:
         
         return ExtractionResult()
 
+    def parse_clearance_text(self, ocr_text: str, clearance_type: str = "NBI") -> Dict[str, Any]:
+        """
+        Parse NBI or Police clearance OCR text to extract key fields.
+        
+        Args:
+            ocr_text: Raw OCR text from clearance document
+            clearance_type: Type of clearance (NBI or POLICE)
+            
+        Returns:
+            Dictionary with extracted clearance fields and confidence scores
+        """
+        logger.info(f"🔍 Parsing {clearance_type} clearance OCR text ({len(ocr_text)} chars)")
+        
+        result = {
+            "clearance_number": "",
+            "clearance_number_confidence": 0.0,
+            "holder_name": "",
+            "holder_name_confidence": 0.0,
+            "issue_date": "",
+            "issue_date_confidence": 0.0,
+            "validity_date": "",
+            "validity_date_confidence": 0.0,
+            "overall_confidence": 0.0
+        }
+        
+        if not ocr_text or len(ocr_text) < 10:
+            return result
+        
+        text_upper = ocr_text.upper()
+        lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
+        
+        # =====================================================================
+        # NBI CLEARANCE PATTERNS
+        # =====================================================================
+        if clearance_type == "NBI":
+            # NBI Clearance Number pattern: "NBI CLEARANCE NO: XXXX-XXXXXXXX" or similar
+            nbi_number_patterns = [
+                r'(?:NBI\s*)?CLEARANCE\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
+                r'NO[:\.\s]*(\d{4}[\-\s]?\d{8})',
+                r'(?:NBI|CLEARANCE)\s*[:\.\s]*([A-Z]?\d{4,}[\-\s]?\d{0,8})',
+            ]
+            
+            for pattern in nbi_number_patterns:
+                match = re.search(pattern, text_upper, re.IGNORECASE)
+                if match:
+                    result["clearance_number"] = match.group(1).strip()
+                    result["clearance_number_confidence"] = 0.85
+                    break
+            
+            # Name pattern: "NAME: JUAN DELA CRUZ" or "DELACRUZ, JUAN SANTOS"
+            name_patterns = [
+                r'NAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
+                r'(?:ISSUED\s+TO|HOLDER)[:\.\s]+([A-Z][A-Z\s,\.]+)',
+            ]
+            
+            for pattern in name_patterns:
+                match = re.search(pattern, text_upper)
+                if match:
+                    name = match.group(1).strip()
+                    # Clean up name (remove trailing dates or extra info)
+                    name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
+                    name = re.sub(r'\s+', ' ', name).strip()
+                    if len(name) > 3:
+                        result["holder_name"] = name.title()
+                        result["holder_name_confidence"] = 0.8
+                        break
+        
+        # =====================================================================
+        # POLICE CLEARANCE PATTERNS
+        # =====================================================================
+        elif clearance_type == "POLICE":
+            # Police Clearance Number pattern
+            police_number_patterns = [
+                r'(?:CONTROL|CLEARANCE|REFERENCE)\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
+                r'NO[:\.\s]*(\d{4,}[\-\s]?\d{0,8})',
+            ]
+            
+            for pattern in police_number_patterns:
+                match = re.search(pattern, text_upper)
+                if match:
+                    result["clearance_number"] = match.group(1).strip()
+                    result["clearance_number_confidence"] = 0.8
+                    break
+            
+            # Name pattern for police clearance
+            name_patterns = [
+                r'NAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
+                r'(?:CERTIFY|HEREBY|THIS\s+IS\s+TO)[^A-Z]*([A-Z][A-Z\s,\.]{5,30})',
+            ]
+            
+            for pattern in name_patterns:
+                match = re.search(pattern, text_upper)
+                if match:
+                    name = match.group(1).strip()
+                    name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
+                    name = re.sub(r'\s+', ' ', name).strip()
+                    if len(name) > 3:
+                        result["holder_name"] = name.title()
+                        result["holder_name_confidence"] = 0.75
+                        break
+        
+        # =====================================================================
+        # DATE EXTRACTION (Common for both types)
+        # =====================================================================
+        # Issue date patterns
+        issue_patterns = [
+            r'(?:DATE\s+OF\s+ISSUE|ISSUED\s+ON|ISSUE\s+DATE|DATE\s+ISSUED)[:\.\s]*([A-Z0-9\s,\-/]+)',
+            r'ISSUED[:\.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
+        ]
+        
+        for pattern in issue_patterns:
+            match = re.search(pattern, text_upper)
+            if match:
+                date_str = match.group(1).strip()[:30]  # Limit length
+                parsed_date = self._parse_date_from_text(date_str)
+                if parsed_date:
+                    result["issue_date"] = parsed_date
+                    result["issue_date_confidence"] = 0.8
+                    break
+        
+        # Validity/expiry date patterns
+        validity_patterns = [
+            r'(?:VALID\s+UNTIL|EXPIRY|EXPIRATION|VALID\s+THRU)[:\.\s]*([A-Z0-9\s,\-/]+)',
+            r'(?:VALID|EXPIRES)[:\.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
+        ]
+        
+        for pattern in validity_patterns:
+            match = re.search(pattern, text_upper)
+            if match:
+                date_str = match.group(1).strip()[:30]
+                parsed_date = self._parse_date_from_text(date_str)
+                if parsed_date:
+                    result["validity_date"] = parsed_date
+                    result["validity_date_confidence"] = 0.8
+                    break
+        
+        # Calculate overall confidence
+        confidences = [
+            result["clearance_number_confidence"],
+            result["holder_name_confidence"],
+            result["issue_date_confidence"],
+            result["validity_date_confidence"]
+        ]
+        non_zero = [c for c in confidences if c > 0]
+        result["overall_confidence"] = sum(non_zero) / len(non_zero) if non_zero else 0.0
+        
+        logger.info(f"   Clearance extraction: number={result['clearance_number']}, name={result['holder_name']}, conf={result['overall_confidence']:.2f}")
+        
+        return result
+
 
 # Singleton instance
 _parser_instance = None
