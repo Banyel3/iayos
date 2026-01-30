@@ -15,11 +15,20 @@ const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = (await response.json().catch(() => ({}))) as { message?: string };
     throw new Error(errorData.message || "Failed to fetch KYC status");
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as {
+    success?: boolean;
+    status?: string;
+    kyc_id?: number;
+    reviewed_at?: string;
+    notes?: string;
+    submitted_at?: string;
+    files?: Array<{ fileID: number; file_type: string; fileUrl: string }>;
+    message?: string;
+  };
 
   // Check if response has success wrapper
   const responseData = data.success ? data : { success: true, ...data };
@@ -154,7 +163,7 @@ const fetchKYCHistory = async () => {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = (await response.json().catch(() => ({}))) as { message?: string };
     throw new Error(errorData.message || "Failed to fetch KYC history");
   }
 
