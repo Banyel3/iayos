@@ -1,6 +1,6 @@
 // app/kyc/upload.tsx
-// KYC document upload screen - Matches Next.js design
-// Updated: Per-step OCR extraction with editable fields
+// KYC document upload screen - 7-step flow with separate verification screens
+// Updated: Per-step OCR extraction with dedicated verification steps
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
@@ -40,6 +40,9 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+
+// Total steps in the KYC flow
+const TOTAL_STEPS = 7;
 
 type IDType =
   | ""
@@ -97,12 +100,10 @@ export default function KYCUploadScreen() {
   // ID extraction data and editable values
   const [idExtractionData, setIdExtractionData] = useState<IDExtractionResponse | null>(null);
   const [idFormValues, setIdFormValues] = useState<Record<string, string>>({});
-  const [showIdForm, setShowIdForm] = useState(false);
 
   // Clearance extraction data and editable values
   const [clearanceExtractionData, setClearanceExtractionData] = useState<ClearanceExtractionResponse | null>(null);
   const [clearanceFormValues, setClearanceFormValues] = useState<Record<string, string>>({});
-  const [showClearanceForm, setShowClearanceForm] = useState(false);
 
   // Track if extraction is happening
   const [isExtracting, setIsExtracting] = useState(false);
@@ -197,6 +198,16 @@ export default function KYCUploadScreen() {
   ): Promise<{ valid: boolean; error?: string }> => {
     try {
       const token = await AsyncStorage.getItem("access_token");
+      
+      // Check if token exists - 403 errors often happen when token is missing/expired
+      if (!token) {
+        console.error("[KYC Validate] No access token found - user may need to re-login");
+        return {
+          valid: false,
+          error: "Session expired. Please log in again.",
+        };
+      }
+      
       const formData = new FormData();
       formData.append("file", {
         uri: file.uri,
@@ -205,6 +216,8 @@ export default function KYCUploadScreen() {
       } as any);
       formData.append("document_type", documentType);
 
+      console.log(`[KYC Validate] Validating ${documentType}...`);
+      
       const response = await fetch(ENDPOINTS.KYC_VALIDATE_DOCUMENT, {
         method: "POST",
         headers: {
@@ -213,12 +226,23 @@ export default function KYCUploadScreen() {
         body: formData as any,
       });
 
+      console.log(`[KYC Validate] Response status: ${response.status}`);
+
+      // Handle 403 Forbidden specifically
+      if (response.status === 403) {
+        console.error("[KYC Validate] 403 Forbidden - token may be expired or invalid");
+        return {
+          valid: false,
+          error: "Session expired. Please log in again to continue.",
+        };
+      }
+
       // Check if response is OK before parsing JSON
       if (!response.ok) {
         // Check content-type to handle HTML error pages gracefully
         const contentType = response.headers.get("content-type") || "";
         if (!contentType.includes("application/json")) {
-          console.error(`Validation API returned non-JSON response (${response.status}): ${contentType}`);
+          console.error(`[KYC Validate] Non-JSON response (${response.status}): ${contentType}`);
           return {
             valid: false,
             error: `Server error (${response.status}). Please try again later.`,
@@ -239,7 +263,14 @@ export default function KYCUploadScreen() {
       };
       return { valid: data.valid, error: data.error };
     } catch (error) {
-      console.error("Validation error:", error);
+      console.error("[KYC Validate] Error:", error);
+      // Check for network timeout
+      if (error instanceof Error && error.message.includes("timed out")) {
+        return {
+          valid: false,
+          error: "Request timed out. Please check your connection and try again.",
+        };
+      }
       return {
         valid: false,
         error: "Failed to validate image. Please try again.",
@@ -248,26 +279,57 @@ export default function KYCUploadScreen() {
   };
 
   const handleNext = async () => {
-    // Step 1: ID Type selection (no validation needed)
+    // ==== 7-STEP KYC FLOW ====
+    // Step 1: Select ID Type
+    // Step 2: Upload ID Photos (front + back)
+    // Step 3: Verify/Edit ID Information (OCR extracted)
+    // Step 4: Select Clearance Type + Upload
+    // Step 5: Verify/Edit Clearance Information (OCR extracted)
+    // Step 6: Take Selfie
+    // Step 7: Review & Submit
+
+    // Step 1: ID Type selection
     if (currentStep === 1 && !selectedIDType) {
       Alert.alert("Required", "Please select an ID type");
       return;
     }
 
-    // Step 2: Front/Back ID - validate both images
+    // Step 2: Front/Back ID upload
     if (currentStep === 2 && (!frontIDFile || !backIDFile)) {
       Alert.alert("Required", "Please upload both sides of your ID");
       return;
     }
 
-    // Step 3: Clearance - validate clearance image
-    if (currentStep === 3 && (!selectedClearanceType || !clearanceFile)) {
-      Alert.alert("Required", "Please upload clearance certificate");
+    // Step 3: ID verification - just check form values exist
+    if (currentStep === 3) {
+      if (!idFormValues.full_name?.trim() || !idFormValues.id_number?.trim()) {
+        Alert.alert("Required", "Please fill in at least your full name and ID number");
+        return;
+      }
+      // Proceed to step 4
+      setCurrentStep(4);
       return;
     }
 
-    // Step 4: Selfie - validate selfie image
-    if (currentStep === 4 && !selfieFile) {
+    // Step 4: Clearance type + upload
+    if (currentStep === 4 && (!selectedClearanceType || !clearanceFile)) {
+      Alert.alert("Required", "Please select clearance type and upload the document");
+      return;
+    }
+
+    // Step 5: Clearance verification - just check form values exist
+    if (currentStep === 5) {
+      if (!clearanceFormValues.clearance_number?.trim()) {
+        Alert.alert("Required", "Please fill in the clearance number");
+        return;
+      }
+      // Proceed to step 6
+      setCurrentStep(6);
+      return;
+    }
+
+    // Step 6: Selfie upload
+    if (currentStep === 6 && !selfieFile) {
       Alert.alert("Required", "Please take a selfie");
       return;
     }
@@ -276,7 +338,7 @@ export default function KYCUploadScreen() {
     setIsValidating(true);
 
     try {
-      // Step 2: Validate ID documents
+      // Step 2: Validate ID documents + extract OCR
       if (currentStep === 2) {
         // Validate front ID
         const frontResult = await validateDocument(frontIDFile!, "FRONTID");
@@ -336,14 +398,12 @@ export default function KYCUploadScreen() {
               sex: "",
             });
           }
-          
-          setShowIdForm(true);
         } catch (extractError) {
           console.error("ID extraction error:", extractError);
           // Extraction failed - notify user and allow manual entry
           Alert.alert(
             "Auto-Fill Unavailable",
-            "We couldn't automatically extract your ID details. Please enter the information manually.",
+            "We couldn't automatically extract your ID details. Please enter the information manually on the next screen.",
             [{ text: "OK", style: "default" }]
           );
           setIdExtractionData(null);
@@ -354,17 +414,17 @@ export default function KYCUploadScreen() {
             address: "",
             sex: "",
           });
-          setShowIdForm(true);
         } finally {
           setIsExtracting(false);
         }
         
-        // Don't proceed to next step - wait for user to review/edit form
+        // Proceed to Step 3 (ID verification)
+        setCurrentStep(3);
         return;
       }
 
-      // Step 3: Validate clearance document
-      if (currentStep === 3) {
+      // Step 4: Validate clearance document + extract OCR
+      if (currentStep === 4) {
         const clearanceResult = await validateDocument(
           clearanceFile!,
           "CLEARANCE",
@@ -416,14 +476,12 @@ export default function KYCUploadScreen() {
               clearance_type: selectedClearanceType,
             });
           }
-          
-          setShowClearanceForm(true);
         } catch (extractError) {
           console.error("Clearance extraction error:", extractError);
           // Extraction failed - notify user and allow manual entry
           Alert.alert(
             "Auto-Fill Unavailable",
-            "We couldn't automatically extract your clearance details. Please enter the information manually.",
+            "We couldn't automatically extract your clearance details. Please enter the information manually on the next screen.",
             [{ text: "OK", style: "default" }]
           );
           setClearanceExtractionData(null);
@@ -434,17 +492,17 @@ export default function KYCUploadScreen() {
             validity_date: "",
             clearance_type: selectedClearanceType,
           });
-          setShowClearanceForm(true);
         } finally {
           setIsExtracting(false);
         }
         
-        // Don't proceed to next step - wait for user to review/edit form
+        // Proceed to Step 5 (Clearance verification)
+        setCurrentStep(5);
         return;
       }
 
-      // Step 4: Validate selfie (with face detection)
-      if (currentStep === 4) {
+      // Step 6: Validate selfie (with face detection)
+      if (currentStep === 6) {
         const selfieResult = await validateDocument(selfieFile!, "SELFIE");
         if (!selfieResult.valid) {
           Alert.alert(
@@ -454,6 +512,17 @@ export default function KYCUploadScreen() {
           setIsValidating(false);
           return;
         }
+        // Proceed to Step 7 (Review & Submit)
+        setIsValidating(false);
+        setCurrentStep(7);
+        return;
+      }
+
+      // Step 7: Submit
+      if (currentStep === 7) {
+        setIsValidating(false);
+        handleSubmit();
+        return;
       }
     } catch (error) {
       console.error("Validation error:", error);
@@ -467,40 +536,23 @@ export default function KYCUploadScreen() {
       setIsValidating(false);
     }
 
-    // All validations passed, proceed to next step or submit
-    if (currentStep < 4) {
+    // Default: proceed to next step
+    if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
-    } else {
-      handleSubmit();
     }
   };
 
   const handleBack = () => {
-    // If showing ID form, hide it and stay on step 2
-    if (showIdForm && currentStep === 2) {
-      setShowIdForm(false);
-      setIdExtractionData(null);
-      setIdFormValues({});
-      return;
-    }
-    
-    // If showing clearance form, hide it and stay on step 3
-    if (showClearanceForm && currentStep === 3) {
-      setShowClearanceForm(false);
-      setClearanceExtractionData(null);
-      setClearanceFormValues({});
-      return;
-    }
-    
+    // Step-by-step back navigation for 7-step flow
     if (currentStep > 1) {
-      // When going back, also reset the forms for that step
+      // Reset any data for the step we're leaving
       if (currentStep === 3) {
-        setShowIdForm(false);
+        // Leaving ID verification - clear extraction data
         setIdExtractionData(null);
         setIdFormValues({});
       }
-      if (currentStep === 4) {
-        setShowClearanceForm(false);
+      if (currentStep === 5) {
+        // Leaving clearance verification - clear extraction data
         setClearanceExtractionData(null);
         setClearanceFormValues({});
       }
@@ -508,18 +560,6 @@ export default function KYCUploadScreen() {
     } else {
       router.back();
     }
-  };
-
-  // Handle proceeding from ID extraction form to Step 3
-  const handleProceedFromIdForm = () => {
-    setShowIdForm(false);
-    setCurrentStep(3);
-  };
-
-  // Handle proceeding from Clearance extraction form to Step 4
-  const handleProceedFromClearanceForm = () => {
-    setShowClearanceForm(false);
-    setCurrentStep(4);
   };
 
   // Handle field value changes in ID form
@@ -653,7 +693,7 @@ export default function KYCUploadScreen() {
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
-      {[1, 2, 3, 4].map((step) => (
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((step) => (
         <View key={step} style={styles.stepItem}>
           <View
             style={[
@@ -670,7 +710,7 @@ export default function KYCUploadScreen() {
               {step}
             </Text>
           </View>
-          {step < 4 && <View style={styles.stepLine} />}
+          {step < TOTAL_STEPS && <View style={styles.stepLine} />}
         </View>
       ))}
     </View>
@@ -775,26 +815,29 @@ export default function KYCUploadScreen() {
           )}
         </TouchableOpacity>
       </View>
-
-      {/* ID Extraction Form - shown after OCR processing */}
-      {showIdForm && (
-        <KYCExtractionForm
-          title="Verify ID Information"
-          subtitle="Review and edit the extracted details"
-          documentType="id"
-          fields={idExtractionData?.fields || {}}
-          values={idFormValues}
-          onFieldChange={handleIdFieldChange}
-          isLoading={isExtracting}
-          error={extractIDMutation.error ? String(extractIDMutation.error) : undefined}
-          onProceed={handleProceedFromIdForm}
-          proceedButtonText="Continue to Clearance"
-        />
-      )}
     </View>
   );
 
+  // Step 3: ID Verification Form (dedicated step)
   const renderStep3 = () => (
+    <View style={styles.stepContent}>
+      <KYCExtractionForm
+        title="Verify ID Information"
+        subtitle={idExtractionData?.has_extraction 
+          ? "Review and edit the extracted details"
+          : "Please enter your ID details manually"}
+        documentType="id"
+        fields={idExtractionData?.fields || {}}
+        values={idFormValues}
+        onFieldChange={handleIdFieldChange}
+        isLoading={isExtracting}
+        error={extractIDMutation.error ? String(extractIDMutation.error) : undefined}
+      />
+    </View>
+  );
+
+  // Step 4: Clearance type selection + upload
+  const renderStep4 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.title}>Clearance Certificate</Text>
       <Text style={styles.description}>Upload Police or NBI clearance</Text>
@@ -858,26 +901,29 @@ export default function KYCUploadScreen() {
           )}
         </TouchableOpacity>
       </View>
-
-      {/* Clearance Extraction Form - shown after OCR processing */}
-      {showClearanceForm && (
-        <KYCExtractionForm
-          title="Verify Clearance Information"
-          subtitle="Review and edit the extracted details"
-          documentType="clearance"
-          fields={clearanceExtractionData?.fields || {}}
-          values={clearanceFormValues}
-          onFieldChange={handleClearanceFieldChange}
-          isLoading={isExtracting}
-          error={extractClearanceMutation.error ? String(extractClearanceMutation.error) : undefined}
-          onProceed={handleProceedFromClearanceForm}
-          proceedButtonText="Continue to Selfie"
-        />
-      )}
     </View>
   );
 
-  const renderStep4 = () => (
+  // Step 5: Clearance Verification Form (dedicated step)
+  const renderStep5 = () => (
+    <View style={styles.stepContent}>
+      <KYCExtractionForm
+        title="Verify Clearance Information"
+        subtitle={clearanceExtractionData?.has_extraction 
+          ? "Review and edit the extracted details"
+          : "Please enter your clearance details manually"}
+        documentType="clearance"
+        fields={clearanceExtractionData?.fields || {}}
+        values={clearanceFormValues}
+        onFieldChange={handleClearanceFieldChange}
+        isLoading={isExtracting}
+        error={extractClearanceMutation.error ? String(extractClearanceMutation.error) : undefined}
+      />
+    </View>
+  );
+
+  // Step 6: Selfie
+  const renderStep6 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.title}>Take a Selfie</Text>
       <Text style={styles.description}>Hold your ID next to your face</Text>
@@ -916,6 +962,75 @@ export default function KYCUploadScreen() {
           <Text style={styles.infoText}>
             • Good lighting{"\n"}• Face clearly visible{"\n"}• Hold ID next to
             face{"\n"}• Remove glasses
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  // Step 7: Review & Submit
+  const renderStep7 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.title}>Review & Submit</Text>
+      <Text style={styles.description}>
+        Please review your information before submitting
+      </Text>
+
+      {/* Summary of uploaded documents */}
+      <View style={styles.reviewSection}>
+        <View style={styles.reviewItem}>
+          <View style={styles.reviewItemHeader}>
+            <Ionicons name="card-outline" size={24} color={Colors.primary} />
+            <Text style={styles.reviewItemTitle}>Government ID</Text>
+            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+          </View>
+          <Text style={styles.reviewItemText}>
+            {ID_TYPES.find(t => t.value === selectedIDType)?.label || selectedIDType}
+          </Text>
+          {idFormValues.full_name && (
+            <Text style={styles.reviewItemDetail}>Name: {idFormValues.full_name}</Text>
+          )}
+          {idFormValues.id_number && (
+            <Text style={styles.reviewItemDetail}>ID #: {idFormValues.id_number}</Text>
+          )}
+        </View>
+
+        <View style={styles.reviewItem}>
+          <View style={styles.reviewItemHeader}>
+            <Ionicons name="shield-checkmark-outline" size={24} color={Colors.primary} />
+            <Text style={styles.reviewItemTitle}>Clearance</Text>
+            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+          </View>
+          <Text style={styles.reviewItemText}>
+            {CLEARANCE_TYPES.find(t => t.value === selectedClearanceType)?.label || selectedClearanceType}
+          </Text>
+          {clearanceFormValues.clearance_number && (
+            <Text style={styles.reviewItemDetail}>Clearance #: {clearanceFormValues.clearance_number}</Text>
+          )}
+        </View>
+
+        <View style={styles.reviewItem}>
+          <View style={styles.reviewItemHeader}>
+            <Ionicons name="camera-outline" size={24} color={Colors.primary} />
+            <Text style={styles.reviewItemTitle}>Selfie</Text>
+            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+          </View>
+          <Text style={styles.reviewItemText}>Photo captured</Text>
+        </View>
+      </View>
+
+      <View style={styles.infoCard}>
+        <Ionicons
+          name="information-circle-outline"
+          size={24}
+          color={Colors.primary}
+        />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.infoTitle}>What happens next?</Text>
+          <Text style={styles.infoText}>
+            • Your documents will be verified{"\n"}
+            • This usually takes 1-2 business days{"\n"}
+            • You'll receive a notification once verified
           </Text>
         </View>
       </View>
@@ -964,73 +1079,78 @@ export default function KYCUploadScreen() {
         {currentStep === 2 && renderStep2()}
         {currentStep === 3 && renderStep3()}
         {currentStep === 4 && renderStep4()}
+        {currentStep === 5 && renderStep5()}
+        {currentStep === 6 && renderStep6()}
+        {currentStep === 7 && renderStep7()}
       </ScrollView>
 
-      {/* Hide footer when extraction form is shown (form has its own proceed button) */}
-      {!showIdForm && !showClearanceForm && (
-        <View style={styles.footer}>
-          {currentStep > 1 && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBack}
-              disabled={isValidating || isSubmitting || isExtracting}
-            >
-              <Ionicons
-                name="arrow-back"
-                size={20}
-                color={
-                  isValidating || isSubmitting || isExtracting
-                    ? Colors.textSecondary
-                    : Colors.primary
-                }
-              />
-              <Text
-                style={[
-                  styles.backButtonText,
-                  (isValidating || isSubmitting || isExtracting) && {
-                    color: Colors.textSecondary,
-                  },
-                ]}
-              >
-                Back
-              </Text>
-            </TouchableOpacity>
-          )}
+      {/* Footer with navigation buttons */}
+      <View style={styles.footer}>
+        {currentStep > 1 && (
           <TouchableOpacity
-            style={[
-              styles.nextButton,
-              currentStep === 1 && styles.nextButtonFull,
-              (isValidating || isSubmitting || isExtracting) && { opacity: 0.7 },
-            ]}
-            onPress={handleNext}
-            disabled={isSubmitting || isValidating || isExtracting}
+            style={styles.backButton}
+            onPress={handleBack}
+            disabled={isValidating || isSubmitting || isExtracting}
           >
-            {isSubmitting || isValidating || isExtracting ? (
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <ActivityIndicator color={Colors.white} size="small" />
-                <Text style={[styles.nextButtonText, { marginLeft: 8 }]}>
-                  {isExtracting ? "Extracting..." : isValidating ? "Validating..." : "Submitting..."}
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.nextButtonText}>
-                  {currentStep === 4
-                    ? isRejected
-                      ? "Resubmit Documents"
-                      : "Submit"
-                    : "Next"}
-                </Text>
-                <Ionicons
-                  name={currentStep === 4 ? "checkmark" : "arrow-forward"}
-                  size={20}
-                  color={Colors.white}
-                />
-              </>
-            )}
+            <Ionicons
+              name="arrow-back"
+              size={20}
+              color={
+                isValidating || isSubmitting || isExtracting
+                  ? Colors.textSecondary
+                  : Colors.primary
+              }
+            />
+            <Text
+              style={[
+                styles.backButtonText,
+                (isValidating || isSubmitting || isExtracting) && {
+                  color: Colors.textSecondary,
+                },
+              ]}
+            >
+              Back
+            </Text>
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            currentStep === 1 && styles.nextButtonFull,
+            (isValidating || isSubmitting || isExtracting) && { opacity: 0.7 },
+          ]}
+          onPress={handleNext}
+          disabled={isSubmitting || isValidating || isExtracting}
+        >
+          {isSubmitting || isValidating || isExtracting ? (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <ActivityIndicator color={Colors.white} size="small" />
+              <Text style={[styles.nextButtonText, { marginLeft: 8 }]}>
+                {isExtracting ? "Extracting..." : isValidating ? "Validating..." : "Submitting..."}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.nextButtonText}>
+                {currentStep === 7
+                  ? isRejected
+                    ? "Resubmit"
+                    : "Submit"
+                  : currentStep === 2 || currentStep === 4
+                    ? "Validate & Continue"
+                    : currentStep === 6
+                      ? "Validate Selfie"
+                      : "Next"}
+              </Text>
+              <Ionicons
+                name={currentStep === 7 ? "checkmark" : "arrow-forward"}
+                size={20}
+                color={Colors.white}
+              />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1209,6 +1329,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  // Review & Submit step styles
+  reviewSection: {
+    gap: 16,
+    marginBottom: 20,
+  },
+  reviewItem: {
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reviewItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 8,
+  },
+  reviewItemTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  reviewItemText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginLeft: 36,
+  },
+  reviewItemDetail: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginLeft: 36,
+    marginTop: 4,
   },
   footer: {
     flexDirection: "row",
