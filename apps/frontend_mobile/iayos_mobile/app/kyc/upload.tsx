@@ -39,7 +39,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, OCR_TIMEOUT } from "@/lib/api/config";
 
 // Total steps in the KYC flow
 const TOTAL_STEPS = 7;
@@ -197,17 +197,6 @@ export default function KYCUploadScreen() {
     documentType: string,
   ): Promise<{ valid: boolean; error?: string }> => {
     try {
-      const token = await AsyncStorage.getItem("access_token");
-      
-      // Check if token exists - 403 errors often happen when token is missing/expired
-      if (!token) {
-        console.error("[KYC Validate] No access token found - user may need to re-login");
-        return {
-          valid: false,
-          error: "Session expired. Please log in again.",
-        };
-      }
-      
       const formData = new FormData();
       formData.append("file", {
         uri: file.uri,
@@ -216,14 +205,15 @@ export default function KYCUploadScreen() {
       } as any);
       formData.append("document_type", documentType);
 
-      console.log(`[KYC Validate] Validating ${documentType}...`);
+      // Log the endpoint URL for debugging
+      const endpointUrl = ENDPOINTS.KYC_VALIDATE_DOCUMENT;
+      console.log(`[KYC Validate] Validating ${documentType} at: ${endpointUrl}`);
       
-      const response = await fetch(ENDPOINTS.KYC_VALIDATE_DOCUMENT, {
+      // Use apiRequest instead of raw fetch for better error handling and auto-auth
+      const response = await apiRequest(endpointUrl, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData as any,
+        timeout: OCR_TIMEOUT, // Use 5-minute timeout for validation
       });
 
       console.log(`[KYC Validate] Response status: ${response.status}`);
@@ -232,11 +222,12 @@ export default function KYCUploadScreen() {
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
         console.error(`[KYC Validate] Non-JSON response (${response.status}): ${contentType}`);
+        console.error(`[KYC Validate] Endpoint was: ${endpointUrl}`);
         // Provide user-friendly messages for common gateway errors
         if (response.status === 502) {
           return {
             valid: false,
-            error: "Server is temporarily unavailable. Please try again in a moment.",
+            error: "Cannot reach server. Please check your connection and try again.",
           };
         }
         if (response.status === 503) {
@@ -292,12 +283,20 @@ export default function KYCUploadScreen() {
       }
     } catch (error) {
       console.error("[KYC Validate] Error:", error);
-      // Check for network timeout
-      if (error instanceof Error && error.message.includes("timed out")) {
-        return {
-          valid: false,
-          error: "Request timed out. Please check your connection and try again.",
-        };
+      // Check for network/abort errors
+      if (error instanceof Error) {
+        if (error.name === "AbortError" || error.message.includes("aborted")) {
+          return {
+            valid: false,
+            error: "Request timed out. Please check your connection and try again.",
+          };
+        }
+        if (error.message.includes("Network request failed")) {
+          return {
+            valid: false,
+            error: "Network error. Please check your internet connection.",
+          };
+        }
       }
       return {
         valid: false,
