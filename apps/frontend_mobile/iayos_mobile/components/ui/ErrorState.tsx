@@ -8,6 +8,7 @@
  * - Reusable for all error states
  */
 
+
 import React from 'react';
 import {
   View,
@@ -18,27 +19,28 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import Button from './Button';
+import { getErrorMessage } from '@/lib/utils/parse-api-error';
 
 interface ErrorStateProps {
   // Content
   title?: string;
-  message?: string;
-
+  message?: string | unknown;
   // Action
   onRetry?: () => void;
   retryLabel?: string;
-
   // Styling
   style?: ViewStyle;
 }
 
-export default function ErrorState({
   title = 'Something went wrong',
-  message = 'We encountered an error. Please try again.',
+  message,
   onRetry,
   retryLabel = 'Try Again',
   style,
 }: ErrorStateProps) {
+  const errorMsg = typeof message === 'string'
+    ? message
+    : getErrorMessage(message, 'We encountered an error. Please try again.');
   return (
     <View style={[styles.container, style]}>
       {/* Error Icon */}
@@ -54,8 +56,8 @@ export default function ErrorState({
       <Text style={styles.title}>{title}</Text>
 
       {/* Message */}
-      {message && (
-        <Text style={styles.message}>{message}</Text>
+      {errorMsg && (
+        <Text style={styles.message}>{errorMsg}</Text>
       )}
 
       {/* Retry Button */}

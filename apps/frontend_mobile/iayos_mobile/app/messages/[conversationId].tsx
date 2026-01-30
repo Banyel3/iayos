@@ -2,6 +2,7 @@
 // 1-on-1 messaging with real-time updates, image uploads, and offline support
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { getErrorMessage } from "../../lib/utils/parse-api-error";
 import {
   View,
   Text,
@@ -640,17 +641,15 @@ export default function ChatScreen() {
                 Alert.alert("Thank You!", "Your reviews have been submitted.");
               }
             },
-            onError: (error: any) => {
-              const errorMessage = error.message || "Failed to submit review";
-
-              // Check if employee was already reviewed
+            onError: (error: unknown) => {
+              const errorMessage = getErrorMessage(error, "Failed to submit review");
               if (errorMessage.toLowerCase().includes("already reviewed")) {
                 setRatingQuality(0);
                 setRatingCommunication(0);
                 setRatingPunctuality(0);
                 setRatingProfessionalism(0);
                 setReviewComment("");
-                refetch(); // Refresh to get updated pending list
+                refetch();
                 Alert.alert(
                   "Already Rated",
                   "You've already rated this employee. Refreshing...",
@@ -686,8 +685,8 @@ export default function ChatScreen() {
               refetch();
               Alert.alert("Thank You!", "Your reviews have been submitted.");
             },
-            onError: (error: any) => {
-              Alert.alert("Error", error.message || "Failed to submit review");
+            onError: (error: unknown) => {
+              Alert.alert("Error", getErrorMessage(error, "Failed to submit review"));
             },
           },
         );
@@ -759,8 +758,8 @@ export default function ChatScreen() {
               );
             }
           },
-          onError: (error: any) => {
-            const errorMessage = error.message || "Failed to submit review";
+          onError: (error: unknown) => {
+            const errorMessage = getErrorMessage(error, "Failed to submit review");
             if (errorMessage.toLowerCase().includes("already reviewed")) {
               setRatingQuality(0);
               setRatingCommunication(0);
@@ -845,6 +844,7 @@ export default function ChatScreen() {
         }, 100);
       } catch (error) {
         console.error("[ChatScreen] Failed to send message:", error);
+        Alert.alert("Error", getErrorMessage(error, "Failed to send message"));
       } finally {
         setIsSending(false);
       }
@@ -968,7 +968,7 @@ export default function ChatScreen() {
       }, 100);
     } catch (error) {
       console.error("[ChatScreen] Image upload failed:", error);
-      Alert.alert("Error", "Failed to send image. Please try again.");
+      Alert.alert("Error", getErrorMessage(error, "Failed to send image. Please try again."));
     }
   };
 

@@ -34,6 +34,7 @@ import {
   type CreateCertificationRequest,
   type UpdateCertificationRequest,
 } from "@/lib/hooks/useCertifications";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 // ===== TYPES =====
@@ -134,7 +135,7 @@ export default function CertificationForm({
       );
       const response = await apiRequest(ENDPOINTS.MY_SKILLS);
       console.log("🔍 [CertificationForm] Response status:", response.status);
-      if (!response.ok) throw new Error("Failed to fetch skills");
+      if (!response.ok) throw new Error(await response.text() || "Failed to fetch skills");
       const data = await response.json();
       console.log(
         "🔍 [CertificationForm] Skills response:",
@@ -271,10 +272,10 @@ export default function CertificationForm({
             Alert.alert("Success", "Certification updated successfully");
             onClose();
           },
-          onError: (error: Error) => {
+          onError: (error: unknown) => {
             Alert.alert(
               "Error",
-              error.message || "Failed to update certification"
+              getErrorMessage(error, "Failed to update certification")
             );
           },
         }
@@ -316,8 +317,8 @@ export default function CertificationForm({
           resetForm();
           onClose();
         },
-        onError: (error: Error) => {
-          Alert.alert("Error", error.message || "Failed to add certification");
+        onError: (error: unknown) => {
+          Alert.alert("Error", getErrorMessage(error, "Failed to add certification"));
         },
       });
     }
