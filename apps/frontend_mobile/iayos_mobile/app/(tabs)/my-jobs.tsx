@@ -64,6 +64,7 @@ export default function MyJobsScreen() {
         style={[styles.tab, isActive && styles.tabActive]}
         onPress={() => handleTabPress(value)}
         activeOpacity={0.7}
+        testID={`my-jobs-tab-${value}`}
       >
         <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
           {label}
@@ -227,7 +228,7 @@ export default function MyJobsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="my-jobs-screen">
       {isClient ? renderClientTabs() : renderWorkerTabs()}
 
       <FlatList

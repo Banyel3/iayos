@@ -51,10 +51,16 @@ env:
       id: "login-screen"
     timeout: 15000
 
-# Verify landed on main app (jobs, home, or role selection)
+# Explicitly navigate to Jobs tab (app lands on Home by default)
+- tapOn:
+    text: "Jobs"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Verify landed on jobs screen
 - assertVisible:
     id: "jobs-screen"
-    optional: true
 
 # Take success screenshot
 - takeScreenshot: "login_worker_success"
