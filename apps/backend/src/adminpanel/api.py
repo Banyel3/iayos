@@ -1920,6 +1920,8 @@ def get_support_tickets(
     category: Optional[str] = None,
     assigned_to: Optional[int] = None,
     search: Optional[str] = None,
+    ticket_type: Optional[str] = None,
+    agency_id: Optional[int] = None,
 ):
     """Get paginated list of support tickets with filters."""
     try:
@@ -1931,6 +1933,8 @@ def get_support_tickets(
             category=category,
             assigned_to=assigned_to,
             search=search,
+            ticket_type=ticket_type,
+            agency_id=agency_id,
         )
     except Exception as e:
         print(f"Error in get_support_tickets: {str(e)}")

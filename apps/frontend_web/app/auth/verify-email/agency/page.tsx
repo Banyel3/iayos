@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, Suspense } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CircleX, SquareCheckBig, Loader2, AlertTriangle } from "lucide-react";
@@ -27,7 +28,7 @@ const VerifyAgencyEmail = () => {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
+        `${API_BASE}/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },

@@ -5,6 +5,7 @@ import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useBarangays } from "@/lib/hooks/useLocations";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import { ChevronLeft, Plus, X, Calendar, AlertCircle } from "lucide-react";
@@ -167,7 +168,7 @@ export default function CreateListingJobPage() {
       }
     } catch (error) {
       console.error("Error creating job:", error);
-      alert("An error occurred. Please try again.");
+      alert(getErrorMessage(error, "Failed to create job listing"));
     } finally {
       setIsSubmitting(false);
     }

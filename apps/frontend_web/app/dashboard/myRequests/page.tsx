@@ -10,6 +10,7 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { API_BASE_URL } from "@/lib/api/config";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useMyJobs,
   useInProgressJobs,
@@ -20,6 +21,7 @@ import {
   EstimatedTimeCard,
   type EstimatedCompletion,
 } from "@/components/ui/estimated-time-card";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -85,6 +87,7 @@ const MyRequestsPage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as RequestsUser;
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<
     "myRequests" | "inProgress" | "pastRequests" | "requests"
   >("myRequests");
@@ -175,22 +178,21 @@ const MyRequestsPage = () => {
     category: job.category,
     postedDate: job.postedAt,
     photos: job.photos,
-    ...(isWorker
+    client: isWorker
       ? {
-          client: {
-            name: job.postedBy.name,
-            avatar: job.postedBy.avatar,
-            rating: job.postedBy.rating,
-          },
+          name: job.postedBy.name,
+          avatar: job.postedBy.avatar,
+          rating: job.postedBy.rating,
         }
-      : {
-          assignedWorker: {
-            id: job.id,
-            name: job.postedBy.name,
-            avatar: job.postedBy.avatar,
-            rating: job.postedBy.rating,
-          },
-        }),
+      : undefined,
+    assignedWorker: !isWorker
+      ? {
+          id: job.id,
+          name: job.postedBy.name,
+          avatar: job.postedBy.avatar,
+          rating: job.postedBy.rating,
+        }
+      : undefined,
   }));
 
   // State for cancel confirmation dialog
@@ -534,9 +536,7 @@ const MyRequestsPage = () => {
       }
     } catch (error) {
       console.error("Error creating job:", error);
-      setJobPostError(
-        "An error occurred while creating the job. Please try again.",
-      );
+      setJobPostError(getErrorMessage(error, "Failed to create job. Please try again."));
     } finally {
       setIsSubmittingJob(false);
     }
@@ -694,7 +694,7 @@ const MyRequestsPage = () => {
       }
     } catch (error) {
       console.error("Error creating job post:", error);
-      setJobPostError("An error occurred. Please try again.");
+      setJobPostError(getErrorMessage(error, "Failed to create job post"));
     } finally {
       setIsSubmittingJob(false);
       setUploadingImages(false);
@@ -723,10 +723,8 @@ const MyRequestsPage = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Remove cancelled job from the list
-        setJobRequests((prev) =>
-          prev.filter((job) => parseInt(job.id) !== jobToCancel),
-        );
+        // Invalidate the jobs query to refetch the list
+        queryClient.invalidateQueries({ queryKey: ["myJobs"] });
         setSelectedJob(null);
         setShowCancelConfirm(false);
         setJobToCancel(null);
@@ -2560,18 +2558,21 @@ const MyRequestsPage = () => {
                                     <p
                                       className={`text-xs mt-0.5 ${
                                         selectedJob.estimatedCompletion
-                                          .confidence_level === "high"
+                                          .confidence_level >= 0.7
                                           ? "text-green-600"
                                           : selectedJob.estimatedCompletion
-                                                .confidence_level === "medium"
+                                                .confidence_level >= 0.4
                                             ? "text-yellow-600"
                                             : "text-red-500"
                                       }`}
                                     >
-                                      {
-                                        selectedJob.estimatedCompletion
-                                          .confidence_level
-                                      }{" "}
+                                      {selectedJob.estimatedCompletion
+                                        .confidence_level >= 0.7
+                                        ? "high"
+                                        : selectedJob.estimatedCompletion
+                                              .confidence_level >= 0.4
+                                          ? "medium"
+                                          : "low"}{" "}
                                       confidence
                                     </p>
                                   </div>
@@ -2598,11 +2599,11 @@ const MyRequestsPage = () => {
                                   handleAcceptApplication(application.id)
                                 }
                                 disabled={
-                                  processingApplication?.id === application.id
+                                  processingApplication?.id === Number(application.id)
                                 }
                                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center"
                               >
-                                {processingApplication?.id === application.id &&
+                                {processingApplication?.id === Number(application.id) &&
                                 processingApplication?.action === "accept" ? (
                                   <>
                                     <svg
@@ -2636,11 +2637,11 @@ const MyRequestsPage = () => {
                                   handleRejectApplication(application.id)
                                 }
                                 disabled={
-                                  processingApplication?.id === application.id
+                                  processingApplication?.id === Number(application.id)
                                 }
                                 className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center"
                               >
-                                {processingApplication?.id === application.id &&
+                                {processingApplication?.id === Number(application.id) &&
                                 processingApplication?.action === "reject" ? (
                                   <>
                                     <svg

@@ -76,11 +76,38 @@ export function useWorkerReviews(
   page: number = 1,
   limit: number = 10
 ) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["workerReviews", workerId, page, limit],
     queryFn: () => fetchWorkerReviews(workerId!, page, limit),
     enabled: !!workerId,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Extract convenience properties for easier consumption
+  return {
+    ...query,
+    reviews: query.data?.data?.reviews ?? [],
+    total_count: query.data?.data?.total_count ?? 0,
+    total_pages: query.data?.data?.total_pages ?? 1,
+  };
+}
+
+// StarRating - returns star string representation
+export function StarRating(rating: number): string {
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+  return "★".repeat(fullStars) + (hasHalfStar ? "½" : "") + "☆".repeat(emptyStars);
+}
+
+// Format review date helper
+export function formatReviewDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }
 

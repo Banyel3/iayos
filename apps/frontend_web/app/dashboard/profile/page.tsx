@@ -16,6 +16,7 @@ import {
 } from "@/lib/hooks/useHomeData";
 import { fetchProfileMetrics } from "@/lib/api/profile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
@@ -220,7 +221,7 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error("Error adding funds:", error);
-      alert("An error occurred. Please try again.");
+      alert(getErrorMessage(error, "Failed to add funds"));
     } finally {
       setIsProcessing(false);
     }
@@ -269,7 +270,7 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error("Error processing withdrawal:", error);
-      alert("An error occurred. Please try again.");
+      alert(getErrorMessage(error, "Failed to process withdrawal"));
     } finally {
       setIsProcessing(false);
       setShowCashOutModal(false);
@@ -696,7 +697,7 @@ const ProfilePage = () => {
                       <div className="text-right">
                         <p className="text-xs text-gray-500">Balance After</p>
                         <p className="text-sm font-medium text-gray-900">
-                          ₱{transaction.balance_after.toFixed(2)}
+                          ₱{(transaction.balance_after ?? 0).toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -1184,7 +1185,7 @@ const ProfilePage = () => {
                                 Balance After
                               </p>
                               <p className="text-base font-medium text-gray-900">
-                                ₱{transaction.balance_after.toFixed(2)}
+                                ₱{(transaction.balance_after ?? 0).toFixed(2)}
                               </p>
                             </div>
                           </div>

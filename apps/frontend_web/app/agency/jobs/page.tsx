@@ -196,7 +196,7 @@ export default function AgencyJobsPage() {
             headers: { "Content-Type": "application/json" },
           },
         ),
-        fetch(`${apiUrl}/api/agency/jobs?status=IN_PROGRESS`, {
+        fetch(`${API_BASE}/api/agency/jobs?status=IN_PROGRESS`, {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         }),

@@ -28,6 +28,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useNotifications } from "@/context/NotificationContext";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { formatDistanceToNow } from "date-fns";
 import { API_BASE_URL } from "@/lib/api/config";
 
@@ -198,11 +199,12 @@ export default function AgencyNotificationsPage() {
         toast.success("Notification deleted");
         fetchNotifications();
       } else {
-        toast.error("Failed to delete notification");
+        const data = await response.json().catch(() => ({}));
+        toast.error(getErrorMessage(data, "Failed to delete notification"));
       }
     } catch (error) {
       console.error("Error deleting notification:", error);
-      toast.error("Error deleting notification");
+      toast.error(getErrorMessage(error, "Failed to delete notification"));
     } finally {
       setIsDeleting(null);
     }
