@@ -170,6 +170,8 @@ export const KYCFieldEditor: React.FC<KYCFieldEditorProps> = ({
                   onValueChange(formatted);
                 }
               }}
+              themeVariant="light"
+              textColor={Platform.OS === "ios" ? Colors.textPrimary : undefined}
             />
           )}
         </>

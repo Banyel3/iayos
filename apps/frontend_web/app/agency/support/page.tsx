@@ -120,7 +120,9 @@ interface TicketFormData {
 
 export default function AgencySupportPage() {
   const router = useRouter();
-  const [expandedCategory, setExpandedCategory] = useState<string | null>("kyc");
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(
+    "kyc",
+  );
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
@@ -142,7 +144,9 @@ export default function AgencySupportPage() {
     }
 
     if (formData.description.length < 20) {
-      toast.error("Please provide more details in your description (at least 20 characters)");
+      toast.error(
+        "Please provide more details in your description (at least 20 characters)",
+      );
       return;
     }
 
@@ -215,7 +219,9 @@ export default function AgencySupportPage() {
                 <HelpCircle className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">Help & Support</h1>
+                <h1 className="text-3xl font-bold text-white">
+                  Help & Support
+                </h1>
                 <p className="text-blue-100 mt-1">
                   Find answers or contact our support team
                 </p>
@@ -318,8 +324,8 @@ export default function AgencySupportPage() {
                     Ticket Submitted!
                   </h3>
                   <p className="text-sm text-green-700 mb-4">
-                    Your support request has been received. Our team will respond
-                    within 24-48 hours.
+                    Your support request has been received. Our team will
+                    respond within 24-48 hours.
                   </p>
                   {ticketId && (
                     <div className="bg-white rounded-lg p-3 mb-4">
@@ -409,7 +415,10 @@ export default function AgencySupportPage() {
                       <Textarea
                         value={formData.description}
                         onChange={(e) =>
-                          setFormData({ ...formData, description: e.target.value })
+                          setFormData({
+                            ...formData,
+                            description: e.target.value,
+                          })
                         }
                         placeholder="Please describe your issue in detail..."
                         rows={4}
@@ -462,7 +471,9 @@ export default function AgencySupportPage() {
             {/* Quick Contact Info */}
             <Card className="mt-4">
               <CardContent className="p-4">
-                <h4 className="font-medium text-gray-900 mb-3">Quick Contact</h4>
+                <h4 className="font-medium text-gray-900 mb-3">
+                  Quick Contact
+                </h4>
                 <div className="space-y-3">
                   <a
                     href="mailto:support@iayos.ph"

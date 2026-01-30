@@ -57,7 +57,7 @@ export default function AgencyNotificationSettingsPage() {
         `${API_BASE_URL}/accounts/notification-settings`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (response.ok) {
@@ -101,7 +101,7 @@ export default function AgencyNotificationSettingsPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(settings),
-        }
+        },
       );
 
       if (response.ok) {
@@ -141,8 +141,8 @@ export default function AgencyNotificationSettingsPage() {
         disabled
           ? "opacity-50 bg-gray-50"
           : settings[settingKey]
-          ? "bg-white hover:bg-gray-50"
-          : "bg-gray-100"
+            ? "bg-white hover:bg-gray-50"
+            : "bg-gray-100"
       }`}
     >
       <div className="flex items-center gap-4">
@@ -241,7 +241,9 @@ export default function AgencyNotificationSettingsPage() {
                   <button
                     onClick={() => toggleSetting("emailNotifications")}
                     className={`relative inline-flex h-7 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      settings.emailNotifications ? "bg-blue-600" : "bg-gray-200"
+                      settings.emailNotifications
+                        ? "bg-blue-600"
+                        : "bg-gray-200"
                     }`}
                     role="switch"
                     aria-checked={settings.emailNotifications}
@@ -261,7 +263,9 @@ export default function AgencyNotificationSettingsPage() {
             {/* Category Settings */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Notification Categories</CardTitle>
+                <CardTitle className="text-lg">
+                  Notification Categories
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <SettingToggle
@@ -317,8 +321,8 @@ export default function AgencyNotificationSettingsPage() {
               <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-700">
                 These settings control which email notifications you receive.
-                In-app notifications will still appear in the notifications center
-                regardless of these settings.
+                In-app notifications will still appear in the notifications
+                center regardless of these settings.
               </p>
             </div>
 

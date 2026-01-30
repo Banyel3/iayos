@@ -6,6 +6,7 @@
 
 import { Platform } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
+import Constants from "expo-constants";
 
 // AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
 // When you switch networks, Expo will automatically use the new IP
@@ -13,7 +14,6 @@ const getDevIP = (): string => {
   // Priority 1: Try to use Expo's detected IP from Constants
   // This works when running via Expo Go and detects your machine's IP automatically
   try {
-    const Constants = require("expo-constants").default;
     const expoIP = Constants.expoConfig?.hostUri?.split(":")[0];
     if (expoIP && expoIP !== "localhost" && expoIP !== "127.0.0.1") {
       console.log("[API Config] Using Expo detected IP:", expoIP);
@@ -25,7 +25,10 @@ const getDevIP = (): string => {
 
   // Priority 2: Environment variable (manual override if needed)
   if (process.env.EXPO_PUBLIC_DEV_IP) {
-    console.log("[API Config] Using EXPO_PUBLIC_DEV_IP:", process.env.EXPO_PUBLIC_DEV_IP);
+    console.log(
+      "[API Config] Using EXPO_PUBLIC_DEV_IP:",
+      process.env.EXPO_PUBLIC_DEV_IP,
+    );
     return process.env.EXPO_PUBLIC_DEV_IP;
   }
 
@@ -48,7 +51,9 @@ const API_URL =
 // Log the API URL being used (helps debug network issues)
 console.log(`[API Config] API_URL = ${API_URL}`);
 console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
-console.log(`[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`);
+console.log(
+  `[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`,
+);
 
 /**
  * Check network connectivity before making requests.
@@ -69,8 +74,10 @@ export const checkNetworkConnectivity = async (): Promise<{
       type: state.type,
       details: state.details,
     });
-    
-    console.log(`[Network] Connectivity check: connected=${isConnected}, type=${type}`);
+
+    console.log(
+      `[Network] Connectivity check: connected=${isConnected}, type=${type}`,
+    );
     return { isConnected, type, details };
   } catch (error) {
     console.error("[Network] Failed to check connectivity:", error);
@@ -144,7 +151,7 @@ export const ENDPOINTS = {
   REGISTER: `${API_URL}/api/mobile/auth/register`,
   ME: `${API_URL}/api/mobile/auth/profile`,
   ASSIGN_ROLE: `${API_URL}/api/mobile/auth/assign-role`,
-  
+
   // OTP Verification
   VERIFY_OTP_ENDPOINT: `${API_URL}/api/accounts/verify-otp`,
   RESEND_OTP_ENDPOINT: `${API_URL}/api/accounts/resend-otp`,
@@ -153,10 +160,8 @@ export const ENDPOINTS = {
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
   MY_JOBS: `${API_URL}/api/mobile/jobs/my-jobs`,
-  JOB_DETAILS: (id: number) =>
-    `${API_URL}/api/mobile/jobs/${id}`,
-  DELETE_JOB: (id: number) =>
-    `${API_URL}/api/mobile/jobs/${id}`,
+  JOB_DETAILS: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
+  DELETE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
   JOB_APPLICATIONS: (id: number) =>
     `${API_URL}/api/mobile/jobs/${id}/applications`,
   ACCEPT_APPLICATION: (jobId: number, applicationId: number) =>
@@ -167,8 +172,7 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/accept-invite`,
   REJECT_INVITE: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/reject-invite`,
-  APPLY_JOB: (id: number) =>
-    `${API_URL}/api/mobile/jobs/${id}/apply`,
+  APPLY_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_URL}/api/mobile/jobs/applications/my`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
@@ -208,10 +212,8 @@ export const ENDPOINTS = {
     params.append("limit", filters.limit?.toString() || "20");
     return `${API_URL}/api/mobile/jobs/list?${params.toString()}`;
   },
-  SAVE_JOB: (id: number) =>
-    `${API_URL}/api/mobile/jobs/${id}/save`,
-  UNSAVE_JOB: (id: number) =>
-    `${API_URL}/api/mobile/jobs/${id}/save`,
+  SAVE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}/save`,
+  UNSAVE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}/save`,
   SAVED_JOBS: `${API_URL}/api/mobile/jobs/saved`,
 
   // Team Jobs (Multi-Skill Multi-Worker)
@@ -274,20 +276,16 @@ export const ENDPOINTS = {
   AVAILABLE_SKILLS: `${API_URL}/api/mobile/skills/available`,
   MY_SKILLS: `${API_URL}/api/mobile/skills/my-skills`,
   ADD_SKILL: `${API_URL}/api/mobile/skills/add`,
-  UPDATE_SKILL: (skillId: number) =>
-    `${API_URL}/api/mobile/skills/${skillId}`,
-  REMOVE_SKILL: (skillId: number) =>
-    `${API_URL}/api/mobile/skills/${skillId}`,
+  UPDATE_SKILL: (skillId: number) => `${API_URL}/api/mobile/skills/${skillId}`,
+  REMOVE_SKILL: (skillId: number) => `${API_URL}/api/mobile/skills/${skillId}`,
 
   // Worker
   WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,
   NEARBY_WORKERS: `${API_URL}/api/mobile/workers/list`,
-  WORKER_DETAIL: (id: number) =>
-    `${API_URL}/api/mobile/workers/detail/${id}`,
+  WORKER_DETAIL: (id: number) => `${API_URL}/api/mobile/workers/detail/${id}`,
 
   // Client
-  CLIENT_DETAIL: (id: number) =>
-    `${API_URL}/api/mobile/clients/${id}`,
+  CLIENT_DETAIL: (id: number) => `${API_URL}/api/mobile/clients/${id}`,
 
   // Locations
   GET_CITIES: `${API_URL}/api/mobile/locations/cities`,
@@ -302,8 +300,7 @@ export const ENDPOINTS = {
   // Client
   BROWSE_AGENCIES: `${API_BASE_URL}/client/agencies/browse`,
   AGENCY_PROFILE: (id: number) => `${API_BASE_URL}/client/agencies/${id}`,
-  AGENCY_DETAIL: (id: number) =>
-    `${API_URL}/api/mobile/agencies/detail/${id}`,
+  AGENCY_DETAIL: (id: number) => `${API_URL}/api/mobile/agencies/detail/${id}`,
   AGENCIES_LIST: `${API_URL}/api/mobile/agencies/list`,
 
   // Wallet - Use mobile endpoints with Bearer token auth
@@ -318,8 +315,7 @@ export const ENDPOINTS = {
   CREATE_PAYMENT_INVOICE: `${API_URL}/api/mobile/payments/xendit/invoice`,
   CREATE_XENDIT_INVOICE: `${API_URL}/api/mobile/payments/xendit/invoice`, // Alias for backward compatibility
   UPLOAD_CASH_PROOF: `${API_URL}/api/mobile/payments/cash-proof`,
-  PAYMENT_STATUS: (id: number) =>
-    `${API_URL}/api/mobile/payments/status/${id}`,
+  PAYMENT_STATUS: (id: number) => `${API_URL}/api/mobile/payments/status/${id}`,
   PAYMENT_HISTORY: `${API_URL}/api/mobile/payments/history`,
   WALLET_DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
   WALLET_WITHDRAW: `${API_URL}/api/mobile/wallet/withdraw`,
@@ -333,15 +329,13 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/payments/receipt/${id}`,
 
   // Job Receipt/Invoice
-  JOB_RECEIPT: (jobId: number) =>
-    `${API_URL}/api/jobs/${jobId}/receipt`,
+  JOB_RECEIPT: (jobId: number) => `${API_URL}/api/jobs/${jobId}/receipt`,
 
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,
   JOB_PAYMENT_STATUS: (id: number) =>
     `${API_URL}/api/jobs/${id}/payment-status`,
-  JOB_EARNINGS: (id: number) =>
-    `${API_URL}/api/jobs/${id}/earnings`,
+  JOB_EARNINGS: (id: number) => `${API_URL}/api/jobs/${id}/earnings`,
   PAYMENT_TIMELINE: (id: number) =>
     `${API_URL}/api/jobs/${id}/payment-timeline`,
   EARNINGS_SUMMARY: `${API_URL}/api/accounts/earnings/summary`,
@@ -399,8 +393,7 @@ export const ENDPOINTS = {
 
   // Phase 8: Reviews & Ratings (6 endpoints)
   // Use jobs API for review submission (supports agency employee reviews)
-  SUBMIT_REVIEW: (jobId: number) =>
-    `${API_URL}/api/jobs/${jobId}/review`,
+  SUBMIT_REVIEW: (jobId: number) => `${API_URL}/api/jobs/${jobId}/review`,
   WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>
     `${API_URL}/api/mobile/reviews/worker/${workerId}?page=${page}&limit=${limit}`,
   CLIENT_REVIEWS: (clientId: number, page = 1, limit = 20) =>
@@ -515,37 +508,43 @@ export const apiRequest = async (
   try {
     console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
     const resp = await fetch(url, defaultOptions);
-    console.log(`[API] Response: ${resp.status} ${resp.statusText} from ${url}`);
+    console.log(
+      `[API] Response: ${resp.status} ${resp.statusText} from ${url}`,
+    );
     return resp;
   } catch (err: any) {
     // Enhanced error logging for debugging network issues
     console.error(`[API] ❌ Request failed: ${url}`);
     console.error(`[API] Error name: ${err.name}`);
     console.error(`[API] Error message: ${err.message}`);
-    
+
     if (err.name === "AbortError") {
       // Provide clearer error for timeouts
-      throw new Error(`Network request timed out after ${timeout}ms. Please check your internet connection.`);
+      throw new Error(
+        `Network request timed out after ${timeout}ms. Please check your internet connection.`,
+      );
     }
-    
+
     // Check if it's a network error (no internet)
     if (err.message === "Network request failed") {
       // Get detailed network state
       const netState = await checkNetworkConnectivity();
       console.error(`[API] Network state: ${netState.details}`);
-      
+
       if (!netState.isConnected) {
-        throw new Error("No internet connection. Please check your network settings and try again.");
+        throw new Error(
+          "No internet connection. Please check your network settings and try again.",
+        );
       }
-      
+
       // Internet connected but request still failed - likely server issue
       throw new Error(
         `Unable to reach server at ${url}. ` +
-        `Network: ${netState.type}. ` +
-        `Please verify the server is running and try again.`
+          `Network: ${netState.type}. ` +
+          `Please verify the server is running and try again.`,
       );
     }
-    
+
     throw err;
   } finally {
     clearTimeout(timeoutId);
