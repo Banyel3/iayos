@@ -138,6 +138,57 @@ export const debugNetworkDiagnostics = async (
   }
 };
 
+export const preflightBackendReachability = async (
+  label: string = "preflight",
+  timeoutMs: number = 10000,
+): Promise<void> => {
+  const startedAt = Date.now();
+  const healthUrl = `${API_URL}/health/live`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const resp = await fetch(healthUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    const elapsedMs = Date.now() - startedAt;
+
+    if (!resp.ok) {
+      throw new Error(
+        `Health check failed: ${resp.status} ${resp.statusText} (${elapsedMs}ms)`,
+      );
+    }
+
+    if (DEBUG_NETWORK) {
+      console.log(
+        `[Network][DEBUG] (${label}) Health check OK in ${elapsedMs}ms (${healthUrl})`,
+      );
+    }
+  } catch (error: any) {
+    const elapsedMs = Date.now() - startedAt;
+    if (DEBUG_NETWORK) {
+      console.error(
+        `[Network][DEBUG] (${label}) Health check failed after ${elapsedMs}ms`,
+      );
+      console.error(`[Network][DEBUG] (${label}) Error name: ${error?.name}`);
+      console.error(`[Network][DEBUG] (${label}) Error message: ${error?.message}`);
+    }
+
+    throw new Error(
+      `Unable to reach backend from this device (health check failed after ${elapsedMs}ms). ` +
+        `Please verify your network, DNS, or VPN settings and try again.`,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const deriveDevWebUrl = () => {
   try {
     const parsed = new URL(API_URL);
