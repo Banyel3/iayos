@@ -27,6 +27,7 @@ import {
   Modal,
   FlatList,
   SafeAreaView,
+  StatusBar,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -506,14 +507,20 @@ export default function CreateJobScreen() {
                       Loading categories...
                     </Text>
                   </View>
+                ) : !Array.isArray(categories) || categories.length === 0 ? (
+                  <View style={styles.emptyStateContainer}>
+                    <Ionicons name="alert-circle-outline" size={24} color={Colors.warning} />
+                    <Text style={styles.emptyStateText}>
+                      No specializations available in database. Please contact support.
+                    </Text>
+                  </View>
                 ) : (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     style={styles.categoryScroll}
                   >
-                    {Array.isArray(categories) &&
-                      categories.map((category) => (
+                    {categories.map((category) => (
                         <TouchableOpacity
                           key={category.id}
                           style={[
@@ -677,12 +684,11 @@ export default function CreateJobScreen() {
                     </View>
                   </View>
                 ) : barangays.length === 0 ? (
-                  <View style={styles.pickerContainer}>
-                    <View style={[styles.picker, styles.pickerError]}>
-                      <Text style={styles.pickerErrorText}>
-                        No barangays available
-                      </Text>
-                    </View>
+                  <View style={styles.emptyStateContainer}>
+                    <Ionicons name="location-outline" size={24} color={Colors.warning} />
+                    <Text style={styles.emptyStateText}>
+                      No barangays available in database for Zamboanga City. Please contact support.
+                    </Text>
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -1195,6 +1201,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
@@ -1263,6 +1270,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.md,
     gap: 8,
+  },
+  // Empty state styles
+  emptyStateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.warning + "15",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.warning + "30",
+  },
+  emptyStateText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.warning,
+    lineHeight: 20,
   },
   // Payment Summary Styles
   paymentSummary: {
