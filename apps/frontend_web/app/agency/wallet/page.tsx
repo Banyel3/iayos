@@ -156,19 +156,12 @@ export default function AgencyWalletPage() {
                 </div>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => router.push("/agency/wallet/deposit")}
+                    onClick={() => router.push("/agency/wallet/withdraw")}
                     className="bg-white text-green-700 hover:bg-green-50"
+                    disabled={walletBalance < 100}
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Funds
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowWithdrawModal(true)}
-                    className="border-white/30 text-white hover:bg-white/10"
-                  >
-                    <ArrowUpRight className="h-4 w-4 mr-2" />
-                    Withdraw
+                    <Send className="h-4 w-4 mr-2" />
+                    Withdraw Funds
                   </Button>
                 </div>
               </div>
@@ -387,10 +380,11 @@ export default function AgencyWalletPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => router.push("/agency/wallet/deposit")}
+                  onClick={() => router.push("/agency/wallet/withdraw")}
+                  disabled={walletBalance < 100}
                 >
-                  <Plus className="h-4 w-4 mr-2 text-green-600" />
-                  Add Funds via GCash
+                  <Send className="h-4 w-4 mr-2 text-green-600" />
+                  Request Withdrawal
                 </Button>
                 <Button
                   variant="outline"
