@@ -14,7 +14,7 @@ export function useUnreadMessageCount() {
         const response = await apiRequest(
           `${ENDPOINTS.CONVERSATIONS}?unread=true`,
           {
-            timeout: 10000,
+            timeout: 120000, // 2 minute timeout (increased for slow networks)
           }
         );
 
@@ -50,7 +50,7 @@ export function useUnreadNotificationCount() {
         const response = await apiRequest(
           ENDPOINTS.UNREAD_NOTIFICATIONS_COUNT,
           {
-            timeout: 10000,
+            timeout: 120000, // 2 minute timeout (increased for slow networks)
           }
         );
 

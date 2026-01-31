@@ -516,7 +516,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Timeout: If backend is unreachable, app still becomes interactive
   useEffect(() => {
     let isMounted = true;
-    const AUTH_TIMEOUT_MS = 5000; // 5 seconds max for auth check (reduced for faster E2E)
+    const AUTH_TIMEOUT_MS = 120000; // 2 minutes max for auth check (increased for slow networks)
     const isE2EMode = process.env.EXPO_PUBLIC_E2E_MODE === "true";
 
     const initializeAuth = async () => {
