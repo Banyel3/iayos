@@ -40,7 +40,7 @@ export default function DownloadAppPage() {
               <div className="bg-white p-4 rounded-xl border-2 border-gray-200">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=https://github.com/Banyel3/iayos/releases/download/v0.1.0-qa1/iayos-qa-build-release.apk"
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=https://github.com/Banyel3/iayos/releases/download/mobile-v1.8.8/iayos-1.8.8.apk"
                   alt="Download iAyos APK"
                   width={192}
                   height={192}
@@ -51,7 +51,7 @@ export default function DownloadAppPage() {
 
             {/* Download Button */}
             <a
-              href="https://github.com/Banyel3/iayos/releases/download/v0.1.0-qa1/iayos-qa-build-release.apk"
+              href="https://github.com/Banyel3/iayos/releases/download/mobile-v1.8.8/iayos-1.8.8.apk"
               target="_blank"
               rel="noopener noreferrer"
               className="block mb-4"
@@ -63,7 +63,7 @@ export default function DownloadAppPage() {
             </a>
 
             <p className="text-center text-sm text-gray-500">
-              v0.1.0-qa1 • QA Test Build
+              v1.8.8 • Latest Release
             </p>
           </div>
 
