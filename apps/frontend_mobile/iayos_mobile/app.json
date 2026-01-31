@@ -42,8 +42,7 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true,
-            "networkSecurityConfig": "./network-security-config.xml"
+            "usesCleartextTraffic": true
           }
         }
       ],

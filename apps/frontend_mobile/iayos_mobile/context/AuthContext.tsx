@@ -19,6 +19,8 @@ import {
   RESEND_OTP_ENDPOINT,
   checkNetworkConnectivity,
   getApiUrl,
+  debugNetworkDiagnostics,
+  preflightBackendReachability,
 } from "../lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -226,6 +228,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await clearAllCaches();
       setUser(null);
 
+      if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
+        void debugNetworkDiagnostics("login");
+      }
+
+      await preflightBackendReachability("login");
+
       const response = await apiRequest(ENDPOINTS.LOGIN, {
         method: "POST",
         body: JSON.stringify({ email, password }),
@@ -301,6 +309,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log(`📡 [Register] API URL: ${getApiUrl()}`);
       console.log(`📡 [Register] Endpoint: ${ENDPOINTS.REGISTER}`);
+
+      await preflightBackendReachability("register");
       
       const { confirmPassword, ...rest } = payload;
       const requestPayload = {
@@ -525,6 +535,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("🧪 E2E Mode: Skipping auth check for Detox testing");
         setIsLoading(false);
         return;
+      }
+
+      if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
+        void debugNetworkDiagnostics("auth-init");
       }
 
       // Create a timeout promise that resolves (not rejects) to allow app to continue
