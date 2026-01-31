@@ -11,6 +11,18 @@ import Constants from "expo-constants";
 // PRODUCTION URL - hardcoded as the authoritative production endpoint
 const PRODUCTION_API_URL = "https://api.iayos.online";
 
+const normalizeApiUrl = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return PRODUCTION_API_URL;
+
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  // Strip trailing /api if provided to avoid double /api/api paths
+  return withProtocol.replace(/\/api\/?$/i, "");
+};
+
 // AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
 // When you switch networks, Expo will automatically use the new IP
 const getDevIP = (): string => {
@@ -44,9 +56,10 @@ const DEV_IP = getDevIP();
 
 // Allow environment variable override for CI/CD (e.g., staging backend in Detox tests)
 // In production builds (__DEV__ = false), ALWAYS use production URL
-const API_URL =
+const API_URL = normalizeApiUrl(
   process.env.EXPO_PUBLIC_API_URL ||
-  (__DEV__ ? `http://${DEV_IP}:8000` : PRODUCTION_API_URL);
+    (__DEV__ ? `http://${DEV_IP}:8000` : PRODUCTION_API_URL),
+);
 
 const DEBUG_NETWORK = process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true";
 
@@ -140,7 +153,8 @@ export const debugNetworkDiagnostics = async (
 
 export const preflightBackendReachability = async (
   label: string = "preflight",
-  timeoutMs: number = 10000,
+  timeoutMs: number = 30000,
+  failOpen: boolean = true,
 ): Promise<void> => {
   const startedAt = Date.now();
   const healthUrl = `${API_URL}/health/live`;
@@ -179,11 +193,12 @@ export const preflightBackendReachability = async (
       console.error(`[Network][DEBUG] (${label}) Error name: ${error?.name}`);
       console.error(`[Network][DEBUG] (${label}) Error message: ${error?.message}`);
     }
-
-    throw new Error(
-      `Unable to reach backend from this device (health check failed after ${elapsedMs}ms). ` +
-        `Please verify your network, DNS, or VPN settings and try again.`,
-    );
+    if (!failOpen) {
+      throw new Error(
+        `Unable to reach backend from this device (health check failed after ${elapsedMs}ms). ` +
+          `Please verify your network, DNS, or VPN settings and try again.`,
+      );
+    }
   } finally {
     clearTimeout(timeoutId);
   }
