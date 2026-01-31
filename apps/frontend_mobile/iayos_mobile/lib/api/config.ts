@@ -4,7 +4,7 @@
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
 
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import Constants from "expo-constants";
 
@@ -54,6 +54,19 @@ console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
 console.log(
   `[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`,
 );
+
+// DEBUG: Show alert in production builds to verify API URL configuration
+// Remove this after confirming the network issue is resolved
+if (!__DEV__) {
+  // Delay alert to ensure app is fully loaded
+  setTimeout(() => {
+    Alert.alert(
+      "API Debug Info",
+      `URL: ${API_URL}\nPlatform: ${Platform.OS}\nENV: ${process.env.EXPO_PUBLIC_API_URL || "not set"}`,
+      [{ text: "OK" }],
+    );
+  }, 2000);
+}
 
 /**
  * Check network connectivity before making requests.
