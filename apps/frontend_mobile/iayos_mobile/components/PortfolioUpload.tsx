@@ -183,7 +183,7 @@ export const PortfolioUpload: React.FC<PortfolioUploadProps> = ({
               resolve({ success: false, error: "Upload timed out" });
 
             xhr.open("POST", ENDPOINTS.UPLOAD_PORTFOLIO_IMAGE);
-            xhr.timeout = 60000;
+            xhr.timeout = 120000; // 2 minute timeout (increased for slow networks)
             xhr.setRequestHeader("Accept", "application/json");
             xhr.send(formData);
           }
