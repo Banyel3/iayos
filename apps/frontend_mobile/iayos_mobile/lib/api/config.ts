@@ -48,6 +48,8 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   (__DEV__ ? `http://${DEV_IP}:8000` : PRODUCTION_API_URL);
 
+const DEBUG_NETWORK = process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true";
+
 // Log the API URL being used (helps debug network issues)
 console.log(`[API Config] API_URL = ${API_URL}`);
 console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
@@ -57,7 +59,7 @@ console.log(
 
 // DEBUG: Show alert in production builds to verify API URL configuration
 // Remove this after confirming the network issue is resolved
-if (!__DEV__) {
+if (!__DEV__ && DEBUG_NETWORK) {
   // Delay alert to ensure app is fully loaded
   setTimeout(() => {
     Alert.alert(
@@ -95,6 +97,44 @@ export const checkNetworkConnectivity = async (): Promise<{
   } catch (error) {
     console.error("[Network] Failed to check connectivity:", error);
     return { isConnected: false, type: "error", details: String(error) };
+  }
+};
+
+// One-time debug check to verify DNS/TLS/connectivity on device.
+export const debugNetworkDiagnostics = async (
+  label: string = "startup",
+): Promise<void> => {
+  if (!DEBUG_NETWORK) return;
+
+  const startedAt = Date.now();
+  console.log(`[Network][DEBUG] (${label}) Starting diagnostics...`);
+
+  try {
+    const netState = await checkNetworkConnectivity();
+    console.log(`[Network][DEBUG] (${label}) NetInfo:`, netState);
+
+    const healthUrl = `${API_URL}/health/live`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const resp = await fetch(healthUrl, {
+      method: "GET",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    const elapsedMs = Date.now() - startedAt;
+
+    console.log(
+      `[Network][DEBUG] (${label}) Health check ${resp.status} ${resp.statusText} in ${elapsedMs}ms (${healthUrl})`,
+    );
+  } catch (error: any) {
+    const elapsedMs = Date.now() - startedAt;
+    console.error(
+      `[Network][DEBUG] (${label}) Health check failed after ${elapsedMs}ms`,
+    );
+    console.error(`[Network][DEBUG] (${label}) Error name: ${error?.name}`);
+    console.error(`[Network][DEBUG] (${label}) Error message: ${error?.message}`);
   }
 };
 
@@ -456,6 +496,7 @@ export const apiRequest = async (
   url: string,
   options: RequestInit & { timeout?: number } = {},
 ): Promise<Response> => {
+  const startedAt = Date.now();
   const {
     timeout = DEFAULT_REQUEST_TIMEOUT,
     signal: userSignal,
@@ -511,6 +552,18 @@ export const apiRequest = async (
     defaultHeaders["Authorization"] = `Bearer ${token}`;
   }
 
+  if (DEBUG_NETWORK) {
+    const safeHeaders = { ...defaultHeaders } as Record<string, string>;
+    if (safeHeaders.Authorization) {
+      safeHeaders.Authorization = "Bearer [REDACTED]";
+    }
+
+    console.log(
+      `[API][DEBUG] Request: ${(rest as any)?.method || "GET"} ${url} timeout=${timeout}ms`,
+      safeHeaders,
+    );
+  }
+
   const defaultOptions: RequestInit = {
     credentials: "include", // Attempt to send cookies when available
     headers: defaultHeaders,
@@ -524,12 +577,26 @@ export const apiRequest = async (
     console.log(
       `[API] Response: ${resp.status} ${resp.statusText} from ${url}`,
     );
+
+    if (DEBUG_NETWORK) {
+      const elapsedMs = Date.now() - startedAt;
+      console.log(
+        `[API][DEBUG] Response: ${resp.status} ${resp.statusText} from ${url} (${elapsedMs}ms)`,
+      );
+    }
     return resp;
   } catch (err: any) {
+    const elapsedMs = Date.now() - startedAt;
     // Enhanced error logging for debugging network issues
     console.error(`[API] ❌ Request failed: ${url}`);
     console.error(`[API] Error name: ${err.name}`);
     console.error(`[API] Error message: ${err.message}`);
+
+    if (DEBUG_NETWORK) {
+      console.error(
+        `[API][DEBUG] Failure after ${elapsedMs}ms ${(rest as any)?.method || "GET"} ${url}`,
+      );
+    }
 
     if (err.name === "AbortError") {
       // Provide clearer error for timeouts

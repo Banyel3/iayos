@@ -19,6 +19,7 @@ import {
   RESEND_OTP_ENDPOINT,
   checkNetworkConnectivity,
   getApiUrl,
+  debugNetworkDiagnostics,
 } from "../lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -525,6 +526,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("🧪 E2E Mode: Skipping auth check for Detox testing");
         setIsLoading(false);
         return;
+      }
+
+      if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
+        void debugNetworkDiagnostics("auth-init");
       }
 
       // Create a timeout promise that resolves (not rejects) to allow app to continue
