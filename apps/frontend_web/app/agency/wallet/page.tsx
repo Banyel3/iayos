@@ -4,27 +4,24 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/form_button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
-  Plus,
   Clock,
   TrendingUp,
   CreditCard,
   RefreshCw,
-  Loader2,
   ChevronRight,
   Hourglass,
   AlertCircle,
-  CheckCircle,
   Calendar,
   Banknote,
+  Send,
 } from "lucide-react";
-import { API_BASE_URL, API_BASE } from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 import { useWalletBalance, useWalletTransactions } from "@/lib/hooks/useHomeData";
 import { formatDistanceToNow } from "date-fns";
 
@@ -51,10 +48,6 @@ export default function AgencyWalletPage() {
   const router = useRouter();
   const [pendingEarnings, setPendingEarnings] = useState<PendingEarningsData | null>(null);
   const [isLoadingPending, setIsLoadingPending] = useState(true);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<number | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
 
   const {
@@ -71,7 +64,7 @@ export default function AgencyWalletPage() {
 
   useEffect(() => {
     fetchPendingEarnings();
-    fetchPaymentMethods();
+    fetchPaymentMethodsCount();
   }, []);
 
   const fetchPendingEarnings = async () => {
@@ -91,7 +84,7 @@ export default function AgencyWalletPage() {
     }
   };
 
-  const fetchPaymentMethods = async () => {
+  const fetchPaymentMethodsCount = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/agency/payment-methods`, {
         credentials: "include",
@@ -99,8 +92,6 @@ export default function AgencyWalletPage() {
       if (res.ok) {
         const data = await res.json();
         setPaymentMethods(data.payment_methods || []);
-        const primary = data.payment_methods?.find((m: any) => m.is_primary);
-        if (primary) setSelectedPaymentMethod(primary.id);
       }
     } catch (error) {
       console.error("Error fetching payment methods:", error);
@@ -110,50 +101,6 @@ export default function AgencyWalletPage() {
   const handleRefresh = async () => {
     await Promise.all([refetchWallet(), refetchTransactions(), fetchPendingEarnings()]);
     toast.success("Wallet refreshed");
-  };
-
-  const handleWithdraw = async () => {
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount < 100) {
-      toast.error("Minimum withdrawal is ₱100");
-      return;
-    }
-    if (amount > walletBalance) {
-      toast.error("Insufficient balance");
-      return;
-    }
-    if (!selectedPaymentMethod) {
-      toast.error("Please select a payment method");
-      return;
-    }
-
-    setIsWithdrawing(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/agency/wallet/withdraw`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount,
-          payment_method_id: selectedPaymentMethod,
-        }),
-      });
-
-      if (res.ok) {
-        toast.success("Withdrawal request submitted!");
-        setShowWithdrawModal(false);
-        setWithdrawAmount("");
-        refetchWallet();
-        refetchTransactions();
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Withdrawal failed");
-      }
-    } catch (error) {
-      toast.error("Error processing withdrawal");
-    } finally {
-      setIsWithdrawing(false);
-    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -466,105 +413,6 @@ export default function AgencyWalletPage() {
           </div>
         </div>
       </div>
-
-      {/* Withdraw Modal */}
-      {showWithdrawModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <CardHeader>
-              <CardTitle>Withdraw Funds</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount (min ₱100)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
-                  <Input
-                    type="number"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="pl-8"
-                    min="100"
-                    max={walletBalance}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Available: {formatCurrency(walletBalance)}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Payment Method
-                </label>
-                {paymentMethods.length === 0 ? (
-                  <div className="text-center py-4 bg-gray-50 rounded-lg">
-                    <p className="text-gray-500 text-sm">No payment methods</p>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={() => router.push("/agency/profile?tab=payment-methods")}
-                    >
-                      Add GCash Account
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {paymentMethods.map((method) => (
-                      <div
-                        key={method.id}
-                        onClick={() => setSelectedPaymentMethod(method.id)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedPaymentMethod === method.id
-                            ? "border-green-500 bg-green-50"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-sm">{method.account_name}</p>
-                            <p className="text-xs text-gray-500">{method.account_number}</p>
-                          </div>
-                          {method.is_verified && (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowWithdrawModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  onClick={handleWithdraw}
-                  disabled={isWithdrawing || !selectedPaymentMethod}
-                >
-                  {isWithdrawing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Withdraw"
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
