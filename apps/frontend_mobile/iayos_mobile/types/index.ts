@@ -150,6 +150,7 @@ export interface RegisterPayload {
   password: string;
   confirmPassword: string;
   street_address: string;
+  barangay: string;
   city: string;
   province: string;
   postal_code: string;

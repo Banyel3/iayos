@@ -65,6 +65,7 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     email_otp_attempts = models.IntegerField(default=0)  # Max 5 failed attempts
     
     street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
+    barangay = models.CharField(max_length=100, default="", blank=True)         # "Tetuan"
     city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
     province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
     postal_code = models.CharField(max_length=20, default="", blank=True)       # "7000"
@@ -129,6 +130,7 @@ class Agency(models.Model):
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
     businessName = models.CharField(max_length=50)
     street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
+    barangay = models.CharField(max_length=100, default="", blank=True)         # "Tetuan"
     city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
     province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
     postal_code = models.CharField(max_length=20, default="", blank=True)
