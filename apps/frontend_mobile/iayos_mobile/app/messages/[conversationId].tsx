@@ -49,6 +49,7 @@ import {
   useApproveBackjobCompletion,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
+import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
@@ -162,6 +163,9 @@ export default function ChatScreen() {
 
   // Get current user for team job assignment identification
   const { user } = useAuth();
+
+  // Voice calling
+  const { initiateCall, callStatus } = useAgoraCall();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -1197,16 +1201,36 @@ export default function ChatScreen() {
               </View>
             )}
         </View>
-        <TouchableOpacity
-          onPress={() => router.push(`/jobs/${conversation.job.id}`)}
-          style={styles.infoButton}
-        >
-          <Ionicons
-            name="information-circle-outline"
-            size={24}
-            color={Colors.primary}
-          />
-        </TouchableOpacity>
+        {/* Header Action Buttons */}
+        <View style={styles.headerActions}>
+          {/* Voice Call Button - Only show for non-closed conversations and non-team jobs */}
+          {!isConversationClosed && !conversation.is_team_job && (
+            <TouchableOpacity
+              onPress={() => {
+                const recipientName = conversation.other_participant?.name || "Unknown";
+                initiateCall(conversationId, recipientName);
+              }}
+              style={styles.callButton}
+              disabled={callStatus !== "idle"}
+            >
+              <Ionicons
+                name="call-outline"
+                size={22}
+                color={callStatus === "idle" ? Colors.success : Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => router.push(`/jobs/${conversation.job.id}`)}
+            style={styles.infoButton}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={24}
+              color={Colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -2813,9 +2837,19 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginLeft: 4,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  callButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
   infoButton: {
     padding: 4,
-    marginLeft: 12,
+    marginLeft: 8,
   },
   menuButton: {
     padding: 4,

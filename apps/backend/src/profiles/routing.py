@@ -10,4 +10,7 @@ websocket_urlpatterns = [
     
     # Job status updates
     re_path(r'ws/job/(?P<job_id>\d+)/$', consumers.JobStatusConsumer.as_asgi()),
+    
+    # Voice call signaling
+    re_path(r'ws/call/(?P<conversation_id>\d+)/$', consumers.CallConsumer.as_asgi()),
 ]

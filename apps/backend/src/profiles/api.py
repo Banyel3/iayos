@@ -2099,3 +2099,74 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
 
 #endregion
 
+
+#region VOICE CALLING ENDPOINTS
+
+@router.post("/call/token", auth=dual_auth)
+def get_call_token(request, conversation_id: int):
+    """
+    Generate an Agora RTC token for voice calling within a conversation.
+    
+    The token is valid for 1 hour and allows the user to join the call channel.
+    Channel name is derived from conversation_id to ensure unique channels per conversation.
+    
+    Args:
+        conversation_id: The conversation ID to initiate call in
+    
+    Returns:
+        {
+            "token": "007...",
+            "channel_name": "iayos_call_123",
+            "uid": 456,
+            "app_id": "abc123..."
+        }
+    """
+    try:
+        from .agora_token import generate_call_token
+        from .models import Conversation
+        
+        user = request.auth
+        user_id = user.id
+        
+        # Verify user has access to this conversation
+        try:
+            conversation = Conversation.objects.get(conversationID=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response({"error": "Conversation not found"}, status=404)
+        
+        # Check if user is a participant
+        profile = Profile.objects.filter(accountFK=user).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        is_client = conversation.client and conversation.client.profileID == profile.profileID
+        is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+        
+        # Also check ConversationParticipant for team jobs
+        from .models import ConversationParticipant
+        is_participant = ConversationParticipant.objects.filter(
+            conversation=conversation,
+            profile=profile
+        ).exists()
+        
+        if not (is_client or is_worker or is_participant):
+            return Response({"error": "You are not a participant in this conversation"}, status=403)
+        
+        # Generate token
+        token_data = generate_call_token(conversation_id, user_id)
+        
+        print(f"[Call Token] Generated for user {user_id} in conversation {conversation_id}")
+        
+        return token_data
+        
+    except ValueError as e:
+        print(f"❌ Agora configuration error: {str(e)}")
+        return Response({"error": "Voice calling is not configured"}, status=500)
+    except Exception as e:
+        print(f"❌ Error generating call token: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to generate call token: {str(e)}"}, status=500)
+
+
+#endregion
