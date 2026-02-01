@@ -269,6 +269,69 @@ export default function WalletDepositScreen() {
     }
   };
 
+  // Intercept navigation requests BEFORE they load to catch success/failure redirects
+  const handleShouldStartLoadWithRequest = (request: any): boolean => {
+    const url = request.url as string;
+    
+    if (!url || webViewHandled) {
+      return true;
+    }
+
+    const isSuccess =
+      url.includes("payment=success") ||
+      url.includes("/payment/success") ||
+      url.includes("/callback/success") ||
+      url.includes("?status=success");
+    const isFailure =
+      url.includes("payment=failed") ||
+      url.includes("/payment/failed") ||
+      url.includes("/callback/failed") ||
+      url.includes("?status=failed");
+
+    if (isSuccess) {
+      // Prevent loading the redirect URL - close WebView instead
+      setWebViewHandled(true);
+      setIsProcessing(false);
+      setXenditUrl(null);
+      const amountLabel = pendingDeposit
+        ? formatCurrency(pendingDeposit)
+        : "Your deposit";
+      setPendingDeposit(null);
+
+      Alert.alert(
+        "Deposit Successful",
+        `${amountLabel} is being processed. Your balance will refresh shortly.`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              refetchBalance();
+              router.back();
+            },
+          },
+        ],
+      );
+      return false; // Don't load the URL
+    }
+
+    if (isFailure) {
+      // Prevent loading the redirect URL - close WebView instead
+      setWebViewHandled(true);
+      setIsProcessing(false);
+      setXenditUrl(null);
+      setPendingDeposit(null);
+
+      Alert.alert(
+        "Deposit Failed",
+        "Your deposit could not be processed. Please try again.",
+        [{ text: "OK" }],
+      );
+      return false; // Don't load the URL
+    }
+
+    return true; // Allow all other URLs to load normally
+  };
+
   const handleCancel = () => {
     if (xenditUrl) {
       Alert.alert(
@@ -381,6 +444,7 @@ export default function WalletDepositScreen() {
         <WebView
           source={{ uri: xenditUrl }}
           onNavigationStateChange={handleWebViewNavigationStateChange}
+          onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.webViewLoading}>
