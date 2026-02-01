@@ -158,6 +158,15 @@ JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
 # Rate limiting
 RATE_LIMIT_DISABLED = os.environ.get('RATE_LIMIT_DISABLED', 'false').lower() == 'true'
 
+# ============================================================================
+# MOBILE APP VERSION CONFIGURATION
+# ============================================================================
+# Used for in-app update prompts and download page
+MOBILE_MIN_VERSION = os.environ.get('MOBILE_MIN_VERSION', '1.8.11')  # Minimum supported version
+MOBILE_CURRENT_VERSION = os.environ.get('MOBILE_CURRENT_VERSION', '1.8.11')  # Latest version
+MOBILE_FORCE_UPDATE = os.environ.get('MOBILE_FORCE_UPDATE', 'true').lower() == 'true'  # Block app until updated
+MOBILE_DOWNLOAD_URL = os.environ.get('MOBILE_DOWNLOAD_URL', 'https://github.com/Banyel3/iayos/releases/latest')
+
 # Query caching
 QUERY_CACHE_DISABLED = os.environ.get('QUERY_CACHE_DISABLED', 'false').lower() == 'true'
 
