@@ -252,15 +252,65 @@ export default function ClientDetailPage() {
 
               {/* Account Action Buttons */}
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to suspend this client?')) return;
+                    setActionLoading(true);
+                    try {
+                      const res = await fetch(`${API_BASE}/api/adminpanel/users/${id}/suspend`, {
+                        method: 'POST',
+                        credentials: 'include',
+                      });
+                      if (res.ok) {
+                        alert('Client suspended successfully');
+                        window.location.reload();
+                      } else {
+                        alert('Failed to suspend client');
+                      }
+                    } catch (e) {
+                      alert('Error suspending client');
+                    }
+                    setActionLoading(false);
+                  }}
+                  disabled={actionLoading}
+                >
                   <Clock className="h-3 w-3 mr-1" />
                   Suspend
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => router.push(`/admin/messages?userId=${id}`)}
+                >
                   <Mail className="h-3 w-3 mr-1" />
                   Message
                 </Button>
-                <Button variant="destructive" size="sm">
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to DELETE this client? This action cannot be undone.')) return;
+                    setActionLoading(true);
+                    try {
+                      const res = await fetch(`${API_BASE}/api/adminpanel/users/${id}`, {
+                        method: 'DELETE',
+                        credentials: 'include',
+                      });
+                      if (res.ok) {
+                        alert('Client deleted successfully');
+                        router.push('/admin/users/clients');
+                      } else {
+                        alert('Failed to delete client');
+                      }
+                    } catch (e) {
+                      alert('Error deleting client');
+                    }
+                    setActionLoading(false);
+                  }}
+                  disabled={actionLoading}
+                >
                   <XCircle className="h-3 w-3 mr-1" />
                   Delete
                 </Button>
@@ -526,7 +576,11 @@ export default function ClientDetailPage() {
                     {getStatusBadge(client.status)}
                   </div>
                   {client.kyc_status !== "APPROVED" && (
-                    <Button variant="outline" className="w-full mt-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full mt-2"
+                      onClick={() => router.push(`/admin/kyc/pending`)}
+                    >
                       View KYC Documents
                     </Button>
                   )}
