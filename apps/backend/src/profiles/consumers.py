@@ -674,3 +674,249 @@ class JobStatusConsumer(AsyncWebsocketConsumer):
             import traceback
             traceback.print_exc()
             return False
+
+
+class CallConsumer(AsyncWebsocketConsumer):
+    """
+    WebSocket consumer for voice call signaling.
+    Handles call initiation, acceptance, rejection, and termination.
+    Uses Agora for actual voice transmission; this handles signaling only.
+    """
+    
+    # Call timeout in seconds (auto-end if not answered)
+    CALL_TIMEOUT = 30
+    
+    async def connect(self):
+        self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
+        self.call_group_name = f'call_{self.conversation_id}'
+        self.user = self.scope.get('user')
+        
+        print(f"[CallWS] Connection attempt for conversation {self.conversation_id}")
+        
+        if not self.user or not self.user.is_authenticated:
+            print(f"[CallWS] REJECTED: User not authenticated")
+            await self.close()
+            return
+        
+        # Verify user has access to this conversation
+        has_access = await self.verify_conversation_access()
+        if not has_access:
+            print(f"[CallWS] REJECTED: User does not have access to conversation")
+            await self.close()
+            return
+        
+        # Join the call signaling group
+        await self.channel_layer.group_add(self.call_group_name, self.channel_name)
+        await self.accept()
+        
+        print(f"[CallWS] ✅ Connection accepted for user {self.user.email}")
+    
+    async def disconnect(self, close_code):
+        if hasattr(self, 'call_group_name'):
+            await self.channel_layer.group_discard(self.call_group_name, self.channel_name)
+            print(f"[CallWS] Disconnected from call group {self.call_group_name}")
+    
+    async def receive(self, text_data):
+        """Handle incoming call signaling messages"""
+        try:
+            print(f"[CallWS] 📩 Received: {text_data}")
+            data = json.loads(text_data)
+            action = data.get('action')
+            
+            if action == 'initiate':
+                await self.handle_call_initiate(data)
+            elif action == 'accept':
+                await self.handle_call_accept(data)
+            elif action == 'reject':
+                await self.handle_call_reject(data)
+            elif action == 'end':
+                await self.handle_call_end(data)
+            elif action == 'busy':
+                await self.handle_call_busy(data)
+            else:
+                print(f"[CallWS] Unknown action: {action}")
+        except Exception as e:
+            print(f"[CallWS] ❌ Error in receive: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    async def handle_call_initiate(self, data):
+        """Handle call initiation - broadcast to other participant"""
+        caller_name = await self.get_user_name()
+        
+        # Broadcast call invitation to the group
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'incoming',
+                'caller_id': self.user.id,
+                'caller_name': caller_name,
+                'conversation_id': self.conversation_id,
+                'channel_name': data.get('channel_name', f'iayos_call_{self.conversation_id}'),
+            }
+        )
+        
+        print(f"[CallWS] 📞 Call initiated by {caller_name} in conversation {self.conversation_id}")
+    
+    async def handle_call_accept(self, data):
+        """Handle call acceptance"""
+        user_name = await self.get_user_name()
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'accepted',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        print(f"[CallWS] ✅ Call accepted by {user_name}")
+    
+    async def handle_call_reject(self, data):
+        """Handle call rejection"""
+        user_name = await self.get_user_name()
+        reason = data.get('reason', 'declined')
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'rejected',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'reason': reason,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        # Create system message for missed/rejected call
+        await self.create_call_system_message(f"📞 Missed call from {user_name}")
+        
+        print(f"[CallWS] ❌ Call rejected by {user_name}: {reason}")
+    
+    async def handle_call_end(self, data):
+        """Handle call termination"""
+        user_name = await self.get_user_name()
+        duration = data.get('duration', 0)
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'ended',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'duration': duration,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        # Create system message for completed call
+        if duration > 0:
+            duration_str = self.format_duration(duration)
+            await self.create_call_system_message(f"📞 Voice call • {duration_str}")
+        
+        print(f"[CallWS] 📵 Call ended by {user_name}, duration: {duration}s")
+    
+    async def handle_call_busy(self, data):
+        """Handle busy signal (user already in a call)"""
+        user_name = await self.get_user_name()
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'busy',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        print(f"[CallWS] 📵 {user_name} is busy")
+    
+    async def call_event(self, event):
+        """Send call event to WebSocket client"""
+        # Don't send event back to the sender (except for 'incoming' which should go to receiver)
+        if event['event'] == 'incoming' and event.get('caller_id') == self.user.id:
+            return  # Don't send incoming event to the caller
+        
+        await self.send(text_data=json.dumps({
+            'type': 'call_event',
+            'event': event['event'],
+            'data': {
+                'caller_id': event.get('caller_id'),
+                'caller_name': event.get('caller_name'),
+                'user_id': event.get('user_id'),
+                'user_name': event.get('user_name'),
+                'conversation_id': event.get('conversation_id'),
+                'channel_name': event.get('channel_name'),
+                'reason': event.get('reason'),
+                'duration': event.get('duration'),
+            }
+        }))
+    
+    @staticmethod
+    def format_duration(seconds: int) -> str:
+        """Format call duration as mm:ss or hh:mm:ss"""
+        if seconds < 3600:
+            return f"{seconds // 60}:{seconds % 60:02d}"
+        return f"{seconds // 3600}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
+    
+    @database_sync_to_async
+    def verify_conversation_access(self):
+        """Verify user has access to this conversation"""
+        try:
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            profile = Profile.objects.filter(accountFK=self.user).first()
+            
+            if not profile:
+                return False
+            
+            # Check if user is client or worker
+            is_client = conversation.client and conversation.client.profileID == profile.profileID
+            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+            
+            # Check ConversationParticipant for team jobs
+            from .models import ConversationParticipant
+            is_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=profile
+            ).exists()
+            
+            return is_client or is_worker or is_participant
+        except Conversation.DoesNotExist:
+            return False
+        except Exception as e:
+            print(f"[CallWS] Error verifying access: {str(e)}")
+            return False
+    
+    @database_sync_to_async
+    def get_user_name(self):
+        """Get the user's display name"""
+        try:
+            profile = Profile.objects.filter(accountFK=self.user).first()
+            if profile:
+                return f"{profile.firstName} {profile.lastName}".strip() or self.user.email
+            return self.user.email
+        except Exception:
+            return self.user.email
+    
+    @database_sync_to_async
+    def create_call_system_message(self, text: str):
+        """Create a system message in the conversation for call events"""
+        try:
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            Message.objects.create(
+                conversationID=conversation,
+                sender=None,  # System message
+                messageText=text,
+                messageType='SYSTEM'
+            )
+            print(f"[CallWS] Created system message: {text}")
+        except Exception as e:
+            print(f"[CallWS] Error creating system message: {str(e)}")

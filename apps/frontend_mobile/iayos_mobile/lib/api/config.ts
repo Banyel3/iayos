@@ -486,6 +486,10 @@ export const ENDPOINTS = {
   UPLOAD_MESSAGE_IMAGE: (conversationId: number) =>
     `${API_URL}/api/profiles/chat/${conversationId}/upload-image`,
 
+  // Voice Calling (Agora)
+  CALL_TOKEN: (conversationId: number) =>
+    `${API_URL}/api/profiles/call/token?conversation_id=${conversationId}`,
+
   // Phase 9: Push Notifications & Notification Management (8 endpoints)
   NOTIFICATIONS: `${API_URL}/api/accounts/notifications`,
   MARK_NOTIFICATION_READ: (id: number) =>
