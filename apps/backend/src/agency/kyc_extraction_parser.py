@@ -146,8 +146,10 @@ class AgencyKYCExtractionParser:
             re.IGNORECASE
         )
         # Pattern 2: Business name on NEXT LINE after "This certifies that" (common OCR output)
+        # FIXED: Use greedy match to capture full business name until newline
+        # Format: "This certifies that\nDEVANTE SOFTWARE DEVELOPMENT SERVICES\n(BARANGAY)"
         self.certifies_that_next_line_pattern = re.compile(
-            r'This\s+certifies\s+that\s*\n+\s*([A-Z][A-Z0-9\s&\-\.]{4,}?)(?:\n|\(|is\s+a|is\s+registered|located|with\s+business)',
+            r'This\s+certifies\s+that\s*[\n\r]+\s*([A-Z][A-Z0-9\s&\-\.]{5,})\s*(?=[\n\r])',
             re.IGNORECASE | re.DOTALL
         )
         # Pattern for extracting owner name to EXCLUDE from business name
@@ -378,26 +380,34 @@ class AgencyKYCExtractionParser:
                 source_text="date extraction"
             )
         
-        # Extract DTI number
-        dti_match = self.dti_pattern.search(text)
-        if dti_match:
-            result.dti_number = ExtractionResult(
-                value=dti_match.group(1).strip(),
-                confidence=0.85,
-                source_text=dti_match.group(0)
-            )
-            logger.info(f"   DTI Number: {result.dti_number.value}")
+        # Extract DTI number - PRIORITY ORDER:
+        # 1. DTI Business Name Number (e.g., "Business Name No.7663018") - most specific for DTI certs
+        # 2. Generic DTI pattern (e.g., "DTI-12345") - fallback for other formats
         
-        # Extract DTI Business Name Number (DTI Certificate format fallback)
+        # PRIORITY 1: DTI Business Name Number pattern (DTI Certificate format)
+        dti_bn_match = self.dti_business_name_pattern.search(text)
+        if dti_bn_match:
+            result.dti_number = ExtractionResult(
+                value=dti_bn_match.group(1).strip(),
+                confidence=0.9,  # High confidence for specific DTI cert format
+                source_text=dti_bn_match.group(0)
+            )
+            logger.info(f"   DTI Business Name Number: {result.dti_number.value}")
+        
+        # PRIORITY 2: Generic DTI pattern (fallback)
         if not result.dti_number.value:
-            dti_bn_match = self.dti_business_name_pattern.search(text)
-            if dti_bn_match:
-                result.dti_number = ExtractionResult(
-                    value=f"BN-{dti_bn_match.group(1).strip()}",
-                    confidence=0.8,
-                    source_text=dti_bn_match.group(0)
-                )
-                logger.info(f"   DTI Business Name Number: {result.dti_number.value}")
+            dti_match = self.dti_pattern.search(text)
+            if dti_match:
+                # Validate it's not just "DTI" followed by garbage like newline+text
+                dti_value = dti_match.group(1).strip()
+                # Skip if the match spans multiple lines or contains common words
+                if '\n' not in dti_match.group(0) and dti_value.upper() not in ['BAGONG', 'PILIPINAS', 'DEPARTMENT']:
+                    result.dti_number = ExtractionResult(
+                        value=dti_value,
+                        confidence=0.85,
+                        source_text=dti_match.group(0)
+                    )
+                    logger.info(f"   DTI Number: {result.dti_number.value}")
         
         # Note: DTI Certificate ID is extracted earlier in permit number section
         
