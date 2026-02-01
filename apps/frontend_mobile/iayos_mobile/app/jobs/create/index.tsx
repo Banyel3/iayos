@@ -71,13 +71,13 @@ interface CreateJobRequest {
   expected_duration?: string;
   urgency_level: "LOW" | "MEDIUM" | "HIGH";
   preferred_start_date?: string;
-  payment_method: "WALLET"; // Jobs only use Wallet payment (deposits via QR PH)
+  downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
   // Universal job fields for ML accuracy
-  skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
-  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
-  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  work_environment: "INDOOR" | "OUTDOOR" | "BOTH";
 }
 
 export default function CreateJobScreen() {
@@ -412,8 +412,8 @@ export default function CreateJobScreen() {
       preferred_start_date: startDate
         ? startDate.toISOString().split("T")[0]
         : undefined,
-      payment_method: "WALLET", // Jobs only use Wallet payment
-      // Universal job fields for ML accuracy
+      downpayment_method: "WALLET", // Jobs only use Wallet payment
+      // Universal job fields for ML accuracy - explicitly passed
       skill_level_required: skillLevel,
       job_scope: jobScope,
       work_environment: workEnvironment,

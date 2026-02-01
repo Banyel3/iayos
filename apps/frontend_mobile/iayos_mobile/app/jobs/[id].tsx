@@ -314,10 +314,10 @@ export default function JobDetailScreen() {
             }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
-        // Universal job fields for ML
-        job_scope: jobData.job_scope || "MODERATE_PROJECT",
-        skill_level_required: jobData.skill_level_required || "INTERMEDIATE",
-        work_environment: jobData.work_environment || "INDOOR",
+        // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
+        job_scope: jobData.job_scope,
+        skill_level_required: jobData.skill_level_required,
+        work_environment: jobData.work_environment,
         // Team Job fields
         is_team_job: jobData.is_team_job || false,
         skill_slots: jobData.skill_slots || [],

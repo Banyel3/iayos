@@ -1,0 +1,55 @@
+### Test Job Requirements Display Bug Fix (Issue #205)
+### This test verifies that job_scope, skill_level_required, and work_environment are saved correctly
+
+### Variables
+@baseUrl = http://localhost:8000
+@email = worker@example.com
+@password = password123
+
+### 1. Login to get token
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Store the token
+@token = {{login.response.body.access_token}}
+
+### 2. Create a job with SPECIFIC values (not defaults)
+### Expected: EXPERT, MAJOR_RENOVATION, OUTDOOR should be saved
+# @name createJob
+POST {{baseUrl}}/api/mobile/jobs/create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Test Job Requirements Fix #205",
+  "description": "This test verifies that job_scope, skill_level_required, and work_environment are saved correctly instead of using hardcoded defaults. The user selected EXPERT, MAJOR_RENOVATION, and OUTDOOR.",
+  "category_id": 1,
+  "budget": 5000,
+  "location": "Test Street, Tetuan",
+  "expected_duration": "3 hours",
+  "urgency_level": "HIGH",
+  "downpayment_method": "WALLET",
+  "skill_level_required": "EXPERT",
+  "job_scope": "MAJOR_RENOVATION",
+  "work_environment": "OUTDOOR"
+}
+
+### Store the job ID
+@jobId = {{createJob.response.body.job_posting_id}}
+
+### 3. Get job details and verify the values are saved correctly
+### Expected: skill_level_required=EXPERT, job_scope=MAJOR_RENOVATION, work_environment=OUTDOOR
+# @name getJob
+GET {{baseUrl}}/api/mobile/jobs/{{jobId}}
+Authorization: Bearer {{token}}
+
+### Verification checklist:
+### - skill_level_required should be "EXPERT" (not "INTERMEDIATE")
+### - job_scope should be "MAJOR_RENOVATION" (not "MINOR_REPAIR")
+### - work_environment should be "OUTDOOR" (not "INDOOR")
