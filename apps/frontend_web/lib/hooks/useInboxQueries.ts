@@ -153,13 +153,19 @@ export function useSubmitReview() {
   return useMutation({
     mutationFn: async ({
       jobId,
-      rating,
+      rating_quality,
+      rating_communication,
+      rating_punctuality,
+      rating_professionalism,
       message,
       review_target,
       employee_id,
     }: {
       jobId: number;
-      rating: number;
+      rating_quality: number;
+      rating_communication: number;
+      rating_punctuality: number;
+      rating_professionalism: number;
       message: string;
       review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs
       employee_id?: number; // For multi-employee agency jobs
@@ -169,7 +175,10 @@ export function useSubmitReview() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          rating,
+          rating_quality,
+          rating_communication,
+          rating_punctuality,
+          rating_professionalism,
           message: message.trim() || null,
           review_target,
           employee_id,

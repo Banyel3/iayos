@@ -367,11 +367,17 @@ export function useAgencySubmitReview() {
   return useMutation({
     mutationFn: async ({
       jobId,
-      rating,
+      rating_quality,
+      rating_communication,
+      rating_punctuality,
+      rating_professionalism,
       reviewText,
     }: {
       jobId: number;
-      rating: number;
+      rating_quality: number;
+      rating_communication: number;
+      rating_punctuality: number;
+      rating_professionalism: number;
       reviewText: string;
     }) => {
       const response = await fetch(`${API_BASE}/api/jobs/${jobId}/review`, {
@@ -379,8 +385,11 @@ export function useAgencySubmitReview() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rating,
-          review_text: reviewText,
+          rating_quality,
+          rating_communication,
+          rating_punctuality,
+          rating_professionalism,
+          message: reviewText,
         }),
       });
 

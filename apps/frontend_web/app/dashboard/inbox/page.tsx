@@ -109,7 +109,10 @@ const InboxPage = () => {
 
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
+  const [ratingQuality, setRatingQuality] = useState(0);
+  const [ratingCommunication, setRatingCommunication] = useState(0);
+  const [ratingPunctuality, setRatingPunctuality] = useState(0);
+  const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
   const [reviewMessage, setReviewMessage] = useState("");
   const [hasSubmittedReview, setHasSubmittedReview] = useState(false);
   const hasShownReviewModalRef = useRef(false); // Track if we've already shown the modal for this job
@@ -621,8 +624,8 @@ const InboxPage = () => {
 
   // Handle submitting review
   const handleSubmitReview = async () => {
-    if (!selectedChat || reviewRating === 0) {
-      alert("Please select a rating before submitting");
+    if (!selectedChat || ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0) {
+      alert("Please rate all criteria before submitting");
       return;
     }
 
@@ -631,14 +634,20 @@ const InboxPage = () => {
     submitReviewMutation.mutate(
       {
         jobId: selectedChat.job.id,
-        rating: reviewRating,
+        rating_quality: ratingQuality,
+        rating_communication: ratingCommunication,
+        rating_punctuality: ratingPunctuality,
+        rating_professionalism: ratingProfessionalism,
         message: reviewMessage,
       },
       {
         onSuccess: (data) => {
           alert(data.message || "Review submitted successfully!");
           setShowReviewModal(false);
-          setReviewRating(0);
+          setRatingQuality(0);
+          setRatingCommunication(0);
+          setRatingPunctuality(0);
+          setRatingProfessionalism(0);
           setReviewMessage("");
           setHasSubmittedReview(true); // Mark as submitted to prevent re-showing modal
 
@@ -2288,41 +2297,146 @@ const InboxPage = () => {
                 </p>
               </div>
 
-              {/* Star Rating */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rating <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center space-x-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setReviewRating(star)}
-                      className="transition-transform hover:scale-110"
-                    >
-                      <svg
-                        className={`w-10 h-10 ${
-                          star <= reviewRating
-                            ? "text-yellow-400 fill-current"
-                            : "text-gray-300"
-                        }`}
-                        fill={star <= reviewRating ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+              {/* Multi-Criteria Star Ratings */}
+              <div className="space-y-4">
+                {/* Quality */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    🏆 Quality <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingQuality(star)}
+                        className="transition-transform hover:scale-110"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                        />
-                      </svg>
-                    </button>
-                  ))}
-                  <span className="ml-2 text-lg font-semibold text-gray-700">
-                    {reviewRating > 0 ? `${reviewRating}.0` : "Select rating"}
-                  </span>
+                        <svg
+                          className={`w-8 h-8 ${
+                            star <= ratingQuality
+                              ? "text-yellow-400 fill-current"
+                              : "text-gray-300"
+                          }`}
+                          fill={star <= ratingQuality ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Communication */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    💬 Communication <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingCommunication(star)}
+                        className="transition-transform hover:scale-110"
+                      >
+                        <svg
+                          className={`w-8 h-8 ${
+                            star <= ratingCommunication
+                              ? "text-yellow-400 fill-current"
+                              : "text-gray-300"
+                          }`}
+                          fill={star <= ratingCommunication ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Punctuality */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ⏰ Punctuality <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingPunctuality(star)}
+                        className="transition-transform hover:scale-110"
+                      >
+                        <svg
+                          className={`w-8 h-8 ${
+                            star <= ratingPunctuality
+                              ? "text-yellow-400 fill-current"
+                              : "text-gray-300"
+                          }`}
+                          fill={star <= ratingPunctuality ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Professionalism */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    👔 Professionalism <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingProfessionalism(star)}
+                        className="transition-transform hover:scale-110"
+                      >
+                        <svg
+                          className={`w-8 h-8 ${
+                            star <= ratingProfessionalism
+                              ? "text-yellow-400 fill-current"
+                              : "text-gray-300"
+                          }`}
+                          fill={star <= ratingProfessionalism ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -2346,7 +2460,10 @@ const InboxPage = () => {
               <button
                 onClick={() => {
                   setShowReviewModal(false);
-                  setReviewRating(0);
+                  setRatingQuality(0);
+                  setRatingCommunication(0);
+                  setRatingPunctuality(0);
+                  setRatingProfessionalism(0);
                   setReviewMessage("");
                 }}
                 className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
@@ -2355,9 +2472,9 @@ const InboxPage = () => {
               </button>
               <button
                 onClick={handleSubmitReview}
-                disabled={reviewRating === 0 || isSubmittingReview}
+                disabled={ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0 || isSubmittingReview}
                 className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center ${
-                  reviewRating === 0 || isSubmittingReview
+                  ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0 || isSubmittingReview
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
                 }`}
