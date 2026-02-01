@@ -3177,7 +3177,7 @@ def get_mobile_config(request):
     
     # Final defaults if still not set
     if not current_version:
-        current_version = '1.8.11'
+        current_version = '1.9.0'
     if not min_version:
         min_version = current_version  # Default: require latest version
     
