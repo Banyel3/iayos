@@ -18,11 +18,14 @@ import {
   Bell,
   Wallet,
   BarChart3,
+  RotateCcw,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
+
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function AgencySidebar({ className }: { className?: string }) {
   const pathname = usePathname();
@@ -30,6 +33,29 @@ export default function AgencySidebar({ className }: { className?: string }) {
   const { logout } = useAuth();
   const { unreadCount } = useNotifications();
   const [collapsed, setCollapsed] = useState(false);
+  const [backjobsCount, setBackjobsCount] = useState(0);
+
+  // Fetch backjobs count
+  useEffect(() => {
+    const fetchBackjobsCount = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/jobs/my-backjobs?status=UNDER_REVIEW`, {
+          credentials: "include",
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setBackjobsCount(data.backjobs?.length || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching backjobs count:", error);
+      }
+    };
+
+    fetchBackjobsCount();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBackjobsCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const isActive = (href: string) => pathname.startsWith(href);
 
@@ -99,12 +125,39 @@ export default function AgencySidebar({ className }: { className?: string }) {
           href="/agency/jobs"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
-            isActive("/agency/jobs")
+            isActive("/agency/jobs") && !isActive("/agency/jobs/backjobs")
               ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
               : "text-gray-700 hover:bg-gray-100"
           )}
         >
           <Briefcase className="h-4 w-4" /> {!collapsed && <span>Jobs</span>}
+        </Link>
+
+        <Link
+          href="/agency/jobs/backjobs"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
+            isActive("/agency/jobs/backjobs")
+              ? "bg-orange-50 text-orange-600 agency-verified:bg-orange-100 agency-verified:text-orange-800"
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <RotateCcw className="h-4 w-4" />
+          {!collapsed && (
+            <span className="flex items-center gap-2">
+              Backjobs
+              {backjobsCount > 0 && (
+                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium bg-orange-500 text-white rounded-full">
+                  {backjobsCount}
+                </span>
+              )}
+            </span>
+          )}
+          {collapsed && backjobsCount > 0 && (
+            <span className="absolute right-1 top-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-medium bg-orange-500 text-white rounded-full">
+              {backjobsCount}
+            </span>
+          )}
         </Link>
 
         <Link
