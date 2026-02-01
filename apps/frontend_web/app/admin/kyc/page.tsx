@@ -185,9 +185,9 @@ export default function KYCManagementPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -209,9 +209,9 @@ export default function KYCManagementPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
               <div className="flex items-start space-x-3">
@@ -239,9 +239,9 @@ export default function KYCManagementPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
@@ -279,7 +279,6 @@ export default function KYCManagementPage() {
           {/* Modern Summary Cards with gradients */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -299,7 +298,6 @@ export default function KYCManagementPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 to-yellow-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-yellow-100 rounded-xl">
@@ -318,7 +316,6 @@ export default function KYCManagementPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-emerald-100 rounded-xl">
@@ -338,7 +335,6 @@ export default function KYCManagementPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-red-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-red-100 rounded-xl">
@@ -376,11 +372,11 @@ export default function KYCManagementPage() {
                   onChange={(e) =>
                     setStatusFilter(
                       e.target.value as
-                        | "all"
-                        | "pending"
-                        | "approved"
-                        | "rejected"
-                        | "under_review",
+                      | "all"
+                      | "pending"
+                      | "approved"
+                      | "rejected"
+                      | "under_review",
                     )
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
@@ -416,7 +412,6 @@ export default function KYCManagementPage() {
                 key={record.id}
                 className="group relative overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border-gray-200"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 via-blue-50/50 to-blue-50/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
                 <CardContent className="relative p-6">
                   <div className="flex items-start justify-between mb-4">
@@ -435,26 +430,24 @@ export default function KYCManagementPage() {
                         </p>
                         <div className="flex items-center space-x-2 mt-2">
                           <span
-                            className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${
-                              record.userType === "worker"
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${record.userType === "worker"
                                 ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
                                 : record.userType === "agency"
                                   ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
                                   : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
-                            }`}
+                              }`}
                           >
                             {record.userType}
                           </span>
                           <span
-                            className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${
-                              record.status === "approved"
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${record.status === "approved"
                                 ? "bg-gradient-to-r from-green-500 to-green-600 text-white"
                                 : record.status === "rejected"
                                   ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
                                   : record.status === "under_review"
                                     ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
                                     : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
-                            }`}
+                              }`}
                           >
                             {record.status.replace("_", " ")}
                           </span>
@@ -485,13 +478,12 @@ export default function KYCManagementPage() {
                             </span>
                           </div>
                           <span
-                            className={`px-2 py-1 rounded-lg text-xs font-semibold ${
-                              doc.status === "approved"
+                            className={`px-2 py-1 rounded-lg text-xs font-semibold ${doc.status === "approved"
                                 ? "bg-green-100 text-green-700"
                                 : doc.status === "rejected"
                                   ? "bg-red-100 text-red-700"
                                   : "bg-yellow-100 text-yellow-700"
-                            }`}
+                              }`}
                           >
                             {doc.status}
                           </span>

@@ -26,22 +26,21 @@ import {
 
 interface Reply {
   id: string;
-  user_name: string;
+  sender_name: string;
   is_admin: boolean;
-  message: string;
+  content: string;
+  is_system_message: boolean;
   created_at: string;
 }
 
 interface TicketDetail {
   id: string;
   subject: string;
-  description: string;
   category: string;
   priority: "low" | "medium" | "high" | "urgent";
   status: "open" | "in_progress" | "waiting_user" | "resolved" | "closed";
   created_at: string;
   updated_at: string;
-  replies: Reply[];
 }
 
 const PRIORITY_CONFIG = {
@@ -66,6 +65,7 @@ export default function AgencyTicketDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [messages, setMessages] = useState<Reply[]>([]);
   const [replyText, setReplyText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -86,6 +86,7 @@ export default function AgencyTicketDetailPage() {
 
       if (data.success) {
         setTicket(data.ticket);
+        setMessages(data.messages || []);
       } else {
         toast.error(data.error || "Failed to load ticket");
         router.push("/agency/support/tickets");
@@ -122,7 +123,7 @@ export default function AgencyTicketDetailPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ message: replyText }),
+          body: JSON.stringify({ content: replyText }),
         }
       );
 
@@ -238,7 +239,7 @@ export default function AgencyTicketDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">{messages.length > 0 ? messages[0].content : 'No description available'}</p>
               <div className="mt-4 pt-4 border-t flex items-center gap-4 text-sm text-gray-500">
                 <span>Category: <span className="font-medium text-gray-700">{ticket.category}</span></span>
               </div>
@@ -246,13 +247,13 @@ export default function AgencyTicketDetailPage() {
           </Card>
 
           {/* Replies */}
-          {ticket.replies && ticket.replies.length > 0 && (
+          {messages.length > 1 && (
             <div className="space-y-4">
               <h3 className="font-medium text-gray-900 flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-gray-400" />
-                Conversation ({ticket.replies.length} replies)
+                Conversation ({messages.length - 1} {messages.length - 1 === 1 ? 'reply' : 'replies'})
               </h3>
-              {ticket.replies.map((reply) => (
+              {messages.slice(1).map((reply) => (
                 <Card
                   key={reply.id}
                   className={`border-0 shadow-sm ${
@@ -280,7 +281,7 @@ export default function AgencyTicketDetailPage() {
                               <User className="h-4 w-4 text-gray-600" />
                             </div>
                             <span className="font-medium text-gray-900">
-                              {reply.user_name}
+                              {reply.sender_name}
                             </span>
                           </>
                         )}
@@ -290,7 +291,7 @@ export default function AgencyTicketDetailPage() {
                       </span>
                     </div>
                     <p className="text-gray-700 whitespace-pre-wrap ml-8">
-                      {reply.message}
+                      {reply.content}
                     </p>
                   </CardContent>
                 </Card>

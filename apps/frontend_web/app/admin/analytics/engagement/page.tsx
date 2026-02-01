@@ -72,9 +72,9 @@ export default function EngagementMetrics() {
   const userSegments = stats?.user_segments || {};
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-amber-50">
+      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-amber-50">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-orange-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
@@ -222,55 +222,55 @@ export default function EngagementMetrics() {
                     {(featureUsage.length > 0
                       ? featureUsage
                       : [
-                          {
-                            feature: "Job Browsing",
-                            count: 45678,
-                            users: 8932,
-                            rate: 92.5,
-                          },
-                          {
-                            feature: "Worker Search",
-                            count: 34567,
-                            users: 6543,
-                            rate: 67.8,
-                          },
-                          {
-                            feature: "Job Application",
-                            count: 23456,
-                            users: 4567,
-                            rate: 47.3,
-                          },
-                          {
-                            feature: "Messaging",
-                            count: 18765,
-                            users: 3890,
-                            rate: 40.3,
-                          },
-                          {
-                            feature: "Payment",
-                            count: 12345,
-                            users: 2345,
-                            rate: 24.3,
-                          },
-                          {
-                            feature: "Reviews",
-                            count: 8976,
-                            users: 1987,
-                            rate: 20.6,
-                          },
-                          {
-                            feature: "Wallet Top-up",
-                            count: 5432,
-                            users: 1234,
-                            rate: 12.8,
-                          },
-                          {
-                            feature: "Profile Edit",
-                            count: 4321,
-                            users: 2109,
-                            rate: 21.8,
-                          },
-                        ]
+                        {
+                          feature: "Job Browsing",
+                          count: 45678,
+                          users: 8932,
+                          rate: 92.5,
+                        },
+                        {
+                          feature: "Worker Search",
+                          count: 34567,
+                          users: 6543,
+                          rate: 67.8,
+                        },
+                        {
+                          feature: "Job Application",
+                          count: 23456,
+                          users: 4567,
+                          rate: 47.3,
+                        },
+                        {
+                          feature: "Messaging",
+                          count: 18765,
+                          users: 3890,
+                          rate: 40.3,
+                        },
+                        {
+                          feature: "Payment",
+                          count: 12345,
+                          users: 2345,
+                          rate: 24.3,
+                        },
+                        {
+                          feature: "Reviews",
+                          count: 8976,
+                          users: 1987,
+                          rate: 20.6,
+                        },
+                        {
+                          feature: "Wallet Top-up",
+                          count: 5432,
+                          users: 1234,
+                          rate: 12.8,
+                        },
+                        {
+                          feature: "Profile Edit",
+                          count: 4321,
+                          users: 2109,
+                          rate: 21.8,
+                        },
+                      ]
                     ).map((feature: any, i: number) => (
                       <tr key={i} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-medium text-gray-900">
@@ -316,37 +316,37 @@ export default function EngagementMetrics() {
                 {(topPages.length > 0
                   ? topPages
                   : [
-                      {
-                        page: "/jobs",
-                        views: 156789,
-                        visitors: 8932,
-                        time: "3m 45s",
-                      },
-                      {
-                        page: "/workers",
-                        views: 98765,
-                        visitors: 6543,
-                        time: "4m 12s",
-                      },
-                      {
-                        page: "/dashboard",
-                        views: 87654,
-                        visitors: 8932,
-                        time: "2m 34s",
-                      },
-                      {
-                        page: "/messages",
-                        views: 65432,
-                        visitors: 4567,
-                        time: "6m 23s",
-                      },
-                      {
-                        page: "/profile",
-                        views: 43210,
-                        visitors: 7890,
-                        time: "3m 56s",
-                      },
-                    ]
+                    {
+                      page: "/jobs",
+                      views: 156789,
+                      visitors: 8932,
+                      time: "3m 45s",
+                    },
+                    {
+                      page: "/workers",
+                      views: 98765,
+                      visitors: 6543,
+                      time: "4m 12s",
+                    },
+                    {
+                      page: "/dashboard",
+                      views: 87654,
+                      visitors: 8932,
+                      time: "2m 34s",
+                    },
+                    {
+                      page: "/messages",
+                      views: 65432,
+                      visitors: 4567,
+                      time: "6m 23s",
+                    },
+                    {
+                      page: "/profile",
+                      views: 43210,
+                      visitors: 7890,
+                      time: "3m 56s",
+                    },
+                  ]
                 ).map((page: any, i: number) => (
                   <div
                     key={i}
@@ -423,13 +423,12 @@ export default function EngagementMetrics() {
                     </div>
                   </div>
                   <Badge
-                    className={`text-base px-4 py-2 ${
-                      engagementScore >= 70
+                    className={`text-base px-4 py-2 ${engagementScore >= 70
                         ? "bg-green-100 text-green-700"
                         : engagementScore >= 50
                           ? "bg-yellow-100 text-yellow-700"
                           : "bg-red-100 text-red-700"
-                    }`}
+                      }`}
                   >
                     {engagementScore >= 70
                       ? "Excellent Engagement"

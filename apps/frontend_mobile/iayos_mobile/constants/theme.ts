@@ -17,11 +17,11 @@
 import { Platform } from "react-native";
 
 export const Colors = {
-  // Primary Brand Colors (matching Next.js oklch(66.98% 0.124 242.37))
-  primary: "#3B82F6", // blue-600 (UPDATED from #54B7EC)
-  primaryLight: "#DBEAFE", // blue-100 (UPDATED from #D0EAF8)
-  primaryDark: "#2563EB", // blue-700 (UPDATED from #3A9FD5)
-  primaryHover: "#1D4ED8", // blue-800 (NEW)
+  // Primary Brand Colors
+  primary: "#54B7EC", // Custom blue
+  primaryLight: "#D0EAF8", // Light blue
+  primaryDark: "#3A9FD5", // Dark blue
+  primaryHover: "#2E8BC0", // Hover blue
 
   // Status Colors (updated to match Tailwind/Next.js)
   success: "#10B981", // green-500 (UPDATED from #4CAF50)
@@ -39,8 +39,8 @@ export const Colors = {
   surface: "#F9FAFB", // gray-50 (slightly updated)
   surfaceLight: "#FAFAFA", // gray-50
 
-  // Text Colors (kept - already matching)
-  textPrimary: "#212121", // gray-900
+  // Text Colors
+  textPrimary: "#28282B", // Custom dark gray
   textSecondary: "#757575", // gray-600
   textTertiary: "#9CA3AF", // gray-400 (alias for textHint for Next.js parity)
   textHint: "#9CA3AF", // gray-400 (UPDATED from #BDBDBD)

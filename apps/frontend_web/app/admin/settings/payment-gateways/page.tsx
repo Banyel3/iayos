@@ -200,9 +200,9 @@ export default function PaymentGatewaysPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -225,9 +225,9 @@ export default function PaymentGatewaysPage() {
   if (!gateways) return null;
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         {/* Header */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-green-500 opacity-20 blur-3xl pointer-events-none"></div>
@@ -287,16 +287,14 @@ export default function PaymentGatewaysPage() {
                   onClick={() =>
                     handleToggleGateway("xendit", gateways.xendit.enabled)
                   }
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    gateways.xendit.enabled ? "bg-green-600" : "bg-gray-300"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gateways.xendit.enabled ? "bg-green-600" : "bg-gray-300"
+                    }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      gateways.xendit.enabled
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.xendit.enabled
                         ? "translate-x-6"
                         : "translate-x-1"
-                    }`}
+                      }`}
                   />
                 </button>
               </div>
@@ -400,14 +398,12 @@ export default function PaymentGatewaysPage() {
                   onClick={() =>
                     handleToggleGateway("gcash", gateways.gcash.enabled)
                   }
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    gateways.gcash.enabled ? "bg-green-600" : "bg-gray-300"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gateways.gcash.enabled ? "bg-green-600" : "bg-gray-300"
+                    }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      gateways.gcash.enabled ? "translate-x-6" : "translate-x-1"
-                    }`}
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.gcash.enabled ? "translate-x-6" : "translate-x-1"
+                      }`}
                   />
                 </button>
               </div>
@@ -497,18 +493,16 @@ export default function PaymentGatewaysPage() {
                       gateways.bank_transfer.enabled,
                     )
                   }
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    gateways.bank_transfer.enabled
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gateways.bank_transfer.enabled
                       ? "bg-green-600"
                       : "bg-gray-300"
-                  }`}
+                    }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      gateways.bank_transfer.enabled
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.bank_transfer.enabled
                         ? "translate-x-6"
                         : "translate-x-1"
-                    }`}
+                      }`}
                   />
                 </button>
               </div>
@@ -702,7 +696,7 @@ export default function PaymentGatewaysPage() {
                             ...formData,
                             accounts: JSON.parse(e.target.value),
                           });
-                        } catch {}
+                        } catch { }
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
                       rows={8}
@@ -722,14 +716,12 @@ export default function PaymentGatewaysPage() {
                     onClick={() =>
                       setFormData({ ...formData, enabled: !formData.enabled })
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      formData.enabled ? "bg-green-600" : "bg-gray-300"
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.enabled ? "bg-green-600" : "bg-gray-300"
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        formData.enabled ? "translate-x-6" : "translate-x-1"
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.enabled ? "translate-x-6" : "translate-x-1"
+                        }`}
                     />
                   </button>
                 </div>

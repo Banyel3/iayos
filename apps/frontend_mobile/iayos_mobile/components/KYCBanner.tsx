@@ -107,11 +107,11 @@ export function KYCBanner() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#FFFBEB", // amber-50
-    borderBottomWidth: 1,
-    borderBottomColor: "#FED7AA", // amber-200
+    borderWidth: 1,
+    borderColor: "#FED7AA", // amber-200
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 50, // Account for notch/status bar
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

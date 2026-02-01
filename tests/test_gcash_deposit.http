@@ -1,0 +1,54 @@
+### Test GCash Direct Deposit + Auto-Withdrawal Endpoints
+
+@baseUrl = http://localhost:8000
+
+###
+# 1. Test Mobile Config Endpoint (No Auth Required)
+GET {{baseUrl}}/api/mobile/config
+Content-Type: application/json
+
+###
+# 2. Login to get JWT token
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+    "email": "test@example.com",
+    "password": "Test1234!"
+}
+
+###
+# 3. Test GCash Deposit (Requires Auth - should fail without token)
+POST {{baseUrl}}/api/mobile/wallet/deposit-gcash
+Content-Type: application/json
+
+{
+    "amount": 100
+}
+
+###
+# 4. Test GCash Deposit with Auth
+# Replace YOUR_JWT_TOKEN with actual token from login response
+POST {{baseUrl}}/api/mobile/wallet/deposit-gcash
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "amount": 100
+}
+
+###
+# 5. Test regular deposit (QR PH) with Auth
+POST {{baseUrl}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "amount": 100,
+    "payment_method": "GCASH"
+}
+
+###
+# 6. Test Auto-Withdrawal Management Command (dry run)
+# Run in terminal: docker exec iayos-backend-dev sh -c 'cd /app/apps/backend/src && python manage.py process_auto_withdrawals --dry-run --verbose --force'

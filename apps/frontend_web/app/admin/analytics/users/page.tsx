@@ -78,9 +78,9 @@ export default function UserAnalytics() {
   const retentionCohorts = stats?.retention_cohorts || [];
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
@@ -284,35 +284,35 @@ export default function UserAnalytics() {
                     {(retentionCohorts.length > 0
                       ? retentionCohorts
                       : [
-                          {
-                            month: "Jan 2025",
-                            d1: 95,
-                            d7: 78,
-                            d30: 62,
-                            d90: 45,
-                          },
-                          {
-                            month: "Dec 2024",
-                            d1: 93,
-                            d7: 75,
-                            d30: 58,
-                            d90: 42,
-                          },
-                          {
-                            month: "Nov 2024",
-                            d1: 91,
-                            d7: 72,
-                            d30: 55,
-                            d90: 38,
-                          },
-                          {
-                            month: "Oct 2024",
-                            d1: 89,
-                            d7: 70,
-                            d30: 52,
-                            d90: 35,
-                          },
-                        ]
+                        {
+                          month: "Jan 2025",
+                          d1: 95,
+                          d7: 78,
+                          d30: 62,
+                          d90: 45,
+                        },
+                        {
+                          month: "Dec 2024",
+                          d1: 93,
+                          d7: 75,
+                          d30: 58,
+                          d90: 42,
+                        },
+                        {
+                          month: "Nov 2024",
+                          d1: 91,
+                          d7: 72,
+                          d30: 55,
+                          d90: 38,
+                        },
+                        {
+                          month: "Oct 2024",
+                          d1: 89,
+                          d7: 70,
+                          d30: 52,
+                          d90: 35,
+                        },
+                      ]
                     ).map((cohort: any, i: number) => (
                       <tr key={i} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-medium">{cohort.month}</td>
@@ -366,11 +366,11 @@ export default function UserAnalytics() {
                   {(demographics.length > 0
                     ? demographics
                     : [
-                        { age_range: "18-24", count: 2345, percentage: 25 },
-                        { age_range: "25-34", count: 4567, percentage: 48 },
-                        { age_range: "35-44", count: 1890, percentage: 20 },
-                        { age_range: "45+", count: 645, percentage: 7 },
-                      ]
+                      { age_range: "18-24", count: 2345, percentage: 25 },
+                      { age_range: "25-34", count: 4567, percentage: 48 },
+                      { age_range: "35-44", count: 1890, percentage: 20 },
+                      { age_range: "45+", count: 645, percentage: 7 },
+                    ]
                   ).map((demo: any, i: number) => {
                     const colors = [
                       "bg-blue-500",
@@ -413,12 +413,12 @@ export default function UserAnalytics() {
                   {(topCities.length > 0
                     ? topCities
                     : [
-                        { city: "Zamboanga City", users: 3456, percentage: 27 },
-                        { city: "Manila", users: 2890, percentage: 22 },
-                        { city: "Cebu City", users: 2134, percentage: 17 },
-                        { city: "Davao City", users: 1567, percentage: 12 },
-                        { city: "Cagayan de Oro", users: 1234, percentage: 10 },
-                      ]
+                      { city: "Zamboanga City", users: 3456, percentage: 27 },
+                      { city: "Manila", users: 2890, percentage: 22 },
+                      { city: "Cebu City", users: 2134, percentage: 17 },
+                      { city: "Davao City", users: 1567, percentage: 12 },
+                      { city: "Cagayan de Oro", users: 1234, percentage: 10 },
+                    ]
                   )
                     .slice(0, 5)
                     .map((city: any, i: number) => (

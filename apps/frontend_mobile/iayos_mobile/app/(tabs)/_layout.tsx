@@ -1,5 +1,5 @@
-import { Redirect, Tabs } from "expo-router";
-import React from "react";
+import { Redirect, Tabs, useRouter } from "expo-router";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
@@ -8,10 +8,37 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/context/AuthContext";
 import { KYCBanner } from "@/components/KYCBanner";
+// Debug imports at runtime to detect undefined exports
+try {
+  // eslint-disable-next-line no-console
+  console.log("[TabsLayout] Imports:", {
+    Tabs: typeof Tabs !== "undefined" ? "defined" : "undefined",
+    HapticTab: typeof HapticTab !== "undefined" ? "defined" : "undefined",
+    IconSymbol: typeof IconSymbol !== "undefined" ? "defined" : "undefined",
+    Colors: typeof Colors !== "undefined" ? "defined" : "undefined",
+    useColorScheme:
+      typeof useColorScheme !== "undefined" ? "defined" : "undefined",
+    useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
+  });
+} catch (e) { }
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading, user } = useAuth();
+  const router = useRouter();
+
+  // Redirect logic based on authentication and profile type
+  useEffect(() => {
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        // Not logged in - redirect to login
+        router.replace("/auth/login");
+      } else if (!user?.profile_data?.profileType) {
+        // Logged in but no role selected - redirect to role selection
+        router.replace("/auth/select-role");
+      }
+    }
+  }, [isAuthenticated, isLoading, user]);
 
   if (isLoading) {
     return null; // Wait for auth state before deciding what to render
@@ -27,7 +54,6 @@ export default function TabLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <KYCBanner />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors.primary,
@@ -37,14 +63,12 @@ export default function TabLayout() {
           tabBarStyle: {
             position: "absolute",
             bottom: 25,
-            left: 20,
-            right: 20,
-            backgroundColor:
-              Platform.OS === "ios" ? "rgba(255, 255, 255, 0.9)" : Colors.white,
+            marginHorizontal: 14,
+            backgroundColor: Colors.white,
             borderRadius: 25,
             borderTopWidth: 0,
-            paddingTop: 12,
-            paddingBottom: Platform.OS === "ios" ? 20 : 12,
+            paddingTop: 8,
+            paddingBottom: Platform.OS === "ios" ? 16 : 8,
             height: Platform.OS === "ios" ? 85 : 70,
             elevation: 20,
             shadowColor: Colors.black,
@@ -57,13 +81,13 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: "600",
-            marginTop: 4,
-          },
-          tabBarIconStyle: {
             marginTop: 2,
           },
+          tabBarIconStyle: {
+            marginTop: 0,
+          },
           tabBarItemStyle: {
-            paddingVertical: 8,
+            paddingVertical: 4,
           },
         }}
       >
@@ -71,7 +95,6 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            // tabBarTestID: "tab-home",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="house.fill" color={color} />
             ),
@@ -81,7 +104,6 @@ export default function TabLayout() {
           name="jobs"
           options={{
             title: "Jobs",
-            // tabBarTestID: "tab-jobs",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="briefcase.fill" color={color} />
             ),
@@ -98,7 +120,6 @@ export default function TabLayout() {
           name="messages"
           options={{
             title: "Messages",
-            // tabBarTestID: "tab-messages",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="message.fill" color={color} />
             ),
@@ -108,7 +129,6 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Profile",
-            // tabBarTestID: "tab-profile",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="person.fill" color={color} />
             ),

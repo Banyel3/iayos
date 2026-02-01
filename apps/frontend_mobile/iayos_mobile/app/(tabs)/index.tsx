@@ -47,6 +47,7 @@ import WorkerCard from "@/components/WorkerCard";
 import AgencyCard from "@/components/AgencyCard";
 import InlineLoader from "@/components/ui/InlineLoader";
 import LocationButton from "@/components/LocationButton";
+import { KYCBanner } from "@/components/KYCBanner";
 
 // Hooks
 import { useInfiniteJobs, Job } from "@/lib/hooks/useJobs";
@@ -257,10 +258,62 @@ export default function BrowseJobsScreen() {
     router.push("/jobs/categories" as any);
   };
 
+  // Get category icon based on name
+  const getCategoryIcon = (
+    categoryName: string
+  ): keyof typeof Ionicons.glyphMap => {
+    const name = categoryName.toLowerCase();
+
+    if (name.includes("plumb")) return "water-outline";
+    if (name.includes("electr")) return "flash-outline";
+    if (name.includes("carpent") || name.includes("wood"))
+      return "hammer-outline";
+    if (name.includes("paint")) return "color-palette-outline";
+    if (name.includes("clean")) return "sparkles-outline";
+    if (name.includes("garden") || name.includes("landscap"))
+      return "leaf-outline";
+    if (name.includes("mason") || name.includes("construct"))
+      return "construct-outline";
+    if (name.includes("weld")) return "bonfire-outline";
+    if (name.includes("mechanic") || name.includes("auto"))
+      return "car-outline";
+    if (name.includes("hvac") || name.includes("aircon")) return "snow-outline";
+    if (name.includes("appliance")) return "home-outline";
+    if (name.includes("roof")) return "triangle-outline";
+    if (name.includes("tile")) return "grid-outline";
+    if (name.includes("glass")) return "diamond-outline";
+    if (name.includes("security")) return "shield-checkmark-outline";
+    if (name.includes("pest")) return "bug-outline";
+    if (name.includes("moving")) return "cube-outline";
+    if (name.includes("delivery")) return "bicycle-outline";
+
+    return "briefcase-outline"; // Default icon
+  };
+
+  // Get category color based on index (cycling through colors)
+  const getCategoryColor = (index: number): string => {
+    const colors = [
+      Colors.primary, // Blue
+      "#10B981", // Green
+      "#F59E0B", // Orange
+      "#8B5CF6", // Purple
+      "#EC4899", // Pink
+      "#06B6D4", // Cyan
+      "#EF4444", // Red
+      "#6366F1", // Indigo
+    ];
+    return colors[index % colors.length];
+  };
+
   // Render functions
   const renderHeader = useMemo(() => {
     const HeaderComponent = () => (
       <View style={styles.headerContainer}>
+        {/* KYC Banner */}
+        <View style={styles.kycBannerWrapper}>
+          <KYCBanner />
+        </View>
+
         {/* Hero Section */}
         <View style={styles.heroSection}>
           <View style={styles.heroContent}>
@@ -361,7 +414,7 @@ export default function BrowseJobsScreen() {
                     (item.id === 0
                       ? !selectedCategory
                       : selectedCategory === item.id) &&
-                      styles.categoryCardSelected,
+                    styles.categoryCardSelected,
                   ]}
                   onPress={() =>
                     item.id === 0
@@ -372,14 +425,24 @@ export default function BrowseJobsScreen() {
                   <View
                     style={[
                       styles.categoryIcon,
-                      (item.id === 0
-                        ? !selectedCategory
-                        : selectedCategory === item.id) &&
-                        styles.categoryIconSelected,
+                      {
+                        backgroundColor:
+                          item.id === 0
+                            ? !selectedCategory
+                              ? Colors.primary
+                              : `${Colors.primary}15`
+                            : selectedCategory === item.id
+                              ? getCategoryColor(item.id - 1)
+                              : `${getCategoryColor(item.id - 1)}15`,
+                      },
                     ]}
                   >
                     <Ionicons
-                      name="hammer"
+                      name={
+                        item.id === 0
+                          ? "apps"
+                          : getCategoryIcon(item.specializationName || item.name)
+                      }
                       size={24}
                       color={
                         (
@@ -388,7 +451,7 @@ export default function BrowseJobsScreen() {
                             : selectedCategory === item.id
                         )
                           ? Colors.white
-                          : Colors.primary
+                          : getCategoryColor(item.id === 0 ? 0 : item.id - 1)
                       }
                     />
                   </View>
@@ -398,7 +461,7 @@ export default function BrowseJobsScreen() {
                       (item.id === 0
                         ? !selectedCategory
                         : selectedCategory === item.id) &&
-                        styles.categoryNameSelected,
+                      styles.categoryNameSelected,
                     ]}
                     numberOfLines={2}
                   >
@@ -413,24 +476,26 @@ export default function BrowseJobsScreen() {
           </View>
         )}
 
-        {/* Feed Divider */}
-        <View style={styles.feedDivider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>
-            {isWorker
-              ? "Available Jobs"
-              : viewTab === "workers"
-                ? "Top Workers"
-                : "Featured Agencies"}
-          </Text>
-          <View style={styles.dividerLine} />
+        {/* Search Bar - Inside Header */}
+        <View style={styles.searchContainer}>
+          <SearchBar
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            placeholder={
+              isWorker ? "Search jobs, categories..." : "Search professionals..."
+            }
+            showFilterButton
+            onFilterPress={handleFilterPress}
+            style={styles.searchBar}
+            autoFocus={false}
+          />
         </View>
       </View>
     );
 
     HeaderComponent.displayName = "HomeHeaderSection";
     return HeaderComponent;
-  }, [isWorker, viewTab, itemCount, selectedCategory, categories, router]);
+  }, [isWorker, viewTab, itemCount, selectedCategory, categories, router, searchQuery, handleSearchChange, handleFilterPress]);
 
   const renderJobItem = ({ item }: { item: Job }) => (
     <JobCard
@@ -525,22 +590,7 @@ export default function BrowseJobsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} testID="home-screen">
-      {/* Search Bar - Outside FlatList to prevent keyboard dismissal */}
-      <View style={styles.fixedSearchContainer}>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={handleSearchChange}
-          placeholder={
-            isWorker ? "Search jobs, categories..." : "Search professionals..."
-          }
-          showFilterButton
-          onFilterPress={handleFilterPress}
-          style={styles.searchBar}
-          autoFocus={false}
-        />
-      </View>
-
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={items as any}
         renderItem={renderItem as any}
@@ -665,7 +715,7 @@ export default function BrowseJobsScreen() {
                         style={[
                           styles.sortOptionText,
                           sortBy === "distance_asc" &&
-                            styles.sortOptionTextSelected,
+                          styles.sortOptionTextSelected,
                         ]}
                       >
                         Nearest First
@@ -691,7 +741,7 @@ export default function BrowseJobsScreen() {
                         style={[
                           styles.sortOptionText,
                           sortBy === "distance_desc" &&
-                            styles.sortOptionTextSelected,
+                          styles.sortOptionTextSelected,
                         ]}
                       >
                         Farthest First
@@ -795,15 +845,20 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
     paddingHorizontal: 16,
-    paddingTop: 16, // Add spacing after header
+    paddingTop: 32, // Increased spacing to prevent overlap with header
     paddingBottom: 120,
   },
   headerContainer: {
     backgroundColor: Colors.white,
     paddingBottom: Spacing.lg,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    marginBottom: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
     ...Shadows.md,
+  },
+  kycBannerWrapper: {
+    marginHorizontal: 16,
+    marginTop: 16,
   },
   heroSection: {
     flexDirection: "row",
@@ -893,6 +948,7 @@ const styles = StyleSheet.create({
   categoriesSection: {
     marginTop: 8,
     marginBottom: 12,
+    overflow: 'hidden',
   },
   sectionHeader: {
     flexDirection: "row",
@@ -913,6 +969,7 @@ const styles = StyleSheet.create({
   },
   categoriesScroller: {
     paddingHorizontal: 20,
+    paddingRight: 40, // Extra padding on right for smoother fade
     gap: 12,
   },
   categoryCard: {

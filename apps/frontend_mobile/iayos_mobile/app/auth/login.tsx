@@ -24,6 +24,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { Image } from "react-native";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -98,14 +99,16 @@ export default function LoginScreen() {
           keyboardDismissMode="on-drag"
         >
           {/* Clean Header with Logo */}
+          
           <View style={styles.headerContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>i</Text>
-            </View>
+            <Image
+              source={require("../../assets/logo-white.png")}
+              style={{ width: 120, height: 120, resizeMode: "contain", marginBottom: Spacing["2xl"] }}
+              accessibilityLabel="iAyos Logo"
+            />
             <Text style={styles.headerTitle}>Welcome to iAyos</Text>
-            <Text style={styles.headerSubtitle}>May sira? May iAyos.</Text>
+            <Text style={styles.headerSubtitle}>May Sira? May iAyos</Text>
           </View>
-
           <View style={styles.formContainer}>
             {/* Email Input */}
             <Input
@@ -216,16 +219,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing["4xl"],
     alignItems: "center",
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing["2xl"],
-    ...Shadows.md,
-  },
+  // logoCircle removed
   logoText: {
     fontSize: 64,
     fontWeight: "700",

@@ -173,9 +173,9 @@ export default function KYCAuditLogPage() {
   };
 
   return (
-    <div className="flex">
+    <div className="min-h-screen">
       <Sidebar />
-      <div className="flex-1 p-6 space-y-6">
+      <div className="pl-72 p-6 space-y-6 min-h-screen">
         {loading && (
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="flex flex-col items-center space-y-4">

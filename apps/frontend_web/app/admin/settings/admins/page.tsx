@@ -223,16 +223,16 @@ export default function AdminManagementPage() {
       const body =
         modalMode === "add"
           ? {
-              email: formData.email,
-              password: formData.password,
-              role: formData.role,
-              permissions: formData.permissions,
-              send_welcome_email: formData.send_welcome_email,
-            }
+            email: formData.email,
+            password: formData.password,
+            role: formData.role,
+            permissions: formData.permissions,
+            send_welcome_email: formData.send_welcome_email,
+          }
           : {
-              permissions: formData.permissions,
-              role: formData.role,
-            };
+            permissions: formData.permissions,
+            role: formData.role,
+          };
 
       const response = await fetch(url, {
         method,
@@ -363,9 +363,9 @@ export default function AdminManagementPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -386,9 +386,9 @@ export default function AdminManagementPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         {/* Header */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-red-500 opacity-20 blur-3xl pointer-events-none"></div>
@@ -465,9 +465,8 @@ export default function AdminManagementPage() {
                     return (
                       <tr
                         key={admin.id}
-                        className={`hover:bg-gray-50 transition-colors ${
-                          isCurrentUser ? "bg-blue-50" : ""
-                        }`}
+                        className={`hover:bg-gray-50 transition-colors ${isCurrentUser ? "bg-blue-50" : ""
+                          }`}
                       >
                         <td className="px-6 py-4">
                           <div>
@@ -516,16 +515,14 @@ export default function AdminManagementPage() {
                           <button
                             onClick={() => handleToggleStatus(admin)}
                             disabled={isCurrentUser}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              admin.is_active ? "bg-green-600" : "bg-gray-300"
-                            } ${isCurrentUser ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${admin.is_active ? "bg-green-600" : "bg-gray-300"
+                              } ${isCurrentUser ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
                             <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                admin.is_active
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${admin.is_active
                                   ? "translate-x-6"
                                   : "translate-x-1"
-                              }`}
+                                }`}
                             />
                           </button>
                         </td>
@@ -619,13 +616,12 @@ export default function AdminManagementPage() {
                               Password Strength
                             </span>
                             <span
-                              className={`font-semibold ${
-                                passwordStrength >= 75
+                              className={`font-semibold ${passwordStrength >= 75
                                   ? "text-green-600"
                                   : passwordStrength >= 50
                                     ? "text-yellow-600"
                                     : "text-red-600"
-                              }`}
+                                }`}
                             >
                               {getPasswordStrengthLabel()}
                             </span>
@@ -704,11 +700,10 @@ export default function AdminManagementPage() {
                       return (
                         <div
                           key={permission.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg ${
-                            isDisabled
+                          className={`flex items-start gap-3 p-3 rounded-lg ${isDisabled
                               ? "bg-gray-50 opacity-50"
                               : "hover:bg-gray-50"
-                          }`}
+                            }`}
                         >
                           <input
                             type="checkbox"
@@ -755,18 +750,16 @@ export default function AdminManagementPage() {
                           send_welcome_email: !formData.send_welcome_email,
                         })
                       }
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        formData.send_welcome_email
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.send_welcome_email
                           ? "bg-green-600"
                           : "bg-gray-300"
-                      }`}
+                        }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          formData.send_welcome_email
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.send_welcome_email
                             ? "translate-x-6"
                             : "translate-x-1"
-                        }`}
+                          }`}
                       />
                     </button>
                   </div>

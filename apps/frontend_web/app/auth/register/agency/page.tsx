@@ -428,7 +428,7 @@ const AgencyRegister = () => {
   return (
     <>
       {/* Desktop Navigation Bar */}
-      <div className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+      <div className="hidden lg:block fixed top- left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link href="/">
             <Image
@@ -439,16 +439,22 @@ const AgencyRegister = () => {
               className="h-10 w-auto"
             />
           </Link>
+          <Link
+            href="/auth/login"
+            className="px-6 py-2 bg-[#54B7EC] text-sm font-bold text-white rounded-lg hover:bg-blue-50 hover:text-slate-800 transition-colors"
+          >
+            Sign In
+          </Link>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="min-h-screen bg-gray-50">
-        {/* Mobile Layout - Desktop Only Message */}
+        {/* Mobile Layout */}
         <div className="lg:hidden flex justify-center items-center min-h-screen p-4">
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8 text-center">
             <div className="mb-6">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 ">
                 <svg
                   className="w-8 h-8 text-blue-600"
                   fill="none"
@@ -469,10 +475,6 @@ const AgencyRegister = () => {
               <p className="font-inter text-sm text-gray-600 mb-6">
                 Agency registration is only available on desktop devices for the
                 best experience.
-              </p>
-              <p className="font-inter text-xs text-gray-500 mb-6">
-                Please switch to a desktop or laptop computer to register your
-                agency.
               </p>
             </div>
 
@@ -495,41 +497,56 @@ const AgencyRegister = () => {
 
         {/* Desktop Layout */}
         <div className="hidden lg:flex min-h-screen pt-20">
-          {/* Left Side - Branding/Image */}
-          <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-8">
+          {/* Left Side - Branding */}
+          <div className="lg:w-1/2 flex items-center justify-center -mt-25">
             <div className="max-w-md text-center text-white">
               <Image
-                src="/logo-white.png"
+                src="/fig1.png"
                 alt="iAyos"
                 width={180}
                 height={60}
-                className="h-16 w-auto mx-auto mb-6"
+                className="h-50 w-auto mx-auto mb-6"
               />
-              <h1 className="text-4xl font-bold mb-4">
-                Find Contracts for Your Agency
+              <h1 className="text-3xl font-bold mb-4 text-slate-900">
+                May Sira? May <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">iAyos</span>
               </h1>
-              <p className="text-xl mb-8 opacity-90">
-                Connect your agency with clients seeking professional services
-              </p>
-              <div className="space-y-4">
-                {/* Agency benefits */}
+              <div className="space-y-4 text-gray-800">
                 <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                     <span className="text-sm">✓</span>
                   </div>
                   <span>Access to diverse contract opportunities</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                     <span className="text-sm">✓</span>
                   </div>
                   <span>Showcase your agency's capabilities</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                     <span className="text-sm">✓</span>
                   </div>
                   <span>Secure project management tools</span>
+                </div>
+              </div>
+              <div className="text-left space-y-4 mt-10">
+                {/* Worker/Client App Download */}
+                <div>
+                  <p className="text-sm text-slate-900 mb-2">
+                    <strong>
+                      Looking to get something done or work as a freelance worker?
+                    </strong>
+                  </p>
+                  <Link href="/auth/download-app">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-[#54B7EC] text-white hover:bg-blue-50 p-7 font-bold text-lg"
+                    >
+                      ⬇ Download App
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </div>

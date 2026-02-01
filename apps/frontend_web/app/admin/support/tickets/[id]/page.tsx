@@ -217,9 +217,9 @@ export default function TicketDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-full">
             <MessageSquare className="h-12 w-12 text-gray-400 animate-pulse" />
           </div>
@@ -230,9 +230,9 @@ export default function TicketDetailPage() {
 
   if (!ticket) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="text-center">
             <p className="text-gray-500">Ticket not found</p>
             <Button
@@ -248,9 +248,9 @@ export default function TicketDetailPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-[1600px] mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-center gap-4">
@@ -337,13 +337,12 @@ export default function TicketDetailPage() {
                         className={`flex ${message.is_admin ? "justify-end" : "justify-start"}`}
                       >
                         <div
-                          className={`max-w-[70%] rounded-lg p-4 ${
-                            message.is_internal
+                          className={`max-w-[70%] rounded-lg p-4 ${message.is_internal
                               ? "bg-yellow-50 border border-yellow-200"
                               : message.is_admin
                                 ? "bg-blue-50 border border-blue-200"
                                 : "bg-gray-50 border border-gray-200"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-sm font-medium text-gray-900">

@@ -848,17 +848,11 @@ export default function JobsScreen() {
           ) : applicationsError ? (
             <View style={styles.errorContainer}>
               <Ionicons
-                name="alert-circle-outline"
-                size={48}
-                color={Colors.error}
+                name="document-text-outline"
+                size={64}
+                color={Colors.textSecondary}
               />
-              <Text style={styles.errorText}>Failed to load applications</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={() => refetchApplications()}
-              >
-                <Text style={styles.retryButtonText}>Try Again</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptyStateText}>No applications available yet.</Text>
             </View>
           ) : filteredApplications.length === 0 ? (
             <View style={styles.emptyState}>
@@ -993,71 +987,65 @@ export default function JobsScreen() {
             </View>
           )
         ) : // Regular Jobs List
-        isLoading ? (
-          <View style={styles.listContainer}>
-            {[1, 2, 3, 4].map((i) => (
-              <JobCardSkeleton key={i} />
-            ))}
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={48}
-              color={Colors.error}
-            />
-            <Text style={styles.errorText}>Failed to load jobs</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => refetch()}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredJobs.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons
-              name="briefcase-outline"
-              size={64}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.emptyStateText}>
-              {activeTab === "open"
-                ? "No open job posts yet"
-                : activeTab === "pending"
-                  ? "No pending job requests"
-                  : activeTab === "requests"
-                    ? "No job invitations yet"
-                    : activeTab === "inProgress"
-                      ? "No jobs in progress"
-                      : "No completed jobs yet"}
-            </Text>
-            {activeTab === "open" && isClient && (
-              <TouchableOpacity
-                style={styles.createJobButton}
-                onPress={() => setShowJobTypeModal(true)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="add-circle" size={20} color={Colors.white} />
-                <Text style={styles.createJobButtonText}>Post a Job</Text>
-              </TouchableOpacity>
-            )}
-            {activeTab === "pending" && isClient && (
-              <TouchableOpacity
-                style={styles.createJobButton}
-                onPress={() => router.push("/(tabs)/" as any)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="search" size={20} color={Colors.white} />
-                <Text style={styles.createJobButtonText}>Browse Workers</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <View style={styles.jobsList}>
-            {filteredJobs.map((job) => renderJobCard(job))}
-          </View>
-        )}
+          isLoading ? (
+            <View style={styles.listContainer}>
+              {[1, 2, 3, 4].map((i) => (
+                <JobCardSkeleton key={i} />
+              ))}
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Ionicons
+                name="briefcase-outline"
+                size={64}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.emptyStateText}>No jobs available yet.</Text>
+            </View>
+          ) : filteredJobs.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="briefcase-outline"
+                size={64}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.emptyStateText}>
+                {activeTab === "open"
+                  ? "No open job posts yet"
+                  : activeTab === "pending"
+                    ? "No pending job requests"
+                    : activeTab === "requests"
+                      ? "No job invitations yet"
+                      : activeTab === "inProgress"
+                        ? "No jobs in progress"
+                        : "No completed jobs yet"}
+              </Text>
+              {activeTab === "open" && isClient && (
+                <TouchableOpacity
+                  style={styles.createJobButton}
+                  onPress={() => setShowJobTypeModal(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle" size={20} color={Colors.white} />
+                  <Text style={styles.createJobButtonText}>Post a Job</Text>
+                </TouchableOpacity>
+              )}
+              {activeTab === "pending" && isClient && (
+                <TouchableOpacity
+                  style={styles.createJobButton}
+                  onPress={() => router.push("/(tabs)/" as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="search" size={20} color={Colors.white} />
+                  <Text style={styles.createJobButtonText}>Browse Workers</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <View style={styles.jobsList}>
+              {filteredJobs.map((job) => renderJobCard(job))}
+            </View>
+          )}
       </ScrollView>
 
       {/* Job Type Selector Modal */}

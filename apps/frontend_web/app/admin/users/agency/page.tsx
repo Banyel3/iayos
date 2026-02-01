@@ -286,9 +286,9 @@ export default function AgencyPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -309,9 +309,9 @@ export default function AgencyPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 p-8 text-white shadow-xl">
@@ -342,7 +342,6 @@ export default function AgencyPage() {
           {/* Modern Summary Cards with gradients */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -362,7 +361,6 @@ export default function AgencyPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-emerald-100 rounded-xl">
@@ -383,7 +381,6 @@ export default function AgencyPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl">
@@ -403,7 +400,6 @@ export default function AgencyPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 to-yellow-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-yellow-100 rounded-xl">
@@ -618,26 +614,24 @@ export default function AgencyPage() {
                               </td>
                               <td className="px-4 py-2 text-sm">
                                 <span
-                                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    agency.kyc_status === "APPROVED"
+                                  className={`px-2 py-1 rounded-full text-xs font-medium ${agency.kyc_status === "APPROVED"
                                       ? "bg-green-100 text-green-800"
                                       : agency.kyc_status === "PENDING"
                                         ? "bg-yellow-100 text-yellow-800"
                                         : agency.kyc_status === "REJECTED"
                                           ? "bg-red-100 text-red-800"
                                           : "bg-gray-100 text-gray-800"
-                                  }`}
+                                    }`}
                                 >
                                   {agency.kyc_status}
                                 </span>
                               </td>
                               <td className="px-4 py-2 text-sm">
                                 <span
-                                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    agency.status === "active"
+                                  className={`px-2 py-1 rounded-full text-xs font-medium ${agency.status === "active"
                                       ? "bg-green-100 text-green-800"
                                       : "bg-gray-100 text-gray-800"
-                                  }`}
+                                    }`}
                                 >
                                   {agency.status}
                                 </span>

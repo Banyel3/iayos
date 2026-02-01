@@ -2832,6 +2832,7 @@ def create_agency_support_ticket(request):
             category=db_category,
             priority='medium',
             status='open',
+            platform='agency_portal',
         )
         
         # Create initial reply with description

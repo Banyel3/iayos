@@ -98,7 +98,7 @@ export default function ApprovedKYCPage() {
         const approvalDate = new Date(log.reviewedAt);
         const processingDays = Math.floor(
           (approvalDate.getTime() - submissionDate.getTime()) /
-            (1000 * 60 * 60 * 24),
+          (1000 * 60 * 60 * 24),
         );
         // Map backend kycType to frontend userType
         let userType: "worker" | "client" | "agency" = "worker";
@@ -156,9 +156,9 @@ export default function ApprovedKYCPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -179,9 +179,9 @@ export default function ApprovedKYCPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
           <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-2xl overflow-hidden">
@@ -211,7 +211,6 @@ export default function ApprovedKYCPage() {
           {/* Stats Cards */}
           <div className="grid gap-6 md:grid-cols-4">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-emerald-100 rounded-xl">
@@ -231,7 +230,6 @@ export default function ApprovedKYCPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -257,7 +255,6 @@ export default function ApprovedKYCPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl">
@@ -270,11 +267,11 @@ export default function ApprovedKYCPage() {
                 <p className="text-3xl font-bold text-purple-600">
                   {approvedKYC.length > 0
                     ? Math.round(
-                        approvedKYC.reduce(
-                          (acc, r) => acc + r.processingDays,
-                          0,
-                        ) / approvedKYC.length,
-                      )
+                      approvedKYC.reduce(
+                        (acc, r) => acc + r.processingDays,
+                        0,
+                      ) / approvedKYC.length,
+                    )
                     : 0}{" "}
                   days
                 </p>
@@ -285,7 +282,6 @@ export default function ApprovedKYCPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-teal-50 to-teal-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-teal-100 rounded-xl">
@@ -367,11 +363,10 @@ export default function ApprovedKYCPage() {
                         </p>
                         <div className="flex items-center space-x-2 mt-1">
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              record.userType === "worker"
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-green-100 text-green-800"
-                            }`}
+                              }`}
                           >
                             {record.userType}
                           </span>
@@ -442,8 +437,8 @@ export default function ApprovedKYCPage() {
                 </h3>
                 <p className="text-muted-foreground">
                   {searchTerm ||
-                  typeFilter !== "all" ||
-                  reviewerFilter !== "all"
+                    typeFilter !== "all" ||
+                    reviewerFilter !== "all"
                     ? "Try adjusting your search criteria"
                     : "No KYC submissions have been approved yet"}
                 </p>

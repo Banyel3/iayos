@@ -398,6 +398,14 @@ export const ENDPOINTS = {
   UPDATE_SKILL: (skillId: number) => `${API_URL}/api/mobile/skills/${skillId}`,
   REMOVE_SKILL: (skillId: number) => `${API_URL}/api/mobile/skills/${skillId}`,
 
+  // Support Tickets (Mobile)
+  CREATE_SUPPORT_TICKET: `${API_URL}/api/mobile/support/ticket`,
+  MY_SUPPORT_TICKETS: `${API_URL}/api/mobile/support/tickets`,
+  SUPPORT_TICKET_DETAIL: (id: number) =>
+    `${API_URL}/api/mobile/support/tickets/${id}`,
+  REPLY_TO_TICKET: (id: number) =>
+    `${API_URL}/api/mobile/support/tickets/${id}/reply`,
+
   // Worker
   WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,
   NEARBY_WORKERS: `${API_URL}/api/mobile/workers/list`,

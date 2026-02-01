@@ -185,9 +185,9 @@ export default function ClientDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div className="min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="pl-72 flex items-center justify-center min-h-screen">
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
             <p className="text-gray-600">Loading client details...</p>
@@ -199,9 +199,9 @@ export default function ClientDetailPage() {
 
   if (error || !client) {
     return (
-      <div className="flex">
+      <div className="min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="pl-72 flex items-center justify-center min-h-screen">
           <Card className="p-8 text-center max-w-md">
             <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error</h2>
@@ -222,9 +222,9 @@ export default function ClientDetailPage() {
       : 0;
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="pl-72 p-6 min-h-screen">
         {/* Header */}
         <div className="mb-6">
           <Button

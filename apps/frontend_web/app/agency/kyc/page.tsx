@@ -104,34 +104,6 @@ const AgencyKYCPage = () => {
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
   const [ocrExtracted, setOcrExtracted] = useState(false);
   const [ocrExtractedData, setOcrExtractedData] = useState<any>(null);
-  const [hasBusinessAutofill, setHasBusinessAutofill] = useState(false);
-  const [hasRepAutofill, setHasRepAutofill] = useState(false);
-
-  // Handler to clear rep ID validation when ID type changes
-  // This prevents the cache bug where validation checks the old ID type
-  const handleRepIdTypeChange = (newType: string) => {
-    if (newType !== repIdType) {
-      // Clear rep ID files and validation - they were validated against old ID type
-      setRepIDFront(null);
-      setRepIDBack(null);
-      setRepFrontPreview("");
-      setRepBackPreview("");
-      setRepFrontValidationError(null);
-      setRepBackValidationError(null);
-      // Clear file hashes for rep IDs
-      setFileHashes((prev) => {
-        const { REP_ID_FRONT, REP_ID_BACK, ...rest } = prev;
-        return rest;
-      });
-      // Show toast to inform user
-      showToast({
-        type: "info",
-        title: "ID Type Changed",
-        message: "Please re-upload your ID documents for the new ID type.",
-      });
-    }
-    setRepIdType(newType);
-  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -260,14 +232,13 @@ const AgencyKYCPage = () => {
 
     if (!result.valid) {
       // Get error message from AI rejection details or fallback
-      const errorMessage =
-        result.error ||
+      const errorMessage = result.error || 
         result.details?.ai_rejection_message ||
-        (result.details?.ai_rejection_reason === "MISSING_REQUIRED_TEXT"
-          ? "Could not verify business permit. Please ensure the document shows required text (Business, Permit, City/Municipality) clearly."
-          : result.details?.ai_rejection_reason === "IMAGE_TOO_BLURRY"
-            ? "Image is too blurry. Please upload a clearer photo."
-            : "Document validation failed. Please try again with a clearer image.");
+        (result.details?.ai_rejection_reason === 'MISSING_REQUIRED_TEXT'
+          ? 'Could not verify business permit. Please ensure the document shows required text (Business, Permit, City/Municipality) clearly.'
+          : result.details?.ai_rejection_reason === 'IMAGE_TOO_BLURRY'
+          ? 'Image is too blurry. Please upload a clearer photo.'
+          : 'Document validation failed. Please try again with a clearer image.');
       setPermitValidationError(errorMessage);
       showToast({
         type: "error",
@@ -320,16 +291,15 @@ const AgencyKYCPage = () => {
 
     if (!result.valid) {
       // Get error message from AI rejection details or fallback
-      const errorMessage =
-        result.error ||
+      const errorMessage = result.error || 
         result.details?.ai_rejection_message ||
-        (result.details?.ai_rejection_reason === "MISSING_REQUIRED_TEXT"
-          ? "Could not verify document authenticity. Please ensure the document shows required text clearly."
-          : result.details?.ai_rejection_reason === "NO_FACE_DETECTED"
-            ? "No face detected in ID document. Please upload a clear photo of your ID showing your face."
-            : result.details?.ai_rejection_reason === "IMAGE_TOO_BLURRY"
-              ? "Image is too blurry. Please upload a clearer photo."
-              : "Validation failed. Please try again with a clearer image.");
+        (result.details?.ai_rejection_reason === 'MISSING_REQUIRED_TEXT' 
+          ? 'Could not verify document authenticity. Please ensure the document shows required text clearly.'
+          : result.details?.ai_rejection_reason === 'NO_FACE_DETECTED'
+          ? 'No face detected in ID document. Please upload a clear photo of your ID showing your face.'
+          : result.details?.ai_rejection_reason === 'IMAGE_TOO_BLURRY'
+          ? 'Image is too blurry. Please upload a clearer photo.'
+          : 'Validation failed. Please try again with a clearer image.');
       setRepFrontValidationError(errorMessage);
       showToast({
         type: "error",
@@ -391,14 +361,13 @@ const AgencyKYCPage = () => {
 
     if (!result.valid) {
       // Get error message from AI rejection details or fallback
-      const errorMessage =
-        result.error ||
+      const errorMessage = result.error || 
         result.details?.ai_rejection_message ||
-        (result.details?.ai_rejection_reason === "IMAGE_TOO_BLURRY"
-          ? "Image is too blurry. Please upload a clearer photo."
-          : result.details?.ai_rejection_reason === "RESOLUTION_TOO_LOW"
-            ? "Image resolution is too low. Please upload a higher quality image."
-            : "ID back validation failed. Please try again with a clearer image.");
+        (result.details?.ai_rejection_reason === 'IMAGE_TOO_BLURRY'
+          ? 'Image is too blurry. Please upload a clearer photo.'
+          : result.details?.ai_rejection_reason === 'RESOLUTION_TOO_LOW'
+          ? 'Image resolution is too low. Please upload a higher quality image.'
+          : 'ID back validation failed. Please try again with a clearer image.');
       setRepBackValidationError(errorMessage);
       showToast({
         type: "error",
@@ -454,7 +423,7 @@ const AgencyKYCPage = () => {
 
   const handleNextStep = () => {
     if (currentStep === 1) setCurrentStep(2);
-    // Step 2 calls handleProceedToForms when Next is clicked
+    // Step 2 calls handleExtractOCR when Next is clicked
   };
 
   const handleBack = () => {
@@ -462,170 +431,80 @@ const AgencyKYCPage = () => {
     else router.push("/agency/dashboard");
   };
 
-  // Move to next step - OCR autofill is handled by useEffects when each step loads
-  const handleProceedToForms = () => {
+  // Extract OCR data for autofill (triggered by "Next" button in Step 2)
+  const handleExtractOCR = async () => {
     if (!businessPermit || !repIDFront) {
       showToast({
         type: "warning",
         title: "Missing Documents",
         message:
-          "Please upload Business Permit and Representative ID Front before proceeding",
+          "Please upload Business Permit and Representative ID Front for OCR extraction",
       });
       return;
     }
 
-    // Just move to Step 3 - the useEffect will trigger autofill-business
-    setCurrentStep(3);
-  };
-
-  const mapBusinessAutofillFields = (fields: Record<string, string>) => {
-    setOcrFields((prev) => ({
-      ...prev,
-      business_name: fields.business_name || prev.business_name || "",
-      business_address: fields.business_address || prev.business_address || "",
-      business_type: fields.business_type || prev.business_type || "",
-      permit_number: fields.permit_number || prev.permit_number || "",
-      dti_number: fields.dti_number || prev.dti_number || "",
-      sec_number: fields.sec_number || prev.sec_number || "",
-      tin: fields.tin || prev.tin || "",
-      permit_issue_date:
-        fields.permit_issue_date || prev.permit_issue_date || "",
-      permit_expiry_date:
-        fields.permit_expiry_date || prev.permit_expiry_date || "",
-    }));
-
-    if (fields.business_name) setBusinessName(fields.business_name);
-    if (fields.business_address) setBusinessDesc(fields.business_address);
-    if (fields.permit_number) setRegistrationNumber(fields.permit_number);
-    if (fields.business_type) setBusinessType(fields.business_type);
-  };
-
-  const mapRepAutofillFields = (fields: Record<string, string>) => {
-    setOcrFields((prev) => ({
-      ...prev,
-      rep_full_name: fields.rep_full_name || prev.rep_full_name || "",
-      rep_id_number: fields.rep_id_number || prev.rep_id_number || "",
-      rep_id_type: fields.rep_id_type || prev.rep_id_type || "",
-      rep_birth_date: fields.rep_birth_date || prev.rep_birth_date || "",
-      rep_address: fields.rep_address || prev.rep_address || "",
-    }));
-
-    if (fields.rep_id_type) setRepIdType(fields.rep_id_type);
-  };
-
-  const fetchBusinessAutofill = async () => {
-    if (!businessPermit) return;
     setIsExtractingOCR(true);
+
     try {
       const formData = new FormData();
       formData.append("business_permit", businessPermit);
+      formData.append("rep_id_front", repIDFront);
       formData.append("business_type", businessType);
 
-      console.log("📝 Running business OCR autofill...");
+      console.log("📝 Extracting OCR data for autofill...");
 
-      const response = await fetch(
-        `${API_BASE}/api/agency/kyc/autofill-business`,
-        {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Business autofill failed");
-      }
-
-      const result = await response.json();
-      if (result.success && result.fields) {
-        console.log("✅ Business autofill result:", result.fields);
-        mapBusinessAutofillFields(result.fields);
-        setHasBusinessAutofill(true);
-        setOcrExtracted(true);
-        showToast({
-          type: "success",
-          title: "Business Details Autofilled",
-          message: "Please review and edit if needed.",
-        });
-      } else {
-        showToast({
-          type: "info",
-          title: "Low Confidence OCR",
-          message: "Please fill business details manually.",
-        });
-      }
-    } catch (error) {
-      console.error("Business autofill error:", error);
-      showToast({
-        type: "warning",
-        title: "Autofill Unavailable",
-        message: "Please fill business details manually.",
-      });
-    } finally {
-      setIsExtractingOCR(false);
-    }
-  };
-
-  const fetchRepAutofill = async () => {
-    if (!repIDFront) return;
-    setIsExtractingOCR(true);
-    try {
-      const formData = new FormData();
-      formData.append("id_front", repIDFront);
-      formData.append("id_type", repIdType);
-
-      console.log("📝 Running representative ID OCR autofill...");
-
-      const response = await fetch(`${API_BASE}/api/agency/kyc/autofill-id`, {
+      const response = await fetch(`${API_BASE}/api/agency/kyc/extract-ocr`, {
         method: "POST",
         credentials: "include",
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error("ID autofill failed");
+        throw new Error("OCR extraction failed");
       }
 
       const result = await response.json();
-      if (result.success && result.fields) {
-        console.log("✅ Rep ID autofill result:", result.fields);
-        mapRepAutofillFields(result.fields);
-        setHasRepAutofill(true);
+      console.log("✅ OCR extraction result:", result);
+
+      if (result.success && result.extracted_data) {
+        const data = result.extracted_data;
+
+        // Autofill form fields from OCR
+        if (data.business_name) setBusinessName(data.business_name);
+        if (data.business_address) setBusinessDesc(data.business_address);
+        if (data.permit_number) setRegistrationNumber(data.permit_number);
+
         showToast({
           type: "success",
-          title: "Representative Details Autofilled",
-          message: "Please review and edit if needed.",
+          title: "OCR Extracted",
+          message:
+            "Business data autofilled successfully! Please review and edit if needed.",
         });
+        setOcrExtracted(true);
+        setCurrentStep(3); // Move to form step
       } else {
         showToast({
-          type: "info",
-          title: "Low Confidence OCR",
-          message: "Please fill representative details manually.",
+          type: "warning",
+          title: "Low Confidence",
+          message:
+            "OCR extraction completed with low confidence. Please fill the form manually.",
         });
+        setOcrExtracted(true);
+        setCurrentStep(3); // Still move to form
       }
     } catch (error) {
-      console.error("ID autofill error:", error);
+      console.error("OCR extraction error:", error);
       showToast({
-        type: "warning",
-        title: "Autofill Unavailable",
-        message: "Please fill representative details manually.",
+        type: "error",
+        title: "OCR Failed",
+        message: "OCR extraction failed. Please fill the form manually.",
       });
+      setOcrExtracted(true);
+      setCurrentStep(3); // Still allow proceeding to form
     } finally {
       setIsExtractingOCR(false);
     }
   };
-
-  useEffect(() => {
-    if (currentStep === 3 && !hasBusinessAutofill && businessPermit) {
-      fetchBusinessAutofill();
-    }
-  }, [currentStep, hasBusinessAutofill, businessPermit, businessType]);
-
-  useEffect(() => {
-    if (currentStep === 4 && !hasRepAutofill && repIDFront) {
-      fetchRepAutofill();
-    }
-  }, [currentStep, hasRepAutofill, repIDFront, repIdType]);
 
   const handleSubmit = async () => {
     if (
@@ -703,14 +582,12 @@ const AgencyKYCPage = () => {
 
       // Check if auto-approved
       const wasAutoApproved = responseData?.auto_approved === true;
-
+      
       showToast({
         type: wasAutoApproved ? "success" : "success",
-        title: wasAutoApproved
-          ? "Agency Verified! ✅"
-          : agencyKycStatus?.toUpperCase() === "REJECTED"
-            ? "Resubmitted"
-            : "Submitted",
+        title: wasAutoApproved 
+          ? "Agency Verified! ✅" 
+          : (agencyKycStatus?.toUpperCase() === "REJECTED" ? "Resubmitted" : "Submitted"),
         message: wasAutoApproved
           ? "Your agency has been automatically verified!"
           : "Documents uploaded successfully. Verification in progress.",
@@ -813,39 +690,8 @@ const AgencyKYCPage = () => {
     setCurrentStep(6);
   };
 
-  const [isDeletingFiles, setIsDeletingFiles] = useState(false);
-
-  const handleResubmit = async () => {
-    // First, delete old files from backend (Supabase + DB)
-    setIsDeletingFiles(true);
-
-    try {
-      const response = await fetch(`${API_BASE}/api/agency/kyc/files`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to delete old files");
-      }
-
-      console.log("🗑️ Old KYC files deleted:", data);
-    } catch (error) {
-      console.error("Error deleting old files:", error);
-      showToast({
-        type: "error",
-        title: "Cleanup Failed",
-        message: "Could not delete old files. Please try again.",
-      });
-      setIsDeletingFiles(false);
-      return;
-    }
-
-    setIsDeletingFiles(false);
-
-    // Clear ALL local state for a fresh resubmission
+  const handleResubmit = () => {
+    // Clear ALL state for a fresh resubmission - not just status
 
     // Clear KYC status
     setAgencyKycStatus(null);
@@ -881,9 +727,9 @@ const AgencyKYCPage = () => {
     setCurrentStep(1);
 
     showToast({
-      type: "success",
-      title: "Ready for Resubmission",
-      message: "Old documents cleared. Please upload new documents.",
+      type: "info",
+      title: "Resubmission Started",
+      message: "Please upload corrected documents",
     });
   };
 
@@ -1051,29 +897,13 @@ const AgencyKYCPage = () => {
               {businessType === "COOPERATIVE" &&
                 "CDA/SEC Certificate of Registration"}
               <span className="text-red-500"> *</span>
-              {isValidatingPermit && (
-                <span className="text-blue-500 text-xs ml-2">
-                  Validating...
-                </span>
-              )}
             </label>
             <label
               htmlFor="permitUpload"
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
-                businessPermit
-                  ? "border-green-400"
-                  : "border-gray-300 hover:border-blue-500"
-              } ${isValidatingPermit ? "opacity-60 pointer-events-none" : ""}`}
+              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center"
             >
-              {isValidatingPermit ? (
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                  <p className="text-sm text-blue-600">
-                    Processing document...
-                  </p>
-                </div>
-              ) : permitPreview ? (
-                <div className="relative">
+              {permitPreview ? (
+                <div>
                   <Image
                     src={permitPreview}
                     alt="Permit"
@@ -1081,21 +911,6 @@ const AgencyKYCPage = () => {
                     height={180}
                     className="mx-auto rounded-lg object-cover"
                   />
-                  {businessPermit && (
-                    <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                      <svg
-                        className="w-4 h-4"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                  )}
                   <p className="text-xs text-gray-600 mt-2">
                     Permit uploaded ✓
                   </p>
@@ -1117,7 +932,6 @@ const AgencyKYCPage = () => {
               type="file"
               accept="image/*,.pdf"
               onChange={handlePermitChange}
-              disabled={isValidatingPermit}
               className="hidden"
             />
           </div>
@@ -1135,7 +949,7 @@ const AgencyKYCPage = () => {
             </label>
             <select
               value={repIdType}
-              onChange={(e) => handleRepIdTypeChange(e.target.value)}
+              onChange={(e) => setRepIdType(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             >
               {ID_TYPES.map((idType) => (
@@ -1298,7 +1112,7 @@ const AgencyKYCPage = () => {
 
       <div className="flex justify-end gap-2 mt-8">
         <Button
-          onClick={handleProceedToForms}
+          onClick={handleExtractOCR}
           disabled={
             isExtractingOCR || !businessPermit || !repIDFront || !repIDBack
           }
@@ -1396,8 +1210,8 @@ const AgencyKYCPage = () => {
           Review Business Information
         </h1>
         <p className="text-gray-600 mb-6 text-center text-sm">
-          We&apos;ve extracted business information from your registration
-          certificate. Please review and correct any errors.
+          We&apos;ve extracted business information from your registration certificate.
+          Please review and correct any errors.
         </p>
 
         {/* OCR Extraction Success Notice */}
@@ -1420,40 +1234,26 @@ const AgencyKYCPage = () => {
                   ✨ Business Data Extracted
                 </h3>
                 <p className="text-xs text-green-800">
-                  Data from your{" "}
-                  {businessType === "SOLE_PROPRIETORSHIP"
-                    ? "DTI Certificate"
-                    : "SEC Registration"}{" "}
-                  has been autofilled. Please verify accuracy and edit if
-                  needed.
+                  Data from your {businessType === "SOLE_PROPRIETORSHIP" ? "DTI Certificate" : "SEC Registration"} has been autofilled.
+                  Please verify accuracy and edit if needed.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {isExtractingOCR ? (
+        {ocrLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-600">Extracting data from document...</p>
+            <p className="text-gray-600">Loading extracted data...</p>
           </div>
         ) : (
           <>
             {/* Business Information Section */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b flex items-center gap-2">
-                <svg
-                  className="w-5 h-5 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
                 Business Information
               </h2>
@@ -1540,18 +1340,8 @@ const AgencyKYCPage = () => {
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 Next: Representative ID
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
@@ -1569,8 +1359,8 @@ const AgencyKYCPage = () => {
           Review Representative ID
         </h1>
         <p className="text-gray-600 mb-6 text-center text-sm">
-          We&apos;ve extracted information from your representative&apos;s ID
-          document. Please review and correct any errors before submitting.
+          We&apos;ve extracted information from your representative&apos;s ID document.
+          Please review and correct any errors before submitting.
         </p>
 
         {/* OCR Extraction Success Notice */}
@@ -1592,36 +1382,25 @@ const AgencyKYCPage = () => {
                 🪪 ID Data Extracted
               </h3>
               <p className="text-xs text-purple-800">
-                Information from the representative&apos;s{" "}
-                {ID_TYPES.find((t) => t.value === repIdType)?.label || "ID"} has
-                been autofilled. Please verify accuracy and edit if needed.
+                Information from the representative&apos;s {ID_TYPES.find(t => t.value === repIdType)?.label || "ID"} has been autofilled.
+                Please verify accuracy and edit if needed.
               </p>
             </div>
           </div>
         </div>
 
-        {isExtractingOCR ? (
+        {ocrLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-600">Extracting ID data from document...</p>
+            <p className="text-gray-600">Loading extracted data...</p>
           </div>
         ) : (
           <>
             {/* Representative Information Section */}
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b flex items-center gap-2">
-                <svg
-                  className="w-5 h-5 text-purple-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                  />
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                 </svg>
                 Authorized Representative
               </h2>
@@ -1639,18 +1418,10 @@ const AgencyKYCPage = () => {
                     <div className="relative">
                       {field.type === "select" ? (
                         <select
-                          value={
-                            field.key === "rep_id_type"
-                              ? ocrFields[field.key] || repIdType
-                              : ocrFields[field.key] || businessType
-                          }
+                          value={ocrFields[field.key] || repIdType}
                           onChange={(e) => {
                             handleOcrFieldChange(field.key, e.target.value);
-                            if (field.key === "rep_id_type") {
-                              handleRepIdTypeChange(e.target.value);
-                            } else if (field.key === "business_type") {
-                              setBusinessType(e.target.value);
-                            }
+                            setRepIdType(e.target.value);
                           }}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white ${
                             editedFields.has(field.key)
@@ -1773,8 +1544,8 @@ const AgencyKYCPage = () => {
           Review Extracted Information
         </h1>
         <p className="text-gray-600 mb-6 text-center text-sm">
-          We&apos;ve extracted the following information from your documents.
-          Please review and correct any errors before submitting.
+          We&apos;ve extracted the following information from your documents. Please
+          review and correct any errors before submitting.
         </p>
 
         {/* OCR Extraction Success Notice */}
@@ -1807,10 +1578,10 @@ const AgencyKYCPage = () => {
           </div>
         )}
 
-        {isExtractingOCR ? (
+        {ocrLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-600">Extracting data from document...</p>
+            <p className="text-gray-600">Loading extracted data...</p>
           </div>
         ) : (
           <>
@@ -1888,16 +1659,10 @@ const AgencyKYCPage = () => {
                     <div className="relative">
                       {field.type === "select" ? (
                         <select
-                          value={
-                            field.key === "rep_id_type"
-                              ? ocrFields[field.key] || repIdType
-                              : ocrFields[field.key] || ""
-                          }
+                          value={ocrFields[field.key] || repIdType}
                           onChange={(e) => {
                             handleOcrFieldChange(field.key, e.target.value);
-                            if (field.key === "rep_id_type") {
-                              handleRepIdTypeChange(e.target.value);
-                            }
+                            setRepIdType(e.target.value);
                           }}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${
                             editedFields.has(field.key)
@@ -2227,50 +1992,22 @@ const AgencyKYCPage = () => {
           {isRejected && (
             <button
               onClick={handleResubmit}
-              disabled={isDeletingFiles}
-              className="px-6 py-3 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
-              {isDeletingFiles ? (
-                <>
-                  <svg
-                    className="w-5 h-5 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Clearing Files...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                    />
-                  </svg>
-                  Resubmit Documents
-                </>
-              )}
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                />
+              </svg>
+              Resubmit Documents
             </button>
           )}
           <button
@@ -2278,7 +2015,7 @@ const AgencyKYCPage = () => {
               setIsNavigating(true);
               router.push("/agency/dashboard");
             }}
-            disabled={isNavigating || isDeletingFiles}
+            disabled={isNavigating}
             className={`px-6 py-3 rounded-full font-semibold transition-colors ${
               isRejected
                 ? "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"

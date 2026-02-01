@@ -278,6 +278,30 @@ class SupportTicket(models.Model):
     lastReplyAt = models.DateTimeField(null=True, blank=True)
     resolvedAt = models.DateTimeField(null=True, blank=True)
     
+    # Platform tracking
+    class Platform(models.TextChoices):
+        WEB = "web", "Web Browser"
+        MOBILE = "mobile", "Mobile App"
+        AGENCY_PORTAL = "agency_portal", "Agency Portal"
+    
+    platform = models.CharField(
+        max_length=15,
+        choices=Platform.choices,
+        default=Platform.WEB,
+        help_text="Platform where ticket was created"
+    )
+    deviceInfo = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Device/browser info (User-Agent)"
+    )
+    appVersion = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text="Mobile app version"
+    )
+    
     class Meta:
         ordering = ['-createdAt']
         verbose_name = "Support Ticket"
@@ -290,6 +314,7 @@ class SupportTicket(models.Model):
             models.Index(fields=['assignedTo']),
             models.Index(fields=['ticketType']),
             models.Index(fields=['agencyFK']),
+            models.Index(fields=['platform']),
         ]
     
     def __str__(self):

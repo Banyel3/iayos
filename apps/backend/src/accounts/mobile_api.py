@@ -4592,6 +4592,279 @@ def set_primary_payment_method(request, method_id: int):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# MOBILE SUPPORT TICKETS
+# ══════════════════════════════════════════════════════════════════════════════
+# Support ticket endpoints for mobile app users (individuals)
+# Tickets auto-set ticket_type='individual' and platform='mobile'
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mobile_router.post("/support/ticket", auth=jwt_auth)
+def create_mobile_support_ticket(request):
+    """
+    Create a new support ticket from mobile app.
+    Auto-sets ticket_type='individual' and platform='mobile'.
+    
+    Request JSON:
+    - subject: str (required, max 200 chars)
+    - category: str (account, payment, technical, feature_request, bug_report, general)
+    - description: str (required, min 20 chars)
+    - app_version: str (optional) - Mobile app version
+    """
+    try:
+        from adminpanel.models import SupportTicket, SupportTicketReply
+        from django.utils import timezone
+        import json
+        
+        user = request.auth
+        profile_type = getattr(user, 'profile_type', 'WORKER')
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        subject = body.get('subject', '').strip()
+        category = body.get('category', 'general').strip()
+        description = body.get('description', '').strip()
+        app_version = body.get('app_version', '').strip() or None
+        
+        # Get device info from User-Agent header
+        device_info = request.headers.get('User-Agent', '')[:500] if request.headers.get('User-Agent') else None
+        
+        # Validation
+        if not subject:
+            return Response({'success': False, 'error': 'Subject is required'}, status=400)
+        if len(subject) > 200:
+            return Response({'success': False, 'error': 'Subject must be 200 characters or less'}, status=400)
+        if not description:
+            return Response({'success': False, 'error': 'Description is required'}, status=400)
+        if len(description) < 20:
+            return Response({'success': False, 'error': 'Description must be at least 20 characters'}, status=400)
+        
+        # Valid categories
+        valid_categories = ['account', 'payment', 'technical', 'feature_request', 'bug_report', 'general']
+        if category not in valid_categories:
+            category = 'general'
+        
+        # Create ticket - always individual for mobile, platform=mobile
+        ticket = SupportTicket.objects.create(
+            userFK=user,
+            agencyFK=None,  # No agency for individual tickets
+            ticketType='individual',
+            subject=subject,
+            category=category,
+            priority='medium',
+            status='open',
+            platform='mobile',
+            deviceInfo=device_info,
+            appVersion=app_version,
+        )
+        
+        # Create initial reply with description
+        SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=user,
+            content=description,
+        )
+        
+        ticket.lastReplyAt = timezone.now()
+        ticket.save()
+        
+        print(f"✅ [MOBILE] Support ticket #{ticket.ticketID} created by user {user.email} ({profile_type})")
+        
+        return {
+            'success': True,
+            'ticket_id': ticket.ticketID,
+            'message': 'Support ticket submitted successfully',
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error creating support ticket: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@mobile_router.get("/support/tickets", auth=jwt_auth)
+def get_mobile_support_tickets(request, page: int = 1, status: Optional[str] = None):
+    """
+    Get list of support tickets for the authenticated user.
+    
+    Query params:
+    - page: int (default 1)
+    - status: str (open, in_progress, waiting_user, resolved, closed)
+    """
+    try:
+        from adminpanel.models import SupportTicket
+        from django.core.paginator import Paginator
+        
+        user = request.auth
+        page_size = 20
+        
+        # Get user's tickets
+        queryset = SupportTicket.objects.filter(userFK=user).order_by('-createdAt')
+        
+        # Status filter
+        if status and status != 'all':
+            queryset = queryset.filter(status=status)
+        
+        paginator = Paginator(queryset, page_size)
+        
+        if page < 1:
+            page = 1
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            page = paginator.num_pages
+        
+        tickets_page = paginator.get_page(page)
+        
+        return {
+            'success': True,
+            'tickets': [
+                {
+                    'id': t.ticketID,
+                    'subject': t.subject,
+                    'category': t.category,
+                    'priority': t.priority,
+                    'status': t.status,
+                    'created_at': t.createdAt.isoformat(),
+                    'last_reply_at': t.lastReplyAt.isoformat() if t.lastReplyAt else t.createdAt.isoformat(),
+                    'reply_count': t.reply_count,
+                }
+                for t in tickets_page
+            ],
+            'total': paginator.count,
+            'page': page,
+            'total_pages': paginator.num_pages,
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error fetching support tickets: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@mobile_router.get("/support/tickets/{ticket_id}", auth=jwt_auth)
+def get_mobile_support_ticket_detail(request, ticket_id: int):
+    """
+    Get detailed view of a support ticket including all messages.
+    """
+    try:
+        from adminpanel.models import SupportTicket
+        
+        user = request.auth
+        
+        # Get ticket and verify ownership
+        try:
+            ticket = SupportTicket.objects.select_related('assignedTo').get(ticketID=ticket_id, userFK=user)
+        except SupportTicket.DoesNotExist:
+            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
+        
+        replies = ticket.replies.select_related('senderFK').all().order_by('createdAt')
+        
+        return {
+            'success': True,
+            'ticket': {
+                'id': ticket.ticketID,
+                'subject': ticket.subject,
+                'category': ticket.category,
+                'priority': ticket.priority,
+                'status': ticket.status,
+                'assigned_to_name': ticket.assignedTo.email.split('@')[0] if ticket.assignedTo else None,
+                'created_at': ticket.createdAt.isoformat(),
+                'updated_at': ticket.updatedAt.isoformat(),
+                'last_reply_at': ticket.lastReplyAt.isoformat() if ticket.lastReplyAt else None,
+                'resolved_at': ticket.resolvedAt.isoformat() if ticket.resolvedAt else None,
+            },
+            'messages': [
+                {
+                    'id': r.replyID,
+                    'sender_name': r.senderFK.email.split('@')[0] if r.senderFK else 'Unknown',
+                    'is_admin': r.senderFK_id != user.accountID if r.senderFK else False,
+                    'content': r.content,
+                    'is_system_message': r.isSystemMessage,
+                    'created_at': r.createdAt.isoformat(),
+                }
+                for r in replies
+            ],
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error fetching ticket detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@mobile_router.post("/support/tickets/{ticket_id}/reply", auth=jwt_auth)
+def reply_to_mobile_support_ticket(request, ticket_id: int):
+    """
+    Add a reply to an existing support ticket.
+    
+    Request JSON:
+    - content: str (required, min 5 chars)
+    """
+    try:
+        from adminpanel.models import SupportTicket, SupportTicketReply
+        from django.utils import timezone
+        import json
+        
+        user = request.auth
+        
+        # Get ticket and verify ownership
+        try:
+            ticket = SupportTicket.objects.get(ticketID=ticket_id, userFK=user)
+        except SupportTicket.DoesNotExist:
+            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
+        
+        # Check if ticket is closed
+        if ticket.status == 'closed':
+            return Response({'success': False, 'error': 'Cannot reply to a closed ticket'}, status=400)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        content = body.get('content', '').strip()
+        
+        if not content:
+            return Response({'success': False, 'error': 'Reply content is required'}, status=400)
+        if len(content) < 5:
+            return Response({'success': False, 'error': 'Reply must be at least 5 characters'}, status=400)
+        
+        # Create reply
+        reply = SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=user,
+            content=content,
+        )
+        
+        # Update ticket
+        ticket.lastReplyAt = timezone.now()
+        # If ticket was waiting_user, set back to open
+        if ticket.status == 'waiting_user':
+            ticket.status = 'open'
+        ticket.save()
+        
+        print(f"✅ [MOBILE] Reply added to ticket #{ticket_id} by user {user.email}")
+        
+        return {
+            'success': True,
+            'reply_id': reply.replyID,
+            'message': 'Reply sent successfully',
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error replying to ticket: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAESTRO E2E TEST CLEANUP
 # ══════════════════════════════════════════════════════════════════════════════
 # This endpoint cleans up test data created by Maestro E2E tests

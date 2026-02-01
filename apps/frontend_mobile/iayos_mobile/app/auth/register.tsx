@@ -11,9 +11,6 @@ import {
   Alert,
   Keyboard,
   TextInput as RNTextInput,
-  Modal,
-  FlatList,
-  ActivityIndicator,
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -30,7 +27,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { useBarangays } from "@/lib/hooks/useLocations";
+import { Image } from "react-native";
 
 const DEFAULT_COUNTRY = "Philippines";
 const MIN_PASSWORD_LENGTH = 8;
@@ -55,24 +52,13 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [streetAddress, setStreetAddress] = useState("");
-  const [barangay, setBarangay] = useState("");
-  const [barangayModalVisible, setBarangayModalVisible] = useState(false);
-  const [city, setCity] = useState("Zamboanga City");
-  const [province, setProvince] = useState("Zamboanga del Sur");
-  const [postalCode, setPostalCode] = useState("7000");
+  const [city, setCity] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
-
-  // Fetch barangays for Zamboanga City (cityID = 1)
-  const {
-    data: barangaysData,
-    isLoading: barangaysLoading,
-    error: barangaysError,
-  } = useBarangays(1);
-  const barangays = barangaysData || [];
-
   const adultCutoffDate = useMemo(() => {
     const today = new Date();
     return new Date(
@@ -172,7 +158,6 @@ export default function RegisterScreen() {
     const trimmedLast = lastName.trim();
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedStreet = streetAddress.trim();
-    const trimmedBarangay = barangay.trim();
     const trimmedCity = city.trim();
     const trimmedProvince = province.trim();
     const trimmedPostal = postalCode.trim();
@@ -269,8 +254,8 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (!trimmedStreet || !trimmedBarangay || !trimmedCity || !trimmedProvince) {
-      Alert.alert("Error", "Street address, barangay, city, and province are required");
+    if (!trimmedStreet || !trimmedCity || !trimmedProvince) {
+      Alert.alert("Error", "Street address, city, and province are required");
       return;
     }
 
@@ -291,7 +276,6 @@ export default function RegisterScreen() {
         password,
         confirmPassword,
         street_address: trimmedStreet,
-        barangay: trimmedBarangay,
         city: trimmedCity,
         province: trimmedProvince,
         postal_code: trimmedPostal,
@@ -341,9 +325,11 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             {/* Title */}
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>i</Text>
-            </View>
+            <Image
+              source={require("../../assets/logo-white.png")}
+              style={{ width: 120, height: 120, resizeMode: "contain", marginBottom: Spacing["2xl"] }}
+              accessibilityLabel="iAyos Logo"
+            />
             <Text style={styles.headerTitle}>Create Account</Text>
             <Text style={styles.headerSubtitle}>Join iAyos today</Text>
           </View>
@@ -671,115 +657,15 @@ export default function RegisterScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Address Information</Text>
               <Text style={styles.sectionSubtitle}>
-                We currently support addresses within Zamboanga City.
+                We currently support addresses within the Philippines.
               </Text>
             </View>
-
-            {/* Barangay Dropdown */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
-                Barangay <Text style={styles.required}>*</Text>
-              </Text>
-              {barangaysLoading ? (
-                <View style={styles.barangayButton}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                  <Text style={styles.barangayButtonPlaceholder}>
-                    Loading barangays...
-                  </Text>
-                </View>
-              ) : barangaysError ? (
-                <View style={styles.barangayButton}>
-                  <Text style={styles.barangayButtonPlaceholder}>
-                    ⚠️ Failed to load barangays
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.barangayButton}
-                  onPress={() => setBarangayModalVisible(true)}
-                  activeOpacity={0.7}
-                  disabled={isLoading}
-                >
-                  <Ionicons
-                    name="location-outline"
-                    size={20}
-                    color={Colors.primary}
-                    style={styles.barangayIcon}
-                  />
-                  <Text
-                    style={
-                      barangay
-                        ? styles.barangayButtonText
-                        : styles.barangayButtonPlaceholder
-                    }
-                  >
-                    {barangay || "Select a barangay"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Barangay Selection Modal */}
-            <Modal
-              visible={barangayModalVisible}
-              animationType="slide"
-              transparent={true}
-              onRequestClose={() => setBarangayModalVisible(false)}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Select Barangay</Text>
-                    <TouchableOpacity
-                      onPress={() => setBarangayModalVisible(false)}
-                      style={styles.modalCloseButton}
-                    >
-                      <Ionicons name="close" size={24} color={Colors.textPrimary} />
-                    </TouchableOpacity>
-                  </View>
-                  <FlatList
-                    data={barangays}
-                    keyExtractor={(item) => item.barangayID.toString()}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.barangayItem,
-                          barangay === item.name && styles.barangayItemSelected,
-                        ]}
-                        onPress={() => {
-                          setBarangay(item.name);
-                          setBarangayModalVisible(false);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.barangayItemText,
-                            barangay === item.name && styles.barangayItemTextSelected,
-                          ]}
-                        >
-                          {item.name}
-                        </Text>
-                        {barangay === item.name && (
-                          <Ionicons name="checkmark" size={20} color={Colors.primary} />
-                        )}
-                      </TouchableOpacity>
-                    )}
-                    showsVerticalScrollIndicator={true}
-                  />
-                </View>
-              </View>
-            </Modal>
 
             {/* Street Address */}
             <Input
               ref={streetAddressRef}
               label="Street Address"
-              placeholder="House no., Street name"
+              placeholder="House no., Street name, Barangay"
               value={streetAddress}
               onChangeText={setStreetAddress}
               editable={!isLoading}
@@ -797,34 +683,44 @@ export default function RegisterScreen() {
               }}
             />
 
-            {/* City (Pre-filled, disabled) */}
+            {/* City */}
             <Input
               ref={cityRef}
-              label="City (Pre-filled)"
-              placeholder="Zamboanga City"
+              label="City"
+              placeholder="e.g., Zamboanga City"
               value={city}
-              editable={false}
+              onChangeText={setCity}
+              editable={!isLoading}
+              autoCapitalize="words"
               required
               iconLeft={
                 <Ionicons
                   name="business-outline"
                   size={20}
-                  color={Colors.textSecondary}
+                  color={Colors.primary}
                 />
               }
+              onFocus={() => {
+                lastFocusedRef.current = cityRef;
+              }}
             />
 
-            {/* Province (Pre-filled, disabled) */}
+            {/* Province */}
             <Input
               ref={provinceRef}
-              label="Province (Pre-filled)"
-              placeholder="Zamboanga del Sur"
+              label="Province"
+              placeholder="e.g., Zamboanga del Sur"
               value={province}
-              editable={false}
+              onChangeText={setProvince}
+              editable={!isLoading}
+              autoCapitalize="words"
               required
               iconLeft={
-                <Ionicons name="map-outline" size={20} color={Colors.textSecondary} />
+                <Ionicons name="map-outline" size={20} color={Colors.primary} />
               }
+              onFocus={() => {
+                lastFocusedRef.current = provinceRef;
+              }}
             />
 
             {/* Country */}
@@ -837,26 +733,32 @@ export default function RegisterScreen() {
                 <Ionicons
                   name="flag-outline"
                   size={20}
-                  color={Colors.textSecondary}
+                  color={Colors.primary}
                 />
               }
             />
 
-            {/* Postal Code (Pre-filled, disabled) */}
+            {/* Postal Code */}
             <Input
               ref={postalCodeRef}
-              label="Postal Code (Pre-filled)"
+              label="Postal Code"
               placeholder="7000"
               value={postalCode}
-              editable={false}
+              onChangeText={handlePostalCodeChange}
+              keyboardType="number-pad"
+              maxLength={4}
+              editable={!isLoading}
               required
               iconLeft={
                 <Ionicons
                   name="mail-open-outline"
                   size={20}
-                  color={Colors.textSecondary}
+                  color={Colors.primary}
                 />
               }
+              onFocus={() => {
+                lastFocusedRef.current = postalCodeRef;
+              }}
             />
 
             {/* Register Button */}
@@ -920,17 +822,7 @@ const styles = StyleSheet.create({
     top: Spacing["2xl"],
     zIndex: 1,
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-    marginTop: Spacing["2xl"],
-    ...Shadows.md,
-  },
+  // logoCircle removed
   logoText: {
     fontSize: 48,
     fontWeight: "700",
@@ -1064,91 +956,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.lg,
     fontStyle: "italic",
-  },
-  // Barangay Dropdown Styles
-  inputGroup: {
-    marginBottom: Spacing.md,
-  },
-  inputLabel: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  required: {
-    color: Colors.error,
-  },
-  barangayButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    minHeight: 52,
-  },
-  barangayIcon: {
-    marginRight: Spacing.sm,
-  },
-  barangayButtonText: {
-    flex: 1,
-    fontSize: Typography.fontSize.base,
-    color: Colors.textPrimary,
-  },
-  barangayButtonPlaceholder: {
-    flex: 1,
-    fontSize: Typography.fontSize.base,
-    color: Colors.textHint,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    maxHeight: "70%",
-    paddingBottom: Spacing["2xl"],
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  modalTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: "700",
-    color: Colors.textPrimary,
-  },
-  modalCloseButton: {
-    padding: Spacing.xs,
-  },
-  barangayItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  barangayItemSelected: {
-    backgroundColor: Colors.primaryLight || "#E8F5E9",
-  },
-  barangayItemText: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textPrimary,
-  },
-  barangayItemTextSelected: {
-    color: Colors.primary,
-    fontWeight: "600",
   },
 });
