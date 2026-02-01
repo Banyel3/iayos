@@ -1462,7 +1462,7 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Build other_participant_info - handle agency case
         if other_participant:
-            other_participant_info = get_participant_info(other_participant, job.title)
+            other_participant_info = get_participant_info(profile=other_participant, job_title=job.title)
         elif other_agency:
             # Client viewing agency conversation - show agency info
             other_participant_info = {
@@ -2050,8 +2050,14 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
             if isinstance(upload_response, dict) and 'error' in upload_response:
                 raise Exception(f"Upload failed: {upload_response['error']}")
 
-            # Get public URL
-            public_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+            # Get signed URL for private bucket (24 hour expiry)
+            signed_url_response = settings.STORAGE.storage().from_('iayos_files').create_signed_url(
+                storage_path, 
+                expires_in=86400  # 24 hours
+            )
+            if signed_url_response.get('error'):
+                raise Exception(f"Failed to create signed URL: {signed_url_response['error']}")
+            public_url = signed_url_response.get('signedURL')
 
             # Create IMAGE type message
             message = Message.objects.create(
