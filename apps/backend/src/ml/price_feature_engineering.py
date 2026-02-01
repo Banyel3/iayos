@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Optional, Any
 from decimal import Decimal
+from pathlib import Path
 import logging
 import re
 
@@ -277,12 +278,27 @@ class PriceFeatureExtractor:
         # Category features (use 0 for CSV data - no category mapping)
         category_features = np.zeros(self.MAX_CATEGORIES, dtype=np.float32)
         
-        # Metadata features (defaults for CSV)
-        urgency = 1  # MEDIUM default
-        skill_level = 1  # INTERMEDIATE default
-        job_scope = 1  # MODERATE_PROJECT default (CSV data is typically moderate)
-        work_environment = 0  # INDOOR default
-        materials_count = 0
+        # Metadata features - read from CSV if available (for synthetic PH data)
+        urgency_str = str(row.get('urgency', 'MEDIUM')).upper()
+        urgency = self.URGENCY_MAPPING.get(urgency_str, 1)
+        
+        skill_level_str = str(row.get('skill_level', 'INTERMEDIATE')).upper()
+        skill_level = self.SKILL_LEVEL_MAPPING.get(skill_level_str, 1)
+        
+        job_scope_str = str(row.get('job_scope', 'MODERATE_PROJECT')).upper()
+        job_scope = self.JOB_SCOPE_MAPPING.get(job_scope_str, 1)
+        
+        work_env_str = str(row.get('work_environment', 'INDOOR')).upper()
+        work_environment = self.WORK_ENVIRONMENT_MAPPING.get(work_env_str, 0)
+        
+        # Count materials from tags if present
+        tags = row.get('tags', [])
+        if isinstance(tags, str):
+            try:
+                tags = eval(tags)
+            except:
+                tags = []
+        materials_count = len(tags) if isinstance(tags, list) else 0
         
         metadata_features = np.array([
             urgency / 2.0,
@@ -386,13 +402,14 @@ class PriceDatasetBuilder:
     def __init__(self, feature_extractor: PriceFeatureExtractor):
         self.feature_extractor = feature_extractor
         
-    def load_csv_data(self, csv_path: str, filter_fixed: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+    def load_csv_data(self, csv_path: str, filter_fixed: bool = True, country_filter: Optional[str] = None) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Load and process data from freelancer CSV.
+        Load and process data from CSV file.
         
         Args:
-            csv_path: Path to freelancer_job_postings.csv
+            csv_path: Path to CSV file (synthetic PH data or freelancer data)
             filter_fixed: If True, only include fixed-price jobs
+            country_filter: If provided, filter by client_country (e.g., "Philippines")
             
         Returns:
             Tuple of (features, targets) numpy arrays
@@ -400,8 +417,13 @@ class PriceDatasetBuilder:
         logger.info(f"Loading CSV data from {csv_path}")
         df = pd.read_csv(csv_path)
         
+        # Filter by country if specified
+        if country_filter and 'client_country' in df.columns:
+            df = df[df['client_country'].str.contains(country_filter, case=False, na=False)]
+            logger.info(f"Filtered to {len(df)} jobs from {country_filter}")
+        
         # Filter to fixed-price only
-        if filter_fixed:
+        if filter_fixed and 'rate_type' in df.columns:
             df = df[df['rate_type'] == 'fixed']
             logger.info(f"Filtered to {len(df)} fixed-price jobs")
         
@@ -512,37 +534,59 @@ class PriceDatasetBuilder:
         include_db: bool = True,
         test_ratio: float = 0.15,
         val_ratio: float = 0.15,
-        min_samples: int = 100
+        min_samples: int = 50,  # Lower for synthetic data
+        use_synthetic_ph: bool = True,  # Use PH blue-collar data by default
+        country_filter: Optional[str] = None
     ) -> Optional[Dict[str, np.ndarray]]:
         """
         Build combined dataset from CSV and database.
         
         Args:
-            csv_path: Path to CSV file (optional)
+            csv_path: Path to CSV file (optional, overrides synthetic)
             include_db: Whether to include database jobs
             test_ratio: Fraction for test set
             val_ratio: Fraction for validation set
             min_samples: Minimum samples required
+            use_synthetic_ph: Whether to use synthetic PH blue-collar dataset
+            country_filter: Filter CSV by country (e.g., "Philippines")
             
         Returns:
             Dictionary with train/val/test splits or None if insufficient data
         """
         X_all, y_all = [], []
         
-        # Load CSV data
+        # Determine CSV path
         if csv_path:
-            X_csv, y_csv = self.load_csv_data(csv_path)
+            # Use explicitly provided path
+            data_path = csv_path
+        elif use_synthetic_ph:
+            # Use synthetic Philippine blue-collar dataset
+            base_dir = Path(__file__).parent.parent.parent.parent
+            data_path = base_dir / "scripts" / "ml" / "Datasets" / "ph_blue_collar_synthetic.csv"
+            if data_path.exists():
+                logger.info(f"Using synthetic PH blue-collar dataset: {data_path}")
+            else:
+                # Fallback to original (if synthetic doesn't exist)
+                data_path = base_dir / "scripts" / "ml" / "Datasets" / "freelancer_job_postings.csv"
+                logger.warning(f"Synthetic dataset not found, falling back to: {data_path}")
+        else:
+            data_path = None
+        
+        # Load CSV data
+        if data_path:
+            X_csv, y_csv = self.load_csv_data(str(data_path), country_filter=country_filter)
             if len(X_csv) > 0:
                 X_all.append(X_csv)
                 y_all.append(y_csv)
         
-        # Load database data
+        # Load database data (iAyos completed jobs)
         if include_db:
             try:
                 X_db, y_db = self.load_db_data()
                 if len(X_db) > 0:
                     X_all.append(X_db)
                     y_all.append(y_db)
+                    logger.info(f"Loaded {len(X_db)} jobs from iAyos database")
             except Exception as e:
                 logger.warning(f"Could not load DB data: {e}")
         

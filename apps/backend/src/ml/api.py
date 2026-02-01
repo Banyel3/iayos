@@ -457,18 +457,48 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
     except (httpx.ConnectError, httpx.TimeoutException):
         pass  # ML service unavailable, fall through to fallback
     
-    # Fallback: Use database category averages
+    # Fallback: Use Philippine blue-collar category pricing
     try:
         from accounts.models import Specializations
         
+        # Philippine blue-collar base pricing by category (in PHP)
+        # Based on DOLE daily wage rates + market research for Zamboanga region
+        PH_CATEGORY_PRICING = {
+            # Category Name: (min, suggested, max) for moderate project
+            'Plumbing': (500, 1500, 5000),
+            'Electrical Work': (600, 2000, 8000),
+            'Carpentry': (800, 2500, 10000),
+            'Cleaning': (400, 800, 3000),
+            'HVAC': (1000, 3500, 15000),
+            'Painting': (800, 2000, 8000),
+            'Masonry': (1000, 3000, 12000),
+            'Welding': (800, 2500, 10000),
+            'Home Repair': (500, 1500, 5000),
+            'Appliance Repair': (400, 1000, 4000),
+            'Roofing': (1500, 4000, 20000),
+            'Landscaping': (600, 1500, 6000),
+            'Flooring': (1200, 3500, 15000),
+            'Pest Control': (800, 2000, 6000),
+            'Moving': (500, 1500, 8000),
+            'Demolition': (1000, 3000, 15000),
+        }
+        
         fallback_min = 500.0
         fallback_max = 5000.0
-        fallback_suggested = 2000.0
+        fallback_suggested = 1500.0
+        category_name = None
         
         if data.category_id:
             try:
                 spec = Specializations.objects.get(pk=data.category_id)
-                if spec.averageProjectCostMin and spec.averageProjectCostMax:
+                category_name = spec.specializationName
+                
+                # Try PH-specific pricing first
+                if spec.specializationName in PH_CATEGORY_PRICING:
+                    ph_pricing = PH_CATEGORY_PRICING[spec.specializationName]
+                    fallback_min, fallback_suggested, fallback_max = ph_pricing
+                elif spec.averageProjectCostMin and spec.averageProjectCostMax:
+                    # Use database values if available
                     fallback_min = float(spec.averageProjectCostMin)
                     fallback_max = float(spec.averageProjectCostMax)
                     fallback_suggested = (fallback_min + fallback_max) / 2
@@ -479,29 +509,37 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
             except Specializations.DoesNotExist:
                 pass
         
+        # Text-based category detection if no category_id match
+        if fallback_suggested == 1500.0 and data.title:
+            title_lower = data.title.lower()
+            for cat_name, pricing in PH_CATEGORY_PRICING.items():
+                if cat_name.lower() in title_lower:
+                    fallback_min, fallback_suggested, fallback_max = pricing
+                    break
+        
         # Adjust for urgency
-        urgency_multiplier = {'LOW': 0.9, 'MEDIUM': 1.0, 'HIGH': 1.2}
+        urgency_multiplier = {'LOW': 0.9, 'MEDIUM': 1.0, 'HIGH': 1.25}
         mult = urgency_multiplier.get(data.urgency, 1.0)
         
         # Adjust for skill level
-        skill_multiplier = {'ENTRY': 0.8, 'INTERMEDIATE': 1.0, 'EXPERT': 1.3}
+        skill_multiplier = {'ENTRY': 0.8, 'INTERMEDIATE': 1.0, 'EXPERT': 1.4}
         mult *= skill_multiplier.get(data.skill_level, 1.0)
         
-        # Adjust for job scope (bigger jobs = higher price)
-        scope_multiplier = {'MINOR_REPAIR': 0.7, 'MODERATE_PROJECT': 1.0, 'MAJOR_RENOVATION': 1.8}
+        # Adjust for job scope (CRITICAL: biggest impact on pricing)
+        scope_multiplier = {'MINOR_REPAIR': 0.5, 'MODERATE_PROJECT': 1.0, 'MAJOR_RENOVATION': 2.5}
         mult *= scope_multiplier.get(data.job_scope, 1.0)
         
         # Adjust for work environment (outdoor may have slight premium)
-        env_multiplier = {'INDOOR': 1.0, 'OUTDOOR': 1.05, 'BOTH': 1.1}
+        env_multiplier = {'INDOOR': 1.0, 'OUTDOOR': 1.08, 'BOTH': 1.12}
         mult *= env_multiplier.get(data.work_environment, 1.0)
         
         return PricePredictionResponse(
             min_price=round(fallback_min * mult, 2),
             suggested_price=round(fallback_suggested * mult, 2),
             max_price=round(fallback_max * mult, 2),
-            confidence=0.3,  # Low confidence for fallback
+            confidence=0.5,  # Medium confidence - based on PH blue-collar data
             currency='PHP',
-            source='fallback'
+            source='fallback_ph'
         )
         
     except Exception as e:
