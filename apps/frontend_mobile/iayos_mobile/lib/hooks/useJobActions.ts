@@ -3,6 +3,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, API_BASE_URL } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 
 /**
@@ -20,7 +21,7 @@ export function useConfirmWorkStarted() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to confirm work started");
+        throw new Error(getErrorMessage(error, "Failed to confirm work started"));
       }
 
       return response.json();
@@ -68,7 +69,7 @@ export function useConfirmTeamWorkerArrival() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to confirm worker arrival");
+        throw new Error(getErrorMessage(error, "Failed to confirm worker arrival"));
       }
 
       return response.json();
@@ -118,7 +119,7 @@ export function useMarkTeamAssignmentComplete() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to mark assignment complete");
+        throw new Error(getErrorMessage(error, "Failed to mark assignment complete"));
       }
 
       return response.json();
@@ -191,7 +192,7 @@ export function useApproveTeamJobCompletion() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to approve team job completion");
+        throw new Error(getErrorMessage(error, "Failed to approve team job completion"));
       }
 
       return response.json();
@@ -242,7 +243,7 @@ export function useMarkComplete() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to mark job complete");
+        throw new Error(getErrorMessage(error, "Failed to mark job complete"));
       }
 
       return response.json();
@@ -303,7 +304,7 @@ export function useApproveCompletion() {
 
         if (!response.ok) {
           const error = (await response.json()) as { error?: string };
-          throw new Error(error.error || "Failed to approve completion");
+          throw new Error(getErrorMessage(error, "Failed to approve completion"));
         }
 
         return response.json();
@@ -317,7 +318,7 @@ export function useApproveCompletion() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to approve completion");
+        throw new Error(getErrorMessage(error, "Failed to approve completion"));
       }
 
       return response.json();

@@ -6,6 +6,7 @@ import * as Location from "expo-location";
 import { Alert } from "react-native";
 import Toast from "react-native-toast-message";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // ===== TYPES =====
 
@@ -64,7 +65,7 @@ export function useUpdateLocation() {
 
       if (!response.ok) {
         const error = (await response.json()) as any;
-        throw new Error(error.message || "Failed to update location");
+        throw new Error(getErrorMessage(error, "Failed to update location"));
       }
 
       return response.json();
@@ -102,7 +103,7 @@ export function useToggleLocationSharing() {
 
       if (!response.ok) {
         const error = (await response.json()) as any;
-        throw new Error(error.message || "Failed to toggle location sharing");
+        throw new Error(getErrorMessage(error, "Failed to toggle location sharing"));
       }
 
       return response.json();

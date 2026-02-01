@@ -26,6 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import InlineLoader from "@/components/ui/InlineLoader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
@@ -382,7 +383,7 @@ export default function JobDetailScreen() {
       const responseData = (await response.json().catch(() => null)) as any;
 
       if (!response.ok) {
-        throw new Error(responseData?.error || "Failed to submit application");
+        throw new Error(getErrorMessage(responseData, "Failed to submit application"));
       }
 
       return responseData;

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 import Constants from "expo-constants";
 
 // Types
@@ -171,7 +172,7 @@ export function useCreateTicket() {
 
       const data = await response.json() as { success: boolean; ticket_id: number; message: string; error?: string };
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to create ticket");
+        throw new Error(getErrorMessage(data, "Failed to create ticket"));
       }
       return data;
     },
@@ -197,7 +198,7 @@ export function useReplyToTicket() {
 
       const data = await response.json() as { success: boolean; reply_id: number; message: string; error?: string };
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to send reply");
+        throw new Error(getErrorMessage(data, "Failed to send reply"));
       }
       return data;
     },

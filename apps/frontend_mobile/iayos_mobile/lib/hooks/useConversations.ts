@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 
 export type TeamMember = {
   profile_id: number;
@@ -193,7 +194,7 @@ export function useArchiveConversation() {
         const errorData = (await response
           .json()
           .catch(() => ({ error: "Unknown error" }))) as { error?: string };
-        throw new Error(errorData.error || "Failed to toggle archive status");
+        throw new Error(getErrorMessage(errorData, "Failed to toggle archive status"));
       }
 
       const data = (await response.json()) as { message: string };

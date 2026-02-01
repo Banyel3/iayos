@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, fetchJson, apiRequest } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 import { useWallet } from "./useWallet";
 
@@ -187,7 +188,7 @@ export const useUploadCashProof = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to upload cash proof");
+        throw new Error(getErrorMessage(error, "Failed to upload cash proof"));
       }
 
       return response.json();

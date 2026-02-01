@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // ===== TYPES =====
 
@@ -153,9 +154,7 @@ export const useCreateCertification = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(
-          error.error || error.message || "Failed to create certification"
-        );
+        throw new Error(getErrorMessage(error, "Failed to create certification"));
       }
 
       const result = await response.json();
@@ -270,7 +269,7 @@ export const useDeleteCertification = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to delete certification");
+        throw new Error(getErrorMessage(error, "Failed to delete certification"));
       }
 
       return response.json();

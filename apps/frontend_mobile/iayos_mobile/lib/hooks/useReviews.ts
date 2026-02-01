@@ -7,6 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Review,
   ReviewListResponse,
@@ -51,7 +52,7 @@ export function useWorkerReviews(
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch reviews");
+        throw new Error(getErrorMessage(errorData, "Failed to fetch reviews"));
       }
 
       const data = await response.json();
@@ -86,7 +87,7 @@ export function useClientReviews(clientId: number, page = 1, limit = 20) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch client reviews");
+        throw new Error(getErrorMessage(errorData, "Failed to fetch client reviews"));
       }
 
       const data = await response.json();
@@ -118,7 +119,7 @@ export function useReviewStats(workerId: number) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch review stats");
+        throw new Error(getErrorMessage(errorData, "Failed to fetch review stats"));
       }
 
       return response.json();
@@ -141,7 +142,7 @@ export function useMyReviews() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch your reviews");
+        throw new Error(getErrorMessage(errorData, "Failed to fetch your reviews"));
       }
 
       return response.json();
@@ -177,7 +178,7 @@ export function useSubmitReview() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to submit review");
+        throw new Error(getErrorMessage(errorData, "Failed to submit review"));
       }
 
       return response.json();
@@ -217,7 +218,7 @@ export function useEditReview(reviewId: number) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to edit review");
+        throw new Error(getErrorMessage(errorData, "Failed to edit review"));
       }
 
       return response.json();
@@ -252,7 +253,7 @@ export function useReportReview() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to report review");
+        throw new Error(getErrorMessage(errorData, "Failed to report review"));
       }
 
       return response.json();

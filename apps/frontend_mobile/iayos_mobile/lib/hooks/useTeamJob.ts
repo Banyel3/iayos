@@ -1,6 +1,7 @@
 // Team Job Hooks - React Query hooks for multi-skill multi-worker team jobs
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { Alert } from "react-native";
 
 // ============================================================================
@@ -89,7 +90,7 @@ export function useTeamJobDetail(jobId: number, enabled: boolean = true) {
         const error = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(error.error || "Failed to fetch team job details");
+        throw new Error(getErrorMessage(error, "Failed to fetch team job details"));
       }
       return response.json() as Promise<TeamJobDetail>;
     },
@@ -139,7 +140,7 @@ export function useApplyToSkillSlot() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Failed to submit application");
+        throw new Error(getErrorMessage(data, "Failed to submit application"));
       }
       return data;
     },
@@ -188,7 +189,7 @@ export function useAcceptTeamApplication() {
         worker_name?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Failed to accept application");
+        throw new Error(getErrorMessage(data, "Failed to accept application"));
       }
       return data;
     },
@@ -244,7 +245,7 @@ export function useRejectTeamApplication() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Failed to reject application");
+        throw new Error(getErrorMessage(data, "Failed to reject application"));
       }
       return data;
     },
@@ -296,7 +297,7 @@ export function useWorkerCompleteAssignment() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Failed to mark assignment complete");
+        throw new Error(getErrorMessage(data, "Failed to mark assignment complete"));
       }
       return data;
     },
@@ -347,7 +348,7 @@ export function useClientApproveTeamJob() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Failed to approve team job");
+        throw new Error(getErrorMessage(data, "Failed to approve team job"));
       }
       return data;
     },
@@ -389,7 +390,7 @@ export function useStartTeamJobWithAvailable() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Failed to start team job");
+        throw new Error(getErrorMessage(data, "Failed to start team job"));
       }
       return data;
     },
@@ -427,7 +428,7 @@ export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
         const error = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(error.error || "Failed to fetch team job applications");
+        throw new Error(getErrorMessage(error, "Failed to fetch team job applications"));
       }
       return response.json() as Promise<{
         applications: TeamJobApplication[];
