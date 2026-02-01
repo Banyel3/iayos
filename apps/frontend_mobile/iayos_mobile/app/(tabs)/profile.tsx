@@ -752,7 +752,7 @@ export default function ProfileScreen() {
             <MenuItem
               icon="help-circle-outline"
               label="Help & Support"
-              onPress={() => {}}
+              onPress={() => router.push("/support" as any)}
             />
             <MenuItem
               icon="information-circle-outline"
