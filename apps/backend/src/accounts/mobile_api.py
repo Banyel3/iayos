@@ -1480,10 +1480,10 @@ def mobile_remove_skill(request, skill_id: int):
         )
 
 
-@mobile_router.get("/locations/cities", auth=jwt_auth)
+@mobile_router.get("/locations/cities")
 def get_cities(request):
     """
-    Get all cities
+    Get all cities (public endpoint for registration)
     """
     from .models import City
     
@@ -1501,10 +1501,10 @@ def get_cities(request):
         )
 
 
-@mobile_router.get("/locations/cities/{city_id}/barangays", auth=jwt_auth)
+@mobile_router.get("/locations/cities/{city_id}/barangays")
 def get_barangays(request, city_id: int):
     """
-    Get all barangays for a specific city
+    Get all barangays for a specific city (public endpoint for registration)
     """
     from .models import Barangay
     
