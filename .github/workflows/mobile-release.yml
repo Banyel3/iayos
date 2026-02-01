@@ -461,6 +461,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Update Render Mobile Version
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.ref_name == 'main'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          NEW_VERSION: ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}
+        run: |
+          echo "📱 Updating Render mobile version to $NEW_VERSION..."
+          
+          # Update MOBILE_MIN_VERSION (forces update for older versions)
+          curl -s -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_MIN_VERSION" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"value\": \"$NEW_VERSION\"}"
+          
+          # Update MOBILE_CURRENT_VERSION (latest available version)
+          curl -s -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_CURRENT_VERSION" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"value\": \"$NEW_VERSION\"}"
+          
+          echo "✅ Render env vars updated to $NEW_VERSION"
+          
+          # Trigger Render redeploy to apply new env vars
+          echo "🚀 Triggering Render redeploy..."
+          curl -s -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": false}'
+          
+          echo "✅ Render redeploy triggered"
+
       - name: Summary
         if: always()
         run: |
