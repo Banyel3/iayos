@@ -21,6 +21,7 @@ import {
   X,
   Briefcase,
   DollarSign,
+  Edit2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { JOB_CATEGORIES } from "@/lib/job-categories";
@@ -28,8 +29,13 @@ import { JOB_CATEGORIES } from "@/lib/job-categories";
 interface Employee {
   id: string | number;
   employeeId?: number;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  fullName?: string;
   name: string;
   email: string;
+  specializations?: string[];
   role?: string;
   avatar?: string | null;
   rating?: number | null;
@@ -86,9 +92,22 @@ export default function EmployeesPage() {
   const [performanceStats, setPerformanceStats] =
     useState<PerformanceStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
+  
+  // Add Employee form state - name breakdown
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("");
+  const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
+
+  // Edit Employee modal state
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editMiddleName, setEditMiddleName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // EOTM modal state
   const [settingEOTM, setSettingEOTM] = useState(false);
@@ -210,22 +229,101 @@ export default function EmployeesPage() {
     setSettingEOTM(true);
   };
 
-  const addEmployee = async () => {
-    if (!name || !email) {
-      toast.error("Name and email are required");
+  const handleEditEmployee = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setEditFirstName(emp.firstName || "");
+    setEditMiddleName(emp.middleName || "");
+    setEditLastName(emp.lastName || "");
+    setEditEmail(emp.email);
+    setEditSpecializations(emp.specializations || (emp.role ? [emp.role] : []));
+  };
+
+  const toggleSpecialization = (spec: string) => {
+    setSelectedSpecializations(prev => 
+      prev.includes(spec) 
+        ? prev.filter(s => s !== spec)
+        : [...prev, spec]
+    );
+  };
+
+  const toggleEditSpecialization = (spec: string) => {
+    setEditSpecializations(prev => 
+      prev.includes(spec) 
+        ? prev.filter(s => s !== spec)
+        : [...prev, spec]
+    );
+  };
+
+  const saveEditEmployee = async () => {
+    if (!editingEmployee) return;
+    
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      toast.error("First name and last name are required");
+      return;
+    }
+    
+    if (editSpecializations.length === 0) {
+      toast.error("At least one specialization is required");
       return;
     }
 
-    if (!role) {
-      toast.error("Role/specialization is required");
+    setIsSavingEdit(true);
+    try {
+      const employeeId = editingEmployee.employeeId || editingEmployee.id;
+      const res = await fetch(`${API_BASE}/api/agency/employees/${employeeId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstName: editFirstName.trim(),
+          middleName: editMiddleName.trim(),
+          lastName: editLastName.trim(),
+          email: editEmail,
+          specializations: editSpecializations,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Employee updated successfully");
+        setEditingEmployee(null);
+        fetchEmployees();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to update employee");
+      }
+    } catch (error) {
+      console.error("Error updating employee:", error);
+      toast.error("Error updating employee");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const addEmployee = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      toast.error("First name and last name are required");
+      return;
+    }
+
+    if (!email) {
+      toast.error("Email is required");
+      return;
+    }
+
+    if (selectedSpecializations.length === 0) {
+      toast.error("At least one specialization is required");
       return;
     }
 
     try {
       const formData = new FormData();
-      formData.append("name", name);
+      formData.append("firstName", firstName.trim());
+      formData.append("middleName", middleName.trim());
+      formData.append("lastName", lastName.trim());
       formData.append("email", email);
-      formData.append("role", role);
+      formData.append("specializations", JSON.stringify(selectedSpecializations));
 
       const res = await fetch(`${API_BASE}/api/agency/employees`, {
         method: "POST",
@@ -235,9 +333,11 @@ export default function EmployeesPage() {
 
       if (res.ok) {
         toast.success("Employee added successfully");
-        setName("");
+        setFirstName("");
+        setMiddleName("");
+        setLastName("");
         setEmail("");
-        setRole("");
+        setSelectedSpecializations([]);
         fetchEmployees();
       } else {
         const err = await res.json();
@@ -517,29 +617,58 @@ export default function EmployeesPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="First name *"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                      />
+                      <Input
+                        placeholder="Last name *"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                      />
+                    </div>
                     <Input
-                      placeholder="Full name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Middle name (optional)"
+                      value={middleName}
+                      onChange={(e) => setMiddleName(e.target.value)}
                     />
                     <Input
-                      placeholder="Email"
+                      placeholder="Email *"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
-                    <Select value={role} onValueChange={setRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Role/Specialization *" />
-                      </SelectTrigger>
-                      <SelectContent>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Specializations * (select one or more)
+                      </label>
+                      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
                         {JOB_CATEGORIES.map((category) => (
-                          <SelectItem key={category.id} value={category.name}>
+                          <button
+                            key={category.id}
+                            type="button"
+                            onClick={() => toggleSpecialization(category.name)}
+                            className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                              selectedSpecializations.includes(category.name)
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                            }`}
+                          >
                             {category.name}
-                          </SelectItem>
+                            {selectedSpecializations.includes(category.name) && (
+                              <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                            )}
+                          </button>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                      {selectedSpecializations.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Selected: {selectedSpecializations.join(", ")}
+                        </p>
+                      )}
+                    </div>
                     <Button onClick={addEmployee} className="w-full">
                       Add Employee
                     </Button>
@@ -599,7 +728,9 @@ export default function EmployeesPage() {
                               )}
                             </div>
                             <div className="text-sm text-gray-600">
-                              {emp.role} • {emp.email}
+                              {(emp.specializations && emp.specializations.length > 0) 
+                                ? emp.specializations.join(", ") 
+                                : emp.role} • {emp.email}
                             </div>
                             <div className="flex items-center gap-4 mt-1">
                               <Rating value={emp.rating} />
@@ -612,6 +743,14 @@ export default function EmployeesPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => handleEditEmployee(emp)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="sm"
+                          >
+                            <Edit2 className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
                           <Button
                             onClick={() => handleSetEOTM(emp)}
                             className="bg-yellow-500 hover:bg-yellow-600 text-white"
@@ -948,6 +1087,117 @@ export default function EmployeesPage() {
                       setSettingEOTM(false);
                       setSelectedEmployee(null);
                     }}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Edit Employee Modal */}
+        {editingEmployee && (
+          <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-lg">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Edit2 className="h-5 w-5 text-blue-500" />
+                    Edit Employee
+                  </CardTitle>
+                  <button
+                    onClick={() => setEditingEmployee(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name *
+                    </label>
+                    <Input
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name *
+                    </label>
+                    <Input
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      placeholder="Last name"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Middle Name (optional)
+                  </label>
+                  <Input
+                    value={editMiddleName}
+                    onChange={(e) => setEditMiddleName(e.target.value)}
+                    placeholder="Middle name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <Input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="Email address"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Specializations * (select one or more)
+                  </label>
+                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                    {JOB_CATEGORIES.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => toggleEditSpecialization(category.name)}
+                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                          editSpecializations.includes(category.name)
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                        }`}
+                      >
+                        {category.name}
+                        {editSpecializations.includes(category.name) && (
+                          <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {editSpecializations.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selected: {editSpecializations.join(", ")}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={saveEditEmployee}
+                    disabled={isSavingEdit}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSavingEdit ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button
+                    onClick={() => setEditingEmployee(null)}
                     className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
                   >
                     Cancel

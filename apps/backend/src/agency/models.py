@@ -155,9 +155,19 @@ class AgencyEmployee(models.Model):
         related_name="agency_employees"
     )
     
-    # Employee details
+    # Employee name breakdown (NEW)
+    firstName = models.CharField(max_length=100, default="")
+    middleName = models.CharField(max_length=100, blank=True, default="")
+    lastName = models.CharField(max_length=100, default="")
+    
+    # Legacy name field (kept for backward compatibility during migration)
     name = models.CharField(max_length=255)
     email = models.EmailField(max_length=255)
+    
+    # Specializations as JSON array (NEW - replaces single role)
+    specializations = models.TextField(default="[]", help_text="JSON array of specialization names")
+    
+    # Legacy role field (kept for backward compatibility during migration)
     role = models.CharField(max_length=100, blank=True, default="")
     avatar = models.CharField(max_length=1000, blank=True, null=True)  # URL to avatar image
     rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)  # 0.00 to 5.00
@@ -212,12 +222,37 @@ class AgencyEmployee(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.name} ({self.email}) - {self.agency.email}"
+        return f"{self.fullName} ({self.email}) - {self.agency.email}"
 
     @property
     def employeeId(self):
         """Alias with lowercase d for backward compatibility."""
         return self.employeeID
+
+    @property
+    def fullName(self):
+        """Computed full name from firstName, middleName, lastName."""
+        parts = [self.firstName or ""]
+        if self.middleName:
+            parts.append(self.middleName)
+        if self.lastName:
+            parts.append(self.lastName)
+        full = " ".join(filter(None, parts))
+        # Fallback to legacy name field if parts are empty
+        return full if full.strip() else self.name
+    
+    def get_specializations_list(self):
+        """Get specializations as Python list."""
+        import json
+        try:
+            return json.loads(self.specializations or "[]")
+        except json.JSONDecodeError:
+            return [self.role] if self.role else []
+    
+    def set_specializations_list(self, specs_list):
+        """Set specializations from Python list."""
+        import json
+        self.specializations = json.dumps(specs_list or [])
     
     def calculate_average_rating(self):
         """

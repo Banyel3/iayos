@@ -778,20 +778,74 @@ def get_employees(request):
 
 @router.post("/employees", auth=cookie_auth)
 def add_employee(request):
-    """Add a new employee to the agency."""
+    """Add a new employee to the agency with name breakdown and multi-specializations."""
     try:
+        import json
         account_id = request.auth.accountID
-        name = request.POST.get("name")
+        firstName = request.POST.get("firstName")
+        lastName = request.POST.get("lastName")
+        middleName = request.POST.get("middleName", "")
         email = request.POST.get("email")
-        role = request.POST.get("role")
+        
+        # Handle specializations as JSON array
+        specializations_raw = request.POST.get("specializations", "[]")
+        try:
+            specializations = json.loads(specializations_raw)
+        except json.JSONDecodeError:
+            # Fallback: treat as single role (backward compatibility)
+            role = request.POST.get("role", "")
+            specializations = [role] if role else []
+        
         avatar = request.POST.get("avatar")
         rating = float(request.POST.get("rating")) if request.POST.get("rating") else None
-        result = services.add_agency_employee(account_id, name, email, role, avatar, rating)
+        
+        result = services.add_agency_employee(
+            account_id, firstName, lastName, email, specializations,
+            middleName=middleName, avatar=avatar, rating=rating
+        )
         return result
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"Error adding employee: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.put("/employees/{employee_id}", auth=cookie_auth)
+def update_employee(request, employee_id: int):
+    """Update an existing employee's information."""
+    try:
+        import json
+        account_id = request.auth.accountID
+        
+        # Parse JSON body for PUT request
+        body = json.loads(request.body.decode('utf-8'))
+        
+        firstName = body.get("firstName")
+        lastName = body.get("lastName")
+        middleName = body.get("middleName")
+        email = body.get("email")
+        specializations = body.get("specializations")
+        avatar = body.get("avatar")
+        isActive = body.get("isActive")
+        
+        result = services.update_agency_employee(
+            account_id, employee_id,
+            firstName=firstName,
+            lastName=lastName,
+            middleName=middleName,
+            email=email,
+            specializations=specializations,
+            avatar=avatar,
+            isActive=isActive
+        )
+        return result
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except json.JSONDecodeError:
+        return Response({"error": "Invalid JSON body"}, status=400)
+    except Exception as e:
+        print(f"Error updating employee: {str(e)}")
         return Response({"error": "Internal server error"}, status=500)
 
 
