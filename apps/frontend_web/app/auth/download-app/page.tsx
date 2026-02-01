@@ -165,13 +165,7 @@ export default function DownloadAppPage() {
             </a>
 
             <p className="text-center text-sm text-gray-500">
-              {loading ? (
-                'Loading version...'
-              ) : error ? (
-                <span className="text-amber-600">v{release?.version || '?'} • Using fallback</span>
-              ) : (
-                <>v{release?.version} • Latest Release</>
-              )}
+              Latest Release
             </p>
           </div>
 
