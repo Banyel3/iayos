@@ -427,6 +427,10 @@ export const ENDPOINTS = {
   WALLET_PENDING_EARNINGS: `${API_URL}/api/mobile/wallet/pending-earnings`,
   TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
   DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
+  // TODO: REMOVE FOR PROD - GCash direct deposit for testing
+  DEPOSIT_GCASH: `${API_URL}/api/mobile/wallet/deposit-gcash`,
+  // Mobile config endpoint (no auth required)
+  MOBILE_CONFIG: `${API_URL}/api/mobile/config`,
 
   // Phase 3: Escrow Payment System (10 endpoints)
   CREATE_ESCROW_PAYMENT: `${API_URL}/api/mobile/payments/escrow`,

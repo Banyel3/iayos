@@ -148,6 +148,11 @@ APP_VERSION = os.environ.get('APP_VERSION', '1.0.0')
 
 # Logging configuration
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+
+# Feature Flags
+# TESTING mode enables additional payment methods for testing (e.g., direct GCash)
+# Set to 'true' in development/staging environments
+TESTING = os.environ.get('TESTING', 'false').lower() == 'true'
 JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
 
 # Rate limiting
