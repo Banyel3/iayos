@@ -75,6 +75,7 @@ def create_account_individ(data):
         email=data.email,
         password=data.password,
         street_address=data.street_address,
+        barangay=data.barangay,
         city=data.city,
         province=data.province,
         postal_code=data.postal_code,
@@ -149,6 +150,11 @@ def create_account_agency(data):
     profile = Agency.objects.create(
         accountFK=user,
         businessName=data.businessName,
+        street_address=data.street_address,
+        barangay=data.barangay,
+        city=data.city,
+        province=data.province,
+        postal_code=data.postal_code,
         businessDesc=""  # Provide empty string for required field
     )
 

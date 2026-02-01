@@ -15,6 +15,7 @@ class createAccountSchema(Schema):
     email: EmailStr
     password: str
     street_address: str
+    barangay: str             # "Tetuan"
     city: str             # "Zamboanga City"
     province: str        # "Zamboanga del Sur"
     postal_code: str    # Changed from int to str to match Accounts model CharField
@@ -36,6 +37,7 @@ class createAgencySchema(Schema):
     password: str
     businessName: str
     street_address: str
+    barangay: str             # "Tetuan"
     city: str             # "Zamboanga City"
     province: str        # "Zamboanga del Sur"
     postal_code: str    # "7000"
