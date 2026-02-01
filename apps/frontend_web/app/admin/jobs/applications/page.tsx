@@ -181,9 +181,9 @@ export default function JobApplicationsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex">
+      <div className="min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="flex-1 p-6">
+        <main className="pl-72 p-6 min-h-screen">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
             <div className="space-y-4">
@@ -198,9 +198,9 @@ export default function JobApplicationsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6">
+      <main className="pl-72 p-6 min-h-screen">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <div>

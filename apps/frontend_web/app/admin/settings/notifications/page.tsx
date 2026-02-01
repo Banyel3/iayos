@@ -200,9 +200,9 @@ export default function NotificationTemplatesPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -223,9 +223,9 @@ export default function NotificationTemplatesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         {/* Header */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-indigo-500 opacity-20 blur-3xl pointer-events-none"></div>
@@ -285,16 +285,14 @@ export default function NotificationTemplatesPage() {
                       </div>
                       <div className="flex items-center gap-2 ml-4">
                         <button
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            template.is_active ? "bg-green-600" : "bg-gray-300"
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${template.is_active ? "bg-green-600" : "bg-gray-300"
+                            }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              template.is_active
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${template.is_active
                                 ? "translate-x-6"
                                 : "translate-x-1"
-                            }`}
+                              }`}
                           />
                         </button>
                       </div>
@@ -352,16 +350,14 @@ export default function NotificationTemplatesPage() {
                       </div>
                       <div className="flex items-center gap-2 ml-4">
                         <button
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            template.is_active ? "bg-green-600" : "bg-gray-300"
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${template.is_active ? "bg-green-600" : "bg-gray-300"
+                            }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              template.is_active
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${template.is_active
                                 ? "translate-x-6"
                                 : "translate-x-1"
-                            }`}
+                              }`}
                           />
                         </button>
                       </div>
@@ -419,16 +415,14 @@ export default function NotificationTemplatesPage() {
                       </div>
                       <div className="flex items-center gap-2 ml-4">
                         <button
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            template.is_active ? "bg-green-600" : "bg-gray-300"
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${template.is_active ? "bg-green-600" : "bg-gray-300"
+                            }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              template.is_active
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${template.is_active
                                 ? "translate-x-6"
                                 : "translate-x-1"
-                            }`}
+                              }`}
                           />
                         </button>
                       </div>
@@ -537,16 +531,14 @@ export default function NotificationTemplatesPage() {
                         onClick={() =>
                           handleChange("is_active", !formData.is_active)
                         }
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          formData.is_active ? "bg-green-600" : "bg-gray-300"
-                        }`}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.is_active ? "bg-green-600" : "bg-gray-300"
+                          }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            formData.is_active
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.is_active
                               ? "translate-x-6"
                               : "translate-x-1"
-                          }`}
+                            }`}
                         />
                       </button>
                     </div>

@@ -205,9 +205,9 @@ export default function AuditLogsPage() {
 
   if (loading && logs.length === 0) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -228,9 +228,9 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         {/* Header */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-slate-600 via-gray-700 to-zinc-700 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-slate-500 opacity-20 blur-3xl pointer-events-none"></div>
@@ -254,14 +254,12 @@ export default function AuditLogsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setAutoRefresh(!autoRefresh)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      autoRefresh ? "bg-green-600" : "bg-gray-400"
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoRefresh ? "bg-green-600" : "bg-gray-400"
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        autoRefresh ? "translate-x-6" : "translate-x-1"
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoRefresh ? "translate-x-6" : "translate-x-1"
+                        }`}
                     />
                   </button>
                   <span className="text-sm text-white">Auto-refresh</span>

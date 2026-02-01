@@ -65,9 +65,9 @@ export default function JobsManagementPage() {
 
   if (isLoading) {
     return (
-      <div className="flex">
+      <div className="min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className="pl-72 p-6 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -119,9 +119,9 @@ export default function JobsManagementPage() {
   ];
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="pl-72 p-6 min-h-screen">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-6">
@@ -330,15 +330,14 @@ export default function JobsManagementPage() {
                       className="flex items-start space-x-3 pb-3 border-b last:border-b-0"
                     >
                       <div
-                        className={`p-2 rounded-full ${
-                          activity.type === "new_job"
+                        className={`p-2 rounded-full ${activity.type === "new_job"
                             ? "bg-blue-100"
                             : activity.type === "application"
                               ? "bg-purple-100"
                               : activity.type === "completed"
                                 ? "bg-green-100"
                                 : "bg-red-100"
-                        }`}
+                          }`}
                       >
                         {activity.type === "new_job" && (
                           <Briefcase className="h-4 w-4 text-blue-600" />

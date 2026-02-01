@@ -268,9 +268,9 @@ export default function WorkerDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div className="min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="pl-72 flex items-center justify-center min-h-screen">
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
             <p className="text-gray-600">Loading worker details...</p>
@@ -282,9 +282,9 @@ export default function WorkerDetailPage() {
 
   if (error || !worker) {
     return (
-      <div className="flex">
+      <div className="min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="pl-72 flex items-center justify-center min-h-screen">
           <Card className="p-8 text-center max-w-md">
             <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error</h2>
@@ -302,9 +302,9 @@ export default function WorkerDetailPage() {
   const completionRate = worker.job_stats.completion_rate || 0;
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="pl-72 p-6 bg-gray-50 min-h-screen">
         {/* Header */}
         <div className="mb-6">
           <Button
@@ -327,26 +327,24 @@ export default function WorkerDetailPage() {
               {/* Status Badges */}
               <div className="flex gap-2">
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    worker.status === "active" || worker.status === "verified"
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${worker.status === "active" || worker.status === "verified"
                       ? "bg-green-100 text-green-800"
                       : worker.status === "banned"
                         ? "bg-red-100 text-red-800"
                         : "bg-yellow-100 text-yellow-800"
-                  }`}
+                    }`}
                 >
                   {(worker.status || "inactive").toUpperCase()}
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                    worker.kyc_status === "APPROVED"
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${worker.kyc_status === "APPROVED"
                       ? "bg-green-100 text-green-800"
                       : worker.kyc_status === "PENDING"
                         ? "bg-yellow-100 text-yellow-800"
                         : worker.kyc_status === "REJECTED"
                           ? "bg-red-100 text-red-800"
                           : "bg-gray-100 text-gray-600"
-                  }`}
+                    }`}
                 >
                   {worker.kyc_status === "APPROVED" && (
                     <CheckCircle className="h-3 w-3" />
@@ -700,15 +698,14 @@ export default function WorkerDetailPage() {
                   <div className="flex justify-between py-2 border-b">
                     <span className="text-gray-600">KYC Status</span>
                     <span
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                        worker.kyc_status === "APPROVED"
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${worker.kyc_status === "APPROVED"
                           ? "bg-green-100 text-green-800"
                           : worker.kyc_status === "PENDING"
                             ? "bg-yellow-100 text-yellow-800"
                             : worker.kyc_status === "REJECTED"
                               ? "bg-red-100 text-red-800"
                               : "bg-gray-100 text-gray-800"
-                      }`}
+                        }`}
                     >
                       {worker.kyc_status || "NOT_SUBMITTED"}
                     </span>
@@ -716,14 +713,13 @@ export default function WorkerDetailPage() {
                   <div className="flex justify-between py-2 border-b">
                     <span className="text-gray-600">Account Status</span>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        worker.status === "active" ||
-                        worker.status === "verified"
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${worker.status === "active" ||
+                          worker.status === "verified"
                           ? "bg-green-100 text-green-800"
                           : worker.status === "banned"
                             ? "bg-red-100 text-red-800"
                             : "bg-yellow-100 text-yellow-800"
-                      }`}
+                        }`}
                     >
                       {(worker.status || "inactive").toUpperCase()}
                     </span>

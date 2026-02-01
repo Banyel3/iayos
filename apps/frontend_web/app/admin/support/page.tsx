@@ -84,9 +84,9 @@ export default function SupportPage() {
   };
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 space-y-6">
+      <main className="pl-72 p-6 space-y-6 min-h-screen">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">

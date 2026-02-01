@@ -120,9 +120,9 @@ export default function AnalyticsDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 text-white">
           {/* Blur Orbs */}
@@ -199,7 +199,6 @@ export default function AnalyticsDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Total Users Card */}
             <Card className="relative overflow-hidden hover:shadow-2xl transition-all duration-300 group border-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl group-hover:scale-110 transition-transform">
@@ -248,7 +247,6 @@ export default function AnalyticsDashboard() {
 
             {/* Active Jobs Card */}
             <Card className="relative overflow-hidden hover:shadow-2xl transition-all duration-300 group border-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 transition-transform">
@@ -285,7 +283,6 @@ export default function AnalyticsDashboard() {
 
             {/* Total Revenue Card */}
             <Card className="relative overflow-hidden hover:shadow-2xl transition-all duration-300 group border-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl group-hover:scale-110 transition-transform">
@@ -336,7 +333,6 @@ export default function AnalyticsDashboard() {
 
             {/* Platform Fees Card */}
             <Card className="relative overflow-hidden hover:shadow-2xl transition-all duration-300 group border-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform">
@@ -345,9 +341,9 @@ export default function AnalyticsDashboard() {
                   <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
                     {stats?.revenue.platform_fees
                       ? (
-                          (stats.revenue.platform_fees / stats.revenue.total) *
-                          100
-                        ).toFixed(1)
+                        (stats.revenue.platform_fees / stats.revenue.total) *
+                        100
+                      ).toFixed(1)
                       : 0}
                     %
                   </Badge>

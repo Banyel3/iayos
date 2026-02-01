@@ -174,14 +174,14 @@ jobs:
           esac
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-
+          
           # Check if this tag already exists and keep incrementing until we find an unused one
           cd ${{ github.workspace }}
           git fetch --tags
-
+          
           TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}"
           TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
-
+          
           MAX_INCREMENT=10
           INCREMENT=0
           while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
@@ -196,13 +196,13 @@ jobs:
               exit 1
             fi
           done
-
+          
           if [ $INCREMENT -gt 0 ]; then
             echo "✅ Found unused version: $NEW_VERSION (incremented $INCREMENT times)"
           fi
-
+          
           cd ${{ env.MOBILE_DIR }}
-
+          
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
@@ -224,66 +224,73 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
-      - name: Run Expo Doctor
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
-        working-directory: ${{ env.MOBILE_DIR }}
+      # ============================================
+      # LOCAL BUILD SETUP (No EAS Cloud Credits!)
+      # ============================================
+      
+      - name: Setup Java JDK 17
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708  # Latest stable
+          
+      - name: Accept Android Licenses
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install Android Build Tools
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         run: |
-          echo "🩺 Running Expo Doctor to validate project configuration..."
-          npx expo-doctor || {
-            echo "❌ Expo Doctor failed! Fix configuration issues before building."
-            exit 1
-          }
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      # ============================================
-      # EAS CLOUD BUILD (Managed Environment - STABLE)
-      # ============================================
-      # Using EAS Cloud builds for stability - Expo manages all native tooling.
-      # Local builds with custom NDK/Gradle caused native crashes.
-
-      - name: Build Android APK (EAS Cloud)
+      - name: Build Android APK (Local - No EAS Credits!)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           BUILD_PROFILE="production"
-
-          echo "🏗️ EAS CLOUD BUILD with profile: $BUILD_PROFILE"
-          echo "☁️ Using Expo's managed build environment for stability"
+          
+          echo "🏗️ LOCAL BUILD with profile: $BUILD_PROFILE"
+          echo "✅ No EAS cloud credits consumed - building locally!"
+          
           echo "📦 Production build - ready for app store distribution"
-
-          # Run EAS Cloud build (uses Expo's managed native tooling)
-          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
-
-          # Download the built APK
-          echo "📥 Downloading built APK..."
-          sleep 5
-          BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive)
-          BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl')
           
-          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
-            echo "❌ Failed to get build URL"
-            exit 1
-          fi
-
-          echo "Downloading from: $BUILD_URL"
-          curl -L --fail --retry 3 -o ./iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+          # Run local build (outputs APK directly, no cloud needed!)
+          # The --local flag builds on this runner instead of EAS servers
+          eas build --platform android --profile $BUILD_PROFILE --local --non-interactive --output=./build-output.apk
           
-          echo "✅ EAS Cloud build complete!"
+          # Rename to versioned filename
+          mv ./build-output.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
+          
+          echo "✅ Local build complete!"
           ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
       - name: Download APK from EAS (if using latest build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          echo "♻️ Fetching latest existing build from Expo..."
-
+          echo "♻️ Attempting to use latest existing build from Expo..."
+          echo ""
+          echo "⚠️  NOTE: This option only works for CLOUD (EAS) builds!"
+          echo "   Local builds are not uploaded to Expo and cannot be reused."
+          echo "   If you've been using local builds, you need to build fresh."
+          echo ""
+          
           # Get build info
           BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
           BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
           BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // empty')
           BUILD_DATE=$(echo "$BUILD_INFO" | jq -r '.[0].createdAt // empty')
-
+          
           if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
             echo "❌ No existing EAS cloud build found!"
             echo ""
@@ -293,16 +300,16 @@ jobs:
             echo ""
             exit 1
           fi
-
+          
           echo "📦 Found EAS build:"
           echo "   Status: $BUILD_STATUS"
           echo "   Date: $BUILD_DATE"
           echo "   URL: $BUILD_URL"
           echo ""
-
+          
           echo "Downloading APK from: $BUILD_URL"
           curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
-
+          
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
@@ -351,27 +358,27 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-
+          
           # Use the version that was already verified to not have an existing tag
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
           TAG_NAME="${{ steps.version.outputs.tag_name }}"
-
+          
           echo "📦 Version: $NEW_VERSION"
           echo "🏷️ Tag: $TAG_NAME"
-
+          
           echo "final_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-
+          
           # Sync with remote first
           echo "🔄 Syncing with remote before committing..."
           git fetch origin ${{ github.ref_name }}
           git reset --hard origin/${{ github.ref_name }}
-
+          
           # Apply version changes
           cd ${{ env.MOBILE_DIR }}
-
+          
           npm version $NEW_VERSION --no-git-tag-version --allow-same-version
-
+          
           # Update app.json version
           node -e "
             const fs = require('fs');
@@ -379,12 +386,12 @@ jobs:
             appJson.expo.version = '$NEW_VERSION';
             fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
           "
-
+          
           cd -
-
+          
           # Now commit and push
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
-
+          
           # Check if there are changes to commit
           if git diff --cached --quiet; then
             echo "ℹ️ No version changes to commit (already at $NEW_VERSION)"

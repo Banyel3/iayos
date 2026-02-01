@@ -176,7 +176,6 @@ export default function DisputesPage() {
           {statistics && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/20 to-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-orange-100 rounded-xl">
@@ -191,7 +190,6 @@ export default function DisputesPage() {
               </Card>
 
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-yellow-100 rounded-xl">
@@ -206,7 +204,6 @@ export default function DisputesPage() {
               </Card>
 
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-green-100 rounded-xl">
@@ -221,7 +218,6 @@ export default function DisputesPage() {
               </Card>
 
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-blue-100 rounded-xl">
@@ -310,7 +306,6 @@ export default function DisputesPage() {
                     router.push(`/admin/payments/disputes/${dispute.id}`)
                   }
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                   <CardContent className="p-6 relative">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">

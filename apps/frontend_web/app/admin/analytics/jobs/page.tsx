@@ -73,9 +73,9 @@ export default function JobAnalytics() {
   const applicationMetrics = stats?.application_metrics || {};
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50">
+      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
@@ -274,47 +274,47 @@ export default function JobAnalytics() {
                     {(categoryStats.length > 0
                       ? categoryStats
                       : [
-                          {
-                            name: "Construction",
-                            posted: 1245,
-                            completed: 1089,
-                            rate: 87.5,
-                            budget: 8500,
-                            revenue: 9261500,
-                          },
-                          {
-                            name: "Plumbing",
-                            posted: 987,
-                            completed: 856,
-                            rate: 86.7,
-                            budget: 2500,
-                            revenue: 2140000,
-                          },
-                          {
-                            name: "Electrical",
-                            posted: 876,
-                            completed: 745,
-                            rate: 85.0,
-                            budget: 3200,
-                            revenue: 2384000,
-                          },
-                          {
-                            name: "Carpentry",
-                            posted: 654,
-                            completed: 578,
-                            rate: 88.4,
-                            budget: 4500,
-                            revenue: 2601000,
-                          },
-                          {
-                            name: "Painting",
-                            posted: 543,
-                            completed: 456,
-                            rate: 84.0,
-                            budget: 1800,
-                            revenue: 820800,
-                          },
-                        ]
+                        {
+                          name: "Construction",
+                          posted: 1245,
+                          completed: 1089,
+                          rate: 87.5,
+                          budget: 8500,
+                          revenue: 9261500,
+                        },
+                        {
+                          name: "Plumbing",
+                          posted: 987,
+                          completed: 856,
+                          rate: 86.7,
+                          budget: 2500,
+                          revenue: 2140000,
+                        },
+                        {
+                          name: "Electrical",
+                          posted: 876,
+                          completed: 745,
+                          rate: 85.0,
+                          budget: 3200,
+                          revenue: 2384000,
+                        },
+                        {
+                          name: "Carpentry",
+                          posted: 654,
+                          completed: 578,
+                          rate: 88.4,
+                          budget: 4500,
+                          revenue: 2601000,
+                        },
+                        {
+                          name: "Painting",
+                          posted: 543,
+                          completed: 456,
+                          rate: 84.0,
+                          budget: 1800,
+                          revenue: 820800,
+                        },
+                      ]
                     ).map((cat: any, i: number) => (
                       <tr key={i} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-medium text-gray-900">
@@ -365,20 +365,20 @@ export default function JobAnalytics() {
                   {(budgetDistribution.length > 0
                     ? budgetDistribution
                     : [
-                        { range: "₱0 - ₱500", count: 567, percentage: 12 },
-                        { range: "₱500 - ₱1,000", count: 1234, percentage: 27 },
-                        {
-                          range: "₱1,000 - ₱2,500",
-                          count: 1567,
-                          percentage: 34,
-                        },
-                        {
-                          range: "₱2,500 - ₱5,000",
-                          count: 890,
-                          percentage: 19,
-                        },
-                        { range: "₱5,000+", count: 309, percentage: 8 },
-                      ]
+                      { range: "₱0 - ₱500", count: 567, percentage: 12 },
+                      { range: "₱500 - ₱1,000", count: 1234, percentage: 27 },
+                      {
+                        range: "₱1,000 - ₱2,500",
+                        count: 1567,
+                        percentage: 34,
+                      },
+                      {
+                        range: "₱2,500 - ₱5,000",
+                        count: 890,
+                        percentage: 19,
+                      },
+                      { range: "₱5,000+", count: 309, percentage: 8 },
+                    ]
                   ).map((budget: any, i: number) => (
                     <div key={i} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">

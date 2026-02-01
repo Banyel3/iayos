@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "web": "cd apps/frontend_web && npm run dev",
+    "web:build": "cd apps/frontend_web && npm run build",
+    "web:start": "cd apps/frontend_web && npm start"
+  },
   "devDependencies": {
     "turbo": "^2.5.8"
   },

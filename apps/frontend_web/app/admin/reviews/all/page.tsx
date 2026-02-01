@@ -127,11 +127,10 @@ export default function AllReviewsPage() {
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`h-4 w-4 ${
-              star <= rating
+            className={`h-4 w-4 ${star <= rating
                 ? "fill-yellow-400 text-yellow-400"
                 : "text-gray-300"
-            }`}
+              }`}
           />
         ))}
         <span className="ml-2 text-sm font-medium text-gray-700">
@@ -143,9 +142,9 @@ export default function AllReviewsPage() {
 
   if (isLoading && !stats) {
     return (
-      <div className="flex">
+      <div className="min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className="pl-72 p-6 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -158,9 +157,9 @@ export default function AllReviewsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6">
+      <main className="pl-72 p-6 min-h-screen">
         <div className="max-w-7xl mx-auto">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -319,26 +318,23 @@ export default function AllReviewsPage() {
             {filteredReviews.map((review) => (
               <Card
                 key={review.id}
-                className={`hover:shadow-lg transition-shadow ${
-                  review.is_flagged ? "border-2 border-red-200 bg-red-50" : ""
-                }`}
+                className={`hover:shadow-lg transition-shadow ${review.is_flagged ? "border-2 border-red-200 bg-red-50" : ""
+                  }`}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                          review.reviewer.type === "CLIENT"
+                        className={`h-10 w-10 rounded-full flex items-center justify-center ${review.reviewer.type === "CLIENT"
                             ? "bg-purple-100"
                             : "bg-blue-100"
-                        }`}
+                          }`}
                       >
                         <User
-                          className={`h-5 w-5 ${
-                            review.reviewer.type === "CLIENT"
+                          className={`h-5 w-5 ${review.reviewer.type === "CLIENT"
                               ? "text-purple-600"
                               : "text-blue-600"
-                          }`}
+                            }`}
                         />
                       </div>
                       <div>

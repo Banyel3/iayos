@@ -125,9 +125,9 @@ export default function SupportAnalyticsPage() {
 
   if (loading || !stats) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="pl-72 flex items-center justify-center min-h-screen">
           <div className="text-center">
             <BarChart3 className="h-16 w-16 text-gray-400 animate-pulse mx-auto" />
             <p className="text-gray-500 mt-4 text-lg">Loading analytics...</p>
@@ -138,9 +138,9 @@ export default function SupportAnalyticsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-700 p-8 text-white shadow-xl">
@@ -507,13 +507,12 @@ export default function SupportAnalyticsPage() {
                       className="flex-1 flex flex-col items-center"
                     >
                       <div
-                        className={`w-full rounded-t ${
-                          item.time < 4
+                        className={`w-full rounded-t ${item.time < 4
                             ? "bg-green-500"
                             : item.time < 8
                               ? "bg-yellow-500"
                               : "bg-red-500"
-                        }`}
+                          }`}
                         style={{ height: `${height}%` }}
                         title={`${formatTime(item.time)} on ${item.date}`}
                       ></div>

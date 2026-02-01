@@ -220,9 +220,9 @@ export default function PendingKYCPage() {
           const daysPending = isNaN(submissionDate.getTime())
             ? 0
             : Math.floor(
-                (today.getTime() - submissionDate.getTime()) /
-                  (1000 * 60 * 60 * 24),
-              );
+              (today.getTime() - submissionDate.getTime()) /
+              (1000 * 60 * 60 * 24),
+            );
           let priority: "high" | "medium" | "low" = "low";
           if (daysPending > 14) priority = "high";
           else if (daysPending > 7) priority = "medium";
@@ -260,9 +260,9 @@ export default function PendingKYCPage() {
           const daysPending = isNaN(submissionDate.getTime())
             ? 0
             : Math.floor(
-                (today.getTime() - submissionDate.getTime()) /
-                  (1000 * 60 * 60 * 24),
-              );
+              (today.getTime() - submissionDate.getTime()) /
+              (1000 * 60 * 60 * 24),
+            );
           let priority: "high" | "medium" | "low" = "low";
           if (daysPending > 14) priority = "high";
           else if (daysPending > 7) priority = "medium";
@@ -564,15 +564,15 @@ export default function PendingKYCPage() {
 
       const payload = isAgency
         ? {
-            agencyKycID: parseInt(kycId),
-            reason:
-              reason || "Documents did not meet verification requirements",
-          }
+          agencyKycID: parseInt(kycId),
+          reason:
+            reason || "Documents did not meet verification requirements",
+        }
         : {
-            kycID: parseInt(kycId),
-            reason:
-              reason || "Documents did not meet verification requirements",
-          };
+          kycID: parseInt(kycId),
+          reason:
+            reason || "Documents did not meet verification requirements",
+        };
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -671,9 +671,9 @@ export default function PendingKYCPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -694,9 +694,9 @@ export default function PendingKYCPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
           <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-2xl overflow-hidden">
@@ -787,9 +787,9 @@ export default function PendingKYCPage() {
                 <p className="text-3xl font-bold text-blue-600">
                   {pendingKYC.length > 0
                     ? Math.round(
-                        pendingKYC.reduce((acc, r) => acc + r.daysPending, 0) /
-                          pendingKYC.length,
-                      )
+                      pendingKYC.reduce((acc, r) => acc + r.daysPending, 0) /
+                      pendingKYC.length,
+                    )
                     : 0}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Average wait time</p>
@@ -898,8 +898,8 @@ export default function PendingKYCPage() {
                       </h3>
                       <p className="text-muted-foreground">
                         {searchTerm ||
-                        priorityFilter !== "all" ||
-                        typeFilter !== "all"
+                          priorityFilter !== "all" ||
+                          typeFilter !== "all"
                           ? "No KYC submissions match your filters"
                           : "All KYC submissions have been reviewed"}
                       </p>
@@ -930,11 +930,10 @@ export default function PendingKYCPage() {
                           </p>
                           <div className="flex items-center space-x-2 mt-1">
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                record.userType === "worker"
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
                                   ? "bg-blue-100 text-blue-800"
                                   : "bg-green-100 text-green-800"
-                              }`}
+                                }`}
                             >
                               {record.userType}
                             </span>

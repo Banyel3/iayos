@@ -162,53 +162,29 @@ const Login = () => {
     const lastRedirect = sessionStorage.getItem("last_login_redirect");
     const now = Date.now();
 
-    console.log("🔍 Login Page useEffect:", {
-      authLoading,
-      isAuthenticated,
-      hasUser: !!user,
-      accountType: user?.accountType,
-      role: user?.role,
-      lastRedirect: lastRedirect ? new Date(parseInt(lastRedirect)) : "none",
-    });
-
     // Prevent redirect loops - if we redirected in the last 5 seconds, don't redirect again
     if (lastRedirect && now - parseInt(lastRedirect) < 5000) {
-      console.log("⏸️ Login Page: Recently redirected, preventing loop");
       return;
     }
 
     if (!authLoading && isAuthenticated && user) {
-      // Prefer backend accountType when available (more authoritative)
       const accountType = (user.accountType || "").toString().toLowerCase();
       const role = (user.role || "").toString().toUpperCase();
-
-      // Mark that we're redirecting
       sessionStorage.setItem("last_login_redirect", now.toString());
-
+      // Always use window.location.href for these redirects
       if (accountType === "agency") {
-        console.log(
-          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard",
-        );
-        router.replace("/agency/dashboard"); // Use replace instead of push
+        window.location.href = "/agency/dashboard";
       } else if (role === "ADMIN") {
-        console.log(
-          "🔐 Login Page: Admin user detected, redirecting to admin panel",
-        );
-        router.replace("/admin/dashboard");
+        window.location.href = "/admin/dashboard";
       } else {
-        console.log("👤 Login Page: Regular user, redirecting to dashboard");
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     } else if (!authLoading && isAuthenticated && !user) {
-      console.log(
-        "⚠️ Login Page: Authenticated but no user data - staying on login",
-      );
+      // Stay on login
     } else if (!authLoading && !isAuthenticated) {
-      console.log("ℹ️ Login Page: Not authenticated - showing login form");
-      // Clear redirect timestamp when showing login form
       sessionStorage.removeItem("last_login_redirect");
     }
-  }, [authLoading, isAuthenticated, user, router]);
+  }, [authLoading, isAuthenticated, user]);
 
   // 🔥 FIX: Show loading only during initial auth check, not the form
   if (authLoading) {
@@ -222,8 +198,9 @@ const Login = () => {
     );
   }
 
-  // 🔥 FIX: Only show login form if NOT authenticated
-  if (isAuthenticated) {
+  // 🔥 FIX: Only show redirect spinner if authenticated AND user is loaded
+  // This prevents showing spinner when cache is stale but backend returns 401
+  if (isAuthenticated && user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -244,73 +221,43 @@ const Login = () => {
   };
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
-
     try {
-      // Use the AuthContext login function which handles everything
       await login(values.email, values.password);
-      console.log("✅ Login successful");
       localStorage.removeItem("rateLimitEndTime");
       setIsRateLimited(false);
       setRateLimitTime(0);
-
       // Fetch fresh user data to get the role
       const userResponse = await fetch(`${API_BASE}/api/accounts/me`, {
         credentials: "include",
       });
-
       if (userResponse.ok) {
         const userData = await userResponse.json();
-
-        // Check if user is a worker or client - redirect to download app
         const backendRole = (userData.role || "").toString().toUpperCase();
-        const accountType = (userData.accountType || "")
-          .toString()
-          .toLowerCase();
-
-        // Workers and Clients must use mobile app
+        const accountType = (userData.accountType || "").toString().toLowerCase();
         if (backendRole === "WORKER" || backendRole === "CLIENT") {
-          console.log(
-            `⚠️ ${backendRole} login detected - redirecting to download app`,
-          );
-          // Logout immediately
           await fetch(`${API_BASE}/api/accounts/logout`, {
             method: "POST",
             credentials: "include",
           });
-          router.replace("/auth/download-app");
+          window.location.href = "/auth/download-app";
           return;
         }
-
-        // Agency users
+        // Always use window.location.href for these redirects
         if (accountType === "agency") {
-          console.log(
-            "🏢 Account type 'agency' detected, redirecting to agency dashboard",
-          );
           sessionStorage.setItem("last_login_redirect", Date.now().toString());
-          router.replace("/agency/dashboard");
-        }
-        // Admin users
-        else if (backendRole === "ADMIN") {
-          console.log("🔐 Admin login, redirecting to admin panel");
+          window.location.href = "/agency/dashboard";
+        } else if (backendRole === "ADMIN") {
           sessionStorage.setItem("last_login_redirect", Date.now().toString());
-          router.replace("/admin/dashboard");
-        }
-        // Unknown role - should not happen
-        else {
-          console.log("⚠️ Unknown role, redirecting to download app");
-          await fetch(`${API_BASE}/api/accounts/logout`, {
-            method: "POST",
-            credentials: "include",
-          });
-          router.replace("/auth/download-app");
+          window.location.href = "/admin/dashboard";
+        } else {
+          sessionStorage.setItem("last_login_redirect", Date.now().toString());
+          window.location.href = "/dashboard";
         }
       } else {
-        // Fallback to regular dashboard if can't fetch user data
         sessionStorage.setItem("last_login_redirect", Date.now().toString());
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (error) {
-      console.error("Login error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -339,7 +286,7 @@ const Login = () => {
               </Link>
               <Link
                 href="/auth/register/agency"
-                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-bold bg-[#54B7EC] text-white hover:text-black hover:bg-blue-50 rounded-lg transition-colors"
               >
                 Register as Agency
               </Link>
@@ -390,7 +337,7 @@ const Login = () => {
                     className="h-8 w-auto mx-auto mb-4"
                   />
                   <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
-                    Welcome back {'<3'}
+                    Welcome back
                   </h1>
                   <p className="font-inter text-sm text-gray-600">
                     Sign in to continue
@@ -409,7 +356,7 @@ const Login = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                            Email<span className="text-red-500 ml-1">*</span>
+                            Email
                           </FormLabel>
                           <FormControl>
                             <Input
@@ -417,11 +364,10 @@ const Login = () => {
                               type="email"
                               autoComplete="email"
                               disabled={isLoading}
-                              className={`h-11 ${
-                                form.formState.errors.email
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                  : ""
-                              }`}
+                              className={`h-11 ${form.formState.errors.email
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                : ""
+                                }`}
                               {...field}
                             />
                           </FormControl>
@@ -435,7 +381,7 @@ const Login = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                            Password<span className="text-red-500 ml-1">*</span>
+                            Password
                           </FormLabel>
                           <FormControl>
                             <div className="relative">
@@ -444,11 +390,10 @@ const Login = () => {
                                 placeholder="Enter your password"
                                 autoComplete="current-password"
                                 disabled={isLoading}
-                                className={`h-11 pr-10 ${
-                                  form.formState.errors.password
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                    : ""
-                                }`}
+                                className={`h-11 pr-10 ${form.formState.errors.password
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                  : ""
+                                  }`}
                                 {...field}
                               />
                               <button
@@ -561,39 +506,67 @@ const Login = () => {
             </div>
 
             {/* Desktop Layout */}
-            <div className="hidden lg:flex min-h-screen pt-20">
+            <div className="hidden lg:flex min-h-screen pt-10">
               {/* Left Side - Branding */}
-              <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-8">
+              <div className="lg:w-1/2 flex items-center justify-center p-8">
                 <div className="max-w-md text-center text-white">
                   <Image
-                    src="/logo-white.png"
+                    src="/fig1.png"
                     alt="iAyos"
                     width={180}
                     height={60}
-                    className="h-16 w-auto mx-auto mb-6"
+                    className="h-50 w-auto mx-auto mb-6"
                   />
-                  <h1 className="text-4xl font-bold mb-4">Welcome back {'<3'}</h1>
-                  <p className="text-xl mb-8 opacity-90">
-                    Sign in to your account and continue your journey
-                  </p>
-                  <div className="space-y-4">
+                  <h1 className="text-3xl font-bold mb-4 text-slate-900">
+                    May Sira? May <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">iAyos</span>
+                  </h1>
+                  <div className="space-y-4 text-gray-800">
                     <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                         <span className="text-sm">✓</span>
                       </div>
                       <span>Access your dashboard</span>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                         <span className="text-sm">✓</span>
                       </div>
                       <span>Manage your projects</span>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#54B7EC] bg-opacity-20 rounded-full flex items-center justify-center text-white">
                         <span className="text-sm">✓</span>
                       </div>
                       <span>Connect with professionals</span>
+                    </div>
+                  </div>
+                  <div className="text-left space-y-4 mt-10">
+                    {/* Worker/Client App Download */}
+                    <div>
+                      <p className="text-sm text-slate-900 mb-2">
+                        <strong>
+                          Looking to get something done or work as a freelance worker?
+                        </strong>
+                      </p>
+                      {/* <p className="text-xs text-blue-700 mb-3">
+                        Download our mobile app to get started
+                      </p> */}
+                      <Link href="/auth/download-app">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-[#54B7EC] text-white hover:bg-blue-50 p-7 font-bold text-lg flex items-center gap-2 group"
+                        >
+                          <Image
+                            src="/download-icon.png"
+                            alt="Download"
+                            width={20}
+                            height={20}
+                            className="inline-block brightness-0 invert group-hover:invert-0 group-hover:brightness-100 transition-all"
+                          />
+                          Download App
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -636,9 +609,6 @@ const Login = () => {
                     <h2 className="text-3xl font-bold text-gray-900 mb-2">
                       Sign in to your account
                     </h2>
-                    <p className="text-gray-600">
-                      Welcome back {'<3'}! Please enter your details
-                    </p>
                   </div>
 
                   {/* Form */}
@@ -654,7 +624,7 @@ const Login = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                              Email<span className="text-red-500 ml-1">*</span>
+                              Email
                             </FormLabel>
                             <FormControl>
                               <Input
@@ -662,11 +632,10 @@ const Login = () => {
                                 type="email"
                                 autoComplete="email"
                                 disabled={isLoading}
-                                className={`h-12 ${
-                                  form.formState.errors.email
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                    : ""
-                                }`}
+                                className={`h-12 ${form.formState.errors.email
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                  : ""
+                                  }`}
                                 {...field}
                               />
                             </FormControl>
@@ -682,7 +651,6 @@ const Login = () => {
                           <FormItem>
                             <FormLabel className="font-inter text-sm font-medium text-gray-700">
                               Password
-                              <span className="text-red-500 ml-1">*</span>
                             </FormLabel>
                             <FormControl>
                               <div className="relative">
@@ -691,11 +659,10 @@ const Login = () => {
                                   placeholder="Enter your password"
                                   autoComplete="current-password"
                                   disabled={isLoading}
-                                  className={`h-12 pr-10 ${
-                                    form.formState.errors.password
-                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                      : ""
-                                  }`}
+                                  className={`h-12 pr-10 ${form.formState.errors.password
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                    : ""
+                                    }`}
                                   {...field}
                                 />
                                 <button
@@ -795,30 +762,6 @@ const Login = () => {
                     />
                     <span className="text-sm">Continue with Google</span>
                   </a>
-
-                  <div className="mt-6 text-center space-y-4">
-                    {/* Worker/Client App Download */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-sm font-inter text-blue-900 mb-2">
-                        <strong>
-                          Are you looking to get something done or looking for
-                          work as a freelance worker?
-                        </strong>
-                      </p>
-                      <p className="text-xs text-blue-700 mb-3">
-                        Download our mobile app to get started
-                      </p>
-                      <Link href="/auth/download-app">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-                        >
-                          📱 Download Mobile App
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

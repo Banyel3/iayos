@@ -380,7 +380,7 @@ export const getKYCStatusDisplay = (
         label: "Pending Review",
         color: "#FF9800",
         icon: "time-outline",
-        description: "Your documents are being reviewed by our team",
+        description: "Your documents are being reviewed by our team. This usually takes 1-3 days.",
       };
     case "APPROVED":
       return {

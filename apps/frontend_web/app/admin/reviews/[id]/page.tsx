@@ -176,9 +176,9 @@ export default function ReviewDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
@@ -198,9 +198,9 @@ export default function ReviewDetailPage() {
 
   if (!detail) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="pl-72 p-8 min-h-screen">
           <div className="max-w-7xl mx-auto">
             <Card className="border-0 shadow-lg">
               <CardContent className="p-12 text-center">
@@ -223,9 +223,9 @@ export default function ReviewDetailPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="pl-72 p-8 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Back Button */}
           <Button
@@ -266,11 +266,10 @@ export default function ReviewDetailPage() {
                       {Array.from({ length: 5 }, (_, i) => (
                         <Star
                           key={i}
-                          className={`h-8 w-8 ${
-                            i < detail.review.rating
+                          className={`h-8 w-8 ${i < detail.review.rating
                               ? "fill-yellow-400 text-yellow-400"
                               : "fill-gray-200 text-gray-200"
-                          }`}
+                            }`}
                         />
                       ))}
                       <span className="text-3xl font-bold text-gray-900">

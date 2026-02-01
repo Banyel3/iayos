@@ -108,9 +108,9 @@ export default function CustomReportBuilder() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
+      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
@@ -140,11 +140,10 @@ export default function CustomReportBuilder() {
                   <div key={step.number} className="flex items-center flex-1">
                     <div className="flex flex-col items-center flex-1">
                       <div
-                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${
-                          currentStep >= step.number
+                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${currentStep >= step.number
                             ? "bg-indigo-600 border-indigo-600 text-white"
                             : "bg-white border-gray-300 text-gray-400"
-                        }`}
+                          }`}
                       >
                         {currentStep > step.number ? (
                           <Check className="h-6 w-6" />
@@ -153,22 +152,20 @@ export default function CustomReportBuilder() {
                         )}
                       </div>
                       <p
-                        className={`mt-2 text-sm font-medium ${
-                          currentStep >= step.number
+                        className={`mt-2 text-sm font-medium ${currentStep >= step.number
                             ? "text-gray-900"
                             : "text-gray-500"
-                        }`}
+                          }`}
                       >
                         {step.name}
                       </p>
                     </div>
                     {i < steps.length - 1 && (
                       <div
-                        className={`flex-1 h-0.5 mx-4 transition-all ${
-                          currentStep > step.number
+                        className={`flex-1 h-0.5 mx-4 transition-all ${currentStep > step.number
                             ? "bg-indigo-600"
                             : "bg-gray-300"
-                        }`}
+                          }`}
                       ></div>
                     )}
                   </div>
@@ -210,11 +207,10 @@ export default function CustomReportBuilder() {
                               <button
                                 key={j}
                                 onClick={() => toggleMetric(metric)}
-                                className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
-                                  selectedMetrics.includes(metric)
+                                className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${selectedMetrics.includes(metric)
                                     ? "border-indigo-600 bg-indigo-50"
                                     : "border-gray-200 hover:border-gray-300"
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm font-medium text-gray-900">
@@ -395,26 +391,23 @@ export default function CustomReportBuilder() {
                       <button
                         key={type.value}
                         onClick={() => setSelectedChartType(type.value)}
-                        className={`p-6 rounded-xl border-2 text-left transition-all ${
-                          selectedChartType === type.value
+                        className={`p-6 rounded-xl border-2 text-left transition-all ${selectedChartType === type.value
                             ? "border-indigo-600 bg-indigo-50"
                             : "border-gray-200 hover:border-gray-300"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start space-x-4">
                           <div
-                            className={`p-3 rounded-lg ${
-                              selectedChartType === type.value
+                            className={`p-3 rounded-lg ${selectedChartType === type.value
                                 ? "bg-indigo-600"
                                 : "bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <type.icon
-                              className={`h-6 w-6 ${
-                                selectedChartType === type.value
+                              className={`h-6 w-6 ${selectedChartType === type.value
                                   ? "text-white"
                                   : "text-gray-600"
-                              }`}
+                                }`}
                             />
                           </div>
                           <div className="flex-1">

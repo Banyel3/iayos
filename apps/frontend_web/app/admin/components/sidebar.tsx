@@ -482,7 +482,7 @@ export default function Sidebar({ className }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out",
+        "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out z-40",
         collapsed ? "w-16" : "w-64",
         className,
       )}
@@ -490,22 +490,17 @@ export default function Sidebar({ className }: SidebarProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         {!collapsed && (
-          <div className="flex items-center space-x-2">
-            {/* Logo Text */}
-            <h2 className="text-2xl py-6 font-bold">
-              <span className="text-blue-600">iAyos</span>{" "}
-              <span className="text-gray-500 font-normal">Admin</span>
-            </h2>
+          <div className="flex items-end space-x-2">
+            {/* Logo Image */}
+            <img
+              src="/logo.png"
+              alt="iAyos Logo"
+              className="h-9 w-auto"
+            />
+            <span className="text-gray-400 font-light text-xl pb-0.5">Admin</span>
           </div>
         )}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSearchModal(true)}
-            className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
-            title="Search users (Ctrl+K)"
-          >
-            <Search className="h-4 w-4 text-sidebar-foreground" />
-          </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
@@ -521,6 +516,29 @@ export default function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
+        {/* Search Bar */}
+        {!collapsed && (
+          <div className="mb-4">
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <Search className="h-4 w-4" />
+              <span>Search users (Ctrl+K)</span>
+            </button>
+          </div>
+        )}
+        {collapsed && (
+          <div className="mb-4">
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className="w-full flex items-center justify-center p-2 text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              title="Search users (Ctrl+K)"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {navigationWithCount.map((item) => {
           const Icon = item.icon;
           const isItemActive = isActive(item.href);
