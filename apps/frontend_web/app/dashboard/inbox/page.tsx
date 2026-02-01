@@ -29,7 +29,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { inboxKeys } from "@/lib/hooks/useInboxQueries";
 import { EstimatedTimeCard } from "@/components/ui/estimated-time-card";
-import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
