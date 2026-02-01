@@ -71,7 +71,10 @@ export default function AgencyChatScreen() {
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
+  const [ratingQuality, setRatingQuality] = useState(0);
+  const [ratingCommunication, setRatingCommunication] = useState(0);
+  const [ratingPunctuality, setRatingPunctuality] = useState(0);
+  const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
   const [reviewText, setReviewText] = useState("");
 
   // Backjob action state
@@ -270,14 +273,25 @@ export default function AgencyChatScreen() {
 
   // Handle submit review
   const handleSubmitReview = () => {
-    if (!conversation?.job.id || reviewRating === 0) return;
+    if (!conversation?.job.id) return;
+    if (ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0) return;
 
     submitReviewMutation.mutate(
-      { jobId: conversation.job.id, rating: reviewRating, reviewText },
+      { 
+        jobId: conversation.job.id, 
+        rating_quality: ratingQuality,
+        rating_communication: ratingCommunication,
+        rating_punctuality: ratingPunctuality,
+        rating_professionalism: ratingProfessionalism,
+        reviewText 
+      },
       {
         onSuccess: () => {
           setShowReviewModal(false);
-          setReviewRating(0);
+          setRatingQuality(0);
+          setRatingCommunication(0);
+          setRatingPunctuality(0);
+          setRatingProfessionalism(0);
           setReviewText("");
           refetch();
         },
@@ -741,7 +755,18 @@ export default function AgencyChatScreen() {
           return (
             <div key={`${message.message_id}-${index}`}>
               {renderDateSeparator(currentDate, previousDate)}
-              {/* Inline message bubble for agency chat */}
+              {/* System messages - centered with distinct styling */}
+              {message.message_type === "SYSTEM" ? (
+                <div className="flex justify-center my-3">
+                  <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full max-w-[80%] text-center">
+                    {message.message_text}
+                    <span className="text-xs text-gray-400 ml-2">
+                      {format(new Date(message.created_at), "h:mm a")}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+              /* Inline message bubble for agency chat */
               <div
                 className={`flex mb-3 ${
                   message.is_mine ? "justify-end" : "justify-start"
@@ -798,6 +823,7 @@ export default function AgencyChatScreen() {
                   </p>
                 </div>
               </div>
+              )}
             </div>
           );
         })}
@@ -1004,8 +1030,8 @@ export default function AgencyChatScreen() {
 
       {/* Review Modal */}
       {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
             <CardHeader className="pb-2">
               <h3 className="text-lg font-semibold">Leave a Review</h3>
               <p className="text-sm text-gray-500">
@@ -1013,39 +1039,46 @@ export default function AgencyChatScreen() {
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Star Rating */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rating
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setReviewRating(star)}
-                      className="focus:outline-none"
-                    >
-                      <Star
-                        className={`h-8 w-8 transition-colors ${
-                          star <= reviewRating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300 hover:text-yellow-300"
-                        }`}
-                      />
-                    </button>
-                  ))}
+              {/* Multi-criteria Star Ratings */}
+              {[
+                { label: "🏆 Quality of Work", value: ratingQuality, setter: setRatingQuality },
+                { label: "💬 Communication", value: ratingCommunication, setter: setRatingCommunication },
+                { label: "⏰ Punctuality", value: ratingPunctuality, setter: setRatingPunctuality },
+                { label: "👔 Professionalism", value: ratingProfessionalism, setter: setRatingProfessionalism },
+              ].map((criteria) => (
+                <div key={criteria.label}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {criteria.label}
+                  </label>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => criteria.setter(star)}
+                        className="focus:outline-none"
+                      >
+                        <Star
+                          className={`h-6 w-6 transition-colors ${
+                            star <= criteria.value
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "text-gray-300 hover:text-yellow-300"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ))}
 
               {/* Review Text */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your Review
+                  Your Review (Optional)
                 </label>
                 <textarea
                   className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={4}
+                  rows={3}
                   placeholder="Share your experience working with this client..."
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
@@ -1058,7 +1091,10 @@ export default function AgencyChatScreen() {
                   className="flex-1"
                   onClick={() => {
                     setShowReviewModal(false);
-                    setReviewRating(0);
+                    setRatingQuality(0);
+                    setRatingCommunication(0);
+                    setRatingPunctuality(0);
+                    setRatingProfessionalism(0);
                     setReviewText("");
                   }}
                 >
@@ -1068,7 +1104,9 @@ export default function AgencyChatScreen() {
                   className="flex-1"
                   onClick={handleSubmitReview}
                   disabled={
-                    reviewRating === 0 || submitReviewMutation.isPending
+                    ratingQuality === 0 || ratingCommunication === 0 || 
+                    ratingPunctuality === 0 || ratingProfessionalism === 0 || 
+                    submitReviewMutation.isPending
                   }
                 >
                   {submitReviewMutation.isPending ? (

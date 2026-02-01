@@ -1431,6 +1431,97 @@ def get_my_applications(request):
         )
 
 
+# NOTE: This route MUST be defined BEFORE /{job_id} to avoid route matching conflict!
+# Otherwise "my-backjobs" gets parsed as a job_id integer and fails.
+@router.get("/my-backjobs", auth=jwt_auth)
+def get_my_backjobs(request, status: Optional[str] = None):
+    """
+    Get backjobs assigned to the current worker or agency.
+    Only shows approved backjobs (UNDER_REVIEW status means admin approved and worker needs to action).
+    """
+    try:
+        print(f"📋 Fetching backjobs for user {request.auth.email}")
+        
+        # Determine if user is worker or agency
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        agency = Agency.objects.filter(accountFK=request.auth).first()
+        
+        if not profile and not agency:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Build query for disputes where the related job was assigned to this worker/agency
+        disputes_query = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID__profileID__accountFK',
+            'jobID__assignedWorkerID__profileID',
+            'jobID__assignedAgencyFK',
+            'jobID__categoryID'
+        ).prefetch_related('evidence')
+        
+        # Filter by jobs assigned to this user
+        if agency:
+            disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
+        elif profile and profile.profileType == "WORKER":
+            worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+            if worker_profile:
+                disputes_query = disputes_query.filter(jobID__assignedWorkerID=worker_profile)
+            else:
+                return {"backjobs": [], "total": 0}
+        else:
+            return {"backjobs": [], "total": 0}
+        
+        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
+        # or show all if status filter provided
+        if status:
+            disputes_query = disputes_query.filter(status=status)
+        else:
+            # By default show UNDER_REVIEW (approved for action) and RESOLVED
+            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
+        
+        disputes = disputes_query.order_by('-openedDate')
+        
+        backjobs_data = []
+        for dispute in disputes:
+            job = dispute.jobID
+            client = job.clientID.profileID if job.clientID else None
+            
+            evidence_urls = [e.imageURL for e in dispute.evidence.all()]
+            
+            backjobs_data.append({
+                "dispute_id": dispute.disputeID,
+                "job_id": job.jobID,
+                "job_title": job.title,
+                "job_description": job.description,
+                "job_budget": float(job.budget),
+                "job_location": job.location,
+                "job_category": job.categoryID.name if job.categoryID else None,
+                "reason": dispute.reason,
+                "description": dispute.description,
+                "status": dispute.status,
+                "priority": dispute.priority,
+                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
+                "resolution": dispute.resolution,
+                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "evidence_images": evidence_urls,
+                "client": {
+                    "id": client.profileID if client else None,
+                    "name": f"{client.firstName} {client.lastName}" if client else "Unknown",
+                    "avatar": client.profileImg if client else None
+                } if client else None
+            })
+        
+        return {
+            "backjobs": backjobs_data,
+            "total": len(backjobs_data)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching backjobs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to fetch backjobs"}, status=500)
+
+
 @router.get("/{job_id}", auth=cookie_auth)
 def get_job_posting(request, job_id: int):
     """
@@ -4925,7 +5016,14 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                                 {'content-type': image.content_type}
                             )
                             
-                            image_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+                            # Get signed URL for private bucket (24 hour expiry)
+                            signed_url_response = settings.STORAGE.storage().from_('iayos_files').create_signed_url(
+                                storage_path, 
+                                expires_in=86400  # 24 hours
+                            )
+                            if signed_url_response.get('error'):
+                                raise Exception(f"Failed to create signed URL: {signed_url_response['error']}")
+                            image_url = signed_url_response.get('signedURL')
                             
                             # Create evidence record
                             evidence = DisputeEvidence.objects.create(
@@ -4976,95 +5074,6 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to submit backjob request: {str(e)}"}, status=500)
-
-
-@router.get("/my-backjobs", auth=jwt_auth)
-def get_my_backjobs(request, status: Optional[str] = None):
-    """
-    Get backjobs assigned to the current worker or agency.
-    Only shows approved backjobs (UNDER_REVIEW status means admin approved and worker needs to action).
-    """
-    try:
-        print(f"📋 Fetching backjobs for user {request.auth.email}")
-        
-        # Determine if user is worker or agency
-        profile = Profile.objects.filter(accountFK=request.auth).first()
-        agency = Agency.objects.filter(accountFK=request.auth).first()
-        
-        if not profile and not agency:
-            return Response({"error": "Profile not found"}, status=404)
-        
-        # Build query for disputes where the related job was assigned to this worker/agency
-        disputes_query = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__clientID__profileID__accountFK',
-            'jobID__assignedWorkerID__profileID',
-            'jobID__assignedAgencyFK',
-            'jobID__categoryID'
-        ).prefetch_related('evidence')
-        
-        # Filter by jobs assigned to this user
-        if agency:
-            disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
-        elif profile and profile.profileType == "WORKER":
-            worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
-            if worker_profile:
-                disputes_query = disputes_query.filter(jobID__assignedWorkerID=worker_profile)
-            else:
-                return {"backjobs": [], "total": 0}
-        else:
-            return {"backjobs": [], "total": 0}
-        
-        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
-        # or show all if status filter provided
-        if status:
-            disputes_query = disputes_query.filter(status=status)
-        else:
-            # By default show UNDER_REVIEW (approved for action) and RESOLVED
-            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
-        
-        disputes = disputes_query.order_by('-openedDate')
-        
-        backjobs_data = []
-        for dispute in disputes:
-            job = dispute.jobID
-            client = job.clientID.profileID if job.clientID else None
-            
-            evidence_urls = [e.imageURL for e in dispute.evidence.all()]
-            
-            backjobs_data.append({
-                "dispute_id": dispute.disputeID,
-                "job_id": job.jobID,
-                "job_title": job.title,
-                "job_description": job.description,
-                "job_budget": float(job.budget),
-                "job_location": job.location,
-                "job_category": job.categoryID.name if job.categoryID else None,
-                "reason": dispute.reason,
-                "description": dispute.description,
-                "status": dispute.status,
-                "priority": dispute.priority,
-                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
-                "resolution": dispute.resolution,
-                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
-                "evidence_images": evidence_urls,
-                "client": {
-                    "id": client.profileID if client else None,
-                    "name": f"{client.firstName} {client.lastName}" if client else "Unknown",
-                    "avatar": client.profileImg if client else None
-                } if client else None
-            })
-        
-        return {
-            "backjobs": backjobs_data,
-            "total": len(backjobs_data)
-        }
-        
-    except Exception as e:
-        print(f"❌ Error fetching backjobs: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to fetch backjobs"}, status=500)
 
 
 @router.get("/{job_id}/backjob-status", auth=dual_auth)
