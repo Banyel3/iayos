@@ -22,7 +22,6 @@ import {
   EstimatedTimeCard,
   type EstimatedCompletion,
 } from "@/components/ui/estimated-time-card";
-import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
