@@ -128,8 +128,8 @@ class AgencyKYCExtractionParser:
         # Matches "Business Name No.7663018" or "Business Name No. 7663018"
         self.dti_business_name_pattern = re.compile(r'Business\s+Name\s+No\.?\s*(\d+)', re.IGNORECASE)
         # Matches certificate ID like "BPXW658418425073" (4 letters + 12 digits)
-        # Must be on its own line or after "Certificate ID:" to avoid matching Business Name No.
-        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Z]{4}\d{12})\s*(?:$|\n)', re.MULTILINE)
+        # Must be on its own line or standalone - case insensitive for OCR errors
+        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Za-z]{4}\d{12,16})\s*(?:$|\n)', re.MULTILINE)
         # Matches "issued to VANIEL JOHN GARCIA CORNELIO" or "This certificate issued to NAME"
         self.issued_to_pattern = re.compile(r'(?:This\s+certificate\s+)?issued\s+to\s+([A-Z\s]+?)(?:\n|is\s+valid|subject\s+to)', re.IGNORECASE)
         # Matches "valid from January 06, 2026 to January 06, 2031"

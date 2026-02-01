@@ -529,9 +529,9 @@ const AgencyKYCPage = () => {
   };
 
   const handleSubmit = async () => {
+    // Note: registrationNumber is no longer required here - it's extracted via OCR from the business permit
     if (
       !businessName ||
-      !registrationNumber ||
       !businessPermit ||
       !repIDFront ||
       !repIDBack
@@ -551,7 +551,10 @@ const AgencyKYCPage = () => {
       // align field names with backend agency KYC endpoint
       formData.append("businessName", businessName);
       formData.append("businessDesc", businessDesc);
-      formData.append("registrationNumber", registrationNumber);
+      // Note: registrationNumber is optional - OCR extracts it from the uploaded business permit
+      if (registrationNumber) {
+        formData.append("registrationNumber", registrationNumber);
+      }
       formData.append("business_type", businessType); // Business type for OCR filtering
       formData.append("rep_id_type", repIdType); // Issue #2: Include ID type
       formData.append("rep_front", repIDFront as Blob);
@@ -893,20 +896,7 @@ const AgencyKYCPage = () => {
             </p>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Registration number <span className="text-red-500">*</span>
-            </label>
-            <Input
-              value={registrationNumber}
-              onChange={(e) => setRegistrationNumber(e.target.value)}
-              placeholder={
-                businessType === "SOLE_PROPRIETORSHIP"
-                  ? "e.g., BN-7663018 or Certificate ID"
-                  : "e.g., SEC Registration No."
-              }
-            />
-          </div>
+          {/* Registration number input removed - OCR extracts it from the uploaded document */}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">

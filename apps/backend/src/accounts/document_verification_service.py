@@ -589,7 +589,7 @@ class DocumentVerificationService:
 
             if ocr_required or document_type.upper() in ["NBI", "POLICE", "CLEARANCE"]:
                 print(f"   📝 Running Tesseract OCR for {document_type}...")
-                ocr_result = self._extract_text(image)
+                ocr_result = self._extract_text(image, document_type=document_type)
                 extracted_text = ocr_result.get("text", "")
                 details["ocr"] = {
                     "text_length": len(extracted_text),
@@ -958,9 +958,15 @@ class DocumentVerificationService:
         
         return float(dot_product / (norm1 * norm2))
 
-    def _extract_text(self, image: Image.Image) -> Dict[str, Any]:
+    def _extract_text(self, image: Image.Image, document_type: str = None) -> Dict[str, Any]:
         """
         Extract text from image using Tesseract OCR
+        
+        Args:
+            image: PIL Image to extract text from
+            document_type: Optional document type to optimize OCR settings
+                - BUSINESS_PERMIT, DTI, SEC: Use PSM 12 (sparse text)
+                - ID documents: Use PSM 6 (uniform block)
         
         Returns dict with:
             - text: extracted text
@@ -968,7 +974,7 @@ class DocumentVerificationService:
             - skipped: True if OCR was skipped
             - error: Error message if OCR failed
         """
-        print(f"   📝 _extract_text called, TESSERACT_AVAILABLE={TESSERACT_AVAILABLE}")
+        print(f"   📝 _extract_text called, TESSERACT_AVAILABLE={TESSERACT_AVAILABLE}, doc_type={document_type}")
         
         if not TESSERACT_AVAILABLE:
             print("   ❌ Tesseract not available - pytesseract module not imported")
@@ -985,7 +991,19 @@ class DocumentVerificationService:
             
             # Extract text with confidence data
             # Use English only (Filipino language pack not installed in Alpine)
-            custom_config = r'--oem 3 --psm 6 -l eng'
+            # PSM modes:
+            #   PSM 6 = Assume a single uniform block of text (good for ID cards)
+            #   PSM 12 = Sparse text with OSD (good for certificates with gaps/layouts)
+            doc_type_upper = (document_type or '').upper()
+            
+            # Use PSM 12 for certificates/permits (sparse text with complex layouts)
+            if doc_type_upper in ['BUSINESS_PERMIT', 'DTI', 'SEC', 'PERMIT', 'CERTIFICATE']:
+                psm_mode = 12
+            else:
+                # Default PSM 6 for ID cards and most other documents
+                psm_mode = 6
+            
+            custom_config = f'--oem 3 --psm {psm_mode} -l eng'
             
             print(f"   📝 Running pytesseract with config: {custom_config}")
             
