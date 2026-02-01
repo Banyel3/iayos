@@ -13,6 +13,7 @@ from .schemas import (
     resetPasswordSchema,
     CreateJobMobileSchema,
     CreateInviteJobMobileSchema,
+    UpdateJobMobileSchema,
     ApplyJobMobileSchema,
     UpdateApplicationMobileSchema,
     ApproveCompletionMobileSchema,
@@ -1794,6 +1795,61 @@ def mobile_delete_job(request, job_id: int):
         traceback.print_exc()
         return Response(
             {"error": "Failed to delete job"},
+            status=500
+        )
+
+
+@mobile_router.patch("/jobs/{job_id}", auth=jwt_auth)
+def mobile_update_job(request, job_id: int, payload: UpdateJobMobileSchema):
+    """
+    Update an existing job posting (PATCH - partial update)
+    
+    Rules:
+    - Only the client who created the job can edit it
+    - Only ACTIVE jobs can be edited (not IN_PROGRESS or COMPLETED)
+    - Budget changes are BLOCKED if job has pending applications
+    - Non-budget edits allowed even with pending applications
+    - Budget cannot go below category minimum rate (DOLE compliance)
+    - Budget changes trigger wallet adjustments (reserve more or release)
+    - All changes are logged to JobLog for audit trail
+    - Pending applicants are notified of changes
+    """
+    from .mobile_services import update_mobile_job
+
+    print("="*80)
+    print(f"📝 [MOBILE UPDATE JOB] Endpoint HIT!")
+    print(f"   Job ID: {job_id}")
+    print(f"   User: {request.auth.email}")
+    print(f"   Payload: {payload.dict(exclude_none=True)}")
+    print("="*80)
+    
+    try:
+        # Only include non-None values
+        job_data = {k: v for k, v in payload.dict().items() if v is not None}
+        
+        if not job_data:
+            return Response(
+                {"error": "No fields provided to update"},
+                status=400
+            )
+        
+        result = update_mobile_job(job_id=job_id, user=request.auth, job_data=job_data)
+        
+        if result['success']:
+            return result
+        else:
+            # Include additional info for specific errors (like insufficient balance)
+            error_response = {"error": result.get('error', 'Update failed')}
+            for key in ['required_additional', 'available', 'message']:
+                if key in result:
+                    error_response[key] = result[key]
+            return Response(error_response, status=400)
+    except Exception as e:
+        print(f"❌ Mobile update job error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update job"},
             status=500
         )
 
