@@ -13,6 +13,7 @@ import {
   useAgencySendMessage,
   useAgencyMarkComplete,
   useAgencySubmitReview,
+  useUploadCompletionPhoto,
 } from "@/lib/hooks/useAgencyConversations";
 import {
   useConfirmBackjobStarted,
@@ -45,6 +46,9 @@ import {
   Star,
   AlertCircle,
   AlertTriangle,
+  Camera,
+  X,
+  Upload,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
@@ -61,6 +65,11 @@ export default function AgencyChatScreen() {
   // Job action state
   const [showMarkCompleteModal, setShowMarkCompleteModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
+  const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
@@ -85,6 +94,7 @@ export default function AgencyChatScreen() {
   // Job action mutations
   const markCompleteMutation = useAgencyMarkComplete();
   const submitReviewMutation = useAgencySubmitReview();
+  const uploadPhotoMutation = useUploadCompletionPhoto();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -178,23 +188,84 @@ export default function AgencyChatScreen() {
     router.back();
   };
 
-  // Handle mark job as complete
-  const handleMarkComplete = () => {
+  // Handle photo file selection
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remainingSlots = 10 - completionPhotos.length;
+    const newFiles = files.slice(0, remainingSlots);
+    
+    // Validate file types and sizes
+    const validFiles = newFiles.filter(file => {
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      return validTypes.includes(file.type) && file.size <= maxSize;
+    });
+
+    if (validFiles.length > 0) {
+      setCompletionPhotos(prev => [...prev, ...validFiles]);
+      // Create preview URLs
+      validFiles.forEach(file => {
+        const url = URL.createObjectURL(file);
+        setPhotoPreviewUrls(prev => [...prev, url]);
+      });
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove a photo from the list
+  const handleRemovePhoto = (index: number) => {
+    setCompletionPhotos(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviewUrls(prev => {
+      // Revoke the URL to free memory
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  // Handle mark job as complete with photo upload
+  const handleMarkComplete = async () => {
     if (!conversation?.job.id) return;
 
-    markCompleteMutation.mutate(
-      { jobId: conversation.job.id, completionNotes },
-      {
-        onSuccess: () => {
-          setShowMarkCompleteModal(false);
-          setCompletionNotes("");
-          refetch();
-        },
-        onError: (error) => {
-          alert(error.message || "Failed to mark job as complete");
-        },
-      },
-    );
+    const jobId = conversation.job.id;
+    
+    try {
+      setIsUploadingPhotos(true);
+      setUploadProgress(0);
+
+      // First, upload all photos sequentially
+      if (completionPhotos.length > 0) {
+        for (let i = 0; i < completionPhotos.length; i++) {
+          await uploadPhotoMutation.mutateAsync({
+            jobId,
+            file: completionPhotos[i],
+          });
+          setUploadProgress(((i + 1) / completionPhotos.length) * 100);
+        }
+      }
+
+      // Then mark the job as complete
+      await markCompleteMutation.mutateAsync({
+        jobId,
+        completionNotes,
+      });
+
+      // Success - reset state
+      setShowMarkCompleteModal(false);
+      setCompletionNotes("");
+      setCompletionPhotos([]);
+      photoPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+      setPhotoPreviewUrls([]);
+      setUploadProgress(0);
+      refetch();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to mark job as complete");
+    } finally {
+      setIsUploadingPhotos(false);
+    }
   };
 
   // Handle submit review
@@ -822,6 +893,72 @@ export default function AgencyChatScreen() {
                 />
               </div>
 
+              {/* Photo Upload Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Completion Photos (optional, up to 10)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg,image/webp"
+                  multiple
+                  onChange={handlePhotoSelect}
+                  className="hidden"
+                  disabled={completionPhotos.length >= 10}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={completionPhotos.length >= 10}
+                  className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Camera className="h-6 w-6 mx-auto text-gray-400 mb-1" />
+                  <span className="text-sm text-gray-600">
+                    {completionPhotos.length >= 10
+                      ? "Maximum 10 photos reached"
+                      : `Click to add photos (${completionPhotos.length}/10)`}
+                  </span>
+                </button>
+
+                {/* Photo Preview Grid */}
+                {photoPreviewUrls.length > 0 && (
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {photoPreviewUrls.map((url, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Completion photo ${index + 1}`}
+                          className="w-full h-20 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Progress */}
+              {isUploadingPhotos && (
+                <div className="space-y-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    Uploading photos... {Math.round(uploadProgress)}%
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <Button
                   variant="outline"
@@ -829,16 +966,25 @@ export default function AgencyChatScreen() {
                   onClick={() => {
                     setShowMarkCompleteModal(false);
                     setCompletionNotes("");
+                    setCompletionPhotos([]);
+                    photoPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+                    setPhotoPreviewUrls([]);
                   }}
+                  disabled={isUploadingPhotos}
                 >
                   Cancel
                 </Button>
                 <Button
                   className="flex-1 bg-green-600 hover:bg-green-700"
                   onClick={handleMarkComplete}
-                  disabled={markCompleteMutation.isPending}
+                  disabled={markCompleteMutation.isPending || isUploadingPhotos}
                 >
-                  {markCompleteMutation.isPending ? (
+                  {isUploadingPhotos ? (
+                    <>
+                      <Upload className="h-4 w-4 mr-2 animate-pulse" />
+                      Uploading...
+                    </>
+                  ) : markCompleteMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Submitting...

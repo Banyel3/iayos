@@ -280,6 +280,42 @@ export function useAgencyArchiveConversation() {
 }
 
 /**
+ * Upload a completion photo for a job (agency/worker action)
+ */
+export function useUploadCompletionPhoto() {
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      file,
+    }: {
+      jobId: number;
+      file: File;
+    }) => {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${jobId}/upload-completion-photo`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(error, `Failed to upload photo: ${response.statusText}`),
+        );
+      }
+
+      return response.json();
+    },
+  });
+}
+
+/**
  * Mark a job as complete (agency/worker action)
  */
 export function useAgencyMarkComplete() {

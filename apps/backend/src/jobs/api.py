@@ -2643,6 +2643,159 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
         )
 
 
+@router.post("/{job_id}/upload-completion-photo", auth=dual_auth)
+def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...)):  # type: ignore[misc]
+    """
+    Upload completion photo for a job (Worker or Agency action).
+    
+    This endpoint allows workers and agencies to upload photos documenting 
+    completed work before or after marking the job as complete.
+    
+    Path structure: users/user_{userID}/job_{jobID}/completion_filename.ext
+    
+    Args:
+        job_id: ID of the job posting
+        image: Image file (JPEG, PNG, JPG, WEBP, max 5MB)
+    
+    Returns:
+        success: boolean
+        message: string
+        image_url: string (public URL)
+    """
+    try:
+        from iayos_project.utils import upload_file
+        
+        # Validate job exists
+        try:
+            job = JobPosting.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedEmployeeID__agency'
+            ).get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify authorization - worker or agency owner
+        is_authorized = False
+        uploader_name = "Unknown"
+        
+        # Check if this is an agency job
+        if job.assignedEmployeeID is not None:
+            # Agency job - verify requesting user is the agency owner
+            agency_owner_account = job.assignedEmployeeID.agency
+            if agency_owner_account.accountID == request.auth.accountID:
+                is_authorized = True
+                uploader_name = f"Agency ({job.assignedEmployeeID.name})"
+        
+        # Check if user is the assigned worker
+        if not is_authorized and job.assignedWorkerID:
+            profile_type = getattr(request.auth, 'profile_type', 'WORKER')
+            try:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first() or Profile.objects.filter(
+                    accountFK=request.auth, 
+                    profileType='WORKER'
+                ).first()
+                
+                if profile:
+                    try:
+                        worker_profile = WorkerProfile.objects.get(profileID=profile)
+                        if job.assignedWorkerID.profileID.profileID == worker_profile.profileID.profileID:
+                            is_authorized = True
+                            uploader_name = f"{profile.firstName} {profile.lastName}"
+                    except WorkerProfile.DoesNotExist:
+                        pass
+            except Exception:
+                pass
+        
+        if not is_authorized:
+            return Response(
+                {"error": "You are not authorized to upload photos for this job"},
+                status=403
+            )
+        
+        # Verify job is in appropriate state
+        if job.status not in ["IN_PROGRESS", "ACTIVE"]:
+            return Response(
+                {"error": f"Cannot upload photos. Job status must be IN_PROGRESS or ACTIVE. Current: {job.status}"},
+                status=400
+            )
+        
+        # Validate file
+        allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+        max_size = 5 * 1024 * 1024  # 5 MB
+        
+        if image.content_type not in allowed_mime_types:
+            return Response(
+                {"error": "Invalid file type. Allowed: JPEG, PNG, JPG, WEBP"},
+                status=400
+            )
+        
+        if image.size > max_size:
+            return Response(
+                {"error": "File too large. Maximum size is 5MB"},
+                status=400
+            )
+        
+        # Generate filename
+        import os
+        from datetime import datetime
+        file_extension = os.path.splitext(image.name)[1] or '.jpg'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        completion_filename = f"completion_{timestamp}{file_extension}"
+        
+        print(f"📸 Uploading completion photo: {image.name} ({image.size} bytes)")
+        print(f"   Uploader: {uploader_name}, Job ID: {job_id}")
+        
+        # Upload to Supabase - use job client's user ID for path consistency
+        client_user_id = job.clientID.profileID.accountFK.accountID
+        image_url = upload_file(
+            file=image,
+            bucket="users",
+            path=f"user_{client_user_id}/job_{job_id}/completion",
+            public=True,
+            custom_name=completion_filename
+        )
+        
+        if not image_url:
+            print(f"❌ upload_file returned None")
+            return Response(
+                {"error": "Failed to upload image to storage"},
+                status=500
+            )
+        
+        # Create JobPhoto record with completion flag
+        job_photo = JobPhoto.objects.create(
+            jobID=job,
+            photoURL=image_url,
+            fileName=completion_filename
+        )
+        
+        print(f"✅ Completion photo uploaded successfully for job {job_id} by {uploader_name}")
+        print(f"   Image URL: {image_url}")
+        
+        return {
+            "success": True,
+            "message": "Completion photo uploaded successfully",
+            "image_url": image_url,
+            "photo_id": job_photo.photoID
+        }
+        
+    except Exception as e:
+        print(f"❌ Exception in completion photo upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to upload completion photo: {str(e)}"},
+            status=500
+        )
+
+
 @router.post("/{job_id}/confirm-work-started", auth=dual_auth)
 def client_confirm_work_started(request, job_id: int):
     """
