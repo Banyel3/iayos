@@ -161,6 +161,30 @@ class CreateJobMobileSchema(Schema):
     skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
     work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
 
+
+class UpdateJobMobileSchema(Schema):
+    """Mobile-optimized schema for updating an existing job posting.
+    All fields are optional - only update what's provided.
+    Budget changes require wallet balance if increasing.
+    Non-budget edits allowed with pending applications; budget changes blocked.
+    """
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category_id: Optional[int] = None
+    budget: Optional[float] = None  # Will trigger wallet adjustment
+    location: Optional[str] = None
+    expected_duration: Optional[str] = None
+    urgency_level: Optional[str] = None  # 'LOW' | 'MEDIUM' | 'HIGH'
+    preferred_start_date: Optional[str] = None  # ISO format datetime string or null to clear
+    materials_needed: Optional[list] = None  # List of strings
+    # Universal fields for ML accuracy
+    job_scope: Optional[str] = None  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
+    skill_level_required: Optional[str] = None  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    work_environment: Optional[str] = None  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
+    # Audit trail
+    edit_reason: Optional[str] = None  # Optional reason for the edit (logged)
+
+
 class ApplyJobMobileSchema(Schema):
     """Mobile-optimized schema for job application"""
     proposal_message: str

@@ -281,6 +281,7 @@ export const ENDPOINTS = {
   MY_JOBS: `${API_URL}/api/mobile/jobs/my-jobs`,
   JOB_DETAILS: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
   DELETE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
+  UPDATE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
   JOB_APPLICATIONS: (id: number) =>
     `${API_URL}/api/mobile/jobs/${id}/applications`,
   ACCEPT_APPLICATION: (jobId: number, applicationId: number) =>

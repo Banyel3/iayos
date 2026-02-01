@@ -1064,6 +1064,21 @@ export default function JobDetailScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Details</Text>
         <View style={styles.headerRight}>
+          {/* Edit button - only show for job owner on ACTIVE jobs */}
+          {user?.accountID === job.postedBy?.id &&
+            job.status === "ACTIVE" && (
+              <TouchableOpacity
+                onPress={() => router.push(`/jobs/edit/${id}` as any)}
+                style={styles.editButton}
+              >
+                <Ionicons
+                  name="pencil-outline"
+                  size={22}
+                  color={Colors.primary}
+                />
+              </TouchableOpacity>
+            )}
+          {/* Delete button - for job owner on non-active jobs */}
           {user?.accountID === job.postedBy?.id &&
             job.status !== "IN_PROGRESS" &&
             job.status !== "COMPLETED" && (
@@ -2788,6 +2803,17 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backIconButton: {
+    padding: Spacing.xs,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  editButton: {
+    padding: Spacing.xs,
+  },
+  deleteButton: {
     padding: Spacing.xs,
   },
   headerTitle: {

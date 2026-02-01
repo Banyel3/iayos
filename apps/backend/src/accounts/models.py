@@ -1171,6 +1171,9 @@ class Notification(models.Model):
         CERTIFICATION_APPROVED = "CERTIFICATION_APPROVED", "Certification Approved"
         CERTIFICATION_REJECTED = "CERTIFICATION_REJECTED", "Certification Rejected"
 
+        # Job Edit Notifications
+        JOB_UPDATED = "JOB_UPDATED", "Job Updated"
+
         # System Notifications
         SYSTEM = "SYSTEM", "System"
     
@@ -1769,9 +1772,26 @@ class JobLog(models.Model):
         related_name='logs'
     )
     
-    # Status tracking
+    # Action type for distinguishing different log types
+    class ActionType(models.TextChoices):
+        STATUS_CHANGE = "STATUS_CHANGE", "Status Change"
+        JOB_EDITED = "JOB_EDITED", "Job Edited"
+        BUDGET_CHANGED = "BUDGET_CHANGED", "Budget Changed"
+        WORKER_ASSIGNED = "WORKER_ASSIGNED", "Worker Assigned"
+        APPLICATION_RECEIVED = "APPLICATION_RECEIVED", "Application Received"
+        JOB_CREATED = "JOB_CREATED", "Job Created"
+        JOB_DELETED = "JOB_DELETED", "Job Deleted"
+    
+    actionType = models.CharField(
+        max_length=30,
+        choices=ActionType.choices,
+        default=ActionType.STATUS_CHANGE,
+        help_text="Type of action that triggered this log entry"
+    )
+    
+    # Status tracking (for STATUS_CHANGE actions)
     oldStatus = models.CharField(max_length=30, null=True, blank=True)
-    newStatus = models.CharField(max_length=30)
+    newStatus = models.CharField(max_length=30, null=True, blank=True)
     
     # Who made the change
     changedBy = models.ForeignKey(
@@ -1785,6 +1805,13 @@ class JobLog(models.Model):
     # Additional details
     notes = models.TextField(null=True, blank=True)
     
+    # Metadata for storing detailed change information (JSON)
+    metadata = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Stores additional data like field changes, old/new values, edit reasons"
+    )
+    
     # Timestamp
     createdAt = models.DateTimeField(auto_now_add=True)
     
@@ -1794,6 +1821,7 @@ class JobLog(models.Model):
         indexes = [
             models.Index(fields=['jobID', '-createdAt']),
             models.Index(fields=['newStatus', '-createdAt']),
+            models.Index(fields=['actionType', '-createdAt']),
         ]
     
     def __str__(self):
