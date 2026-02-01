@@ -338,8 +338,17 @@ class KYCExtractionParser:
                     if all_valid and len(cleaned_parts) >= 2:
                         # Format: LASTNAME, FIRSTNAME, MIDDLENAME or LASTNAME, FIRSTNAME MIDDLENAME
                         last_name = cleaned_parts[0]
-                        first_name = cleaned_parts[1] if len(cleaned_parts) > 1 else ""
-                        middle_name = cleaned_parts[2] if len(cleaned_parts) > 2 else ""
+                        
+                        # Handle 2-part format: "BAKAUN, EDRIS SAPPAYANI" where middle name is space-separated
+                        if len(cleaned_parts) == 2:
+                            # Split the second part by spaces to extract first name and middle name
+                            given_names = cleaned_parts[1].split()
+                            first_name = given_names[0] if len(given_names) > 0 else ""
+                            middle_name = ' '.join(given_names[1:]) if len(given_names) > 1 else ""
+                        else:
+                            # 3+ parts: "LASTNAME, FIRSTNAME, MIDDLENAME"
+                            first_name = cleaned_parts[1] if len(cleaned_parts) > 1 else ""
+                            middle_name = cleaned_parts[2] if len(cleaned_parts) > 2 else ""
                         
                         full_name = f"{first_name} {middle_name} {last_name}".strip()
                         full_name = ' '.join(full_name.split())  # Remove extra spaces
