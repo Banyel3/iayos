@@ -3136,10 +3136,50 @@ def mobile_get_pending_earnings(request):
 @mobile_router.get("/config", auth=None)
 def get_mobile_config(request):
     """
-    Get mobile app configuration including feature flags.
+    Get mobile app configuration including feature flags and version info.
     No authentication required - used for app initialization.
+    
+    Version info is used for in-app update prompts:
+    - min_version: Minimum supported app version (older versions blocked)
+    - current_version: Latest available version
+    - force_update: If true, block app until updated; if false, show optional update
+    - download_url: URL to download latest APK
     """
     from django.conf import settings
+    import requests
+    
+    # Get version from settings (Render env vars - primary source)
+    min_version = getattr(settings, 'MOBILE_MIN_VERSION', None)
+    current_version = getattr(settings, 'MOBILE_CURRENT_VERSION', None)
+    force_update = getattr(settings, 'MOBILE_FORCE_UPDATE', True)
+    download_url = getattr(settings, 'MOBILE_DOWNLOAD_URL', 'https://github.com/Banyel3/iayos/releases/latest')
+    
+    # Fallback: fetch from GitHub API if env vars not set
+    if not current_version:
+        try:
+            response = requests.get(
+                'https://api.github.com/repos/Banyel3/iayos/releases/latest',
+                timeout=5,
+                headers={'Accept': 'application/vnd.github.v3+json'}
+            )
+            if response.status_code == 200:
+                release = response.json()
+                tag_name = release.get('tag_name', '')  # e.g., "mobile-v1.8.11"
+                if tag_name.startswith('mobile-v'):
+                    current_version = tag_name.replace('mobile-v', '')
+                    # Find APK asset URL
+                    for asset in release.get('assets', []):
+                        if asset.get('name', '').endswith('.apk'):
+                            download_url = asset.get('browser_download_url', download_url)
+                            break
+        except Exception as e:
+            print(f"[MOBILE CONFIG] GitHub API fallback failed: {e}")
+    
+    # Final defaults if still not set
+    if not current_version:
+        current_version = '1.8.11'
+    if not min_version:
+        min_version = current_version  # Default: require latest version
     
     return {
         "testing": getattr(settings, 'TESTING', False),
@@ -3154,6 +3194,12 @@ def get_mobile_config(request):
             "min_withdraw": 100,
             "auto_withdraw_day": "Friday",
             "auto_withdraw_minimum": 100,
+        },
+        "version": {
+            "min_version": min_version,
+            "current_version": current_version,
+            "force_update": force_update,
+            "download_url": download_url,
         }
     }
 

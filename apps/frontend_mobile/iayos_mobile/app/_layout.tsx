@@ -1,5 +1,5 @@
 import "react-native-reanimated";
-import React, { useEffect, Component, ErrorInfo, ReactNode } from "react";
+import React, { useEffect, Component, ErrorInfo, ReactNode, useState } from "react";
 import {
   DarkTheme,
   DefaultTheme,
@@ -15,6 +15,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { useAppUpdate } from "@/lib/hooks/useAppUpdate";
+import { UpdateRequiredModal } from "@/components/UpdateRequiredModal";
 import Toast from "react-native-toast-message";
 
 const queryClient = new QueryClient();
@@ -137,6 +139,33 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
+/**
+ * AppUpdateWrapper - Checks for required app updates on startup.
+ * Shows a blocking modal if the app version is below minimum required.
+ * Must be rendered inside QueryClientProvider.
+ */
+function AppUpdateWrapper({ children }: { children: ReactNode }) {
+  const appUpdate = useAppUpdate();
+  const [dismissed, setDismissed] = useState(false);
+
+  // Show modal if update is required (and not dismissed for optional updates)
+  const showModal = appUpdate.updateRequired && !dismissed;
+
+  return (
+    <>
+      {children}
+      <UpdateRequiredModal
+        visible={showModal}
+        installedVersion={appUpdate.installedVersion}
+        currentVersion={appUpdate.currentVersion}
+        downloadUrl={appUpdate.downloadUrl}
+        forceUpdate={appUpdate.forceUpdate}
+        onDismiss={() => setDismissed(true)}
+      />
+    </>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -150,6 +179,7 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+      <AppUpdateWrapper>
       <AuthProvider>
         <NotificationProvider>
           <PaperProvider>
@@ -197,6 +227,7 @@ export default function RootLayout() {
           </PaperProvider>
         </NotificationProvider>
       </AuthProvider>
+      </AppUpdateWrapper>
     </QueryClientProvider>
     </ErrorBoundary>
   );
