@@ -24,8 +24,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
-
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 export default function AgencySidebar({ className }: { className?: string }) {
   const pathname = usePathname();
