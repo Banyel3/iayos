@@ -40,7 +40,7 @@ interface TicketData {
   created_at: string;
   last_reply_at: string;
   reply_count: number;
-  ticket_type?: "INDIVIDUAL" | "AGENCY";
+  ticket_type?: "individual" | "agency";
   agency_id?: number | null;
   agency_name?: string | null;
 }
@@ -107,8 +107,8 @@ const CATEGORY_CONFIG: Record<string, { color: string }> = {
 };
 
 const TICKET_TYPE_CONFIG = {
-  INDIVIDUAL: { label: "Individual", color: "bg-gray-100 text-gray-700 border-gray-200" },
-  AGENCY: { label: "Agency", color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
+  individual: { label: "Individual", color: "bg-gray-100 text-gray-700 border-gray-200" },
+  agency: { label: "Agency", color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
 };
 
 export default function SupportTicketsPage() {
@@ -418,8 +418,8 @@ export default function SupportTicketsPage() {
                     className="px-3 py-2 border rounded-lg text-sm"
                   >
                     <option value="all">All Types</option>
-                    <option value="INDIVIDUAL">Individual</option>
-                    <option value="AGENCY">Agency</option>
+                    <option value="individual">Individual</option>
+                    <option value="agency">Agency</option>
                   </select>
 
                   <select
@@ -612,12 +612,12 @@ export default function SupportTicketsPage() {
                           <td className="px-6 py-4">
                             <Badge
                               className={
-                                ticket.ticket_type === "AGENCY"
-                                  ? TICKET_TYPE_CONFIG.AGENCY.color
-                                  : TICKET_TYPE_CONFIG.INDIVIDUAL.color
+                                ticket.ticket_type === "agency"
+                                  ? TICKET_TYPE_CONFIG.agency.color
+                                  : TICKET_TYPE_CONFIG.individual.color
                               }
                             >
-                              {ticket.ticket_type === "AGENCY" ? "Agency" : "Individual"}
+                              {ticket.ticket_type === "agency" ? "Agency" : "Individual"}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
@@ -635,7 +635,7 @@ export default function SupportTicketsPage() {
                           <td className="px-6 py-4 text-sm text-gray-900">
                             <div className="flex flex-col">
                               <span>{ticket.user_name}</span>
-                              {ticket.ticket_type === "AGENCY" && ticket.agency_name && (
+                              {ticket.ticket_type === "agency" && ticket.agency_name && (
                                 <span className="text-xs text-indigo-600 font-medium">
                                   {ticket.agency_name}
                                 </span>
