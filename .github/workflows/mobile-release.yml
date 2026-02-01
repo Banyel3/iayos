@@ -471,27 +471,52 @@ jobs:
           echo "📱 Updating Render mobile version to $NEW_VERSION..."
           
           # Update MOBILE_MIN_VERSION (forces update for older versions)
-          curl -s -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_MIN_VERSION" \
+          MIN_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_MIN_VERSION" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"value\": \"$NEW_VERSION\"}"
+            -d "{\"value\": \"$NEW_VERSION\"}")
+          
+          MIN_HTTP_CODE=$(echo "$MIN_RESPONSE" | tail -n1)
+          MIN_BODY=$(echo "$MIN_RESPONSE" | head -n-1)
+          
+          if [ "$MIN_HTTP_CODE" -eq 200 ] || [ "$MIN_HTTP_CODE" -eq 201 ]; then
+            echo "✅ MOBILE_MIN_VERSION updated to $NEW_VERSION"
+          else
+            echo "⚠️ Failed to update MOBILE_MIN_VERSION (HTTP $MIN_HTTP_CODE): $MIN_BODY"
+          fi
           
           # Update MOBILE_CURRENT_VERSION (latest available version)
-          curl -s -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_CURRENT_VERSION" \
+          CURRENT_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_CURRENT_VERSION" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"value\": \"$NEW_VERSION\"}"
+            -d "{\"value\": \"$NEW_VERSION\"}")
           
-          echo "✅ Render env vars updated to $NEW_VERSION"
+          CURRENT_HTTP_CODE=$(echo "$CURRENT_RESPONSE" | tail -n1)
+          CURRENT_BODY=$(echo "$CURRENT_RESPONSE" | head -n-1)
+          
+          if [ "$CURRENT_HTTP_CODE" -eq 200 ] || [ "$CURRENT_HTTP_CODE" -eq 201 ]; then
+            echo "✅ MOBILE_CURRENT_VERSION updated to $NEW_VERSION"
+          else
+            echo "⚠️ Failed to update MOBILE_CURRENT_VERSION (HTTP $CURRENT_HTTP_CODE): $CURRENT_BODY"
+          fi
           
           # Trigger Render redeploy to apply new env vars
-          echo "🚀 Triggering Render redeploy..."
-          curl -s -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+          echo "🚀 Triggering Render redeploy to apply new env vars..."
+          DEPLOY_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{"clearCache": false}'
+            -d '{"clearCache": false}')
           
-          echo "✅ Render redeploy triggered"
+          DEPLOY_HTTP_CODE=$(echo "$DEPLOY_RESPONSE" | tail -n1)
+          DEPLOY_BODY=$(echo "$DEPLOY_RESPONSE" | head -n-1)
+          
+          if [ "$DEPLOY_HTTP_CODE" -eq 200 ] || [ "$DEPLOY_HTTP_CODE" -eq 201 ]; then
+            echo "✅ Render redeploy triggered successfully!"
+            echo "🔗 Monitor at: https://dashboard.render.com"
+          else
+            echo "❌ Failed to trigger Render redeploy (HTTP $DEPLOY_HTTP_CODE): $DEPLOY_BODY"
+            echo "::warning::Render redeploy failed. You may need to manually restart the backend."
+          fi
 
       - name: Summary
         if: always()
