@@ -126,7 +126,7 @@ const TempDashboard = () => {
         const errorData = await res.json();
         console.error("API Response Error:", errorData);
         alert(getErrorMessage(errorData, "Failed to assign profile type"));
-        throw new Error(errorData.error || "Failed to assign profile type");
+        throw new Error(getErrorMessage(errorData, "Failed to assign profile type"));
       } else {
         console.log("Profile type assigned successfully");
 

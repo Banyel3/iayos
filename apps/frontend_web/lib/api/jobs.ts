@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Types
 export interface JobPosting {
@@ -250,9 +251,7 @@ export async function fetchWorkers(): Promise<WorkerListing[]> {
       .json()
       .catch(() => ({ error: "Failed to fetch workers" }));
     throw new Error(
-      errorData.error ||
-        errorData.message ||
-        `Failed to fetch workers: ${response.status}`
+      getErrorMessage(errorData, `Failed to fetch workers: ${response.status}`)
     );
   }
 
@@ -312,13 +311,13 @@ export async function submitJobApplication(params: {
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.error || "Failed to submit application");
+    throw new Error(getErrorMessage(errorData, "Failed to submit application"));
   }
 
   const data = await response.json();
 
   if (!data.success) {
-    throw new Error(data.error || "Failed to submit application");
+    throw new Error(getErrorMessage(data, "Failed to submit application"));
   }
 
   return data;
@@ -642,7 +641,7 @@ export async function createListingJob(
     return {
       success: false,
       error:
-        errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+        getErrorMessage(errorData, `HTTP ${response.status}: ${response.statusText}`),
     };
   }
 

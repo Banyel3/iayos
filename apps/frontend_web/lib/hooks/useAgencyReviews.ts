@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 const API_BASE_URL = API_BASE;
@@ -75,7 +76,7 @@ async function fetchAgencyReviews(
       throw new Error("Unauthorized - Please log in again");
     }
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Failed to fetch reviews");
+    throw new Error(getErrorMessage(errorData, "Failed to fetch reviews"));
   }
 
   return response.json();

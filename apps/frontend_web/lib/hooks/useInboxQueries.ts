@@ -6,6 +6,7 @@ import {
   ChatMessage,
   ConversationFilter,
 } from "@/lib/api/chat";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 const API_BASE_URL = API_BASE;
@@ -81,7 +82,7 @@ export function useMarkJobComplete() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to mark job as complete");
+        throw new Error(getErrorMessage(error, "Failed to mark job as complete"));
       }
 
       return response.json();
@@ -124,7 +125,7 @@ export function useApproveJobCompletion() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to approve job completion");
+        throw new Error(getErrorMessage(error, "Failed to approve job completion"));
       }
 
       return response.json();
@@ -177,7 +178,7 @@ export function useSubmitReview() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to submit review");
+        throw new Error(getErrorMessage(error, "Failed to submit review"));
       }
 
       return response.json();

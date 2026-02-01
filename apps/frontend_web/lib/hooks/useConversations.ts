@@ -3,6 +3,7 @@
 // Ported from React Native mobile app
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 const API_BASE_URL = API_BASE;
@@ -136,7 +137,7 @@ export function useArchiveConversation() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to toggle archive status");
+        throw new Error(getErrorMessage(errorData, "Failed to toggle archive status"));
       }
 
       const data = await response.json();

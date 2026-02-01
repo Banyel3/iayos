@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
@@ -374,7 +375,7 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMessage = errorData.error || "Failed to accept invitation";
+        const errorMessage = getErrorMessage(errorData, "Failed to accept invitation");
 
         // Provide user-friendly message for payment-related errors
         if (errorMessage.includes("escrow payment")) {
@@ -440,7 +441,7 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to reject invitation");
+        throw new Error(getErrorMessage(errorData, "Failed to reject invitation"));
       }
 
       const result = await response.json();

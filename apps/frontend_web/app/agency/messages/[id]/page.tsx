@@ -6,6 +6,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter, useParams } from "next/navigation";
 import {
   useAgencyMessages,
@@ -151,7 +152,7 @@ export default function AgencyChatScreen() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Upload failed");
+        throw new Error(getErrorMessage(error, "Upload failed"));
       }
 
       const result = await response.json();

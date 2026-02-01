@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // ========================================
 // WORKER PHASE 1 - API CLIENT
@@ -91,7 +92,7 @@ export async function updateWorkerProfile(data: {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to update profile");
+    throw new Error(getErrorMessage(error, "Failed to update profile"));
   }
 
   return response.json();
@@ -111,7 +112,7 @@ export async function getProfileCompletion(): Promise<ProfileCompletionData> {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to get profile completion");
+    throw new Error(getErrorMessage(error, "Failed to get profile completion"));
   }
 
   return response.json();
@@ -150,7 +151,7 @@ export async function addCertification(data: {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to add certification");
+    throw new Error(getErrorMessage(error, "Failed to add certification"));
   }
 
   return response.json();
@@ -170,7 +171,7 @@ export async function getCertifications(): Promise<CertificationData[]> {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to get certifications");
+    throw new Error(getErrorMessage(error, "Failed to get certifications"));
   }
 
   return response.json();
@@ -209,7 +210,7 @@ export async function updateCertification(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to update certification");
+    throw new Error(getErrorMessage(error, "Failed to update certification"));
   }
 
   return response.json();
@@ -231,7 +232,7 @@ export async function deleteCertification(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to delete certification");
+    throw new Error(getErrorMessage(error, "Failed to delete certification"));
   }
 
   return response.json();
@@ -260,7 +261,7 @@ export async function uploadPortfolioImage(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to upload portfolio image");
+    throw new Error(getErrorMessage(error, "Failed to upload portfolio image"));
   }
 
   return response.json();
@@ -277,7 +278,7 @@ export async function getPortfolio(): Promise<PortfolioItemData[]> {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to get portfolio");
+    throw new Error(getErrorMessage(error, "Failed to get portfolio"));
   }
 
   return response.json();
@@ -304,7 +305,7 @@ export async function updatePortfolioCaption(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to update caption");
+    throw new Error(getErrorMessage(error, "Failed to update caption"));
   }
 
   return response.json();
@@ -330,7 +331,7 @@ export async function reorderPortfolio(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to reorder portfolio");
+    throw new Error(getErrorMessage(error, "Failed to reorder portfolio"));
   }
 
   return response.json();
@@ -352,7 +353,7 @@ export async function deletePortfolioImage(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to delete portfolio image");
+    throw new Error(getErrorMessage(error, "Failed to delete portfolio image"));
   }
 
   return response.json();

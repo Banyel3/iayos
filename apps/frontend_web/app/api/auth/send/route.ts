@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 const verifySchema = z.object({
   email: z.string().email(),
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: backendData.error || "Failed to send verification email",
+          error: getErrorMessage(backendData, "Failed to send verification email"),
           details: backendData.details,
         },
         { status: backendResponse.status },
