@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Wallet types
 export interface WalletBalance {
@@ -92,7 +93,7 @@ export async function depositToWallet(
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || "Failed to deposit funds");
+    throw new Error(getErrorMessage(data, "Failed to deposit funds"));
   }
 
   return data;
@@ -118,7 +119,7 @@ export async function requestWithdrawal(amount: number): Promise<{
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || "Failed to request withdrawal");
+    throw new Error(getErrorMessage(data, "Failed to request withdrawal"));
   }
 
   return data;

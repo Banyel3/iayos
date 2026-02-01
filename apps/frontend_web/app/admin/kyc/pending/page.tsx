@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Card,
   CardContent,
@@ -420,7 +421,7 @@ export default function PendingKYCPage() {
           .catch(() => ({ error: "Unknown error" }));
         console.error("❌ Backend error:", errorData);
         throw new Error(
-          `Failed to fetch signed URLs: ${errorData.error || response.statusText}`,
+          `Failed to fetch signed URLs: ${getErrorMessage(errorData, response.statusText)}`,
         );
       }
 

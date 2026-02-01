@@ -3,6 +3,7 @@
 // Uses agency-specific API endpoints
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 // Types
@@ -307,7 +308,7 @@ export function useAgencyMarkComplete() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          error.error || `Failed to mark complete: ${response.statusText}`,
+          getErrorMessage(error, `Failed to mark complete: ${response.statusText}`),
         );
       }
 
@@ -350,7 +351,7 @@ export function useAgencySubmitReview() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          error.error || `Failed to submit review: ${response.statusText}`,
+          getErrorMessage(error, `Failed to submit review: ${response.statusText}`),
         );
       }
 

@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // ===== TYPES =====
 
@@ -144,7 +145,7 @@ export function useCreateMaterial() {
       if (!response.ok) {
         const error = await response.json();
         throw new Error(
-          error.message || error.error || "Failed to create material"
+          getErrorMessage(error, "Failed to create material")
         );
       }
 
@@ -253,7 +254,7 @@ export function useUpdateMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to update material");
+        throw new Error(getErrorMessage(error, "Failed to update material"));
       }
 
       return response.json();
@@ -293,7 +294,7 @@ export function useToggleMaterialAvailability() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to toggle availability");
+        throw new Error(getErrorMessage(error, "Failed to toggle availability"));
       }
 
       return response.json();
@@ -322,7 +323,7 @@ export function useDeleteMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to delete material");
+        throw new Error(getErrorMessage(error, "Failed to delete material"));
       }
 
       return response.json();

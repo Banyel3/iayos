@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { API_BASE_URL, apiRequest } from '@/lib/api/config';
+import { getErrorMessage } from '@/lib/utils/parse-api-error';
 
 export interface ContactSupportData {
   name: string;
@@ -53,7 +54,7 @@ export function useContactSupport() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Failed to send support message');
+        throw new Error(getErrorMessage(error, 'Failed to send support message'));
       }
 
       const result = await response.json();

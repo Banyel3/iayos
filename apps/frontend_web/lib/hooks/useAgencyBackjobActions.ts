@@ -4,6 +4,7 @@
 // Agencies act as "worker entities" in the backjob workflow
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 /**
@@ -27,7 +28,7 @@ export function useConfirmBackjobStarted() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || "Failed to confirm backjob started");
+        throw new Error(getErrorMessage(error, "Failed to confirm backjob started"));
       }
 
       return response.json();
@@ -65,7 +66,7 @@ export function useMarkBackjobComplete() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || "Failed to mark backjob complete");
+        throw new Error(getErrorMessage(error, "Failed to mark backjob complete"));
       }
 
       return response.json();
@@ -103,7 +104,7 @@ export function useApproveBackjobCompletion() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || "Failed to approve backjob completion");
+        throw new Error(getErrorMessage(error, "Failed to approve backjob completion"));
       }
 
       return response.json();

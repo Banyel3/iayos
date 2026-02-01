@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
@@ -163,7 +164,7 @@ const EditProfilePage = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to upload image");
+        throw new Error(getErrorMessage(errorData, "Failed to upload image"));
       }
 
       const result = await response.json();

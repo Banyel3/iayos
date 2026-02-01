@@ -6,6 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // Pending earnings item for individual job payments held in buffer
 export interface PendingEarningItem {
@@ -92,7 +93,7 @@ export function useAddFunds() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to add funds");
+        throw new Error(getErrorMessage(error, "Failed to add funds"));
       }
 
       return response.json();
@@ -121,7 +122,7 @@ export function useWithdraw() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to withdraw");
+        throw new Error(getErrorMessage(error, "Failed to withdraw"));
       }
 
       return response.json();

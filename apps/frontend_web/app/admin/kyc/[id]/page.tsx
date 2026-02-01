@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -332,7 +333,7 @@ export default function KYCDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to approve KYC");
+        throw new Error(getErrorMessage(errorData, "Failed to approve KYC"));
       }
 
       toast.success("KYC approved successfully");
@@ -378,7 +379,7 @@ export default function KYCDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to reject KYC");
+        throw new Error(getErrorMessage(errorData, "Failed to reject KYC"));
       }
 
       toast.success("KYC rejected");

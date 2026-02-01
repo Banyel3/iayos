@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -156,7 +157,7 @@ export default function AgencyBackjobDetailPage({
         );
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to mark backjob complete");
+        alert(getErrorMessage(error, "Failed to mark backjob complete"));
       }
     } catch (error) {
       console.error("Error marking backjob complete:", error);

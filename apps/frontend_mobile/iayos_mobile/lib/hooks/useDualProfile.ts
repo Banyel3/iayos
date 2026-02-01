@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import Toast from "react-native-toast-message";
 import { useAuth } from "@/context/AuthContext";
 
@@ -50,7 +51,7 @@ export function useCreateClientProfile() {
 
       if (!response.ok) {
         const error = (await response.json()) as any;
-        throw new Error(error.error || "Failed to create client profile");
+        throw new Error(getErrorMessage(error, "Failed to create client profile"));
       }
 
       return response.json();
@@ -91,7 +92,7 @@ export function useCreateWorkerProfile() {
 
       if (!response.ok) {
         const error = (await response.json()) as any;
-        throw new Error(error.error || "Failed to create worker profile");
+        throw new Error(getErrorMessage(error, "Failed to create worker profile"));
       }
 
       return response.json();

@@ -10,6 +10,7 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { API_BASE_URL } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useMyJobs,
@@ -717,7 +718,7 @@ const MyRequestsPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to cancel job");
+        throw new Error(getErrorMessage(errorData, "Failed to cancel job"));
       }
 
       const data = await response.json();
@@ -870,7 +871,7 @@ const MyRequestsPage = () => {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error("Error response:", errorData);
-          throw new Error(errorData.error || "Failed to fetch applications");
+          throw new Error(getErrorMessage(errorData, "Failed to fetch applications"));
         }
 
         const data = await response.json();

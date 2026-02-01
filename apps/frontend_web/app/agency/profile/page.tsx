@@ -361,7 +361,7 @@ export default function AgencyProfilePage() {
         await fetchProfile();
       } else {
         const error = await res.json();
-        toast.error(error.error || "Failed to update profile");
+        toast.error(getErrorMessage(error, "Failed to update profile"));
       }
     } catch (error) {
       console.error("Error updating profile:", error);

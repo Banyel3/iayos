@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -198,7 +199,7 @@ export default function CertificationDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to approve certification");
+        throw new Error(getErrorMessage(errorData, "Failed to approve certification"));
       }
 
       toast.success("Certification approved successfully");
@@ -240,7 +241,7 @@ export default function CertificationDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to reject certification");
+        throw new Error(getErrorMessage(errorData, "Failed to reject certification"));
       }
 
       toast.success("Certification rejected");

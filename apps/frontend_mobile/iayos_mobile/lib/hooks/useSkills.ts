@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // ===== TYPES =====
 
@@ -120,7 +121,7 @@ export function useAddSkill() {
       };
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to add skill");
+        throw new Error(getErrorMessage(data, "Failed to add skill"));
       }
 
       return data as AddSkillResponse;
@@ -158,7 +159,7 @@ export function useUpdateSkill() {
       };
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to update skill");
+        throw new Error(getErrorMessage(data, "Failed to update skill"));
       }
 
       return data as UpdateSkillResponse;
@@ -187,7 +188,7 @@ export function useRemoveSkill() {
       };
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to remove skill");
+        throw new Error(getErrorMessage(data, "Failed to remove skill"));
       }
 
       return data as RemoveSkillResponse;

@@ -12,6 +12,7 @@ import {
   reorderPortfolio,
   deletePortfolioImage,
 } from "@/lib/api/worker-profile";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { toast } from "sonner";
 
 // Query Keys
@@ -58,7 +59,7 @@ export function useUpdateWorkerProfile() {
       toast.success(data.message || "Profile updated successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update profile");
+      toast.error(getErrorMessage(error, "Failed to update profile"));
     },
   });
 }
@@ -101,7 +102,7 @@ export function useAddCertification() {
       toast.success(data.message || "Certification added successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to add certification");
+      toast.error(getErrorMessage(error, "Failed to add certification"));
     },
   });
 }
@@ -133,7 +134,7 @@ export function useUpdateCertification() {
       toast.success(data.message || "Certification updated successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update certification");
+      toast.error(getErrorMessage(error, "Failed to update certification"));
     },
   });
 }
@@ -157,7 +158,7 @@ export function useDeleteCertification() {
       toast.success(data.message || "Certification deleted successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete certification");
+      toast.error(getErrorMessage(error, "Failed to delete certification"));
     },
   });
 }
@@ -201,7 +202,7 @@ export function useUploadPortfolioImage() {
       toast.success(data.message || "Portfolio image uploaded successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to upload portfolio image");
+      toast.error(getErrorMessage(error, "Failed to upload portfolio image"));
     },
   });
 }
@@ -227,7 +228,7 @@ export function useUpdatePortfolioCaption() {
       toast.success(data.message || "Caption updated successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update caption");
+      toast.error(getErrorMessage(error, "Failed to update caption"));
     },
   });
 }
@@ -247,7 +248,7 @@ export function useReorderPortfolio() {
       toast.success(data.message || "Portfolio reordered successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to reorder portfolio");
+      toast.error(getErrorMessage(error, "Failed to reorder portfolio"));
     },
   });
 }
@@ -271,7 +272,7 @@ export function useDeletePortfolioImage() {
       toast.success(data.message || "Portfolio image deleted successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete portfolio image");
+      toast.error(getErrorMessage(error, "Failed to delete portfolio image"));
     },
   });
 }

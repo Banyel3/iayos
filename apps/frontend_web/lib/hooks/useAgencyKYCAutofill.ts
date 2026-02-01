@@ -8,6 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 // Field configuration for Agency KYC - business + representative info
@@ -243,7 +244,7 @@ async function confirmAgencyKYCData(
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to confirm data");
+    throw new Error(getErrorMessage(data, "Failed to confirm data"));
   }
 
   return response.json();

@@ -11,6 +11,7 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { useWebSocket } from "@/lib/hooks/useWebSocket";
 import { API_BASE_URL } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Conversation,
   ChatMessage,
@@ -705,7 +706,7 @@ const InboxPage = () => {
         alert(data.message || "Payment confirmed! You can now leave a review.");
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to confirm payment");
+        alert(getErrorMessage(error, "Failed to confirm payment"));
       }
     } catch (error) {
       console.error("Error confirming payment:", error);

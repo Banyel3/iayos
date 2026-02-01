@@ -4,6 +4,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import type { KYCStatusResponse } from "@/lib/types/kyc";
 
 /**
@@ -16,7 +17,7 @@ const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
 
   if (!response.ok) {
     const errorData = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(errorData.message || "Failed to fetch KYC status");
+    throw new Error(getErrorMessage(errorData, "Failed to fetch KYC status"));
   }
 
   const data = (await response.json()) as {
@@ -164,7 +165,7 @@ const fetchKYCHistory = async () => {
 
   if (!response.ok) {
     const errorData = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(errorData.message || "Failed to fetch KYC history");
+    throw new Error(getErrorMessage(errorData, "Failed to fetch KYC history"));
   }
 
   return response.json();

@@ -8,6 +8,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 
 // Receipt data types
 export interface ReceiptPayment {
@@ -116,7 +117,7 @@ export function useJobReceipt(jobId: number | null, enabled: boolean = true) {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Failed to fetch receipt" })) as { error?: string };
-        throw new Error(errorData.error || "Failed to fetch receipt");
+        throw new Error(getErrorMessage(errorData, "Failed to fetch receipt"));
       }
       
       return response.json() as Promise<JobReceiptResponse>;

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 export type ConversationFilter = "all" | "unread" | "archived";
 
@@ -106,7 +107,7 @@ export const fetchConversations = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
+        getErrorMessage(errorData, `HTTP error! status: ${response.status}`)
       );
     }
 
@@ -147,7 +148,7 @@ export const fetchMessages = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
+        getErrorMessage(errorData, `HTTP error! status: ${response.status}`)
       );
     }
 
@@ -188,7 +189,7 @@ export const sendMessage = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
+        getErrorMessage(errorData, `HTTP error! status: ${response.status}`)
       );
     }
 
@@ -222,7 +223,7 @@ export const markMessagesAsRead = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
+        getErrorMessage(errorData, `HTTP error! status: ${response.status}`)
       );
     }
 
@@ -254,7 +255,7 @@ export const toggleConversationArchive = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
+        getErrorMessage(errorData, `HTTP error! status: ${response.status}`)
       );
     }
 

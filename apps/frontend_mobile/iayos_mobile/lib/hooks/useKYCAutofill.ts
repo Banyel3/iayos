@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, OCR_TIMEOUT } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 /**
  * Interface for extracted KYC field with confidence
@@ -82,7 +83,7 @@ const fetchKYCAutofill = async (): Promise<KYCAutofillResponse> => {
     const errorData = (await response.json().catch(() => ({}))) as {
       error?: string;
     };
-    throw new Error(errorData.error || "Failed to fetch KYC auto-fill data");
+    throw new Error(getErrorMessage(errorData, "Failed to fetch KYC auto-fill data"));
   }
 
   return response.json() as Promise<KYCAutofillResponse>;
@@ -104,7 +105,7 @@ const confirmKYCData = async (payload: KYCConfirmPayload): Promise<any> => {
     const errorData = (await response.json().catch(() => ({}))) as {
       error?: string;
     };
-    throw new Error(errorData.error || "Failed to confirm KYC data");
+    throw new Error(getErrorMessage(errorData, "Failed to confirm KYC data"));
   }
 
   return response.json();
@@ -371,7 +372,7 @@ const extractIDData = async (
   }
 
   if (!response.ok) {
-    throw new Error(data.error || "Failed to extract ID data");
+    throw new Error(getErrorMessage(data, "Failed to extract ID data"));
   }
 
   return data;
@@ -430,7 +431,7 @@ const extractClearanceData = async (
   }
 
   if (!response.ok) {
-    throw new Error(data.error || "Failed to extract clearance data");
+    throw new Error(getErrorMessage(data, "Failed to extract clearance data"));
   }
 
   return data;

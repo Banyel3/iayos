@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       console.error("Backend send-otp-email error:", data);
       return NextResponse.json(
-        { error: data.error || "Failed to send OTP email" },
+        { error: getErrorMessage(data, "Failed to send OTP email") },
         { status: response.status },
       );
     }

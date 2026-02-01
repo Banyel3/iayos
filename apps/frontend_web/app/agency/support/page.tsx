@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/form_button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   ArrowLeft,
   HelpCircle,
@@ -169,7 +170,7 @@ export default function AgencySupportPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to submit support ticket");
+        throw new Error(getErrorMessage(errorData, "Failed to submit support ticket"));
       }
 
       const data = await response.json();

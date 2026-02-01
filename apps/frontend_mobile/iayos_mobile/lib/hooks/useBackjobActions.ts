@@ -4,6 +4,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 
 /**
@@ -22,7 +23,7 @@ export function useConfirmBackjobStarted() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to confirm backjob started");
+        throw new Error(getErrorMessage(error, "Failed to confirm backjob started"));
       }
 
       return response.json();
@@ -73,7 +74,7 @@ export function useMarkBackjobComplete() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to mark backjob complete");
+        throw new Error(getErrorMessage(error, "Failed to mark backjob complete"));
       }
 
       return response.json();
@@ -124,7 +125,7 @@ export function useApproveBackjobCompletion() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(error.error || "Failed to approve backjob completion");
+        throw new Error(getErrorMessage(error, "Failed to approve backjob completion"));
       }
 
       return response.json();

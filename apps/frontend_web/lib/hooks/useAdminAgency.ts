@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 interface AgencyEmployee {
@@ -77,7 +78,7 @@ export function useAgencyEmployees(agencyId: number) {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || "Failed to fetch agency employees");
+        throw new Error(getErrorMessage(data, "Failed to fetch agency employees"));
       }
 
       // Map backend response to expected format
