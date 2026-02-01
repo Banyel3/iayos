@@ -692,10 +692,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
             escrowAmount=escrow_amount,  # 50% held in escrow
             remainingPayment=escrow_amount,  # 50% remaining payment (no commission on final)
-            # Universal job fields for ML accuracy
-            job_scope=job_data.get('job_scope', 'MINOR_REPAIR'),
-            skill_level_required=job_data.get('skill_level_required', 'INTERMEDIATE'),
-            work_environment=job_data.get('work_environment', 'INDOOR'),
+            # Universal job fields for ML accuracy - use values from request (model has defaults if None)
+            job_scope=job_data.get('job_scope'),
+            skill_level_required=job_data.get('skill_level_required'),
+            work_environment=job_data.get('work_environment'),
         )
 
         # Handle payment based on method
@@ -971,10 +971,10 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     status="ACTIVE",  # Job created, awaiting acceptance
                     assignedAgencyFK=assigned_agency,
                     assignedWorkerID=assigned_worker,
-                    # Universal job fields for ML accuracy
-                    job_scope=job_data.get('job_scope', 'MINOR_REPAIR'),
-                    skill_level_required=job_data.get('skill_level_required', 'INTERMEDIATE'),
-                    work_environment=job_data.get('work_environment', 'INDOOR'),
+                    # Universal job fields for ML accuracy - use values from request (model has defaults if None)
+                    job_scope=job_data.get('job_scope'),
+                    skill_level_required=job_data.get('skill_level_required'),
+                    work_environment=job_data.get('work_environment'),
                 )
                 
                 # Create escrow transaction

@@ -153,7 +153,8 @@ export default function EditJobScreen() {
         urgency_level: data.urgency_level || "MEDIUM",
         preferred_start_date: data.preferred_start_date,
         materials_needed: data.materials_needed || [],
-        job_scope: data.job_scope || "MODERATE_PROJECT",
+        // Use model-consistent defaults if backend returns null
+        job_scope: data.job_scope || "MINOR_REPAIR",
         skill_level_required: data.skill_level_required || "INTERMEDIATE",
         work_environment: data.work_environment || "INDOOR",
         status: data.status,
@@ -191,7 +192,8 @@ export default function EditJobScreen() {
       }
 
       setMaterials(jobData.materials_needed || []);
-      setJobScope(jobData.job_scope || "MODERATE_PROJECT");
+      // Use model-consistent defaults
+      setJobScope(jobData.job_scope || "MINOR_REPAIR");
       setSkillLevel(jobData.skill_level_required || "INTERMEDIATE");
       setWorkEnvironment(jobData.work_environment || "INDOOR");
       setHasPendingApplications(jobData.has_pending_applications);
