@@ -3133,6 +3133,153 @@ def mobile_get_pending_earnings(request):
         )
 
 
+@mobile_router.get("/config", auth=None)
+def get_mobile_config(request):
+    """
+    Get mobile app configuration including feature flags.
+    No authentication required - used for app initialization.
+    """
+    from django.conf import settings
+    
+    return {
+        "testing": getattr(settings, 'TESTING', False),
+        "features": {
+            "gcash_direct_deposit": getattr(settings, 'TESTING', False),  # TODO: REMOVE FOR PROD
+            "qrph_deposit": True,
+            "auto_withdraw": True,
+        },
+        "platform": {
+            "min_deposit": 100,
+            "max_deposit": 100000,
+            "min_withdraw": 100,
+            "auto_withdraw_day": "Friday",
+            "auto_withdraw_minimum": 100,
+        }
+    }
+
+
+# TODO: REMOVE FOR PROD - Testing only GCash direct deposit
+@mobile_router.post("/wallet/deposit-gcash", auth=jwt_auth)
+def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
+    """
+    TODO: REMOVE FOR PROD - Testing only
+    Mobile wallet deposit via direct GCash (for testing when QR PH doesn't work)
+    Only available when TESTING=true in environment.
+    """
+    from django.conf import settings
+    
+    # Check if testing mode is enabled
+    if not getattr(settings, 'TESTING', False):
+        return Response(
+            {"error": "GCash direct deposit is only available in testing mode"},
+            status=404
+        )
+    
+    try:
+        from .models import Wallet, Transaction, Profile
+        from .payment_provider import get_payment_provider
+        from decimal import Decimal
+        
+        amount = payload.amount
+        payment_method = "GCASH"
+
+        print(f"📥 [Mobile] GCash Direct Deposit request (TESTING): ₱{amount} from {request.auth.email}")
+        
+        if amount <= 0:
+            return Response(
+                {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Get or create wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': 0.00}
+        )
+        
+        # Get user's profile for name
+        try:
+            profile_type = getattr(request.auth, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+            else:
+                profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+            if profile:
+                user_name = f"{profile.firstName} {profile.lastName}"
+            else:
+                user_name = request.auth.email.split('@')[0]
+        except Exception:
+            user_name = request.auth.email.split('@')[0]
+        
+        # Create PENDING transaction
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType=Transaction.TransactionType.DEPOSIT,
+            amount=Decimal(str(amount)),
+            balanceAfter=wallet.balance,
+            status=Transaction.TransactionStatus.PENDING,
+            description=f"TOP UP via {payment_method} (Testing) - ₱{amount}",
+            paymentMethod=payment_method,
+        )
+        
+        # Create GCash direct payment
+        payment_provider = get_payment_provider()
+        
+        # Use the direct GCash method instead of QR PH
+        payment_result = payment_provider.create_gcash_direct_payment(
+            amount=amount,
+            user_email=request.auth.email,
+            user_name=user_name,
+            transaction_id=transaction.transactionID
+        )
+        
+        if not payment_result.get("success"):
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
+            transaction.save()
+            return Response(
+                {"error": "Failed to create payment invoice"},
+                status=500
+            )
+        
+        # Update transaction with payment provider details
+        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        transaction.xenditExternalID = payment_result.get('external_id')
+        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
+        transaction.xenditPaymentChannel = payment_method
+        transaction.xenditPaymentMethod = "PAYMONGO_GCASH"
+        transaction.save()
+        
+        print(f"📄 GCash Direct payment created (TESTING): {transaction.xenditInvoiceID}")
+        
+        return {
+            "success": True,
+            "transaction_id": transaction.transactionID,
+            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "invoice_id": transaction.xenditInvoiceID,
+            "amount": amount,
+            "current_balance": float(wallet.balance),
+            "expiry_date": payment_result.get('expiry_date'),
+            "provider": "paymongo",
+            "method": "gcash_direct",
+            "status": "pending",
+            "message": "GCash payment link created (Testing mode). Complete payment to add funds."
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Error with GCash direct deposit: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to create GCash deposit"},
+            status=500
+        )
+
+
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
 def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """

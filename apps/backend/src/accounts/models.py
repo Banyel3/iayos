@@ -2245,6 +2245,25 @@ class Wallet(models.Model):
         help_text="Earnings from completed jobs pending release (7-day buffer)"
     )
     
+    # Auto-Withdrawal Settings (Friday weekly auto-withdrawal requests)
+    autoWithdrawEnabled = models.BooleanField(
+        default=False,
+        help_text="Enable automatic weekly withdrawal requests every Friday"
+    )
+    preferredPaymentMethodID = models.ForeignKey(
+        'UserPaymentMethod',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='auto_withdraw_wallets',
+        help_text="Preferred payment method for auto-withdrawals"
+    )
+    lastAutoWithdrawAt = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time an auto-withdrawal request was created"
+    )
+    
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -2252,6 +2271,7 @@ class Wallet(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['accountFK']),
+            models.Index(fields=['autoWithdrawEnabled']),
         ]
     
     @property

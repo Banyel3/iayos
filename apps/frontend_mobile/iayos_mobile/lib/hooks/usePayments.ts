@@ -308,6 +308,49 @@ export const useWalletDeposit = () => {
   });
 };
 
+// TODO: REMOVE FOR PROD - GCash direct deposit for testing
+// Hook: Wallet deposit via GCash Direct (testing only)
+export const useWalletDepositGCash = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<WalletDepositResponse, Error, WalletDepositParams>({
+    mutationFn: async ({ amount }: WalletDepositParams) => {
+      return fetchJson<WalletDepositResponse>(ENDPOINTS.DEPOSIT_GCASH, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount,
+          payment_method: "GCASH",
+        }),
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+
+      Toast.show({
+        type: "success",
+        text1: "GCash Deposit Initiated (Testing)",
+        text2: data.payment_url
+          ? "Redirecting to GCash..."
+          : "Wallet balance updated",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "GCash Deposit Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
 // Utility: Calculate escrow amount (50% of job budget + 10% platform fee on that 50%)
 // Worker receives full job budget, client pays platform fee on top
 export const calculateEscrowAmount = (jobBudget: number) => {
