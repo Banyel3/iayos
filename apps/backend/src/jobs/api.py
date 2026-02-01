@@ -1433,7 +1433,7 @@ def get_my_applications(request):
 
 # NOTE: This route MUST be defined BEFORE /{job_id} to avoid route matching conflict!
 # Otherwise "my-backjobs" gets parsed as a job_id integer and fails.
-@router.get("/my-backjobs", auth=jwt_auth)
+@router.get("/my-backjobs", auth=dual_auth)
 def get_my_backjobs(request, status: Optional[str] = None):
     """
     Get backjobs assigned to the current worker or agency.

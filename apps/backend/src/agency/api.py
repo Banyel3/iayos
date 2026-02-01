@@ -1895,8 +1895,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 attachment = MessageAttachment.objects.filter(messageID=msg).first()
                 if attachment:
                     file_url = attachment.fileURL
-                    # Convert relative URL to absolute if needed
-                    if file_url and file_url.startswith('/'):
+                    # If it's a storage path (not a full URL), generate fresh signed URL
+                    if file_url and not file_url.startswith('http'):
+                        from iayos_project.utils import get_signed_url
+                        signed = get_signed_url('iayos_files', file_url, expires_in=3600)
+                        file_url = signed if signed else file_url
+                    # Convert relative URL to absolute if needed (for legacy URLs)
+                    elif file_url and file_url.startswith('/'):
                         file_url = f"{base_url}{file_url}"
                     message_text = file_url
             
@@ -2161,15 +2166,8 @@ def upload_agency_chat_image(request, conversation_id: int):
             if isinstance(upload_response, dict) and 'error' in upload_response:
                 raise Exception(f"Upload failed: {upload_response['error']}")
             
-            # Get public URL (relative for local storage)
-            # Get signed URL for private bucket (24 hour expiry)
-            signed_url_response = settings.STORAGE.storage().from_('iayos_files').create_signed_url(
-                storage_path, 
-                expires_in=86400  # 24 hours
-            )
-            if signed_url_response.get('error'):
-                raise Exception(f"Failed to create signed URL: {signed_url_response['error']}")
-            public_url = signed_url_response.get('signedURL')
+            # Store the storage path (NOT the signed URL) - we'll generate signed URLs on fetch
+            # This ensures URLs don't expire since we generate fresh ones each time
             
             # Create IMAGE type message (from agency)
             message = Message.objects.create(
@@ -2180,12 +2178,16 @@ def upload_agency_chat_image(request, conversation_id: int):
                 messageType="IMAGE"
             )
             
-            # Create message attachment record
+            # Create message attachment record - store the storage PATH, not signed URL
             MessageAttachment.objects.create(
                 messageID=message,
-                fileURL=public_url,
+                fileURL=storage_path,  # Store path like "chat/conversation_1/images/agency_xxx.jpg"
                 fileType="IMAGE"
             )
+            
+            # Generate signed URL for immediate response
+            from iayos_project.utils import get_signed_url
+            public_url = get_signed_url('iayos_files', storage_path, expires_in=3600) or storage_path
             
             # Build full URL for response
             scheme = request.scheme if hasattr(request, 'scheme') else 'http'
