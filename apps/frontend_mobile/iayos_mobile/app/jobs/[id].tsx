@@ -3251,15 +3251,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.white,
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  deleteButton: {
-    padding: Spacing.xs,
-    marginRight: Spacing.xs,
-  },
   // Applications Section Styles
   sectionHeader: {
     flexDirection: "row",

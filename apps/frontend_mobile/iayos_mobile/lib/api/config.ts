@@ -132,7 +132,7 @@ export const debugNetworkDiagnostics = async (
 
     const resp = await fetch(healthUrl, {
       method: "GET",
-      signal: controller.signal,
+      signal: controller.signal as any,
     });
 
     clearTimeout(timeoutId);
@@ -168,7 +168,7 @@ export const preflightBackendReachability = async (
       headers: {
         Accept: "application/json",
       },
-      signal: controller.signal,
+      signal: controller.signal as any,
     });
 
     const elapsedMs = Date.now() - startedAt;
