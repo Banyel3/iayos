@@ -1153,6 +1153,7 @@ class Notification(models.Model):
         ESCROW_PAID = "ESCROW_PAID", "Escrow Payment Confirmed"
         REMAINING_PAYMENT_PAID = "REMAINING_PAYMENT_PAID", "Final Payment Confirmed"
         PAYMENT_RELEASED = "PAYMENT_RELEASED", "Payment Released"
+        PAYMENT_REFUNDED = "PAYMENT_REFUNDED", "Payment Refunded"
 
         # Message Notifications
         MESSAGE = "MESSAGE", "New Message"

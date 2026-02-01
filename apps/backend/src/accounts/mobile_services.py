@@ -1103,6 +1103,72 @@ def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
                 photos_deleted = job.photos.all().delete()[0]
                 print(f"   🗑️  Deleted {photos_deleted} job photos")
             
+            # ======= CRITICAL: Release reserved funds before deletion =======
+            refund_amount = Decimal('0.00')
+            try:
+                from .models import Wallet
+                
+                wallet = Wallet.objects.get(accountFK=user)
+                
+                # Calculate total reserved (escrow + platform fee which is 5% of downpayment)
+                escrow_amount = job.escrowAmount or Decimal('0.00')
+                # Platform fee is 5% of the downpayment (escrow amount)
+                platform_fee = escrow_amount * Decimal('0.05') if escrow_amount > 0 else Decimal('0.00')
+                total_reserved = escrow_amount + platform_fee
+                
+                if total_reserved > 0:
+                    if job.escrowPaid:
+                        # Escrow was deducted from balance - refund to main balance
+                        wallet.balance += escrow_amount
+                        wallet.save()
+                        refund_amount = escrow_amount
+                        
+                        # Create refund transaction
+                        Transaction.objects.create(
+                            walletID=wallet,
+                            amount=escrow_amount,
+                            balanceAfter=wallet.balance,
+                            transactionType='REFUND',
+                            status='COMPLETED',
+                            description=f"Escrow refund for deleted job: {job.title}",
+                            relatedJobPosting=job,
+                            referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                        )
+                        print(f"   💰 Refunded ₱{escrow_amount} to wallet balance")
+                    else:
+                        # Escrow was reserved but not deducted - release from reservedBalance
+                        wallet.reservedBalance -= total_reserved
+                        if wallet.reservedBalance < 0:
+                            wallet.reservedBalance = Decimal('0.00')
+                        wallet.save()
+                        refund_amount = total_reserved
+                        
+                        # Cancel pending transactions
+                        Transaction.objects.filter(
+                            relatedJobPosting=job,
+                            status='PENDING'
+                        ).update(status='CANCELLED')
+                        print(f"   🔓 Released ₱{total_reserved} from reserved balance")
+                    
+                    # Create refund notification
+                    Notification.objects.create(
+                        accountFK=user,
+                        notificationType='PAYMENT_REFUNDED',
+                        title='Payment Refunded',
+                        message=f'Your payment of ₱{refund_amount:,.2f} for job "{job_title}" has been refunded because the job was deleted.',
+                        relatedJobID=job.jobID
+                    )
+                    print(f"   📬 Created refund notification")
+                    
+            except Wallet.DoesNotExist:
+                print(f"   ⚠️ No wallet found for user - skipping refund")
+            except Exception as wallet_error:
+                print(f"   ⚠️ Wallet refund error: {wallet_error}")
+                import traceback
+                traceback.print_exc()
+                # Continue with deletion even if refund fails - log for manual review
+            # ======= END: Release reserved funds =======
+            
             # Finally, delete the job itself
             job.delete()
             print(f"   ✅ Job '{job_title}' deleted successfully")
