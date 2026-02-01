@@ -539,9 +539,14 @@ def get_agency_employees(account_id):
             result.append({
                 "id": emp.employeeID,
                 "employeeId": emp.employeeID,  # Frontend expects this field name
-                "name": emp.name,
+                "firstName": emp.firstName,
+                "middleName": emp.middleName,
+                "lastName": emp.lastName,
+                "fullName": emp.fullName,
+                "name": emp.name,  # Legacy field
                 "email": emp.email,
-                "role": emp.role,
+                "specializations": emp.get_specializations_list(),
+                "role": emp.role,  # Legacy field
                 "avatar": emp.avatar,
                 "rating": final_rating,
                 # Agency Phase 2 performance fields
@@ -561,30 +566,53 @@ def get_agency_employees(account_id):
         raise ValueError("User not found")
 
 
-def add_agency_employee(account_id, name, email, role, avatar=None, rating=None):
-    """Add a new employee to an agency."""
+def add_agency_employee(account_id, firstName, lastName, email, specializations, middleName="", avatar=None, rating=None):
+    """Add a new employee to an agency with name breakdown and multi-specializations."""
+    import json
     try:
         user = Accounts.objects.get(accountID=account_id)
         
-        # Validate role is provided
-        if not role or not role.strip():
-            raise ValueError("Role/specialization is required")
+        # Validate specializations (must be non-empty list)
+        if not specializations or not isinstance(specializations, list) or len(specializations) == 0:
+            raise ValueError("At least one specialization is required")
+        
+        # Validate names
+        if not firstName or not firstName.strip():
+            raise ValueError("First name is required")
+        if not lastName or not lastName.strip():
+            raise ValueError("Last name is required")
+        
+        # Compute full name for legacy field
+        name_parts = [firstName.strip()]
+        if middleName and middleName.strip():
+            name_parts.append(middleName.strip())
+        name_parts.append(lastName.strip())
+        full_name = " ".join(name_parts)
         
         # Create the employee
         employee = AgencyEmployee.objects.create(
             agency=user,
-            name=name,
+            firstName=firstName.strip(),
+            middleName=(middleName or "").strip(),
+            lastName=lastName.strip(),
+            name=full_name,  # Legacy field
             email=email,
-            role=role,
+            specializations=json.dumps(specializations),
+            role=specializations[0] if specializations else "",  # Legacy field - first specialization
             avatar=avatar,
             rating=rating
         )
         
         return {
             "id": employee.employeeID,
-            "name": employee.name,
+            "firstName": employee.firstName,
+            "middleName": employee.middleName,
+            "lastName": employee.lastName,
+            "fullName": employee.fullName,
+            "name": employee.name,  # Legacy
             "email": employee.email,
-            "role": employee.role,
+            "specializations": employee.get_specializations_list(),
+            "role": employee.role,  # Legacy
             "avatar": employee.avatar,
             "rating": float(employee.rating) if employee.rating else None,
             # Agency Phase 2 performance fields (defaults for new employees)
@@ -599,6 +627,78 @@ def add_agency_employee(account_id, name, email, role, avatar=None, rating=None)
         }
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
+
+
+def update_agency_employee(account_id, employee_id, firstName=None, lastName=None, middleName=None, email=None, specializations=None, avatar=None, isActive=None):
+    """Update an existing agency employee."""
+    import json
+    try:
+        user = Accounts.objects.get(accountID=account_id)
+        employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+        
+        # Update fields if provided
+        if firstName is not None:
+            if not firstName.strip():
+                raise ValueError("First name cannot be empty")
+            employee.firstName = firstName.strip()
+        
+        if lastName is not None:
+            if not lastName.strip():
+                raise ValueError("Last name cannot be empty")
+            employee.lastName = lastName.strip()
+        
+        if middleName is not None:
+            employee.middleName = middleName.strip()
+        
+        if email is not None:
+            employee.email = email
+        
+        if specializations is not None:
+            if not isinstance(specializations, list) or len(specializations) == 0:
+                raise ValueError("At least one specialization is required")
+            employee.specializations = json.dumps(specializations)
+            employee.role = specializations[0]  # Legacy field
+        
+        if avatar is not None:
+            employee.avatar = avatar
+        
+        if isActive is not None:
+            employee.isActive = isActive
+        
+        # Update legacy name field
+        name_parts = [employee.firstName]
+        if employee.middleName:
+            name_parts.append(employee.middleName)
+        name_parts.append(employee.lastName)
+        employee.name = " ".join(filter(None, name_parts))
+        
+        employee.save()
+        
+        return {
+            "id": employee.employeeID,
+            "firstName": employee.firstName,
+            "middleName": employee.middleName,
+            "lastName": employee.lastName,
+            "fullName": employee.fullName,
+            "name": employee.name,
+            "email": employee.email,
+            "specializations": employee.get_specializations_list(),
+            "role": employee.role,
+            "avatar": employee.avatar,
+            "rating": float(employee.rating) if employee.rating else None,
+            "employeeOfTheMonth": employee.employeeOfTheMonth,
+            "employeeOfTheMonthDate": str(employee.employeeOfTheMonthDate) if employee.employeeOfTheMonthDate else None,
+            "employeeOfTheMonthReason": employee.employeeOfTheMonthReason,
+            "lastRatingUpdate": str(employee.lastRatingUpdate) if employee.lastRatingUpdate else None,
+            "totalJobsCompleted": employee.totalJobsCompleted,
+            "totalEarnings": float(employee.totalEarnings),
+            "isActive": employee.isActive,
+            "message": "Employee updated successfully"
+        }
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+    except AgencyEmployee.DoesNotExist:
+        raise ValueError("Employee not found")
 
 
 def remove_agency_employee(account_id, employee_id):

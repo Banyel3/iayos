@@ -141,7 +141,29 @@ const AgencyKYCPage = () => {
       }
     };
 
-    if (!isLoading && isAuthenticated) fetchStatus();
+    // Fetch agency profile to pre-populate business name
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/agency/profile`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (res.ok) {
+          const profile = await res.json().catch(() => ({}));
+          // Pre-populate business name from registration (if not already set by OCR)
+          if (profile?.business_name && !businessName) {
+            setBusinessName(profile.business_name);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch agency profile", err);
+      }
+    };
+
+    if (!isLoading && isAuthenticated) {
+      fetchStatus();
+      fetchProfile();
+    }
   }, [isAuthenticated, isLoading, router]);
 
   // Hydration fix: only render content after mount
