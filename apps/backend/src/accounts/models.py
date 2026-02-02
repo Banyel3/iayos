@@ -1725,6 +1725,16 @@ class JobEmployeeAssignment(models.Model):
     employeeMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     completionNotes = models.TextField(blank=True, default="")
     
+    # Skill slot assignment (for multi-employee INVITE jobs)
+    skill_slot = models.ForeignKey(
+        'JobSkillSlot',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employee_slot_assignments',
+        help_text="The skill slot this employee is assigned to (for multi-employee INVITE jobs)"
+    )
+    
     class Meta:
         db_table = 'job_employee_assignments'
         unique_together = ['job', 'employee']  # Prevent duplicate assignments

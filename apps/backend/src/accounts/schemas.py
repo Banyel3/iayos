@@ -372,11 +372,20 @@ class ReorderPortfolioRequest(Schema):
     """Schema for reordering portfolio"""
     portfolio_id_order: list  # List of portfolio IDs in desired order
 
+
+class InviteSkillSlotSchema(Schema):
+    """Schema for skill slots in multi-employee agency invites"""
+    specialization_id: int
+    workers_needed: int = 1  # Default 1, max 10
+    skill_level_required: str = "ENTRY"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    notes: Optional[str] = None
+
+
 class CreateInviteJobMobileSchema(Schema):
     """Mobile schema for creating INVITE-type job (direct worker/agency hiring)"""
     title: str
     description: str
-    category_id: int
+    category_id: Optional[int] = None  # Optional for backwards compatibility (required if no skill_slots)
     budget: float
     location: str
     expected_duration: Optional[str] = None
@@ -390,6 +399,8 @@ class CreateInviteJobMobileSchema(Schema):
     job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
     skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
     work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
+    # Multi-employee agency invite (optional - only for agencies)
+    skill_slots: Optional[list] = None  # List of InviteSkillSlotSchema for multi-employee mode
 
 
 # Skill Management Schemas

@@ -2199,3 +2199,217 @@ def get_revenue_trends(account_id, weeks=12):
         
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
+
+
+def assign_employees_to_slots(
+    agency_account,
+    job_id: int,
+    assignments: list,
+    primary_contact_employee_id: int = None
+) -> dict:
+    """
+    Assign agency employees to specific skill slots for multi-employee INVITE jobs.
+    
+    Args:
+        agency_account: The authenticated agency account
+        job_id: ID of the job
+        assignments: List of {skill_slot_id, employee_id} dictionaries
+        primary_contact_employee_id: Employee to be team lead (optional)
+    
+    Returns:
+        dict with success status and assignment details
+        
+    Rules:
+        - All slots must be fully assigned before job can start
+        - Employees must have the specialization matching the slot (strict matching)
+        - Each employee can only be assigned to one slot per job
+    """
+    from accounts.models import Job, JobSkillSlot, JobEmployeeAssignment, Notification, JobLog, Specializations, Conversation
+    from .models import AgencyEmployee
+    from django.utils import timezone
+    from django.db import transaction
+    import json
+    
+    # Get agency
+    try:
+        agency = AgencyProfile.objects.get(accountFK=agency_account)
+    except AgencyProfile.DoesNotExist:
+        return {'success': False, 'error': 'Agency account not found'}
+    
+    # Get job
+    try:
+        job = Job.objects.select_related('assignedAgencyFK', 'clientID__profileID__accountFK').get(jobID=job_id)
+    except Job.DoesNotExist:
+        return {'success': False, 'error': f'Job {job_id} not found'}
+    
+    # Verify job belongs to this agency
+    if job.assignedAgencyFK != agency:
+        return {'success': False, 'error': 'This job is not assigned to your agency'}
+    
+    # Verify it's a multi-employee job
+    if not job.is_team_job:
+        return {'success': False, 'error': 'This is not a multi-employee job. Use regular employee assignment.'}
+    
+    # Verify job is in correct status (ACTIVE with ACCEPTED invite)
+    if job.inviteStatus != 'ACCEPTED':
+        return {'success': False, 'error': 'Job invite must be accepted before assigning employees'}
+    
+    # Get all skill slots for this job
+    skill_slots = {slot.skillSlotID: slot for slot in job.skill_slots.select_related('specializationID').all()}
+    if not skill_slots:
+        return {'success': False, 'error': 'No skill slots found for this job'}
+    
+    # Validate assignments
+    if not assignments or len(assignments) == 0:
+        return {'success': False, 'error': 'At least one assignment is required'}
+    
+    # Track assignments per slot
+    slot_assignments = {slot_id: [] for slot_id in skill_slots.keys()}
+    employee_ids_used = set()
+    
+    with transaction.atomic():
+        for assignment_data in assignments:
+            slot_id = assignment_data.get('skill_slot_id')
+            employee_id = assignment_data.get('employee_id')
+            
+            # Validate slot exists
+            if slot_id not in skill_slots:
+                return {'success': False, 'error': f'Invalid skill_slot_id: {slot_id}'}
+            
+            slot = skill_slots[slot_id]
+            
+            # Validate employee exists and belongs to agency
+            try:
+                employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=agency_account)
+            except AgencyEmployee.DoesNotExist:
+                return {'success': False, 'error': f'Employee {employee_id} not found or not in your agency'}
+            
+            if not employee.isActive:
+                return {'success': False, 'error': f'Employee {employee.fullName} is not active'}
+            
+            # Strict specialization matching
+            employee_specs = employee.get_specializations_list()
+            required_spec_name = slot.specializationID.specializationName
+            
+            if required_spec_name not in employee_specs:
+                return {
+                    'success': False, 
+                    'error': f'Employee {employee.fullName} does not have required specialization: {required_spec_name}. Employee has: {", ".join(employee_specs) or "none"}'
+                }
+            
+            # Check employee not already assigned to another slot in this job
+            if employee_id in employee_ids_used:
+                return {'success': False, 'error': f'Employee {employee.fullName} is already assigned to another slot in this job'}
+            
+            employee_ids_used.add(employee_id)
+            slot_assignments[slot_id].append({
+                'employee': employee,
+                'employee_id': employee_id
+            })
+        
+        # Verify all slots are fully filled
+        for slot_id, slot in skill_slots.items():
+            assigned_count = len(slot_assignments[slot_id])
+            if assigned_count < slot.workers_needed:
+                return {
+                    'success': False,
+                    'error': f'Slot "{slot.specializationID.specializationName}" requires {slot.workers_needed} worker(s), but only {assigned_count} assigned. All slots must be fully assigned.'
+                }
+            if assigned_count > slot.workers_needed:
+                return {
+                    'success': False,
+                    'error': f'Slot "{slot.specializationID.specializationName}" only needs {slot.workers_needed} worker(s), but {assigned_count} assigned.'
+                }
+        
+        # All validations passed - create assignments
+        created_assignments = []
+        for slot_id, employees_data in slot_assignments.items():
+            slot = skill_slots[slot_id]
+            for emp_data in employees_data:
+                employee = emp_data['employee']
+                is_primary = (primary_contact_employee_id == employee.employeeID)
+                
+                assignment = JobEmployeeAssignment.objects.create(
+                    job=job,
+                    employee=employee,
+                    skill_slot=slot,
+                    assignedBy=agency_account,
+                    isPrimaryContact=is_primary,
+                    status='ASSIGNED',
+                    notes=f'Assigned to {slot.specializationID.specializationName} slot'
+                )
+                created_assignments.append({
+                    'assignment_id': assignment.assignmentID,
+                    'employee_id': employee.employeeID,
+                    'employee_name': employee.fullName,
+                    'slot_id': slot_id,
+                    'specialization': slot.specializationID.specializationName,
+                    'is_primary_contact': is_primary
+                })
+            
+            # Update slot status
+            slot.status = 'FILLED'
+            slot.save()
+        
+        # Update job status to IN_PROGRESS (all slots filled)
+        old_status = job.status
+        job.status = 'IN_PROGRESS'
+        job.employeeAssignedAt = timezone.now()
+        job.save()
+        
+        # Create group conversation if not exists
+        conversation, created = Conversation.objects.get_or_create(
+            relatedJobPosting=job,
+            defaults={
+                'client': job.clientID.profileID,
+                'worker': None,  # Agency job - no individual worker
+                'status': Conversation.ConversationStatus.ACTIVE
+            }
+        )
+        if created:
+            print(f"✅ Created group conversation {conversation.conversationID} for multi-employee job")
+        
+        # Create job log
+        JobLog.objects.create(
+            jobID=job,
+            notes=f"Multi-employee assignment complete: {len(created_assignments)} employees assigned to {len(skill_slots)} skill slots by agency '{agency.businessName}'",
+            changedBy=agency_account,
+            oldStatus=old_status,
+            newStatus='IN_PROGRESS'
+        )
+        
+        # Send notification to client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType='AGENCY_TEAM_ASSIGNED',
+            title=f'Team Assigned to Your Job',
+            message=f'{agency.businessName} has assigned {len(created_assignments)} team members to "{job.title}". Work can now begin!',
+            relatedJobID=job.jobID
+        )
+        
+        # Send notification to each assigned employee
+        for emp_data in created_assignments:
+            try:
+                employee = AgencyEmployee.objects.get(employeeID=emp_data['employee_id'])
+                employee_account = getattr(employee, 'accountFK', None)
+                if employee_account:
+                    Notification.objects.create(
+                        accountFK=employee_account,
+                        notificationType='JOB_ASSIGNED',
+                        title=f'New Job Assignment: {job.title}',
+                        message=f'You have been assigned to work on "{job.title}" as {emp_data["specialization"]}.',
+                        relatedJobID=job.jobID
+                    )
+            except Exception:
+                pass  # Employee may not have account
+        
+        return {
+            'success': True,
+            'message': f'Successfully assigned {len(created_assignments)} employees to {len(skill_slots)} skill slots',
+            'job_id': job.jobID,
+            'job_status': 'IN_PROGRESS',
+            'conversation_id': conversation.conversationID,
+            'assignments': created_assignments,
+            'total_employees': len(created_assignments),
+            'total_slots': len(skill_slots)
+        }
