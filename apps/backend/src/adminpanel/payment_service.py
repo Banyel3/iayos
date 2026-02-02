@@ -1233,8 +1233,8 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
                 } if worker else None,
                 'agency': {
                     'id': agency.agencyId,
-                    'name': agency.agencyName,
-                    'email': agency.ownerFK.email if agency.ownerFK else 'N/A'
+                    'name': agency.businessName,
+                    'email': agency.accountFK.email if agency.accountFK else 'N/A'
                 } if agency else None,
                 'evidence_images': evidence_images,
                 'transactions': [
