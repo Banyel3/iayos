@@ -80,7 +80,9 @@ export function useMaterials() {
     queryFn: async (): Promise<Material[]> => {
       const response = await apiRequest(ENDPOINTS.MATERIALS);
       if (!response.ok) {
-        throw new Error("Failed to fetch materials");
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`[Materials] API Error ${response.status}: ${errorText}`);
+        throw new Error(`Failed to fetch materials (${response.status})`);
       }
       const result = await response.json();
       return Array.isArray(result) ? result.map(mapMaterialResponse) : [];

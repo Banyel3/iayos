@@ -1978,8 +1978,8 @@ def process_withdrawal_approval(
                 log_action(
                     admin=admin,
                     action='APPROVE_WITHDRAWAL',
-                    target_type='Transaction',
-                    target_id=transaction_id,
+                    entity_type='Transaction',
+                    entity_id=transaction_id,
                     details={
                         'amount': float(transaction.amount),
                         'user': user_name,
@@ -2036,8 +2036,8 @@ def process_withdrawal_approval(
                 log_action(
                     admin=admin,
                     action='REJECT_WITHDRAWAL',
-                    target_type='Transaction',
-                    target_id=transaction_id,
+                    entity_type='Transaction',
+                    entity_id=transaction_id,
                     details={
                         'amount': float(transaction.amount),
                         'user': user_name,

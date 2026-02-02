@@ -109,16 +109,15 @@ export default function CertificationForm({
   const createCertification = useCreateCertification();
   const updateCertification = useUpdateCertification();
 
-  // Fetch ALL available specializations so users can add certifications for any skill
-  interface AvailableSkillsResponse {
+  // Fetch user's current skills (only show skills they've added to profile)
+  interface MySkillsResponse {
     success: boolean;
     data: Array<{
       id: number; // Specialization ID
       name: string;
       description: string;
-      minimumRate: number;
-      rateType: string;
-      skillLevel: string;
+      experienceYears: number;
+      certification: string;
     }>;
     count: number;
   }
@@ -128,21 +127,21 @@ export default function CertificationForm({
     isLoading: skillsLoading,
     error: skillsError,
   } = useQuery({
-    queryKey: ["available-skills"],
+    queryKey: ["my-skills-for-cert"],
     queryFn: async () => {
       console.log(
-        "🔍 [CertificationForm] Fetching available skills from:",
-        ENDPOINTS.AVAILABLE_SKILLS
+        "🔍 [CertificationForm] Fetching my skills from:",
+        ENDPOINTS.MY_SKILLS
       );
-      const response = await apiRequest(ENDPOINTS.AVAILABLE_SKILLS);
+      const response = await apiRequest(ENDPOINTS.MY_SKILLS);
       console.log("🔍 [CertificationForm] Response status:", response.status);
       if (!response.ok) throw new Error(await response.text() || "Failed to fetch skills");
       const data = await response.json();
       console.log(
-        "🔍 [CertificationForm] Available skills response:",
+        "🔍 [CertificationForm] My skills response:",
         JSON.stringify(data, null, 2)
       );
-      return data as AvailableSkillsResponse;
+      return data as MySkillsResponse;
     },
   });
 
@@ -151,7 +150,7 @@ export default function CertificationForm({
     id: s.id, // This is specializationID, used to link certification
     specializationId: s.id,
     name: s.name,
-    experienceYears: s.experienceYears,
+    experienceYears: s.experienceYears || 0,
     certificationCount: 0,
   }));
 
@@ -159,6 +158,7 @@ export default function CertificationForm({
   console.log("🔍 [CertificationForm] Mapped skills array:", skills);
   console.log("🔍 [CertificationForm] skillsLoading:", skillsLoading);
   console.log("🔍 [CertificationForm] skillsError:", skillsError);
+  console.log("🔍 [CertificationForm] No skills?", skills.length === 0 ? "Add skills in profile first" : "");
 
   // Skill picker modal state
   const [showSkillPicker, setShowSkillPicker] = useState(false);
