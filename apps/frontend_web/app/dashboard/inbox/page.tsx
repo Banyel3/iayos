@@ -2269,7 +2269,10 @@ const InboxPage = () => {
               <button
                 onClick={() => {
                   setShowReviewModal(false);
-                  setReviewRating(0);
+                  setRatingQuality(0);
+                  setRatingCommunication(0);
+                  setRatingPunctuality(0);
+                  setRatingProfessionalism(0);
                   setReviewMessage("");
                 }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
