@@ -5436,6 +5436,790 @@ def reply_to_mobile_support_ticket(request, ticket_id: int):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PAYMENT ENDPOINTS - Phase 3 & 4 Payment Features
+# ══════════════════════════════════════════════════════════════════════════════
+# Escrow, cash proof, payment status, receipts, and earnings endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mobile_router.post("/payments/escrow", auth=dual_auth)
+def mobile_create_escrow_payment(request):
+    """
+    Create an escrow payment for a job.
+    This is called when the client accepts a worker's application to initiate the job.
+    The escrow amount is 50% of the job budget, held in reserve until job completion.
+    """
+    from ninja import Schema
+    from decimal import Decimal
+    from django.utils import timezone
+    from .models import Profile, ClientProfile, Wallet, Transaction, Job
+    
+    class EscrowPaymentRequest(Schema):
+        job_id: int
+    
+    try:
+        # Parse payload
+        import json
+        body = json.loads(request.body)
+        job_id = body.get('job_id')
+        
+        if not job_id:
+            return Response({"error": "job_id is required"}, status=400)
+        
+        print(f"💳 [MOBILE] Creating escrow payment for job {job_id} by {request.auth.email}")
+        
+        # Get client profile
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            profileType='CLIENT'
+        ).first()
+        
+        if not profile:
+            return Response({"error": "Client profile not found"}, status=403)
+        
+        try:
+            client_profile = ClientProfile.objects.get(profileID=profile)
+        except ClientProfile.DoesNotExist:
+            return Response({"error": "Client profile not found"}, status=403)
+        
+        # Get the job
+        try:
+            job = Job.objects.get(jobID=job_id, clientID=client_profile)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found or you don't own this job"}, status=404)
+        
+        # Check if escrow already paid
+        if job.escrowPaid:
+            return Response({"error": "Escrow payment already made for this job"}, status=400)
+        
+        # Get wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+        )
+        
+        # Calculate escrow amount (50% of budget)
+        escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
+        
+        # Check wallet balance
+        if wallet.balance < escrow_amount:
+            return Response({
+                "error": "Insufficient wallet balance",
+                "required": float(escrow_amount),
+                "available": float(wallet.balance)
+            }, status=400)
+        
+        # Deduct from wallet and add to reserved
+        wallet.balance -= escrow_amount
+        wallet.reservedBalance += escrow_amount
+        wallet.save()
+        
+        # Update job escrow status
+        job.escrowAmount = escrow_amount
+        job.escrowPaid = True
+        job.escrowPaidAt = timezone.now()
+        job.remainingPayment = escrow_amount  # Remaining 50%
+        job.save()
+        
+        # Create transaction record
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType='PAYMENT',
+            amount=escrow_amount,
+            balanceAfter=wallet.balance,
+            status='COMPLETED',
+            description=f"Escrow payment for job: {job.title}",
+            relatedJobPosting=job,
+            paymentMethod='WALLET'
+        )
+        
+        print(f"✅ [MOBILE] Escrow ₱{escrow_amount} created for job {job_id}")
+        
+        return {
+            "success": True,
+            "message": "Escrow payment created successfully",
+            "escrow_amount": float(escrow_amount),
+            "remaining_payment": float(job.remainingPayment),
+            "transaction_id": transaction.transactionID,
+            "wallet_balance": float(wallet.balance),
+            "reserved_balance": float(wallet.reservedBalance)
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Escrow payment error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to create escrow payment: {str(e)}"}, status=500)
+
+
+@mobile_router.post("/payments/cash-proof", auth=dual_auth)
+def mobile_upload_cash_proof(request):
+    """
+    Upload proof of cash payment for a job.
+    Used when final 50% payment is made in cash.
+    """
+    from django.utils import timezone
+    from .models import Profile, Job
+    
+    try:
+        # Handle multipart form data
+        job_id = request.POST.get('job_id')
+        image_file = request.FILES.get('image')
+        
+        if not job_id:
+            return Response({"error": "job_id is required"}, status=400)
+        
+        if not image_file:
+            return Response({"error": "image file is required"}, status=400)
+        
+        print(f"📸 [MOBILE] Uploading cash proof for job {job_id} by {request.auth.email}")
+        
+        # Verify user is the worker for this job
+        job = Job.objects.select_related(
+            'assignedWorkerID__profileID__accountFK'
+        ).filter(jobID=job_id).first()
+        
+        if not job:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Check if user is the assigned worker
+        is_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        
+        if not is_worker:
+            return Response({"error": "Only the assigned worker can upload cash proof"}, status=403)
+        
+        # Save the image
+        import uuid
+        from django.core.files.storage import default_storage
+        
+        file_ext = image_file.name.split('.')[-1] if '.' in image_file.name else 'jpg'
+        file_name = f"cash_proofs/job_{job_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+        
+        saved_path = default_storage.save(file_name, image_file)
+        proof_url = default_storage.url(saved_path)
+        
+        # Update job with cash proof
+        job.cashPaymentProofUrl = proof_url
+        job.cashProofUploadedAt = timezone.now()
+        job.finalPaymentMethod = 'CASH'
+        job.paymentMethodSelectedAt = timezone.now()
+        job.save()
+        
+        print(f"✅ [MOBILE] Cash proof uploaded for job {job_id}: {proof_url}")
+        
+        return {
+            "success": True,
+            "message": "Cash proof uploaded successfully",
+            "proof_url": proof_url,
+            "job_id": int(job_id)
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Cash proof upload error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to upload cash proof: {str(e)}"}, status=500)
+
+
+@mobile_router.get("/payments/status/{transaction_id}", auth=dual_auth)
+def mobile_get_payment_status(request, transaction_id: int):
+    """
+    Get the status of a specific payment/transaction.
+    """
+    from .models import Transaction, Wallet
+    
+    try:
+        print(f"📊 [MOBILE] Getting payment status for transaction {transaction_id}")
+        
+        # Get the transaction
+        try:
+            transaction = Transaction.objects.select_related('walletID', 'relatedJobPosting').get(
+                transactionID=transaction_id
+            )
+        except Transaction.DoesNotExist:
+            return Response({"error": "Transaction not found"}, status=404)
+        
+        # Verify user owns this transaction
+        if transaction.walletID.accountFK != request.auth:
+            return Response({"error": "Access denied"}, status=403)
+        
+        # Build response
+        result = {
+            "success": True,
+            "transaction": {
+                "id": transaction.transactionID,
+                "type": transaction.transactionType,
+                "amount": float(transaction.amount),
+                "status": transaction.status,
+                "description": transaction.description,
+                "reference_number": transaction.referenceNumber,
+                "payment_method": transaction.paymentMethod,
+                "balance_after": float(transaction.balanceAfter),
+                "created_at": transaction.createdAt.isoformat() if transaction.createdAt else None,
+                "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None,
+            }
+        }
+        
+        # Add job info if linked
+        if transaction.relatedJobPosting:
+            result["transaction"]["job"] = {
+                "id": transaction.relatedJobPosting.jobID,
+                "title": transaction.relatedJobPosting.title,
+                "status": transaction.relatedJobPosting.status
+            }
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Payment status error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get payment status: {str(e)}"}, status=500)
+
+
+@mobile_router.get("/payments/history", auth=dual_auth)
+def mobile_get_payment_history(request, page: int = 1, limit: int = 20, type: str = None):
+    """
+    Get payment history for the current user.
+    Supports filtering by transaction type and pagination.
+    """
+    from .models import Transaction, Wallet
+    from django.core.paginator import Paginator
+    
+    try:
+        print(f"📜 [MOBILE] Getting payment history for {request.auth.email}")
+        
+        # Get user's wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return {
+                "success": True,
+                "transactions": [],
+                "total": 0,
+                "page": page,
+                "total_pages": 0
+            }
+        
+        # Build query
+        queryset = Transaction.objects.filter(walletID=wallet).select_related('relatedJobPosting')
+        
+        # Filter by type if specified
+        if type and type != 'all':
+            queryset = queryset.filter(transactionType=type.upper())
+        
+        queryset = queryset.order_by('-createdAt')
+        
+        # Paginate
+        paginator = Paginator(queryset, limit)
+        if page < 1:
+            page = 1
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            page = paginator.num_pages
+        
+        transactions_page = paginator.get_page(page)
+        
+        transactions_data = []
+        for txn in transactions_page:
+            txn_data = {
+                "id": txn.transactionID,
+                "type": txn.transactionType,
+                "amount": float(txn.amount),
+                "status": txn.status,
+                "description": txn.description,
+                "reference_number": txn.referenceNumber,
+                "payment_method": txn.paymentMethod,
+                "created_at": txn.createdAt.isoformat() if txn.createdAt else None,
+            }
+            
+            if txn.relatedJobPosting:
+                txn_data["job"] = {
+                    "id": txn.relatedJobPosting.jobID,
+                    "title": txn.relatedJobPosting.title
+                }
+            
+            transactions_data.append(txn_data)
+        
+        return {
+            "success": True,
+            "transactions": transactions_data,
+            "total": paginator.count,
+            "page": page,
+            "total_pages": paginator.num_pages
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Payment history error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get payment history: {str(e)}"}, status=500)
+
+
+@mobile_router.get("/payments/receipt/{transaction_id}", auth=dual_auth)
+def mobile_get_payment_receipt(request, transaction_id: int):
+    """
+    Get detailed receipt for a specific payment/transaction.
+    """
+    from .models import Transaction
+    
+    try:
+        print(f"🧾 [MOBILE] Getting receipt for transaction {transaction_id}")
+        
+        # Get the transaction
+        try:
+            transaction = Transaction.objects.select_related(
+                'walletID__accountFK',
+                'relatedJobPosting__clientID__profileID',
+                'relatedJobPosting__assignedWorkerID__profileID',
+                'relatedJobPosting__categoryID'
+            ).get(transactionID=transaction_id)
+        except Transaction.DoesNotExist:
+            return Response({"error": "Transaction not found"}, status=404)
+        
+        # Verify user owns this transaction
+        if transaction.walletID.accountFK != request.auth:
+            return Response({"error": "Access denied"}, status=403)
+        
+        # Build receipt data
+        receipt = {
+            "transaction_id": transaction.transactionID,
+            "reference_number": transaction.referenceNumber or f"TXN-{transaction.transactionID}",
+            "type": transaction.transactionType,
+            "amount": float(transaction.amount),
+            "status": transaction.status,
+            "payment_method": transaction.paymentMethod,
+            "description": transaction.description,
+            "created_at": transaction.createdAt.isoformat() if transaction.createdAt else None,
+            "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None,
+        }
+        
+        # Add job details if linked
+        if transaction.relatedJobPosting:
+            job = transaction.relatedJobPosting
+            receipt["job"] = {
+                "id": job.jobID,
+                "title": job.title,
+                "category": job.categoryID.name if job.categoryID else None,
+                "budget": float(job.budget),
+                "status": job.status
+            }
+            
+            # Add client info
+            if job.clientID and job.clientID.profileID:
+                receipt["client"] = {
+                    "name": f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip()
+                }
+            
+            # Add worker info
+            if job.assignedWorkerID and job.assignedWorkerID.profileID:
+                receipt["worker"] = {
+                    "name": f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip()
+                }
+        
+        return {
+            "success": True,
+            "receipt": receipt
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Receipt error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get receipt: {str(e)}"}, status=500)
+
+
+@mobile_router.post("/payments/final", auth=dual_auth)
+def mobile_create_final_payment(request):
+    """
+    Create the final 50% payment for a completed job.
+    Called when the job is marked complete and client pays remaining balance.
+    """
+    from decimal import Decimal
+    from django.utils import timezone
+    from .models import Profile, ClientProfile, Wallet, Transaction, Job
+    
+    try:
+        import json
+        body = json.loads(request.body)
+        job_id = body.get('job_id')
+        payment_method = body.get('payment_method', 'WALLET')  # WALLET, GCASH, or CASH
+        
+        if not job_id:
+            return Response({"error": "job_id is required"}, status=400)
+        
+        print(f"💰 [MOBILE] Creating final payment for job {job_id} by {request.auth.email}")
+        
+        # Get client profile
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            profileType='CLIENT'
+        ).first()
+        
+        if not profile:
+            return Response({"error": "Client profile not found"}, status=403)
+        
+        try:
+            client_profile = ClientProfile.objects.get(profileID=profile)
+        except ClientProfile.DoesNotExist:
+            return Response({"error": "Client profile not found"}, status=403)
+        
+        # Get the job
+        try:
+            job = Job.objects.get(jobID=job_id, clientID=client_profile)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found or you don't own this job"}, status=404)
+        
+        # Check job status
+        if job.status != 'COMPLETED' and not job.workerMarkedComplete:
+            return Response({"error": "Job must be completed before final payment"}, status=400)
+        
+        # Check if final payment already made
+        if job.remainingPaymentPaid:
+            return Response({"error": "Final payment already made"}, status=400)
+        
+        final_amount = job.remainingPayment or (Decimal(str(job.budget)) * Decimal('0.5'))
+        
+        # For wallet payments, check balance and process
+        if payment_method == 'WALLET':
+            wallet, _ = Wallet.objects.get_or_create(
+                accountFK=request.auth,
+                defaults={'balance': Decimal('0.00')}
+            )
+            
+            if wallet.balance < final_amount:
+                return Response({
+                    "error": "Insufficient wallet balance",
+                    "required": float(final_amount),
+                    "available": float(wallet.balance)
+                }, status=400)
+            
+            # Deduct from wallet
+            wallet.balance -= final_amount
+            wallet.save()
+            
+            # Create transaction
+            Transaction.objects.create(
+                walletID=wallet,
+                transactionType='PAYMENT',
+                amount=final_amount,
+                balanceAfter=wallet.balance,
+                status='COMPLETED',
+                description=f"Final payment for job: {job.title}",
+                relatedJobPosting=job,
+                paymentMethod='WALLET'
+            )
+        
+        # Update job payment status
+        job.remainingPaymentPaid = True
+        job.remainingPaymentPaidAt = timezone.now()
+        job.finalPaymentMethod = payment_method
+        job.paymentMethodSelectedAt = timezone.now()
+        job.save()
+        
+        print(f"✅ [MOBILE] Final payment ₱{final_amount} completed for job {job_id}")
+        
+        return {
+            "success": True,
+            "message": "Final payment processed successfully",
+            "amount": float(final_amount),
+            "payment_method": payment_method,
+            "job_id": job_id
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Final payment error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to process final payment: {str(e)}"}, status=500)
+
+
+@mobile_router.get("/payments/cash-status/{job_id}", auth=dual_auth)
+def mobile_get_cash_payment_status(request, job_id: int):
+    """
+    Get the cash payment status for a job.
+    Shows whether cash proof was uploaded and if admin approved it.
+    """
+    from .models import Job
+    
+    try:
+        print(f"💵 [MOBILE] Getting cash status for job {job_id}")
+        
+        # Get the job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify user is client or worker for this job
+        is_client = job.clientID.profileID.accountFK == request.auth
+        is_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        
+        if not (is_client or is_worker):
+            return Response({"error": "Access denied"}, status=403)
+        
+        return {
+            "success": True,
+            "cash_status": {
+                "job_id": job.jobID,
+                "final_payment_method": job.finalPaymentMethod,
+                "cash_proof_url": job.cashPaymentProofUrl,
+                "cash_proof_uploaded_at": job.cashProofUploadedAt.isoformat() if job.cashProofUploadedAt else None,
+                "cash_payment_approved": job.cashPaymentApproved,
+                "cash_payment_approved_at": job.cashPaymentApprovedAt.isoformat() if job.cashPaymentApprovedAt else None,
+                "remaining_payment_paid": job.remainingPaymentPaid,
+                "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Cash status error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get cash status: {str(e)}"}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EARNINGS ENDPOINTS - Worker/Agency Earnings Summary
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mobile_router.get("/earnings/summary", auth=dual_auth)
+def mobile_get_earnings_summary(request):
+    """
+    Get earnings summary for the current worker/agency.
+    Includes total earnings, pending earnings, and completed jobs count.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum, Count
+    from django.utils import timezone
+    from .models import Profile, WorkerProfile, Wallet, Job, Transaction
+    
+    try:
+        print(f"💵 [MOBILE] Getting earnings summary for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+        
+        if not profile or profile.profileType != 'WORKER':
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        # Get wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
+        )
+        
+        # Get completed jobs count
+        completed_jobs = Job.objects.filter(
+            assignedWorkerID=worker_profile,
+            status='COMPLETED'
+        ).count()
+        
+        # Get total earnings from transactions
+        total_earnings = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING'],
+            status='COMPLETED'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Get this month's earnings
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        this_month_earnings = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING'],
+            status='COMPLETED',
+            createdAt__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        return {
+            "success": True,
+            "earnings": {
+                "total_earnings": float(total_earnings),
+                "pending_earnings": float(wallet.pendingEarnings),
+                "available_balance": float(wallet.balance),
+                "this_month_earnings": float(this_month_earnings),
+                "completed_jobs_count": completed_jobs
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Earnings summary error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get earnings summary: {str(e)}"}, status=500)
+
+
+@mobile_router.get("/earnings/history", auth=dual_auth)
+def mobile_get_earnings_history(request, page: int = 1, limit: int = 20):
+    """
+    Get earnings history for the current worker/agency.
+    Shows all earning transactions with job details.
+    """
+    from django.core.paginator import Paginator
+    from .models import Profile, WorkerProfile, Wallet, Transaction
+    
+    try:
+        print(f"📊 [MOBILE] Getting earnings history for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+        
+        if not profile or profile.profileType != 'WORKER':
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return {
+                "success": True,
+                "earnings": [],
+                "total": 0,
+                "page": page,
+                "total_pages": 0
+            }
+        
+        # Get earning transactions
+        queryset = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING']
+        ).select_related('relatedJobPosting').order_by('-createdAt')
+        
+        paginator = Paginator(queryset, limit)
+        if page < 1:
+            page = 1
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            page = paginator.num_pages
+        
+        earnings_page = paginator.get_page(page)
+        
+        earnings_data = []
+        for txn in earnings_page:
+            earning = {
+                "id": txn.transactionID,
+                "amount": float(txn.amount),
+                "status": txn.status,
+                "type": txn.transactionType,
+                "description": txn.description,
+                "created_at": txn.createdAt.isoformat() if txn.createdAt else None,
+            }
+            
+            if txn.relatedJobPosting:
+                earning["job"] = {
+                    "id": txn.relatedJobPosting.jobID,
+                    "title": txn.relatedJobPosting.title,
+                    "budget": float(txn.relatedJobPosting.budget)
+                }
+            
+            earnings_data.append(earning)
+        
+        return {
+            "success": True,
+            "earnings": earnings_data,
+            "total": paginator.count,
+            "page": page,
+            "total_pages": paginator.num_pages
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Earnings history error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get earnings history: {str(e)}"}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROFILE AVATAR DELETE ENDPOINT
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mobile_router.delete("/profile/avatar", auth=dual_auth)
+def mobile_delete_avatar(request):
+    """
+    Delete the current user's profile avatar/image.
+    Works for both worker and client profiles.
+    """
+    from .models import Profile
+    
+    try:
+        print(f"🗑️ [MOBILE] Deleting avatar for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Try to find any profile
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+        
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Delete the avatar file if it exists
+        old_image = profile.profileImg
+        if old_image:
+            try:
+                from django.core.files.storage import default_storage
+                if default_storage.exists(old_image):
+                    default_storage.delete(old_image)
+            except Exception as e:
+                print(f"⚠️ Failed to delete old avatar file: {e}")
+        
+        # Clear the profile image
+        profile.profileImg = None
+        profile.save()
+        
+        print(f"✅ [MOBILE] Avatar deleted for {request.auth.email}")
+        
+        return {
+            "success": True,
+            "message": "Avatar deleted successfully"
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Delete avatar error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to delete avatar: {str(e)}"}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAESTRO E2E TEST CLEANUP
 # ══════════════════════════════════════════════════════════════════════════════
 # This endpoint cleans up test data created by Maestro E2E tests

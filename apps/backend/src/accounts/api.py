@@ -4090,6 +4090,185 @@ def report_review_endpoint(request, review_id: int, payload: ReportReviewRequest
 #endregion
 
 
+#region EARNINGS ENDPOINTS
+# ===========================================================================
+# EARNINGS ENDPOINTS - Worker/Agency Earnings Summary (Web API)
+# ===========================================================================
+
+@router.get("/earnings/summary", auth=dual_auth)
+def get_earnings_summary(request):
+    """
+    Get earnings summary for the current worker/agency.
+    Includes total earnings, pending earnings, and completed jobs count.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum, Count
+    from django.utils import timezone
+    from .models import Profile, WorkerProfile, Wallet, Job, Transaction
+    
+    try:
+        print(f"💵 [WEB] Getting earnings summary for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+        
+        if not profile or profile.profileType != 'WORKER':
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        # Get wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
+        )
+        
+        # Get completed jobs count
+        completed_jobs = Job.objects.filter(
+            assignedWorkerID=worker_profile,
+            status='COMPLETED'
+        ).count()
+        
+        # Get total earnings from transactions
+        total_earnings = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING'],
+            status='COMPLETED'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Get this month's earnings
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        this_month_earnings = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING'],
+            status='COMPLETED',
+            createdAt__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        return {
+            "success": True,
+            "earnings": {
+                "total_earnings": float(total_earnings),
+                "pending_earnings": float(wallet.pendingEarnings),
+                "available_balance": float(wallet.balance),
+                "this_month_earnings": float(this_month_earnings),
+                "completed_jobs_count": completed_jobs
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [WEB] Earnings summary error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get earnings summary: {str(e)}"}, status=500)
+
+
+@router.get("/earnings/history", auth=dual_auth)
+def get_earnings_history(request, page: int = 1, limit: int = 20):
+    """
+    Get earnings history for the current worker/agency.
+    Shows all earning transactions with job details.
+    """
+    from django.core.paginator import Paginator
+    from .models import Profile, WorkerProfile, Wallet, Transaction
+    
+    try:
+        print(f"📊 [WEB] Getting earnings history for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+        
+        if not profile or profile.profileType != 'WORKER':
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return {
+                "success": True,
+                "earnings": [],
+                "total": 0,
+                "page": page,
+                "total_pages": 0
+            }
+        
+        # Get earning transactions
+        queryset = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING']
+        ).select_related('relatedJobPosting').order_by('-createdAt')
+        
+        paginator = Paginator(queryset, limit)
+        if page < 1:
+            page = 1
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            page = paginator.num_pages
+        
+        earnings_page = paginator.get_page(page)
+        
+        earnings_data = []
+        for txn in earnings_page:
+            earning = {
+                "id": txn.transactionID,
+                "amount": float(txn.amount),
+                "status": txn.status,
+                "type": txn.transactionType,
+                "description": txn.description,
+                "created_at": txn.createdAt.isoformat() if txn.createdAt else None,
+            }
+            
+            if txn.relatedJobPosting:
+                earning["job"] = {
+                    "id": txn.relatedJobPosting.jobID,
+                    "title": txn.relatedJobPosting.title,
+                    "budget": float(txn.relatedJobPosting.budget)
+                }
+            
+            earnings_data.append(earning)
+        
+        return {
+            "success": True,
+            "earnings": earnings_data,
+            "total": paginator.count,
+            "page": page,
+            "total_pages": paginator.num_pages
+        }
+        
+    except Exception as e:
+        print(f"❌ [WEB] Earnings history error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get earnings history: {str(e)}"}, status=500)
+
+#endregion
+
+
 #region MOBILE API ROUTER
 # ===========================================================================
 # MOBILE-SPECIFIC API ENDPOINTS
