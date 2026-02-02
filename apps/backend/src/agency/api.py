@@ -1993,6 +1993,13 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
         
+        # Block sending messages if conversation is COMPLETED (not yet reopened for backjob)
+        if conv.status == Conversation.ConversationStatus.COMPLETED:
+            return Response({
+                "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
+                "conversation_status": "COMPLETED"
+            }, status=400)
+        
         # Create message - use senderAgency for agency users without profile
         message = Message.objects.create(
             conversationID=conv,
