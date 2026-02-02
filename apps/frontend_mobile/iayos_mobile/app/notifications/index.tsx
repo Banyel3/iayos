@@ -77,11 +77,11 @@ export default function NotificationsScreen() {
         notification.notificationType?.includes("KYC") ||
         notification.notificationType?.includes("AGENCY_KYC")
       ) {
-        router.push("/profile/kyc" as any);
+        router.push("/kyc/status" as any);
       } else if (notification.notificationType?.includes("PAYMENT")) {
         router.push("/payments/history" as any);
       } else if (notification.notificationType?.includes("REVIEW")) {
-        router.push("/profile/reviews" as any);
+        router.push("/reviews/my-reviews" as any);
       }
     },
     [markReadMutation]
