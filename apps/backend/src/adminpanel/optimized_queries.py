@@ -610,7 +610,7 @@ def get_transactions_list_optimized(
     """
     queryset = Transaction.objects.select_related(
         'walletID__accountFK',
-        'jobID'
+        'relatedJobPosting'
     ).order_by('-createdAt')
     
     # Apply filters
@@ -672,10 +672,10 @@ def get_transactions_list_optimized(
             'amount': float(txn.amount or 0),
             'currency': txn.currency or 'PHP',
             'user': user_info,
-            'job_id': str(txn.jobID.jobID) if txn.jobID else None,
+            'job_id': str(txn.relatedJobPosting.jobID) if txn.relatedJobPosting else None,
             'reference': txn.xenditPaymentID or txn.paymongoPaymentID,
             'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
-            'updated_at': txn.updatedAt.isoformat() if txn.updatedAt else None,
+            'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
         })
     
     return {
