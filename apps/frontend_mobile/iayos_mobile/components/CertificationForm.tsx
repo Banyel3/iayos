@@ -109,15 +109,16 @@ export default function CertificationForm({
   const createCertification = useCreateCertification();
   const updateCertification = useUpdateCertification();
 
-  // Fetch worker's skills using the dedicated endpoint
-  interface MySkillsResponse {
+  // Fetch ALL available specializations so users can add certifications for any skill
+  interface AvailableSkillsResponse {
     success: boolean;
     data: Array<{
       id: number; // Specialization ID
       name: string;
       description: string;
-      experienceYears: number;
-      certification: string;
+      minimumRate: number;
+      rateType: string;
+      skillLevel: string;
     }>;
     count: number;
   }
@@ -127,21 +128,21 @@ export default function CertificationForm({
     isLoading: skillsLoading,
     error: skillsError,
   } = useQuery({
-    queryKey: ["my-skills"],
+    queryKey: ["available-skills"],
     queryFn: async () => {
       console.log(
-        "🔍 [CertificationForm] Fetching skills from:",
-        ENDPOINTS.MY_SKILLS
+        "🔍 [CertificationForm] Fetching available skills from:",
+        ENDPOINTS.AVAILABLE_SKILLS
       );
-      const response = await apiRequest(ENDPOINTS.MY_SKILLS);
+      const response = await apiRequest(ENDPOINTS.AVAILABLE_SKILLS);
       console.log("🔍 [CertificationForm] Response status:", response.status);
       if (!response.ok) throw new Error(await response.text() || "Failed to fetch skills");
       const data = await response.json();
       console.log(
-        "🔍 [CertificationForm] Skills response:",
+        "🔍 [CertificationForm] Available skills response:",
         JSON.stringify(data, null, 2)
       );
-      return data as MySkillsResponse;
+      return data as AvailableSkillsResponse;
     },
   });
 
