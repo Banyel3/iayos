@@ -482,40 +482,60 @@ export default function Sidebar({ className }: SidebarProps) {
   return (
     <div
       className={cn(
-        "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out z-40",
+        "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-400 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] z-40",
         collapsed ? "w-16" : "w-64",
         className,
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
+      <div 
+        className={cn(
+          "flex items-center justify-between p-4 border-b border-sidebar-border",
+          !collapsed && "cursor-pointer hover:bg-gray-50 transition-colors"
+        )}
+        onClick={() => !collapsed && setCollapsed(true)}
+      >
         {!collapsed && (
           <div className="flex items-end space-x-2">
             {/* Logo Image */}
             <img
               src="/logo.png"
               alt="iAyos Logo"
-              className="h-9 w-auto"
+              className="h-[37.8px] w-auto"
             />
-            <span className="text-gray-400 font-light text-xl pb-0.5">Admin</span>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        {collapsed && (
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollapsed(!collapsed);
+            }}
+            className="mx-auto rounded-lg hover:bg-sidebar-accent transition-colors"
           >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4 text-sidebar-foreground" />
-            ) : (
-              <ChevronLeft className="h-4 w-4 text-sidebar-foreground" />
-            )}
+            <img
+              src="/favicon.png"
+              alt="iAyos"
+              className="h-14 w-14 object-contain"
+            />
           </button>
-        </div>
+        )}
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            <ChevronLeft className="h-4 w-4 text-sidebar-foreground" />
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
+      <nav 
+        className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide"
+        onClick={(e) => {
+          if (collapsed && e.target === e.currentTarget) {
+            setCollapsed(false);
+          }
+        }}
+      >
         {/* Search Bar */}
         {!collapsed && (
           <div className="mb-4">
@@ -524,7 +544,7 @@ export default function Sidebar({ className }: SidebarProps) {
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <Search className="h-4 w-4" />
-              <span>Search users (Ctrl+K)</span>
+              <span>Search users</span>
             </button>
           </div>
         )}
@@ -550,7 +570,14 @@ export default function Sidebar({ className }: SidebarProps) {
               <div className="relative">
                 {item.children ? (
                   <button
-                    onClick={() => toggleExpanded(item.name)}
+                    onClick={() => {
+                      if (collapsed) {
+                        setCollapsed(false);
+                        setTimeout(() => toggleExpanded(item.name), 100);
+                      } else {
+                        toggleExpanded(item.name);
+                      }
+                    }}
                     className={cn(
                       "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       hasActiveChild
@@ -566,7 +593,7 @@ export default function Sidebar({ className }: SidebarProps) {
                         )}
                       />
                       {!collapsed && (
-                        <span className="font-semibold">{item.name}</span>
+                        <span className="font-semibold animate-in fade-in duration-500 delay-150">{item.name}</span>
                       )}
                     </div>
                     {!collapsed && (
@@ -580,7 +607,7 @@ export default function Sidebar({ className }: SidebarProps) {
                           )}
                         <ChevronRight
                           className={cn(
-                            "h-4 w-4 text-gray-400 transition-transform",
+                            "h-4 w-4 text-gray-400 transition-transform duration-300 ease-out",
                             isExpanded && "rotate-90",
                           )}
                         />
@@ -590,6 +617,12 @@ export default function Sidebar({ className }: SidebarProps) {
                 ) : (
                   <Link
                     href={item.href}
+                    onClick={(e) => {
+                      if (collapsed && item.href === "#") {
+                        e.preventDefault();
+                        setCollapsed(false);
+                      }
+                    }}
                     className={cn(
                       "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       isItemActive
@@ -604,7 +637,7 @@ export default function Sidebar({ className }: SidebarProps) {
                           isItemActive ? "text-blue-600" : "text-gray-400",
                         )}
                       />
-                      {!collapsed && <span>{item.name}</span>}
+                      {!collapsed && <span className="animate-in fade-in duration-500 delay-150">{item.name}</span>}
                     </div>
                     {!collapsed &&
                       item.count !== undefined &&
@@ -620,7 +653,7 @@ export default function Sidebar({ className }: SidebarProps) {
 
               {/* Submenu */}
               {item.children && isExpanded && !collapsed && (
-                <div className="mt-1 ml-6 space-y-1">
+                <div className="mt-1 ml-6 space-y-1 animate-in slide-in-from-top-2 fade-in duration-300">
                   {item.children.map((child) => {
                     const isChildActiveItem = pathname.startsWith(child.href);
                     const ChildIcon = child.icon;
@@ -645,7 +678,7 @@ export default function Sidebar({ className }: SidebarProps) {
                               : "text-gray-400 group-hover:text-gray-600",
                           )}
                         />
-                        <span className="flex-1">{child.name}</span>
+                        <span className="flex-1 animate-in fade-in duration-500 delay-200">{child.name}</span>
                         {/* Optional: Add count badges here if needed */}
                       </Link>
                     );
