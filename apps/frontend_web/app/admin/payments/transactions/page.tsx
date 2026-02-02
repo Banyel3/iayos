@@ -39,7 +39,7 @@ interface Transaction {
   job_id: string | null;
   reference: string | null;  // xenditPaymentID or paymongoPaymentID
   created_at: string;
-  updated_at: string;
+  completed_at: string | null;
 }
 
 interface Statistics {
@@ -133,7 +133,7 @@ export default function TransactionsPage() {
 
       const data = await response.json();
       setStatistics(
-        data || {
+        data.stats || data || {
           total_transactions: 0,
           total_revenue: 0,
           escrow_held: 0,
