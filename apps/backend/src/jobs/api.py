@@ -5042,6 +5042,34 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
             
             # ============================================================
+            # NOTIFY WORKER/AGENCY: Alert them about backjob request
+            # ============================================================
+            from accounts.models import Notification
+            
+            # Notify assigned worker if exists (individual job)
+            if job.assignedWorkerID:
+                Notification.objects.create(
+                    accountFK=job.assignedWorkerID.profileID.accountFK,
+                    notificationType="BACKJOB_REQUESTED",
+                    title="Backjob Request Received",
+                    message=f"📋 Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Notified worker {job.assignedWorkerID.profileID.accountFK.email} about backjob request")
+            
+            # Notify assigned agency if exists
+            if job.assignedAgencyFK:
+                Notification.objects.create(
+                    accountFK=job.assignedAgencyFK.accountFK,
+                    notificationType="BACKJOB_REQUESTED",
+                    title="Backjob Request Received",
+                    message=f"📋 Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Notified agency {job.assignedAgencyFK.businessName} about backjob request")
+            # ============================================================
+            
+            # ============================================================
             # HOLD PAYMENT: Put payment on hold due to backjob request
             # ============================================================
             hold_payment_for_backjob(job)
