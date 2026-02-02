@@ -5,7 +5,8 @@ import { API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
+import { Badge } from "@/components/ui/badge";
+import { PendingInviteCard, RejectReasonModal, SkillSlotAssignmentModal } from "@/components/agency";
 import AssignEmployeesModal from "@/components/agency/AssignEmployeesModal";
 import {
   Loader2,
@@ -13,8 +14,10 @@ import {
   Mail,
   UserPlus,
   CheckCircle,
+  Users,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { JobSkillSlot, SlotAssignment } from "@/types/agency-team-jobs";
 
 interface Employee {
   employeeId: number;
@@ -24,6 +27,7 @@ interface Employee {
   rating: number;
   totalJobsCompleted: number;
   isActive: boolean;
+  specializations?: number[];
 }
 
 const normalizeEmployee = (employee: any): Employee => {
@@ -55,6 +59,7 @@ const normalizeEmployee = (employee: any): Employee => {
         : typeof employee?.is_active === "boolean"
           ? employee.is_active
           : true,
+    specializations: employee?.specializations ?? employee?.specialization_ids ?? [],
   };
 };
 
@@ -80,6 +85,9 @@ interface Job {
     employeeId: number;
     name: string;
   };
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
   client: {
     id: number;
     name: string;
@@ -117,6 +125,10 @@ export default function AgencyJobsPage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedJobForAssignment, setSelectedJobForAssignment] =
     useState<Job | null>(null);
+  // Team job skill slots state
+  const [skillSlotModalOpen, setSkillSlotModalOpen] = useState(false);
+  const [selectedJobSkillSlots, setSelectedJobSkillSlots] = useState<JobSkillSlot[]>([]);
+  const [loadingSkillSlots, setLoadingSkillSlots] = useState(false);
   const hasFetched = React.useRef(false);
 
   // Fetch jobs based on active tab
@@ -545,9 +557,110 @@ export default function AgencyJobsPage() {
     }
   };
 
-  const handleOpenAssignModal = (job: Job) => {
+  // Fetch skill slots for a team job
+  const fetchSkillSlots = async (jobId: number): Promise<JobSkillSlot[]> => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${jobId}/skill-slots`,
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch skill slots");
+      }
+      const data = await response.json();
+      return data.skill_slots || [];
+    } catch (error) {
+      console.error("Error fetching skill slots:", error);
+      return [];
+    }
+  };
+
+  // Handle opening assign modal - decides between regular or skill slot modal
+  const handleOpenAssignModal = async (job: Job) => {
     setSelectedJobForAssignment(job);
-    setAssignModalOpen(true);
+    
+    // Check if this is a team job with skill slots
+    if (job.is_team_job) {
+      setLoadingSkillSlots(true);
+      try {
+        const slots = await fetchSkillSlots(job.jobID);
+        if (slots.length > 0) {
+          setSelectedJobSkillSlots(slots);
+          setSkillSlotModalOpen(true);
+        } else {
+          // No skill slots defined, fallback to regular modal
+          setAssignModalOpen(true);
+        }
+      } catch (error) {
+        console.error("Error loading skill slots:", error);
+        // Fallback to regular modal
+        setAssignModalOpen(true);
+      } finally {
+        setLoadingSkillSlots(false);
+      }
+    } else {
+      // Regular single-employee job
+      setAssignModalOpen(true);
+    }
+  };
+
+  // Handle assigning employees to skill slots (team jobs)
+  const handleAssignToSlots = async (
+    assignments: SlotAssignment[],
+    primaryContactId: number | null
+  ) => {
+    if (!selectedJobForAssignment) return;
+
+    try {
+      setError(null);
+      setSuccessMessage(null);
+
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees-to-slots`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignments,
+            primary_contact_employee_id: primaryContactId,
+          }),
+        }
+      );
+
+      const responseData = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const errorMessage =
+          responseData?.error ||
+          responseData?.message ||
+          `Failed to assign employees (HTTP ${response.status})`;
+        throw new Error(errorMessage);
+      }
+
+      // Show success message
+      const count = assignments.length;
+      setSuccessMessage(
+        `${count} worker${count > 1 ? "s" : ""} successfully assigned to skill slots for "${selectedJobForAssignment.title}"! Job is now In Progress.`
+      );
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // Refresh job lists
+      await fetchAcceptedJobs();
+      await fetchInProgressJobs();
+
+      // Close modal and reset state
+      setSkillSlotModalOpen(false);
+      setSelectedJobForAssignment(null);
+      setSelectedJobSkillSlots([]);
+    } catch (err) {
+      console.error("Error assigning to slots:", err);
+      throw err;
+    }
   };
 
   // Loading state
@@ -566,6 +679,7 @@ export default function AgencyJobsPage() {
       </div>
     );
   }
+
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -802,10 +916,18 @@ export default function AgencyJobsPage() {
                   >
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-green-600 transition-colors">
-                            {job.title}
-                          </h3>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors">
+                              {job.title}
+                            </h3>
+                            {job.is_team_job && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                <Users size={12} className="mr-1" />
+                                Team Job ({job.total_workers_assigned || 0}/{job.total_workers_needed || 0})
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-gray-600 mb-3">
                             {job.description}
                           </p>
@@ -858,16 +980,69 @@ export default function AgencyJobsPage() {
                             </span>
                           </div>
                         </div>
+                      ) : job.is_team_job && (job.total_workers_assigned || 0) > 0 ? (
+                        <div className="space-y-2">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Users className="text-blue-600" size={20} />
+                                <span className="text-blue-800 font-medium">
+                                  {job.total_workers_assigned}/{job.total_workers_needed} employees assigned
+                                </span>
+                              </div>
+                              <div className="w-24 bg-blue-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full"
+                                  style={{
+                                    width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          {(job.total_workers_assigned || 0) < (job.total_workers_needed || 0) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAssignModal(job);
+                              }}
+                              disabled={loadingSkillSlots}
+                              className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                            >
+                              {loadingSkillSlots ? (
+                                <Loader2 size={18} className="animate-spin" />
+                              ) : (
+                                <Users size={18} />
+                              )}
+                              <span>Assign More Employees to Slots</span>
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <button
                           onClick={(e) => {
-                            e.stopPropagation(); // Prevent card click from navigating
+                            e.stopPropagation();
                             handleOpenAssignModal(job);
                           }}
-                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                          disabled={loadingSkillSlots}
+                          className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
+                            job.is_team_job
+                              ? "bg-purple-600 text-white hover:bg-purple-700"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                          }`}
                         >
-                          <UserPlus size={18} />
-                          <span>Assign Employee</span>
+                          {loadingSkillSlots ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : job.is_team_job ? (
+                            <Users size={18} />
+                          ) : (
+                            <UserPlus size={18} />
+                          )}
+                          <span>
+                            {job.is_team_job
+                              ? `Assign Employees to ${job.total_workers_needed || 0} Skill Slots`
+                              : "Assign Employee"}
+                          </span>
                         </button>
                       )}
                     </CardContent>
@@ -1148,7 +1323,7 @@ export default function AgencyJobsPage() {
         jobTitle={selectedJobForReject?.title || ""}
       />
 
-      {/* Assign Employees Modal (Multi-Employee Support) */}
+      {/* Assign Employees Modal (Multi-Employee Support - Regular Jobs) */}
       {selectedJobForAssignment && (
         <AssignEmployeesModal
           isOpen={assignModalOpen}
@@ -1159,6 +1334,22 @@ export default function AgencyJobsPage() {
           job={selectedJobForAssignment}
           employees={employees}
           onAssign={handleAssignEmployees}
+        />
+      )}
+
+      {/* Skill Slot Assignment Modal (Team Jobs with Skill Requirements) */}
+      {selectedJobForAssignment && selectedJobSkillSlots.length > 0 && (
+        <SkillSlotAssignmentModal
+          isOpen={skillSlotModalOpen}
+          onClose={() => {
+            setSkillSlotModalOpen(false);
+            setSelectedJobForAssignment(null);
+            setSelectedJobSkillSlots([]);
+          }}
+          job={selectedJobForAssignment}
+          employees={employees}
+          skillSlots={selectedJobSkillSlots}
+          onAssign={handleAssignToSlots}
         />
       )}
     </div>
