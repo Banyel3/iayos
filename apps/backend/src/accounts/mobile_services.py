@@ -894,12 +894,50 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             except Agency.DoesNotExist:
                 return {'success': False, 'error': 'Agency not found'}
         
-        # Validate category
+        # Handle skill_slots for multi-employee agency invites
+        skill_slots_data = job_data.get('skill_slots', [])
+        is_multi_employee = bool(skill_slots_data) and agency_id
+        
+        # Validate category or skill_slots (backwards compatibility)
+        category = None
         category_id = job_data.get('category_id')
-        try:
-            category = Specializations.objects.get(specializationID=category_id)
-        except Specializations.DoesNotExist:
-            return {'success': False, 'error': 'Invalid category'}
+        
+        if is_multi_employee:
+            # Multi-employee mode: validate skill slots
+            if len(skill_slots_data) == 0:
+                return {'success': False, 'error': 'At least one skill slot is required for multi-employee mode'}
+            
+            total_workers = sum(slot.get('workers_needed', 1) for slot in skill_slots_data)
+            if total_workers < 1:
+                return {'success': False, 'error': 'Total workers needed must be at least 1'}
+            if total_workers > 20:
+                return {'success': False, 'error': 'Maximum 20 workers per job'}
+            
+            # Validate each slot's specialization exists
+            for slot in skill_slots_data:
+                spec_id = slot.get('specialization_id')
+                if not spec_id:
+                    return {'success': False, 'error': 'Each skill slot must have a specialization_id'}
+                try:
+                    Specializations.objects.get(specializationID=spec_id)
+                except Specializations.DoesNotExist:
+                    return {'success': False, 'error': f'Invalid specialization_id: {spec_id}'}
+                
+                workers_needed = slot.get('workers_needed', 1)
+                if workers_needed < 1 or workers_needed > 10:
+                    return {'success': False, 'error': 'workers_needed must be between 1 and 10'}
+            
+            # Use first slot's specialization as job category (for compatibility)
+            category = Specializations.objects.get(specializationID=skill_slots_data[0]['specialization_id'])
+            print(f"📋 Multi-employee mode: {len(skill_slots_data)} skill slots, {total_workers} total workers")
+        else:
+            # Single-category mode (backwards compatibility)
+            if not category_id:
+                return {'success': False, 'error': 'category_id is required for single-employee mode'}
+            try:
+                category = Specializations.objects.get(specializationID=category_id)
+            except Specializations.DoesNotExist:
+                return {'success': False, 'error': 'Invalid category'}
         
         # Validate budget
         budget = Decimal(str(job_data.get('budget', 0)))
@@ -971,11 +1009,28 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     status="ACTIVE",  # Job created, awaiting acceptance
                     assignedAgencyFK=assigned_agency,
                     assignedWorkerID=assigned_worker,
+                    is_team_job=is_multi_employee,  # True if multi-employee mode
                     # Universal job fields for ML accuracy - use values from request (model has defaults if None)
                     job_scope=job_data.get('job_scope'),
                     skill_level_required=job_data.get('skill_level_required'),
                     work_environment=job_data.get('work_environment'),
                 )
+                
+                # Create skill slots for multi-employee agency invites
+                if is_multi_employee:
+                    from .models import JobSkillSlot
+                    for slot_data in skill_slots_data:
+                        spec = Specializations.objects.get(specializationID=slot_data['specialization_id'])
+                        JobSkillSlot.objects.create(
+                            jobID=job,
+                            specializationID=spec,
+                            workers_needed=slot_data.get('workers_needed', 1),
+                            skill_level_required=slot_data.get('skill_level_required', 'ENTRY').upper(),
+                            notes=slot_data.get('notes', ''),
+                            status='OPEN',
+                            budget_allocated=Decimal('0'),  # No per-slot budget allocation - agency handles payroll
+                        )
+                    print(f"✅ Created {len(skill_slots_data)} skill slots for multi-employee job")
                 
                 # Create escrow transaction
                 Transaction.objects.create(

@@ -1557,6 +1557,168 @@ def set_primary_contact_endpoint(request, job_id: int, employee_id: int):
         )
 
 
+@router.post("/jobs/{job_id}/assign-employees-to-slots", auth=cookie_auth)
+def assign_employees_to_slots_endpoint(request, job_id: int):
+    """
+    Assign agency employees to specific skill slots for multi-employee INVITE jobs.
+    
+    POST /api/agency/jobs/{job_id}/assign-employees-to-slots
+    Body (JSON):
+        - assignments: list[{skill_slot_id: int, employee_id: int}] (required)
+        - primary_contact_employee_id: int (optional) - Team lead
+    
+    Rules:
+        - All skill slots must be fully assigned (no partial assignments)
+        - Employees must have the exact specialization matching the slot (strict matching)
+        - Each employee can only be assigned to one slot per job
+        - Job status changes to IN_PROGRESS after successful assignment
+    
+    Example body:
+    {
+        "assignments": [
+            {"skill_slot_id": 1, "employee_id": 10},
+            {"skill_slot_id": 1, "employee_id": 11},
+            {"skill_slot_id": 2, "employee_id": 12}
+        ],
+        "primary_contact_employee_id": 10
+    }
+    """
+    import json
+    try:
+        data = json.loads(request.body)
+        assignments = data.get('assignments', [])
+        primary_contact_employee_id = data.get('primary_contact_employee_id')
+        
+        if not assignments:
+            return Response({'success': False, 'error': 'assignments list is required'}, status=400)
+        
+        # Validate assignment structure
+        for i, assignment in enumerate(assignments):
+            if not isinstance(assignment, dict):
+                return Response({'success': False, 'error': f'Assignment {i} must be an object'}, status=400)
+            if 'skill_slot_id' not in assignment:
+                return Response({'success': False, 'error': f'Assignment {i} missing skill_slot_id'}, status=400)
+            if 'employee_id' not in assignment:
+                return Response({'success': False, 'error': f'Assignment {i} missing employee_id'}, status=400)
+        
+        result = services.assign_employees_to_slots(
+            agency_account=request.auth,
+            job_id=job_id,
+            assignments=assignments,
+            primary_contact_employee_id=primary_contact_employee_id
+        )
+        
+        if result.get('success'):
+            return Response(result, status=200)
+        else:
+            return Response(result, status=400)
+    
+    except json.JSONDecodeError:
+        return Response({'success': False, 'error': 'Invalid JSON body'}, status=400)
+    except ValueError as e:
+        return Response({'success': False, 'error': str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error assigning employees to slots: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {'success': False, 'error': 'Internal server error'},
+            status=500
+        )
+
+
+@router.get("/jobs/{job_id}/skill-slots", auth=cookie_auth)
+def get_job_skill_slots_endpoint(request, job_id: int):
+    """
+    Get all skill slots for a multi-employee job with their assignment status.
+    
+    GET /api/agency/jobs/{job_id}/skill-slots
+    
+    Returns list of skill slots with:
+        - Slot details (specialization, workers_needed, skill_level)
+        - Current assignments (employees assigned to this slot)
+        - Status (OPEN, PARTIALLY_FILLED, FILLED)
+    """
+    from accounts.models import Job, JobSkillSlot, JobEmployeeAssignment
+    
+    try:
+        # Verify agency account
+        agency = AgencyProfile.objects.filter(accountFK=request.auth).first()
+        if not agency:
+            return Response({'success': False, 'error': 'Agency account not found'}, status=400)
+        
+        # Get job and verify ownership
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': f'Job {job_id} not found'}, status=404)
+        
+        if job.assignedAgencyFK != agency:
+            return Response({'success': False, 'error': 'This job is not assigned to your agency'}, status=403)
+        
+        # Get skill slots with assignments
+        slots = JobSkillSlot.objects.filter(job=job).select_related('specializationID')
+        
+        result = []
+        for slot in slots:
+            # Get employees assigned to this slot
+            assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot=slot
+            ).select_related('employee')
+            
+            assigned_employees = []
+            for assignment in assignments:
+                assigned_employees.append({
+                    'assignment_id': assignment.assignmentID,
+                    'employee_id': assignment.employee.employeeID,
+                    'employee_name': assignment.employee.fullName,
+                    'is_primary_contact': assignment.isPrimaryContact,
+                    'assigned_at': assignment.assignedAt.isoformat() if assignment.assignedAt else None
+                })
+            
+            # Determine status
+            assigned_count = len(assigned_employees)
+            if assigned_count == 0:
+                status = 'OPEN'
+            elif assigned_count < slot.workers_needed:
+                status = 'PARTIALLY_FILLED'
+            else:
+                status = 'FILLED'
+            
+            result.append({
+                'skill_slot_id': slot.skillSlotID,
+                'specialization_id': slot.specializationID.specializationID,
+                'specialization_name': slot.specializationID.specializationName,
+                'workers_needed': slot.workers_needed,
+                'skill_level_required': slot.skill_level,
+                'notes': slot.notes,
+                'status': status,
+                'assigned_count': assigned_count,
+                'assigned_employees': assigned_employees
+            })
+        
+        return Response({
+            'success': True,
+            'job_id': job_id,
+            'job_title': job.title,
+            'is_team_job': job.is_team_job,
+            'skill_slots': result,
+            'total_slots': len(result),
+            'total_workers_needed': sum(s['workers_needed'] for s in result),
+            'total_workers_assigned': sum(s['assigned_count'] for s in result)
+        }, status=200)
+    
+    except Exception as e:
+        print(f"❌ Error getting job skill slots: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {'success': False, 'error': 'Internal server error'},
+            status=500
+        )
+
+
 # ============================================================
 # Agency Chat/Messaging Endpoints
 # ============================================================
