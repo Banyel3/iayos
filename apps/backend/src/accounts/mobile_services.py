@@ -2048,7 +2048,9 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         # A person can be both an agency employee AND an individual worker - these are two
         # different systems that coexist. We only exclude agency OWNERS from the workers list.
         
-        # Get all worker profiles, excluding agency owners only
+        # Get all worker profiles, excluding:
+        # 1. Agency owners (they manage agencies, not individual workers)
+        # 2. The current user's own worker profile (can't hire yourself)
         workers = WorkerProfile.objects.select_related(
             'profileID',
             'profileID__accountFK'
@@ -2057,6 +2059,8 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             profileID__accountFK__KYCVerified=True
         ).exclude(
             profileID__accountFK__accountID__in=agency_owner_account_ids
+        ).exclude(
+            profileID__accountFK=user  # Exclude own worker profile
         ).order_by('-profileID__accountFK__createdAt')
 
         total_count = workers.count()
