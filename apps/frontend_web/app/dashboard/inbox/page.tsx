@@ -47,7 +47,7 @@ const InboxPage = () => {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "archived">(
-    "all"
+    "all",
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
@@ -123,7 +123,7 @@ const InboxPage = () => {
   const updateConversationPreview = useCallback(
     (
       conversationId: number,
-      updater: (conversation: Conversation) => Conversation
+      updater: (conversation: Conversation) => Conversation,
     ) => {
       CONVERSATION_FILTERS.forEach((filter) => {
         queryClient.setQueryData(
@@ -137,11 +137,11 @@ const InboxPage = () => {
               return updater(conv);
             });
             return changed ? next : old;
-          }
+          },
         );
       });
     },
-    [queryClient]
+    [queryClient],
   );
 
   const handleWebSocketMessage = useCallback(
@@ -151,7 +151,7 @@ const InboxPage = () => {
         console.log(
           "📖 [WebSocket] Received message history:",
           data.conversation_id,
-          `(${data.messages?.length || 0} messages)`
+          `(${data.messages?.length || 0} messages)`,
         );
 
         if (data.error) {
@@ -189,7 +189,7 @@ const InboxPage = () => {
           "✅ [TanStack Query] Cached",
           formattedMessages.length,
           "messages for conversation",
-          conversationId
+          conversationId,
         );
 
         // Update review status if this is the selected conversation
@@ -255,19 +255,19 @@ const InboxPage = () => {
       queryClient.setQueryData(
         inboxKeys.messages(conversationId),
         (
-          oldData: { messages: ChatMessage[]; conversation: any } | undefined
+          oldData: { messages: ChatMessage[]; conversation: any } | undefined,
         ) => {
           if (!oldData) return oldData;
           return {
             ...oldData,
             messages: [...oldData.messages, newMessage],
           };
-        }
+        },
       );
 
       console.log(
         "✅ [TanStack Query] Added message to cache for conversation",
-        conversationId
+        conversationId,
       );
 
       // If this message is for the currently selected chat, auto-scroll
@@ -284,7 +284,7 @@ const InboxPage = () => {
         last_message_time: newMessage.created_at,
       }));
     },
-    [selectedChat, queryClient, updateConversationPreview]
+    [selectedChat, queryClient, updateConversationPreview],
   );
 
   const {
@@ -316,14 +316,14 @@ const InboxPage = () => {
     (conversationId: number) => {
       console.log(
         "🗑️ [TanStack Query] Invalidating cache for conversation",
-        conversationId
+        conversationId,
       );
       queryClient.invalidateQueries({
         queryKey: inboxKeys.messages(conversationId),
       });
       conversationMetadataRef.current.delete(conversationId);
     },
-    [queryClient]
+    [queryClient],
   );
 
   // Check if user has already reviewed this job
@@ -333,7 +333,7 @@ const InboxPage = () => {
         `${API_BASE_URL}/jobs/${jobId}/has-reviewed`,
         {
           credentials: "include",
-        }
+        },
       );
       if (response.ok) {
         const data = await response.json();
@@ -352,13 +352,13 @@ const InboxPage = () => {
     console.log(
       "[useEffect#1] selectedChat changed:",
       selectedChat?.id,
-      selectedChat
+      selectedChat,
     );
     if (selectedChat) {
       // Update the stable conversation ID
       console.log(
         "[useEffect#1] Setting selectedConversationId to:",
-        selectedChat.id
+        selectedChat.id,
       );
       setSelectedConversationId(selectedChat.id);
     } else {
@@ -375,7 +375,7 @@ const InboxPage = () => {
     if (selectedConversationId && isConnected) {
       console.log(
         "🔄 [TanStack Query] Requesting messages via WebSocket:",
-        selectedConversationId
+        selectedConversationId,
       );
       wsRequestMessages(selectedConversationId);
 
@@ -403,7 +403,7 @@ const InboxPage = () => {
       !hasShownReviewModalRef.current
     ) {
       console.log(
-        "✅ Both parties marked complete, prompting worker for review"
+        "✅ Both parties marked complete, prompting worker for review",
       );
       hasShownReviewModalRef.current = true;
 
@@ -446,18 +446,18 @@ const InboxPage = () => {
           ...oldData,
           messages: [...oldData.messages, optimisticMessage],
         };
-      }
+      },
     );
 
     console.log(
       "✅ [TanStack Query] Added optimistic message to cache for conversation",
-      conversationId
+      conversationId,
     );
 
     // Auto-scroll to bottom
     setTimeout(
       () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-      100
+      100,
     );
 
     // Try to send via WebSocket (will queue if reconnecting)
@@ -521,10 +521,11 @@ const InboxPage = () => {
                   clientMarkedComplete: data.client_marked_complete,
                 },
               }
-            : null
+            : null,
         );
         alert(
-          data.message || "Job marked as complete! Waiting for client approval."
+          data.message ||
+            "Job marked as complete! Waiting for client approval.",
         );
         setIsMarkingComplete(false);
       },
@@ -538,7 +539,7 @@ const InboxPage = () => {
 
   // Handle client approving completion
   const handleApproveCompletion = async (
-    paymentMethod: "WALLET" | "GCASH" | "CASH" = "WALLET"
+    paymentMethod: "WALLET" | "GCASH" | "CASH" = "WALLET",
   ) => {
     if (!selectedChat) return;
 
@@ -582,12 +583,12 @@ const InboxPage = () => {
                       clientMarkedComplete: data.client_marked_complete,
                     },
                   }
-                : null
+                : null,
             );
 
             alert(
               data.message ||
-                "Payment successful! Please leave a review for the worker."
+                "Payment successful! Please leave a review for the worker.",
             );
             // Automatically open review modal
             setShowReviewModal(true);
@@ -607,7 +608,7 @@ const InboxPage = () => {
                     clientMarkedComplete: data.client_marked_complete,
                   },
                 }
-              : null
+              : null,
           );
 
           alert(data.message || "Job completion approved!");
@@ -618,13 +619,19 @@ const InboxPage = () => {
           alert(getErrorMessage(error, "Failed to approve job completion"));
           setIsApprovingCompletion(false);
         },
-      }
+      },
     );
   };
 
   // Handle submitting review
   const handleSubmitReview = async () => {
-    if (!selectedChat || ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0) {
+    if (
+      !selectedChat ||
+      ratingQuality === 0 ||
+      ratingCommunication === 0 ||
+      ratingPunctuality === 0 ||
+      ratingProfessionalism === 0
+    ) {
       alert("Please rate all criteria before submitting");
       return;
     }
@@ -675,7 +682,7 @@ const InboxPage = () => {
           alert(getErrorMessage(error, "Failed to submit review"));
           setIsSubmittingReview(false);
         },
-      }
+      },
     );
   };
 
@@ -692,7 +699,7 @@ const InboxPage = () => {
             "Content-Type": "application/json",
           },
           credentials: "include",
-        }
+        },
       );
 
       if (response.ok) {
@@ -708,7 +715,7 @@ const InboxPage = () => {
                   remainingPaymentPaid: true,
                 },
               }
-            : null
+            : null,
         );
 
         alert(data.message || "Payment confirmed! You can now leave a review.");
@@ -736,7 +743,7 @@ const InboxPage = () => {
       CONVERSATION_FILTERS.forEach((filter) =>
         queryClient.invalidateQueries({
           queryKey: inboxKeys.conversations(filter),
-        })
+        }),
       );
 
       alert(result.message);
@@ -949,7 +956,7 @@ const InboxPage = () => {
                           <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
                             {conv.last_message_time
                               ? new Date(
-                                  conv.last_message_time
+                                  conv.last_message_time,
                                 ).toLocaleDateString()
                               : ""}
                           </span>
@@ -1047,7 +1054,7 @@ const InboxPage = () => {
                         <span className="text-yellow-600">
                           ⭐{" "}
                           {selectedChat.other_participant.assigned_employee.rating.toFixed(
-                            1
+                            1,
                           )}
                         </span>
                       )}
@@ -1945,7 +1952,7 @@ const InboxPage = () => {
                           <span className="text-xs text-gray-500 flex-shrink-0">
                             {conv.last_message_time
                               ? new Date(
-                                  conv.last_message_time
+                                  conv.last_message_time,
                                 ).toLocaleDateString()
                               : ""}
                           </span>
@@ -2297,12 +2304,14 @@ const InboxPage = () => {
                 </p>
               </div>
 
-              {/* Multi-Criteria Star Ratings */}
+              {/* Multi-Criteria Star Ratings - Labels change based on role */}
               <div className="space-y-4">
-                {/* Quality */}
+                {/* Quality / Clarity of Requirements */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    🏆 Quality <span className="text-red-500">*</span>
+                    {selectedChat.my_role === "CLIENT" 
+                      ? "🏆 Quality of Work" 
+                      : "📋 Clarity of Requirements"} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex items-center space-x-2">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -2353,7 +2362,11 @@ const InboxPage = () => {
                               ? "text-yellow-400 fill-current"
                               : "text-gray-300"
                           }`}
-                          fill={star <= ratingCommunication ? "currentColor" : "none"}
+                          fill={
+                            star <= ratingCommunication
+                              ? "currentColor"
+                              : "none"
+                          }
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
@@ -2369,10 +2382,12 @@ const InboxPage = () => {
                   </div>
                 </div>
 
-                {/* Punctuality */}
+                {/* Punctuality / Payment Promptness */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ⏰ Punctuality <span className="text-red-500">*</span>
+                    {selectedChat.my_role === "CLIENT"
+                      ? "⏰ Punctuality"
+                      : "💳 Payment Promptness"} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex items-center space-x-2">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -2388,7 +2403,9 @@ const InboxPage = () => {
                               ? "text-yellow-400 fill-current"
                               : "text-gray-300"
                           }`}
-                          fill={star <= ratingPunctuality ? "currentColor" : "none"}
+                          fill={
+                            star <= ratingPunctuality ? "currentColor" : "none"
+                          }
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
@@ -2423,7 +2440,11 @@ const InboxPage = () => {
                               ? "text-yellow-400 fill-current"
                               : "text-gray-300"
                           }`}
-                          fill={star <= ratingProfessionalism ? "currentColor" : "none"}
+                          fill={
+                            star <= ratingProfessionalism
+                              ? "currentColor"
+                              : "none"
+                          }
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
@@ -2472,9 +2493,19 @@ const InboxPage = () => {
               </button>
               <button
                 onClick={handleSubmitReview}
-                disabled={ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0 || isSubmittingReview}
+                disabled={
+                  ratingQuality === 0 ||
+                  ratingCommunication === 0 ||
+                  ratingPunctuality === 0 ||
+                  ratingProfessionalism === 0 ||
+                  isSubmittingReview
+                }
                 className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center ${
-                  ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0 || isSubmittingReview
+                  ratingQuality === 0 ||
+                  ratingCommunication === 0 ||
+                  ratingPunctuality === 0 ||
+                  ratingProfessionalism === 0 ||
+                  isSubmittingReview
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
                 }`}
