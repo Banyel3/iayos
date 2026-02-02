@@ -1168,8 +1168,8 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
   },
   headerTitle: {
-    fontSize: Typography.sizes.lg,
-    fontWeight: Typography.weights.semiBold as any,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
   },
   scrollView: {
@@ -1186,7 +1186,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: Spacing.md,
     color: Colors.textSecondary,
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.fontSize.md,
   },
   errorContainer: {
     flex: 1,
@@ -1197,7 +1197,7 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: Spacing.md,
     color: Colors.textSecondary,
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.fontSize.md,
     textAlign: "center",
   },
   backButtonError: {
@@ -1209,7 +1209,7 @@ const styles = StyleSheet.create({
   },
   backButtonErrorText: {
     color: Colors.white,
-    fontWeight: Typography.weights.semiBold as any,
+    fontWeight: Typography.fontWeight.semiBold as any,
   },
   warningCard: {
     backgroundColor: Colors.warning + "15",
@@ -1226,20 +1226,20 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   warningTitle: {
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.semiBold as any,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.warning,
   },
   warningText: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
   },
   section: {
     marginBottom: Spacing.lg,
   },
   sectionTitle: {
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.semiBold as any,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
@@ -1247,8 +1247,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   label: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.medium as any,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
   },
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.fontSize.md,
     color: Colors.textPrimary,
     backgroundColor: Colors.white,
   },
@@ -1270,7 +1270,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   charCount: {
-    fontSize: Typography.sizes.xs,
+    fontSize: Typography.fontSize.xs,
     color: Colors.textHint,
     textAlign: "right",
     marginTop: 2,
@@ -1286,20 +1286,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   dropdownText: {
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.fontSize.md,
     color: Colors.textPrimary,
   },
   dropdownPlaceholder: {
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.fontSize.md,
     color: Colors.textHint,
   },
   minimumRateHint: {
-    fontSize: Typography.sizes.xs,
+    fontSize: Typography.fontSize.xs,
     color: Colors.primary,
     marginTop: Spacing.xs,
   },
   disabledHint: {
-    fontSize: Typography.sizes.xs,
+    fontSize: Typography.fontSize.xs,
     color: Colors.warning,
     marginTop: Spacing.xs,
   },
@@ -1325,8 +1325,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   budgetImpactTitle: {
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.semiBold as any,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
   },
   budgetImpactRow: {
@@ -1335,12 +1335,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   budgetImpactLabel: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
   },
   budgetImpactValue: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.medium as any,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
     color: Colors.textPrimary,
   },
   budgetImpactDivider: {
@@ -1349,11 +1349,11 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.sm,
   },
   budgetImpactAmount: {
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.bold as any,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.bold as any,
   },
   insufficientWarning: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.error,
     marginTop: Spacing.sm,
   },
@@ -1391,12 +1391,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.error + "10",
   },
   urgencyText: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
   },
   urgencyTextActive: {
     color: Colors.textPrimary,
-    fontWeight: Typography.weights.medium as any,
+    fontWeight: Typography.fontWeight.medium as any,
   },
   materialInputRow: {
     flexDirection: "row",
@@ -1428,7 +1428,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   materialChipText: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.fontSize.sm,
     color: Colors.primary,
   },
   submitButton: {
@@ -1446,8 +1446,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.textHint,
   },
   submitButtonText: {
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.semiBold as any,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.white,
   },
   modalOverlay: {
@@ -1470,8 +1470,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   modalTitle: {
-    fontSize: Typography.sizes.lg,
-    fontWeight: Typography.weights.semiBold as any,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
   },
   modalItem: {
@@ -1486,11 +1486,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + "10",
   },
   modalItemText: {
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.fontSize.md,
     color: Colors.textPrimary,
   },
   modalItemSubtext: {
-    fontSize: Typography.sizes.xs,
+    fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     marginLeft: Spacing.sm,
   },

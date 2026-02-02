@@ -3213,6 +3213,46 @@ def client_approve_job_completion(
                 status=400
             )
         
+        # ==========================================================================
+        # CRITICAL: Pre-validate wallet balance BEFORE marking job as complete
+        # This prevents the bug where job is marked COMPLETED but payment fails
+        # ==========================================================================
+        if payment_method_upper == 'WALLET':
+            from accounts.models import Wallet
+            
+            # Get client profile first to check wallet
+            profile_type_check = getattr(request.auth, 'profile_type', 'CLIENT')
+            profile_check = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type_check
+            ).first() or Profile.objects.filter(accountFK=request.auth, profileType='CLIENT').first()
+            
+            if profile_check:
+                # Get or create wallet for client
+                wallet_check, _ = Wallet.objects.get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': 0}
+                )
+                
+                # Get the job to check remaining payment
+                try:
+                    job_check = JobPosting.objects.get(jobID=job_id)
+                    remaining_amount = job_check.remainingPayment
+                    
+                    # Check if client has sufficient balance BEFORE proceeding
+                    if wallet_check.balance < remaining_amount:
+                        print(f"❌ Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
+                        return Response({
+                            "error": "Insufficient wallet balance",
+                            "required": float(remaining_amount),
+                            "available": float(wallet_check.balance),
+                            "message": f"You need ₱{remaining_amount:,.2f} but only have ₱{wallet_check.balance:,.2f}. Please deposit more funds or choose CASH payment."
+                        }, status=400)
+                    
+                    print(f"✅ Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
+                except JobPosting.DoesNotExist:
+                    pass  # Will be caught later in the flow
+        
         # Get client's profile (support dual profiles via profile_type in JWT)
         profile_type = getattr(request.auth, 'profile_type', 'CLIENT')
         try:

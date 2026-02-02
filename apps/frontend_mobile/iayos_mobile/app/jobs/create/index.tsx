@@ -975,6 +975,14 @@ export default function CreateJobScreen() {
                     {/* Specialization Selection */}
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Specialization *</Text>
+                      {categoriesLoading ? (
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator size="small" color={Colors.primary} />
+                          <Text style={styles.loadingText}>Loading...</Text>
+                        </View>
+                      ) : !Array.isArray(categories) || categories.length === 0 ? (
+                        <Text style={styles.emptyStateText}>No specializations available</Text>
+                      ) : (
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -1000,6 +1008,7 @@ export default function CreateJobScreen() {
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
+                      )}
                     </View>
 
                     {/* Workers Needed */}
