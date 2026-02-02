@@ -47,15 +47,15 @@ export interface Transaction {
   paymentMethod?: string;
 }
 
-export interface XenditInvoice {
+export interface PaymentInvoice {
   invoiceUrl: string;
   invoiceId: string;
   expiryDate: string;
   amount: number;
 }
 
-// Alias for generic naming
-export type PaymentInvoice = XenditInvoice;
+// Legacy alias for backward compatibility
+export type XenditInvoice = PaymentInvoice;
 
 export interface WalletDepositResponse {
   success: boolean;
@@ -122,12 +122,11 @@ export const useCreateEscrowPayment = () => {
   });
 };
 
-// Hook: Create payment invoice (generic name)
-// Supports both PayMongo and Xendit via backend abstraction
+// Hook: Create payment invoice via PayMongo
 export const useCreatePaymentInvoice = () => {
   return useMutation({
     mutationFn: async (data: { jobId: number; amount: number }) => {
-      return fetchJson<PaymentInvoice>(ENDPOINTS.CREATE_PAYMENT_INVOICE || ENDPOINTS.CREATE_XENDIT_INVOICE, {
+      return fetchJson<PaymentInvoice>(ENDPOINTS.CREATE_PAYMENT_INVOICE, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -147,29 +146,9 @@ export const useCreatePaymentInvoice = () => {
   });
 };
 
-// Hook: Create Xendit invoice for GCash payment (legacy alias)
-export const useCreateXenditInvoice = () => {
-  return useMutation({
-    mutationFn: async (data: { jobId: number; amount: number }) => {
-      return fetchJson<XenditInvoice>(ENDPOINTS.CREATE_XENDIT_INVOICE, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-    },
-    onError: (error: Error) => {
-      Toast.show({
-        type: "error",
-        text1: "Invoice Creation Failed",
-        text2: error.message,
-        position: "top",
-      });
-    },
-  });
-};
+// Legacy alias - use useCreatePaymentInvoice instead
+/** @deprecated Use useCreatePaymentInvoice instead */
+export const useCreateXenditInvoice = useCreatePaymentInvoice;
 
 // Hook: Upload cash payment proof
 export const useUploadCashProof = () => {
