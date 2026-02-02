@@ -445,7 +445,7 @@ const MyRequestsPage = () => {
       if (response.ok && data.success) {
         const jobId = data.job_posting_id;
 
-        // Handle GCASH payment (requires Xendit)
+        // Handle GCASH payment (requires payment gateway)
         if (
           data.payment_method === "GCASH" &&
           data.requires_payment &&
@@ -459,7 +459,7 @@ const MyRequestsPage = () => {
               `Your job will be activated once payment is confirmed.`,
           );
 
-          // Open Xendit payment page
+          // Open payment page
           window.location.href = data.invoice_url;
           return;
         }
@@ -614,7 +614,7 @@ const MyRequestsPage = () => {
       if (response.ok && data.success) {
         const jobId = data.job_posting_id;
 
-        // Check if payment is required (Xendit invoice generated)
+        // Check if payment is required (payment invoice generated)
         if (data.requires_payment && data.invoice_url) {
           alert(
             `💰 Job Created - Payment Required\n\n` +
@@ -624,7 +624,7 @@ const MyRequestsPage = () => {
               `Your job will be activated once payment is confirmed.`,
           );
 
-          // Open Xendit payment page
+          // Open payment page
           window.location.href = data.invoice_url;
           return;
         }

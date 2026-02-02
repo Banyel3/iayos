@@ -443,9 +443,8 @@ export const ENDPOINTS = {
 
   // Phase 3: Escrow Payment System (10 endpoints)
   CREATE_ESCROW_PAYMENT: `${API_URL}/api/mobile/payments/escrow`,
-  // Create payment invoice (generic name, same endpoint)
-  CREATE_PAYMENT_INVOICE: `${API_URL}/api/mobile/payments/xendit/invoice`,
-  CREATE_XENDIT_INVOICE: `${API_URL}/api/mobile/payments/xendit/invoice`, // Alias for backward compatibility
+  // Create payment invoice via wallet deposit flow (PayMongo)
+  CREATE_PAYMENT_INVOICE: `${API_URL}/api/mobile/wallet/deposit`,
   UPLOAD_CASH_PROOF: `${API_URL}/api/mobile/payments/cash-proof`,
   PAYMENT_STATUS: (id: number) => `${API_URL}/api/mobile/payments/status/${id}`,
   PAYMENT_HISTORY: `${API_URL}/api/mobile/payments/history`,
@@ -454,9 +453,8 @@ export const ENDPOINTS = {
   WALLET_TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
   CREATE_JOB_WITH_PAYMENT: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
   CREATE_JOB: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
-  // Payment webhooks
+  // Payment webhooks (server-side only, not called from frontend)
   PAYMENT_WEBHOOK: `${API_URL}/api/accounts/wallet/paymongo-webhook`,
-  XENDIT_WEBHOOK: `${API_URL}/api/payments/xendit/callback`, // Legacy
   PAYMENT_RECEIPT: (id: number) =>
     `${API_URL}/api/mobile/payments/receipt/${id}`,
 

@@ -1143,7 +1143,7 @@ export default function AgencyProfilePage() {
 
                   setIsWithdrawing(true);
                   try {
-                    // Use agency-specific withdrawal endpoint (with Xendit)
+                    // Use agency-specific withdrawal endpoint
                     const res = await fetch(
                       `${API_BASE}/api/agency/wallet/withdraw`,
                       {

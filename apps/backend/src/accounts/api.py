@@ -2408,13 +2408,14 @@ def get_wallet_transactions(request):
 
 @router.post("/wallet/webhook", auth=None)  # No auth for webhooks
 def xendit_webhook(request):
-    """
-    Handle Xendit payment webhook callbacks
-    This endpoint is called by Xendit when payment status changes
-    """
-    try:
-        from .models import Transaction
-        from .xendit_service import XenditService
+    \"\"\"
+    [DEPRECATED] Handle Xendit payment webhook callbacks.
+    
+    This endpoint is kept for processing historical Xendit transactions.
+    New transactions use PayMongo via /wallet/paymongo-webhook.
+    
+    This endpoint is called by Xendit when payment status changes.
+    \"\"\"\n    try:\n        from .models import Transaction\n        from .xendit_service import XenditService
         from decimal import Decimal
         from django.utils import timezone
         import json
@@ -2525,14 +2526,15 @@ def xendit_webhook(request):
 
 @router.post("/wallet/disbursement-webhook", auth=None)  # No auth for webhooks
 def xendit_disbursement_webhook(request):
-    """
-    Handle Xendit disbursement/payout webhook callbacks
-    This endpoint is called by Xendit when a disbursement status changes
-    Used for withdrawal processing (both agency and worker withdrawals)
-    """
-    try:
-        from .models import Transaction, Wallet
-        from .xendit_service import XenditService
+    \"\"\"
+    [DEPRECATED] Handle Xendit disbursement/payout webhook callbacks.
+    
+    This endpoint is kept for processing historical Xendit disbursements.
+    New payouts use PayMongo.
+    
+    This endpoint is called by Xendit when a disbursement status changes.
+    Used for withdrawal processing (both agency and worker withdrawals).
+    \"\"\"\n    try:\n        from .models import Transaction, Wallet\n        from .xendit_service import XenditService
         from django.utils import timezone
         import json
         
@@ -3054,7 +3056,7 @@ def check_payment_status(request, transaction_id: int):
     """
     try:
         from .models import Transaction
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         
         # Get transaction
         try:
@@ -3078,14 +3080,15 @@ def check_payment_status(request, transaction_id: int):
                 "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None
             }
         
-        # If still pending, check with Xendit
+        # If still pending, check with payment provider
         if transaction.xenditInvoiceID:
-            xendit_status = XenditService.get_invoice_status(transaction.xenditInvoiceID)
+            payment_provider = get_payment_provider()
+            provider_status = payment_provider.get_payment_status(transaction.xenditInvoiceID)
             
             return {
                 "success": True,
                 "status": transaction.status,
-                "xendit_status": xendit_status.get('status'),
+                "provider_status": provider_status.get('status'),
                 "payment_url": transaction.invoiceURL,
                 "amount": float(transaction.amount)
             }
@@ -3699,7 +3702,7 @@ def get_worker_materials_public(request, worker_id: int, category_id: Optional[i
 # PORTFOLIO ENDPOINTS
 # ===========================
 
-@router.post("/worker/portfolio", auth=cookie_auth, response=PortfolioItemResponse)
+@router.post("/worker/portfolio", auth=dual_auth, response=PortfolioItemResponse)
 def upload_portfolio_endpoint(
     request,
     image: UploadedFile = File(...),
@@ -3748,7 +3751,7 @@ def upload_portfolio_endpoint(
         )
 
 
-@router.get("/worker/portfolio", auth=cookie_auth, response=list[PortfolioItemSchema])
+@router.get("/worker/portfolio", auth=dual_auth, response=list[PortfolioItemSchema])
 def list_portfolio_endpoint(request):
     """
     List all worker's portfolio images ordered by display_order.
@@ -3778,7 +3781,7 @@ def list_portfolio_endpoint(request):
         )
 
 
-@router.put("/worker/portfolio/{portfolio_id}/caption", auth=cookie_auth, response=PortfolioItemResponse)
+@router.put("/worker/portfolio/{portfolio_id}/caption", auth=dual_auth, response=PortfolioItemResponse)
 def update_portfolio_caption_endpoint(request, portfolio_id: int, payload: UpdatePortfolioCaptionRequest):
     """
     Update caption for a portfolio image.
@@ -3823,7 +3826,7 @@ def update_portfolio_caption_endpoint(request, portfolio_id: int, payload: Updat
         )
 
 
-@router.put("/worker/portfolio/reorder", auth=cookie_auth)
+@router.put("/worker/portfolio/reorder", auth=dual_auth)
 def reorder_portfolio_endpoint(request, payload: ReorderPortfolioRequest):
     """
     Reorder portfolio images by providing list of portfolio IDs in desired order.
@@ -3863,7 +3866,7 @@ def reorder_portfolio_endpoint(request, payload: ReorderPortfolioRequest):
         )
 
 
-@router.delete("/worker/portfolio/{portfolio_id}", auth=cookie_auth)
+@router.delete("/worker/portfolio/{portfolio_id}", auth=dual_auth)
 def delete_portfolio_endpoint(request, portfolio_id: int):
     """
     Delete a portfolio image.

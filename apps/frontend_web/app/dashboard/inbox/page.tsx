@@ -554,7 +554,7 @@ const InboxPage = () => {
           // Check if payment is required
           if (data.requires_payment) {
             if (data.invoice_url) {
-              // GCASH payment - redirect to Xendit
+              // GCASH payment - redirect to payment gateway
               alert(`${data.message}\n\nRedirecting to payment page...`);
               window.location.href = data.invoice_url;
               setIsApprovingCompletion(false);
@@ -679,7 +679,7 @@ const InboxPage = () => {
     );
   };
 
-  // Handle confirming final payment after returning from Xendit
+  // Handle confirming final payment after returning from payment gateway
   const handleConfirmFinalPayment = async () => {
     if (!selectedChat) return;
 
@@ -1460,7 +1460,7 @@ const InboxPage = () => {
                           Confirm Payment Completed
                         </button>
                         <p className="text-xs text-gray-500 text-center mt-2">
-                          Click this after completing payment via Xendit
+                          Click this after completing payment via GCash
                         </p>
                       </div>
                     )}

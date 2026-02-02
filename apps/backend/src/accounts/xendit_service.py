@@ -1,12 +1,20 @@
-"""
-Xendit Payment Gateway Service
-Handles payment processing via Xendit API using direct HTTP requests
+\"\"\"
+[DEPRECATED] Xendit Payment Gateway Service
+============================================
+This service is DEPRECATED as of February 2026.
+PayMongo is now the primary payment provider.
 
-Circuit breaker pattern implemented for fault tolerance:
-- Opens after 5 consecutive failures
-- Recovers after 60 seconds
-- Prevents cascading failures during Xendit outages
-"""
+This file is kept ONLY for:
+1. Processing webhooks from historical Xendit transactions
+2. Checking status of legacy Xendit payments
+
+DO NOT use this service for new transactions.
+Use payment_provider.get_payment_provider() instead.
+
+Legacy features:
+- Handles payment processing via Xendit API using direct HTTP requests
+- Circuit breaker pattern implemented for fault tolerance
+\"\"\"
 
 import requests
 from django.conf import settings
