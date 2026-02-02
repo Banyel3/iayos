@@ -6,7 +6,11 @@ import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PendingInviteCard, RejectReasonModal, SkillSlotAssignmentModal } from "@/components/agency";
+import {
+  PendingInviteCard,
+  RejectReasonModal,
+  SkillSlotAssignmentModal,
+} from "@/components/agency";
 import AssignEmployeesModal from "@/components/agency/AssignEmployeesModal";
 import {
   Loader2,
@@ -59,7 +63,8 @@ const normalizeEmployee = (employee: any): Employee => {
         : typeof employee?.is_active === "boolean"
           ? employee.is_active
           : true,
-    specializations: employee?.specializations ?? employee?.specialization_ids ?? [],
+    specializations:
+      employee?.specializations ?? employee?.specialization_ids ?? [],
   };
 };
 
@@ -127,7 +132,9 @@ export default function AgencyJobsPage() {
     useState<Job | null>(null);
   // Team job skill slots state
   const [skillSlotModalOpen, setSkillSlotModalOpen] = useState(false);
-  const [selectedJobSkillSlots, setSelectedJobSkillSlots] = useState<JobSkillSlot[]>([]);
+  const [selectedJobSkillSlots, setSelectedJobSkillSlots] = useState<
+    JobSkillSlot[]
+  >([]);
   const [loadingSkillSlots, setLoadingSkillSlots] = useState(false);
   const hasFetched = React.useRef(false);
 
@@ -387,7 +394,10 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMessage = getErrorMessage(errorData, "Failed to accept invitation");
+        const errorMessage = getErrorMessage(
+          errorData,
+          "Failed to accept invitation",
+        );
 
         // Provide user-friendly message for payment-related errors
         if (errorMessage.includes("escrow payment")) {
@@ -453,7 +463,9 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(getErrorMessage(errorData, "Failed to reject invitation"));
+        throw new Error(
+          getErrorMessage(errorData, "Failed to reject invitation"),
+        );
       }
 
       const result = await response.json();
@@ -565,7 +577,7 @@ export default function AgencyJobsPage() {
         {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
       if (!response.ok) {
         throw new Error("Failed to fetch skill slots");
@@ -581,7 +593,7 @@ export default function AgencyJobsPage() {
   // Handle opening assign modal - decides between regular or skill slot modal
   const handleOpenAssignModal = async (job: Job) => {
     setSelectedJobForAssignment(job);
-    
+
     // Check if this is a team job with skill slots
     if (job.is_team_job) {
       setLoadingSkillSlots(true);
@@ -610,7 +622,7 @@ export default function AgencyJobsPage() {
   // Handle assigning employees to skill slots (team jobs)
   const handleAssignToSlots = async (
     assignments: SlotAssignment[],
-    primaryContactId: number | null
+    primaryContactId: number | null,
   ) => {
     if (!selectedJobForAssignment) return;
 
@@ -628,7 +640,7 @@ export default function AgencyJobsPage() {
             assignments,
             primary_contact_employee_id: primaryContactId,
           }),
-        }
+        },
       );
 
       const responseData = await response.json().catch(() => null);
@@ -644,7 +656,7 @@ export default function AgencyJobsPage() {
       // Show success message
       const count = assignments.length;
       setSuccessMessage(
-        `${count} worker${count > 1 ? "s" : ""} successfully assigned to skill slots for "${selectedJobForAssignment.title}"! Job is now In Progress.`
+        `${count} worker${count > 1 ? "s" : ""} successfully assigned to skill slots for "${selectedJobForAssignment.title}"! Job is now In Progress.`,
       );
 
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -679,7 +691,6 @@ export default function AgencyJobsPage() {
       </div>
     );
   }
-
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -924,7 +935,8 @@ export default function AgencyJobsPage() {
                             {job.is_team_job && (
                               <Badge className="bg-purple-100 text-purple-700 border-purple-300">
                                 <Users size={12} className="mr-1" />
-                                Team Job ({job.total_workers_assigned || 0}/{job.total_workers_needed || 0})
+                                Team Job ({job.total_workers_assigned || 0}/
+                                {job.total_workers_needed || 0})
                               </Badge>
                             )}
                           </div>
@@ -980,14 +992,16 @@ export default function AgencyJobsPage() {
                             </span>
                           </div>
                         </div>
-                      ) : job.is_team_job && (job.total_workers_assigned || 0) > 0 ? (
+                      ) : job.is_team_job &&
+                        (job.total_workers_assigned || 0) > 0 ? (
                         <div className="space-y-2">
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
                                 <Users className="text-blue-600" size={20} />
                                 <span className="text-blue-800 font-medium">
-                                  {job.total_workers_assigned}/{job.total_workers_needed} employees assigned
+                                  {job.total_workers_assigned}/
+                                  {job.total_workers_needed} employees assigned
                                 </span>
                               </div>
                               <div className="w-24 bg-blue-200 rounded-full h-2">
@@ -1000,7 +1014,8 @@ export default function AgencyJobsPage() {
                               </div>
                             </div>
                           </div>
-                          {(job.total_workers_assigned || 0) < (job.total_workers_needed || 0) && (
+                          {(job.total_workers_assigned || 0) <
+                            (job.total_workers_needed || 0) && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
