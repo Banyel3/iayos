@@ -2908,7 +2908,7 @@ def create_agency_support_ticket(request):
         ticket.lastReplyAt = timezone.now()
         ticket.save()
         
-        logger.info(f"✅ Agency support ticket #{ticket.ticketID} created by agency {agency.agencyID}")
+        logger.info(f"✅ Agency support ticket #{ticket.ticketID} created by agency {agency.agencyId}")
         
         return {
             'success': True,

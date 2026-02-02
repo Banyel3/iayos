@@ -5943,7 +5943,7 @@ def get_job_receipt(request, job_id: int):
             agency = job.assignedAgencyFK
             worker_info = {
                 'type': 'AGENCY',
-                'id': agency.agencyID,
+                'id': agency.agencyId,
                 'name': agency.businessName,
                 'avatar': agency.profileImg,
                 'contact': agency.contactNum,

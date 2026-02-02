@@ -1375,7 +1375,13 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Check review status for this job
         from accounts.models import JobReview
-        worker_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+        # For direct workers, use assignedWorkerID; for agency jobs, use agency's account
+        if job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+        elif job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        else:
+            worker_account = None
         client_account = job.clientID.profileID.accountFK
         
         worker_reviewed = False
