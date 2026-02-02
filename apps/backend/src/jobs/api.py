@@ -5973,8 +5973,8 @@ def get_job_receipt(request, job_id: int):
                 'type': 'AGENCY',
                 'id': agency.agencyId,
                 'name': agency.businessName,
-                'avatar': agency.profileImg,
-                'contact': agency.contactNum,
+                'avatar': None,  # Agency model doesn't have profile image field
+                'contact': agency.contactNumber,  # Fixed: was contactNum (wrong field name)
             }
         
         # Build client info
