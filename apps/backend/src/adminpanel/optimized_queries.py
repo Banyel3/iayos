@@ -670,10 +670,10 @@ def get_transactions_list_optimized(
             'type': txn.transactionType,
             'status': txn.status,
             'amount': float(txn.amount or 0),
-            'currency': txn.currency or 'PHP',
+            'currency': 'PHP',  # All transactions are in PHP
             'user': user_info,
             'job_id': str(txn.relatedJobPosting.jobID) if txn.relatedJobPosting else None,
-            'reference': txn.xenditPaymentID or txn.paymongoPaymentID,
+            'reference': txn.xenditPaymentID or txn.referenceNumber,
             'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
             'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
         })
