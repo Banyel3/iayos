@@ -80,7 +80,7 @@ export function useMaterials() {
     queryFn: async (): Promise<Material[]> => {
       const response = await apiRequest(ENDPOINTS.MATERIALS);
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorText = await response.text().catch(() => "Unknown error");
         console.error(`[Materials] API Error ${response.status}: ${errorText}`);
         throw new Error(`Failed to fetch materials (${response.status})`);
       }
@@ -146,9 +146,7 @@ export function useCreateMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(
-          getErrorMessage(error, "Failed to create material")
-        );
+        throw new Error(getErrorMessage(error, "Failed to create material"));
       }
 
       const result = await response.json();
@@ -297,7 +295,9 @@ export function useToggleMaterialAvailability() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to toggle availability"));
+        throw new Error(
+          getErrorMessage(error, "Failed to toggle availability"),
+        );
       }
 
       return response.json();
@@ -359,7 +359,7 @@ export function formatPrice(price: number): string {
 export function formatPricePerUnit(
   price: number,
   unit: string,
-  quantity?: number
+  quantity?: number,
 ): string {
   const quantityLabel =
     typeof quantity === "number" && !Number.isNaN(quantity)

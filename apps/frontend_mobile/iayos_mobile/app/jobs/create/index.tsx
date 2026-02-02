@@ -136,9 +136,13 @@ export default function CreateJobScreen() {
   const [isTeamHire, setIsTeamHire] = useState(false);
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
-  const [newSlotSpecializationId, setNewSlotSpecializationId] = useState<number | null>(null);
+  const [newSlotSpecializationId, setNewSlotSpecializationId] = useState<
+    number | null
+  >(null);
   const [newSlotWorkersNeeded, setNewSlotWorkersNeeded] = useState("1");
-  const [newSlotSkillLevel, setNewSlotSkillLevel] = useState<"ENTRY" | "INTERMEDIATE" | "EXPERT">("INTERMEDIATE");
+  const [newSlotSkillLevel, setNewSlotSkillLevel] = useState<
+    "ENTRY" | "INTERMEDIATE" | "EXPERT"
+  >("INTERMEDIATE");
   const [newSlotNotes, setNewSlotNotes] = useState("");
 
   const queryClient = useQueryClient();
@@ -252,29 +256,44 @@ export default function CreateJobScreen() {
       return;
     }
     // Check total workers doesn't exceed 20
-    const currentTotal = skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+    const currentTotal = skillSlots.reduce(
+      (sum, slot) => sum + slot.workers_needed,
+      0,
+    );
     if (currentTotal + workersCount > 20) {
-      Alert.alert("Error", `Cannot add ${workersCount} workers. Maximum total is 20. Current: ${currentTotal}`);
+      Alert.alert(
+        "Error",
+        `Cannot add ${workersCount} workers. Maximum total is 20. Current: ${currentTotal}`,
+      );
       return;
     }
-    
-    setSkillSlots(prev => [...prev, {
-      specialization_id: newSlotSpecializationId,
-      workers_needed: workersCount,
-      skill_level_required: newSlotSkillLevel,
-      notes: newSlotNotes.trim() || undefined,
-    }]);
-    
+
+    setSkillSlots((prev) => [
+      ...prev,
+      {
+        specialization_id: newSlotSpecializationId,
+        workers_needed: workersCount,
+        skill_level_required: newSlotSkillLevel,
+        notes: newSlotNotes.trim() || undefined,
+      },
+    ]);
+
     // Reset form
     setNewSlotSpecializationId(null);
     setNewSlotWorkersNeeded("1");
     setNewSlotSkillLevel("INTERMEDIATE");
     setNewSlotNotes("");
     setShowAddSlotModal(false);
-  }, [newSlotSpecializationId, newSlotWorkersNeeded, newSlotSkillLevel, newSlotNotes, skillSlots]);
+  }, [
+    newSlotSpecializationId,
+    newSlotWorkersNeeded,
+    newSlotSkillLevel,
+    newSlotNotes,
+    skillSlots,
+  ]);
 
   const removeSkillSlot = useCallback((index: number) => {
-    setSkillSlots(prev => prev.filter((_, i) => i !== index));
+    setSkillSlots((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const getTotalWorkersNeeded = useCallback(() => {
@@ -294,13 +313,16 @@ export default function CreateJobScreen() {
 
   const categories = categoriesData || [];
 
-  const getSpecializationName = useCallback((specId: number) => {
-    if (!categories || !Array.isArray(categories)) {
-      return `Specialization #${specId}`;
-    }
-    const cat = categories.find(c => c.id === specId);
-    return cat?.name || `Specialization #${specId}`;
-  }, [categories]);
+  const getSpecializationName = useCallback(
+    (specId: number) => {
+      if (!categories || !Array.isArray(categories)) {
+        return `Specialization #${specId}`;
+      }
+      const cat = categories.find((c) => c.id === specId);
+      return cat?.name || `Specialization #${specId}`;
+    },
+    [categories],
+  );
 
   // Fetch barangays for Zamboanga City (cityID = 1)
   const {
@@ -451,7 +473,10 @@ export default function CreateJobScreen() {
     // Team hire validation for agencies
     if (agencyId && isTeamHire) {
       if (skillSlots.length === 0) {
-        Alert.alert("Error", "Please add at least one skill slot for team hiring");
+        Alert.alert(
+          "Error",
+          "Please add at least one skill slot for team hiring",
+        );
         return;
       }
     }
@@ -590,9 +615,14 @@ export default function CreateJobScreen() {
                   </View>
                 ) : !Array.isArray(categories) || categories.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
-                    <Ionicons name="alert-circle-outline" size={24} color={Colors.warning} />
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={24}
+                      color={Colors.warning}
+                    />
                     <Text style={styles.emptyStateText}>
-                      No specializations available in database. Please contact support.
+                      No specializations available in database. Please contact
+                      support.
                     </Text>
                   </View>
                 ) : (
@@ -602,32 +632,32 @@ export default function CreateJobScreen() {
                     style={styles.categoryScroll}
                   >
                     {categories.map((category) => (
-                        <TouchableOpacity
-                          key={category.id}
+                      <TouchableOpacity
+                        key={category.id}
+                        style={[
+                          styles.categoryChip,
+                          categoryId === category.id &&
+                            styles.categoryChipActive,
+                        ]}
+                        onPress={() => {
+                          setCategoryId(category.id);
+                          setSelectedCategory(category);
+                          if (category.minimum_rate > 0) {
+                            setBudget(category.minimum_rate.toFixed(2));
+                          }
+                        }}
+                      >
+                        <Text
                           style={[
-                            styles.categoryChip,
+                            styles.categoryChipText,
                             categoryId === category.id &&
-                              styles.categoryChipActive,
+                              styles.categoryChipTextActive,
                           ]}
-                          onPress={() => {
-                            setCategoryId(category.id);
-                            setSelectedCategory(category);
-                            if (category.minimum_rate > 0) {
-                              setBudget(category.minimum_rate.toFixed(2));
-                            }
-                          }}
                         >
-                          <Text
-                            style={[
-                              styles.categoryChipText,
-                              categoryId === category.id &&
-                                styles.categoryChipTextActive,
-                            ]}
-                          >
-                            {category.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                          {category.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </ScrollView>
                 )}
               </View>
@@ -637,11 +667,13 @@ export default function CreateJobScreen() {
             {agencyId && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>👥 Team Hiring</Text>
-                
+
                 {/* Team Hire Toggle */}
                 <View style={styles.toggleRow}>
                   <View style={styles.toggleInfo}>
-                    <Text style={styles.toggleLabel}>Hire Multiple Workers</Text>
+                    <Text style={styles.toggleLabel}>
+                      Hire Multiple Workers
+                    </Text>
                     <Text style={styles.toggleHint}>
                       Request workers with different skills for this job
                     </Text>
@@ -656,7 +688,12 @@ export default function CreateJobScreen() {
                       }
                     }}
                   >
-                    <View style={[styles.toggleKnob, isTeamHire && styles.toggleKnobActive]} />
+                    <View
+                      style={[
+                        styles.toggleKnob,
+                        isTeamHire && styles.toggleKnobActive,
+                      ]}
+                    />
                   </TouchableOpacity>
                 </View>
 
@@ -665,15 +702,23 @@ export default function CreateJobScreen() {
                   <View style={styles.skillSlotsContainer}>
                     {skillSlots.length === 0 ? (
                       <View style={styles.emptySlots}>
-                        <Ionicons name="people-outline" size={32} color={Colors.textHint} />
+                        <Ionicons
+                          name="people-outline"
+                          size={32}
+                          color={Colors.textHint}
+                        />
                         <Text style={styles.emptySlotsText}>
-                          No skill slots added yet. Add workers with different specializations.
+                          No skill slots added yet. Add workers with different
+                          specializations.
                         </Text>
                       </View>
                     ) : (
                       <>
                         <Text style={styles.slotsSummary}>
-                          Total: {getTotalWorkersNeeded()} worker{getTotalWorkersNeeded() !== 1 ? 's' : ''} across {skillSlots.length} slot{skillSlots.length !== 1 ? 's' : ''}
+                          Total: {getTotalWorkersNeeded()} worker
+                          {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
+                          {skillSlots.length} slot
+                          {skillSlots.length !== 1 ? "s" : ""}
                         </Text>
                         {skillSlots.map((slot, index) => (
                           <View key={index} style={styles.slotCard}>
@@ -685,21 +730,38 @@ export default function CreateJobScreen() {
                                 onPress={() => removeSkillSlot(index)}
                                 style={styles.removeSlotBtn}
                               >
-                                <Ionicons name="close-circle" size={24} color={Colors.error} />
+                                <Ionicons
+                                  name="close-circle"
+                                  size={24}
+                                  color={Colors.error}
+                                />
                               </TouchableOpacity>
                             </View>
                             <View style={styles.slotDetails}>
                               <View style={styles.slotBadge}>
-                                <Ionicons name="people" size={14} color={Colors.primary} />
+                                <Ionicons
+                                  name="people"
+                                  size={14}
+                                  color={Colors.primary}
+                                />
                                 <Text style={styles.slotBadgeText}>
-                                  {slot.workers_needed} worker{slot.workers_needed !== 1 ? 's' : ''}
+                                  {slot.workers_needed} worker
+                                  {slot.workers_needed !== 1 ? "s" : ""}
                                 </Text>
                               </View>
-                              <View style={[styles.slotBadge, styles.slotBadgeSkill]}>
+                              <View
+                                style={[
+                                  styles.slotBadge,
+                                  styles.slotBadgeSkill,
+                                ]}
+                              >
                                 <Text style={styles.slotBadgeText}>
-                                  {slot.skill_level_required === 'ENTRY' ? '🌱 Entry' :
-                                   slot.skill_level_required === 'INTERMEDIATE' ? '⭐ Intermediate' :
-                                   '👑 Expert'}
+                                  {slot.skill_level_required === "ENTRY"
+                                    ? "🌱 Entry"
+                                    : slot.skill_level_required ===
+                                        "INTERMEDIATE"
+                                      ? "⭐ Intermediate"
+                                      : "👑 Expert"}
                                 </Text>
                               </View>
                             </View>
@@ -716,7 +778,11 @@ export default function CreateJobScreen() {
                       style={styles.addSlotBtn}
                       onPress={() => setShowAddSlotModal(true)}
                     >
-                      <Ionicons name="add-circle" size={20} color={Colors.white} />
+                      <Ionicons
+                        name="add-circle"
+                        size={20}
+                        color={Colors.white}
+                      />
                       <Text style={styles.addSlotBtnText}>Add Skill Slot</Text>
                     </TouchableOpacity>
                   </View>
@@ -857,9 +923,14 @@ export default function CreateJobScreen() {
                   </View>
                 ) : barangays.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
-                    <Ionicons name="location-outline" size={24} color={Colors.warning} />
+                    <Ionicons
+                      name="location-outline"
+                      size={24}
+                      color={Colors.warning}
+                    />
                     <Text style={styles.emptyStateText}>
-                      No barangays available in database for Zamboanga City. Please contact support.
+                      No barangays available in database for Zamboanga City.
+                      Please contact support.
                     </Text>
                   </View>
                 ) : (
@@ -977,37 +1048,47 @@ export default function CreateJobScreen() {
                       <Text style={styles.label}>Specialization *</Text>
                       {categoriesLoading ? (
                         <View style={styles.loadingContainer}>
-                          <ActivityIndicator size="small" color={Colors.primary} />
+                          <ActivityIndicator
+                            size="small"
+                            color={Colors.primary}
+                          />
                           <Text style={styles.loadingText}>Loading...</Text>
                         </View>
-                      ) : !Array.isArray(categories) || categories.length === 0 ? (
-                        <Text style={styles.emptyStateText}>No specializations available</Text>
+                      ) : !Array.isArray(categories) ||
+                        categories.length === 0 ? (
+                        <Text style={styles.emptyStateText}>
+                          No specializations available
+                        </Text>
                       ) : (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.categoryScroll}
-                      >
-                        {categories.map((category) => (
-                          <TouchableOpacity
-                            key={category.id}
-                            style={[
-                              styles.categoryChip,
-                              newSlotSpecializationId === category.id && styles.categoryChipActive,
-                            ]}
-                            onPress={() => setNewSlotSpecializationId(category.id)}
-                          >
-                            <Text
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.categoryScroll}
+                        >
+                          {categories.map((category) => (
+                            <TouchableOpacity
+                              key={category.id}
                               style={[
-                                styles.categoryChipText,
-                                newSlotSpecializationId === category.id && styles.categoryChipTextActive,
+                                styles.categoryChip,
+                                newSlotSpecializationId === category.id &&
+                                  styles.categoryChipActive,
                               ]}
+                              onPress={() =>
+                                setNewSlotSpecializationId(category.id)
+                              }
                             >
-                              {category.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                              <Text
+                                style={[
+                                  styles.categoryChipText,
+                                  newSlotSpecializationId === category.id &&
+                                    styles.categoryChipTextActive,
+                                ]}
+                              >
+                                {category.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
                       )}
                     </View>
 
@@ -1019,17 +1100,21 @@ export default function CreateJobScreen() {
                           style={styles.workerBtn}
                           onPress={() => {
                             const current = parseInt(newSlotWorkersNeeded) || 1;
-                            if (current > 1) setNewSlotWorkersNeeded((current - 1).toString());
+                            if (current > 1)
+                              setNewSlotWorkersNeeded((current - 1).toString());
                           }}
                         >
                           <Text style={styles.workerBtnText}>−</Text>
                         </TouchableOpacity>
-                        <Text style={styles.workersCount}>{newSlotWorkersNeeded}</Text>
+                        <Text style={styles.workersCount}>
+                          {newSlotWorkersNeeded}
+                        </Text>
                         <TouchableOpacity
                           style={styles.workerBtn}
                           onPress={() => {
                             const current = parseInt(newSlotWorkersNeeded) || 1;
-                            if (current < 10) setNewSlotWorkersNeeded((current + 1).toString());
+                            if (current < 10)
+                              setNewSlotWorkersNeeded((current + 1).toString());
                           }}
                         >
                           <Text style={styles.workerBtnText}>+</Text>
@@ -1041,27 +1126,33 @@ export default function CreateJobScreen() {
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Skill Level Required</Text>
                       <View style={styles.skillLevelRow}>
-                        {(["ENTRY", "INTERMEDIATE", "EXPERT"] as const).map((level) => (
-                          <TouchableOpacity
-                            key={level}
-                            style={[
-                              styles.skillLevelBtn,
-                              newSlotSkillLevel === level && styles.skillLevelBtnActive,
-                            ]}
-                            onPress={() => setNewSlotSkillLevel(level)}
-                          >
-                            <Text
+                        {(["ENTRY", "INTERMEDIATE", "EXPERT"] as const).map(
+                          (level) => (
+                            <TouchableOpacity
+                              key={level}
                               style={[
-                                styles.skillLevelText,
-                                newSlotSkillLevel === level && styles.skillLevelTextActive,
+                                styles.skillLevelBtn,
+                                newSlotSkillLevel === level &&
+                                  styles.skillLevelBtnActive,
                               ]}
+                              onPress={() => setNewSlotSkillLevel(level)}
                             >
-                              {level === 'ENTRY' ? '🌱 Entry' :
-                               level === 'INTERMEDIATE' ? '⭐ Intermediate' :
-                               '👑 Expert'}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
+                              <Text
+                                style={[
+                                  styles.skillLevelText,
+                                  newSlotSkillLevel === level &&
+                                    styles.skillLevelTextActive,
+                                ]}
+                              >
+                                {level === "ENTRY"
+                                  ? "🌱 Entry"
+                                  : level === "INTERMEDIATE"
+                                    ? "⭐ Intermediate"
+                                    : "👑 Expert"}
+                              </Text>
+                            </TouchableOpacity>
+                          ),
+                        )}
                       </View>
                     </View>
 
@@ -1086,12 +1177,15 @@ export default function CreateJobScreen() {
                   <TouchableOpacity
                     style={[
                       styles.addSlotConfirmBtn,
-                      !newSlotSpecializationId && styles.addSlotConfirmBtnDisabled,
+                      !newSlotSpecializationId &&
+                        styles.addSlotConfirmBtnDisabled,
                     ]}
                     onPress={addSkillSlot}
                     disabled={!newSlotSpecializationId}
                   >
-                    <Text style={styles.addSlotConfirmBtnText}>Add Skill Slot</Text>
+                    <Text style={styles.addSlotConfirmBtnText}>
+                      Add Skill Slot
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>

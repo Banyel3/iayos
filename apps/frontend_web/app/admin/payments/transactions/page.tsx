@@ -27,7 +27,7 @@ import {
 // Backend returns this structure from get_transactions_list_optimized()
 interface Transaction {
   id: string;
-  type: string;  // ESCROW, EARNING, WITHDRAWAL, etc.
+  type: string; // ESCROW, EARNING, WITHDRAWAL, etc.
   status: string;
   amount: number;
   currency: string;
@@ -37,7 +37,7 @@ interface Transaction {
     name: string;
   } | null;
   job_id: string | null;
-  reference: string | null;  // xenditPaymentID or paymongoPaymentID
+  reference: string | null; // xenditPaymentID or paymongoPaymentID
   created_at: string;
   completed_at: string | null;
 }
@@ -78,8 +78,7 @@ export default function TransactionsPage() {
       });
 
       if (statusFilter !== "all") params.append("status", statusFilter);
-      if (typeFilter !== "all")
-        params.append("transaction_type", typeFilter);
+      if (typeFilter !== "all") params.append("transaction_type", typeFilter);
       if (dateFrom) params.append("date_from", dateFrom);
       if (dateTo) params.append("date_to", dateTo);
       if (searchQuery) params.append("search", searchQuery);
@@ -133,13 +132,14 @@ export default function TransactionsPage() {
 
       const data = await response.json();
       setStatistics(
-        data.stats || data || {
-          total_transactions: 0,
-          total_revenue: 0,
-          escrow_held: 0,
-          refunded_amount: 0,
-          platform_fees: 0,
-        },
+        data.stats ||
+          data || {
+            total_transactions: 0,
+            total_revenue: 0,
+            escrow_held: 0,
+            refunded_amount: 0,
+            platform_fees: 0,
+          },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -249,7 +249,11 @@ export default function TransactionsPage() {
       alert("Cannot release: No job associated with this transaction");
       return;
     }
-    if (!confirm(`Release payment of ₱${transaction.amount.toLocaleString()} immediately?\n\nThis will skip the 7-day buffer period.`)) {
+    if (
+      !confirm(
+        `Release payment of ₱${transaction.amount.toLocaleString()} immediately?\n\nThis will skip the 7-day buffer period.`,
+      )
+    ) {
       return;
     }
 
@@ -257,14 +261,16 @@ export default function TransactionsPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/payments/release-pending/${transaction.job_id}`,
-        { 
+        {
           method: "POST",
-          credentials: "include" 
-        }
+          credentials: "include",
+        },
       );
       const data = await response.json();
       if (data.success) {
-        alert(`✅ Payment released successfully!\nAmount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`);
+        alert(
+          `✅ Payment released successfully!\nAmount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`,
+        );
         fetchTransactions();
       } else {
         alert(`❌ Failed to release payment: ${data.error || "Unknown error"}`);
@@ -577,8 +583,12 @@ export default function TransactionsPage() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             <div>
-                              <p className="font-medium">{transaction.user?.name || "Unknown"}</p>
-                              <p className="text-xs text-gray-500">{transaction.user?.email || "-"}</p>
+                              <p className="font-medium">
+                                {transaction.user?.name || "Unknown"}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {transaction.user?.email || "-"}
+                              </p>
                             </div>
                           </td>
                           <td className="px-6 py-4 text-sm font-semibold text-gray-900">
@@ -589,7 +599,9 @@ export default function TransactionsPage() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {transaction.job_id ? (
-                              <span className="font-mono text-blue-600">#{transaction.job_id}</span>
+                              <span className="font-mono text-blue-600">
+                                #{transaction.job_id}
+                              </span>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
@@ -602,26 +614,27 @@ export default function TransactionsPage() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
                               {/* Release button for pending earnings */}
-                              {transaction.type === "PENDING_EARNING" && transaction.status === "PENDING" && (
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleReleasePayment(transaction);
-                                  }}
-                                  disabled={releasingId === transaction.id}
-                                  className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                  {releasingId === transaction.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Unlock className="h-4 w-4 mr-1" />
-                                      Release
-                                    </>
-                                  )}
-                                </Button>
-                              )}
+                              {transaction.type === "PENDING_EARNING" &&
+                                transaction.status === "PENDING" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReleasePayment(transaction);
+                                    }}
+                                    disabled={releasingId === transaction.id}
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                  >
+                                    {releasingId === transaction.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Unlock className="h-4 w-4 mr-1" />
+                                        Release
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
                               <Button
                                 size="sm"
                                 onClick={(e) => {

@@ -2312,9 +2312,10 @@ const InboxPage = () => {
                 {/* Quality / Clarity of Requirements */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {selectedChat.my_role === "CLIENT" 
-                      ? "🏆 Quality of Work" 
-                      : "📋 Clarity of Requirements"} <span className="text-red-500">*</span>
+                    {selectedChat.my_role === "CLIENT"
+                      ? "🏆 Quality of Work"
+                      : "📋 Clarity of Requirements"}{" "}
+                    <span className="text-red-500">*</span>
                   </label>
                   <div className="flex items-center space-x-2">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -2390,7 +2391,8 @@ const InboxPage = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {selectedChat.my_role === "CLIENT"
                       ? "⏰ Punctuality"
-                      : "💳 Payment Promptness"} <span className="text-red-500">*</span>
+                      : "💳 Payment Promptness"}{" "}
+                    <span className="text-red-500">*</span>
                   </label>
                   <div className="flex items-center space-x-2">
                     {[1, 2, 3, 4, 5].map((star) => (

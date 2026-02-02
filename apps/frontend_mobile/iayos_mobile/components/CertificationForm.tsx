@@ -69,7 +69,7 @@ function validateForm(
   name: string,
   organization: string,
   issueDate: Date,
-  expiryDate: Date | null
+  expiryDate: Date | null,
 ): FormErrors {
   const errors: FormErrors = {};
 
@@ -131,15 +131,16 @@ export default function CertificationForm({
     queryFn: async () => {
       console.log(
         "🔍 [CertificationForm] Fetching my skills from:",
-        ENDPOINTS.MY_SKILLS
+        ENDPOINTS.MY_SKILLS,
       );
       const response = await apiRequest(ENDPOINTS.MY_SKILLS);
       console.log("🔍 [CertificationForm] Response status:", response.status);
-      if (!response.ok) throw new Error(await response.text() || "Failed to fetch skills");
+      if (!response.ok)
+        throw new Error((await response.text()) || "Failed to fetch skills");
       const data = await response.json();
       console.log(
         "🔍 [CertificationForm] My skills response:",
-        JSON.stringify(data, null, 2)
+        JSON.stringify(data, null, 2),
       );
       return data as MySkillsResponse;
     },
@@ -158,7 +159,10 @@ export default function CertificationForm({
   console.log("🔍 [CertificationForm] Mapped skills array:", skills);
   console.log("🔍 [CertificationForm] skillsLoading:", skillsLoading);
   console.log("🔍 [CertificationForm] skillsError:", skillsError);
-  console.log("🔍 [CertificationForm] No skills?", skills.length === 0 ? "Add skills in profile first" : "");
+  console.log(
+    "🔍 [CertificationForm] No skills?",
+    skills.length === 0 ? "Add skills in profile first" : "",
+  );
 
   // Skill picker modal state
   const [showSkillPicker, setShowSkillPicker] = useState(false);
@@ -238,7 +242,7 @@ export default function CertificationForm({
       name,
       organization,
       issueDate,
-      hasExpiry ? expiryDate : null
+      hasExpiry ? expiryDate : null,
     );
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
@@ -276,17 +280,17 @@ export default function CertificationForm({
           onError: (error: unknown) => {
             Alert.alert(
               "Error",
-              getErrorMessage(error, "Failed to update certification")
+              getErrorMessage(error, "Failed to update certification"),
             );
           },
-        }
+        },
       );
     } else {
       // Create mode
       if (selectedSkillId <= 0) {
         Alert.alert(
           "Skill Required",
-          "Please select a skill for this certification"
+          "Please select a skill for this certification",
         );
         return;
       }
@@ -319,7 +323,10 @@ export default function CertificationForm({
           onClose();
         },
         onError: (error: unknown) => {
-          Alert.alert("Error", getErrorMessage(error, "Failed to add certification"));
+          Alert.alert(
+            "Error",
+            getErrorMessage(error, "Failed to add certification"),
+          );
         },
       });
     }
@@ -341,7 +348,7 @@ export default function CertificationForm({
               onClose();
             },
           },
-        ]
+        ],
       );
     } else {
       onClose();

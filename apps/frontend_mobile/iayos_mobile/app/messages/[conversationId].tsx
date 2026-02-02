@@ -646,7 +646,10 @@ export default function ChatScreen() {
               }
             },
             onError: (error: unknown) => {
-              const errorMessage = getErrorMessage(error, "Failed to submit review");
+              const errorMessage = getErrorMessage(
+                error,
+                "Failed to submit review",
+              );
               if (errorMessage.toLowerCase().includes("already reviewed")) {
                 setRatingQuality(0);
                 setRatingCommunication(0);
@@ -690,7 +693,10 @@ export default function ChatScreen() {
               Alert.alert("Thank You!", "Your reviews have been submitted.");
             },
             onError: (error: unknown) => {
-              Alert.alert("Error", getErrorMessage(error, "Failed to submit review"));
+              Alert.alert(
+                "Error",
+                getErrorMessage(error, "Failed to submit review"),
+              );
             },
           },
         );
@@ -763,7 +769,10 @@ export default function ChatScreen() {
             }
           },
           onError: (error: unknown) => {
-            const errorMessage = getErrorMessage(error, "Failed to submit review");
+            const errorMessage = getErrorMessage(
+              error,
+              "Failed to submit review",
+            );
             if (errorMessage.toLowerCase().includes("already reviewed")) {
               setRatingQuality(0);
               setRatingCommunication(0);
@@ -972,7 +981,10 @@ export default function ChatScreen() {
       }, 100);
     } catch (error) {
       console.error("[ChatScreen] Image upload failed:", error);
-      Alert.alert("Error", getErrorMessage(error, "Failed to send image. Please try again."));
+      Alert.alert(
+        "Error",
+        getErrorMessage(error, "Failed to send image. Please try again."),
+      );
     }
   };
 
@@ -1208,7 +1220,8 @@ export default function ChatScreen() {
           {!isConversationClosed && !conversation.is_team_job && (
             <TouchableOpacity
               onPress={() => {
-                const recipientName = conversation.other_participant?.name || "Unknown";
+                const recipientName =
+                  conversation.other_participant?.name || "Unknown";
                 initiateCall(conversationId, recipientName);
               }}
               style={styles.callButton}
@@ -1217,7 +1230,9 @@ export default function ChatScreen() {
               <Ionicons
                 name="call-outline"
                 size={22}
-                color={callStatus === "idle" ? Colors.success : Colors.textSecondary}
+                color={
+                  callStatus === "idle" ? Colors.success : Colors.textSecondary
+                }
               />
             </TouchableOpacity>
           )}

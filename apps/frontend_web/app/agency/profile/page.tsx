@@ -299,7 +299,9 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error setting primary payment method:", error);
-      toast.error(getErrorMessage(error, "Failed to set primary payment method"));
+      toast.error(
+        getErrorMessage(error, "Failed to set primary payment method"),
+      );
     }
   };
 
@@ -520,9 +522,13 @@ export default function AgencyProfilePage() {
                   <p className="font-semibold">
                     ₱
                     {transactions
-                      .filter(
-                        (t: Transaction) =>
-                          ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type),
+                      .filter((t: Transaction) =>
+                        [
+                          "DEPOSIT",
+                          "EARNING",
+                          "PENDING_EARNING",
+                          "REFUND",
+                        ].includes(t.type),
                       )
                       .reduce(
                         (sum: number, t: Transaction) => sum + t.amount,
@@ -1185,7 +1191,9 @@ export default function AgencyProfilePage() {
                     }
                   } catch (error) {
                     console.error("Withdrawal error:", error);
-                    toast.error(getErrorMessage(error, "Failed to request withdrawal"));
+                    toast.error(
+                      getErrorMessage(error, "Failed to request withdrawal"),
+                    );
                   } finally {
                     setIsWithdrawing(false);
                   }

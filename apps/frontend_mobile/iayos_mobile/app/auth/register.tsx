@@ -67,7 +67,7 @@ export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
-  
+
   // Fetch barangays for Zamboanga City (city ID = 1)
   const {
     data: barangays = [],
@@ -135,7 +135,7 @@ export default function RegisterScreen() {
         setTimeout(() => {
           try {
             (fieldRef as any).focus?.();
-          } catch (e) { }
+          } catch (e) {}
         }, 50);
       }
     });
@@ -143,7 +143,7 @@ export default function RegisterScreen() {
     return () => {
       try {
         subscription.remove();
-      } catch (e) { }
+      } catch (e) {}
     };
   }, []);
 
@@ -359,7 +359,12 @@ export default function RegisterScreen() {
             {/* Title */}
             <Image
               source={require("../../assets/logo-white.png")}
-              style={{ width: 120, height: 120, resizeMode: "contain", marginBottom: Spacing["2xl"] }}
+              style={{
+                width: 120,
+                height: 120,
+                resizeMode: "contain",
+                marginBottom: Spacing["2xl"],
+              }}
               accessibilityLabel="iAyos Logo"
             />
             <Text style={styles.headerTitle}>Create Account</Text>
@@ -385,7 +390,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeIconContainer,
                       profileType === "CLIENT" &&
-                      styles.profileTypeIconContainerSelected,
+                        styles.profileTypeIconContainerSelected,
                     ]}
                   >
                     <Ionicons
@@ -400,7 +405,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeCardTitle,
                       profileType === "CLIENT" &&
-                      styles.profileTypeCardTitleSelected,
+                        styles.profileTypeCardTitleSelected,
                     ]}
                   >
                     Hire Workers
@@ -433,7 +438,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeIconContainer,
                       profileType === "WORKER" &&
-                      styles.profileTypeIconContainerSelected,
+                        styles.profileTypeIconContainerSelected,
                     ]}
                   >
                     <Ionicons
@@ -448,7 +453,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeCardTitle,
                       profileType === "WORKER" &&
-                      styles.profileTypeCardTitleSelected,
+                        styles.profileTypeCardTitleSelected,
                     ]}
                   >
                     Find Work
@@ -701,12 +706,20 @@ export default function RegisterScreen() {
               {barangaysLoading ? (
                 <View style={styles.barangayLoading}>
                   <ActivityIndicator size="small" color={Colors.primary} />
-                  <Text style={styles.barangayLoadingText}>Loading barangays...</Text>
+                  <Text style={styles.barangayLoadingText}>
+                    Loading barangays...
+                  </Text>
                 </View>
               ) : barangaysError ? (
                 <View style={styles.barangayError}>
-                  <Ionicons name="alert-circle-outline" size={20} color={Colors.error} />
-                  <Text style={styles.barangayErrorText}>Failed to load barangays</Text>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={20}
+                    color={Colors.error}
+                  />
+                  <Text style={styles.barangayErrorText}>
+                    Failed to load barangays
+                  </Text>
                 </View>
               ) : (
                 <TouchableOpacity
@@ -715,13 +728,25 @@ export default function RegisterScreen() {
                   disabled={isLoading}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="location-outline" size={20} color={Colors.primary} />
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={Colors.primary}
+                  />
                   <Text
-                    style={barangay ? styles.barangayButtonText : styles.barangayButtonPlaceholder}
+                    style={
+                      barangay
+                        ? styles.barangayButtonText
+                        : styles.barangayButtonPlaceholder
+                    }
                   >
                     {barangay || "Select your barangay"}
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
                 </TouchableOpacity>
               )}
             </View>
@@ -883,7 +908,8 @@ export default function RegisterScreen() {
                     <Text
                       style={[
                         styles.barangayItemText,
-                        barangay === item.name && styles.barangayItemTextSelected,
+                        barangay === item.name &&
+                          styles.barangayItemTextSelected,
                       ]}
                     >
                       {item.name}
@@ -895,15 +921,25 @@ export default function RegisterScreen() {
                     )}
                   </View>
                   {barangay === item.name && (
-                    <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={Colors.primary}
+                    />
                   )}
                 </TouchableOpacity>
               )}
               style={styles.barangayList}
               ListEmptyComponent={
                 <View style={styles.barangayEmptyState}>
-                  <Ionicons name="location-outline" size={40} color={Colors.textHint} />
-                  <Text style={styles.barangayEmptyText}>No barangays available</Text>
+                  <Ionicons
+                    name="location-outline"
+                    size={40}
+                    color={Colors.textHint}
+                  />
+                  <Text style={styles.barangayEmptyText}>
+                    No barangays available
+                  </Text>
                 </View>
               }
             />

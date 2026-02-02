@@ -237,9 +237,15 @@ export const API_BASE_URL = `${API_URL}/api`;
 
 // WebSocket URL - Use production WebSocket if API is pointing to production
 // This allows testing production chat in Expo Go while still in __DEV__ mode
-const isUsingProductionAPI = API_URL.includes("iayos.online") || API_URL.includes("iayos.com");
-export const WS_BASE_URL = process.env.EXPO_PUBLIC_WS_URL 
-  || (isUsingProductionAPI ? "wss://api.iayos.online" : (__DEV__ ? `ws://${DEV_IP}:8001` : "wss://api.iayos.online"));
+const isUsingProductionAPI =
+  API_URL.includes("iayos.online") || API_URL.includes("iayos.com");
+export const WS_BASE_URL =
+  process.env.EXPO_PUBLIC_WS_URL ||
+  (isUsingProductionAPI
+    ? "wss://api.iayos.online"
+    : __DEV__
+      ? `ws://${DEV_IP}:8001`
+      : "wss://api.iayos.online");
 
 console.log(`[API Config] WS_BASE_URL = ${WS_BASE_URL}`);
 

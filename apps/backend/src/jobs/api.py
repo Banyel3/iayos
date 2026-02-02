@@ -1494,7 +1494,7 @@ def get_my_backjobs(request, status: Optional[str] = None):
                 "job_description": job.description,
                 "job_budget": float(job.budget),
                 "job_location": job.location,
-                "job_category": job.categoryID.name if job.categoryID else None,
+                "job_category": job.categoryID.specializationName if job.categoryID else None,
                 "reason": dispute.reason,
                 "description": dispute.description,
                 "status": dispute.status,
