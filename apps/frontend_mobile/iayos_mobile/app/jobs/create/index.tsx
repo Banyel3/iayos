@@ -281,12 +281,7 @@ export default function CreateJobScreen() {
     return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
   }, [skillSlots]);
 
-  const getSpecializationName = useCallback((specId: number) => {
-    const cat = categories.find(c => c.id === specId);
-    return cat?.name || `Specialization #${specId}`;
-  }, [categories]);
-
-  // Fetch categories
+  // Fetch categories - MUST be defined BEFORE getSpecializationName callback
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
@@ -298,6 +293,14 @@ export default function CreateJobScreen() {
   });
 
   const categories = categoriesData || [];
+
+  const getSpecializationName = useCallback((specId: number) => {
+    if (!categories || !Array.isArray(categories)) {
+      return `Specialization #${specId}`;
+    }
+    const cat = categories.find(c => c.id === specId);
+    return cat?.name || `Specialization #${specId}`;
+  }, [categories]);
 
   // Fetch barangays for Zamboanga City (cityID = 1)
   const {
