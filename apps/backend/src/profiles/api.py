@@ -1327,11 +1327,11 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 print(f"   System message: {msg.messageText[:50]}...")
             elif msg.sender is None:
-                # This is an agency message
+                # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
-                sender_name = conversation.agency.businessName if conversation.agency else "Agency"
+                sender_name = msg.senderAgency.businessName if msg.senderAgency else (conversation.agency.businessName if conversation.agency else "Agency")
                 sender_avatar = "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
-                print(f"   Message from Agency: is_mine={is_mine}")
+                print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
                 # Regular message from a Profile
                 is_mine = msg.sender == user_profile
