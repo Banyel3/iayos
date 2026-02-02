@@ -212,7 +212,7 @@ export default function EditJobScreen() {
     queryKey: ["categories"],
     queryFn: async () => {
       const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES
+        ENDPOINTS.GET_CATEGORIES,
       );
       return response.categories || [];
     },
@@ -231,11 +231,11 @@ export default function EditJobScreen() {
   const additionalDownpayment = isIncreasingBudget
     ? (budgetDelta * 0.5 * 1.05).toFixed(2)
     : "0.00";
-  const refundAmount = budgetDelta < 0 ? (Math.abs(budgetDelta * 0.5)).toFixed(2) : "0.00";
+  const refundAmount =
+    budgetDelta < 0 ? Math.abs(budgetDelta * 0.5).toFixed(2) : "0.00";
 
   const hasInsufficientBalance =
-    isIncreasingBudget &&
-    parseFloat(additionalDownpayment) > walletBalance;
+    isIncreasingBudget && parseFloat(additionalDownpayment) > walletBalance;
 
   // Update job mutation
   const updateJobMutation = useMutation({
@@ -248,27 +248,23 @@ export default function EditJobScreen() {
       if (!response.ok) {
         const errorData = (await response.json().catch(() => ({}))) as any;
         throw new Error(
-          errorData.error || errorData.message || "Failed to update job"
+          errorData.error || errorData.message || "Failed to update job",
         );
       }
 
       return response.json();
     },
     onSuccess: (data: any) => {
-      Alert.alert(
-        "Success",
-        data.message || "Job updated successfully!",
-        [
-          {
-            text: "View Job",
-            onPress: () => {
-              queryClient.invalidateQueries({ queryKey: ["jobs"] });
-              queryClient.invalidateQueries({ queryKey: ["jobs", id] });
-              router.replace(`/jobs/${id}` as any);
-            },
+      Alert.alert("Success", data.message || "Job updated successfully!", [
+        {
+          text: "View Job",
+          onPress: () => {
+            queryClient.invalidateQueries({ queryKey: ["jobs"] });
+            queryClient.invalidateQueries({ queryKey: ["jobs", id] });
+            router.replace(`/jobs/${id}` as any);
           },
-        ]
-      );
+        },
+      ]);
     },
     onError: (error: any) => {
       Alert.alert("Error", error.message || "Failed to update job");
@@ -314,7 +310,7 @@ export default function EditJobScreen() {
       if (budgetValue < selectedCategory.minimum_rate) {
         Alert.alert(
           "Budget Too Low",
-          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)} (DOLE minimum rate). Please enter a higher amount.`
+          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)} (DOLE minimum rate). Please enter a higher amount.`,
         );
         return;
       }
@@ -324,7 +320,7 @@ export default function EditJobScreen() {
     if (budgetChanged && hasPendingApplications) {
       Alert.alert(
         "Budget Change Blocked",
-        `You have ${pendingCount} pending application(s). Budget changes are not allowed while applications are pending.\n\nYou can still update other job details like title, description, or materials.`
+        `You have ${pendingCount} pending application(s). Budget changes are not allowed while applications are pending.\n\nYou can still update other job details like title, description, or materials.`,
       );
       return;
     }
@@ -343,12 +339,12 @@ export default function EditJobScreen() {
                 pathname: "/payments/deposit",
                 params: {
                   amount: Math.ceil(
-                    parseFloat(additionalDownpayment) - walletBalance
+                    parseFloat(additionalDownpayment) - walletBalance,
                   ).toString(),
                 },
               } as any),
           },
-        ]
+        ],
       );
       return;
     }
@@ -431,7 +427,7 @@ export default function EditJobScreen() {
             text: "Confirm",
             onPress: () => updateJobMutation.mutate(updateData),
           },
-        ]
+        ],
       );
     } else {
       updateJobMutation.mutate(updateData);
@@ -473,7 +469,8 @@ export default function EditJobScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="lock-closed" size={48} color={Colors.warning} />
           <Text style={styles.errorText}>
-            This job cannot be edited because it is {jobData.status.toLowerCase()}.
+            This job cannot be edited because it is{" "}
+            {jobData.status.toLowerCase()}.
           </Text>
           <TouchableOpacity
             style={styles.backButtonError}
@@ -610,7 +607,9 @@ export default function EditJobScreen() {
                 <TextInput
                   style={[
                     styles.input,
-                    hasPendingApplications && budgetChanged && styles.inputDisabled,
+                    hasPendingApplications &&
+                      budgetChanged &&
+                      styles.inputDisabled,
                   ]}
                   placeholder="Enter budget"
                   value={budget}
@@ -640,9 +639,13 @@ export default function EditJobScreen() {
                 >
                   <View style={styles.budgetImpactHeader}>
                     <Ionicons
-                      name={isIncreasingBudget ? "trending-up" : "trending-down"}
+                      name={
+                        isIncreasingBudget ? "trending-up" : "trending-down"
+                      }
                       size={20}
-                      color={isIncreasingBudget ? Colors.warning : Colors.success}
+                      color={
+                        isIncreasingBudget ? Colors.warning : Colors.success
+                      }
                     />
                     <Text style={styles.budgetImpactTitle}>
                       Budget {isIncreasingBudget ? "Increase" : "Decrease"}
@@ -670,16 +673,24 @@ export default function EditJobScreen() {
                     <Text
                       style={[
                         styles.budgetImpactAmount,
-                        { color: isIncreasingBudget ? Colors.warning : Colors.success },
+                        {
+                          color: isIncreasingBudget
+                            ? Colors.warning
+                            : Colors.success,
+                        },
                       ]}
                     >
                       {isIncreasingBudget ? "-" : "+"}₱
-                      {isIncreasingBudget ? additionalDownpayment : refundAmount}
+                      {isIncreasingBudget
+                        ? additionalDownpayment
+                        : refundAmount}
                     </Text>
                   </View>
                   {isIncreasingBudget && (
                     <View style={styles.budgetImpactRow}>
-                      <Text style={styles.budgetImpactLabel}>Wallet Balance:</Text>
+                      <Text style={styles.budgetImpactLabel}>
+                        Wallet Balance:
+                      </Text>
                       <Text
                         style={[
                           styles.budgetImpactValue,
@@ -797,9 +808,15 @@ export default function EditJobScreen() {
                         level === "LOW" && styles.urgencyLow,
                         level === "MEDIUM" && styles.urgencyMedium,
                         level === "HIGH" && styles.urgencyHigh,
-                        urgency === level && level === "LOW" && styles.urgencyLowActive,
-                        urgency === level && level === "MEDIUM" && styles.urgencyMediumActive,
-                        urgency === level && level === "HIGH" && styles.urgencyHighActive,
+                        urgency === level &&
+                          level === "LOW" &&
+                          styles.urgencyLowActive,
+                        urgency === level &&
+                          level === "MEDIUM" &&
+                          styles.urgencyMediumActive,
+                        urgency === level &&
+                          level === "HIGH" &&
+                          styles.urgencyHighActive,
                       ]}
                       onPress={() => {
                         setUrgency(level);
@@ -812,7 +829,11 @@ export default function EditJobScreen() {
                           urgency === level && styles.urgencyTextActive,
                         ]}
                       >
-                        {level === "LOW" ? "🟢 Low" : level === "MEDIUM" ? "🟡 Medium" : "🔴 High"}
+                        {level === "LOW"
+                          ? "🟢 Low"
+                          : level === "MEDIUM"
+                            ? "🟡 Medium"
+                            : "🔴 High"}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -857,7 +878,13 @@ export default function EditJobScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>🔧 Job Scope</Text>
               <View style={styles.urgencyRow}>
-                {(["MINOR_REPAIR", "MODERATE_PROJECT", "MAJOR_RENOVATION"] as const).map((scope) => (
+                {(
+                  [
+                    "MINOR_REPAIR",
+                    "MODERATE_PROJECT",
+                    "MAJOR_RENOVATION",
+                  ] as const
+                ).map((scope) => (
                   <TouchableOpacity
                     key={scope}
                     style={[
@@ -989,7 +1016,11 @@ export default function EditJobScreen() {
                 <ActivityIndicator color={Colors.white} />
               ) : (
                 <>
-                  <Ionicons name="save-outline" size={20} color={Colors.white} />
+                  <Ionicons
+                    name="save-outline"
+                    size={20}
+                    color={Colors.white}
+                  />
                   <Text style={styles.submitButtonText}>Save Changes</Text>
                 </>
               )}
