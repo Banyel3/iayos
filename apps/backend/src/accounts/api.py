@@ -2408,14 +2408,17 @@ def get_wallet_transactions(request):
 
 @router.post("/wallet/webhook", auth=None)  # No auth for webhooks
 def xendit_webhook(request):
-    \"\"\"
+    """
     [DEPRECATED] Handle Xendit payment webhook callbacks.
     
     This endpoint is kept for processing historical Xendit transactions.
     New transactions use PayMongo via /wallet/paymongo-webhook.
     
     This endpoint is called by Xendit when payment status changes.
-    \"\"\"\n    try:\n        from .models import Transaction\n        from .xendit_service import XenditService
+    """
+    try:
+        from .models import Transaction
+        from .xendit_service import XenditService
         from decimal import Decimal
         from django.utils import timezone
         import json
@@ -2526,7 +2529,7 @@ def xendit_webhook(request):
 
 @router.post("/wallet/disbursement-webhook", auth=None)  # No auth for webhooks
 def xendit_disbursement_webhook(request):
-    \"\"\"
+    """
     [DEPRECATED] Handle Xendit disbursement/payout webhook callbacks.
     
     This endpoint is kept for processing historical Xendit disbursements.
@@ -2534,7 +2537,10 @@ def xendit_disbursement_webhook(request):
     
     This endpoint is called by Xendit when a disbursement status changes.
     Used for withdrawal processing (both agency and worker withdrawals).
-    \"\"\"\n    try:\n        from .models import Transaction, Wallet\n        from .xendit_service import XenditService
+    """
+    try:
+        from .models import Transaction, Wallet
+        from .xendit_service import XenditService
         from django.utils import timezone
         import json
         
