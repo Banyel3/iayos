@@ -872,6 +872,35 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             'error': f'{incomplete_count} worker(s) have not yet marked their work as complete'
         }
     
+    # ==========================================================================
+    # CRITICAL: Pre-validate wallet balance BEFORE marking job as complete
+    # This prevents the bug where job is marked COMPLETED but payment fails
+    # ==========================================================================
+    payment_method_upper = (payment_method or 'WALLET').upper()
+    
+    if payment_method_upper == 'WALLET':
+        from accounts.models import Wallet
+        from decimal import Decimal
+        
+        # Get or create wallet for client
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=client_user,
+            defaults={'balance': Decimal('0')}
+        )
+        
+        # Calculate remaining payment (50% of budget)
+        remaining_amount = job.budget * Decimal('0.5')
+        
+        # Check if client has sufficient balance BEFORE proceeding
+        if wallet.balance < remaining_amount:
+            print(f"❌ [TeamJob] Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
+            return {
+                'success': False,
+                'error': f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} but only have ₱{wallet.balance:,.2f}. Please deposit more funds or choose CASH payment.'
+            }
+        
+        print(f"✅ [TeamJob] Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
+    
     # Mark job as completed
     old_status = job.status
     job.status = 'COMPLETED'
