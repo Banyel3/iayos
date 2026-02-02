@@ -522,7 +522,7 @@ export default function AgencyProfilePage() {
                     {transactions
                       .filter(
                         (t: Transaction) =>
-                          t.type === "DEPOSIT" || t.type === "PAYMENT_RECEIVED",
+                          ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type),
                       )
                       .reduce(
                         (sum: number, t: Transaction) => sum + t.amount,
