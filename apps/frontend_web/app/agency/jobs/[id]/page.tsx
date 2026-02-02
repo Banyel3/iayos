@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/form_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   MapPin,
@@ -23,7 +24,10 @@ import {
   Users,
   Crown,
   Star,
+  UserCheck,
+  UserX,
 } from "lucide-react";
+import { JobSkillSlot, JobSkillSlotsResponse } from "@/types/agency-team-jobs";
 
 interface AssignedEmployee {
   employee_id: number;
@@ -61,7 +65,12 @@ interface Job {
     email: string;
     role: string;
   };
-  assignedEmployees?: AssignedEmployee[]; // NEW: Multi-employee support
+  assignedEmployees?: AssignedEmployee[];
+  // Team job fields
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
+  team_fill_percentage?: number;
   client: {
     id: number;
     name: string;
@@ -82,12 +91,43 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [skillSlots, setSkillSlots] = useState<JobSkillSlot[]>([]);
+  const [loadingSkillSlots, setLoadingSkillSlots] = useState(false);
 
   useEffect(() => {
     if (jobId) {
       fetchJobDetails();
     }
   }, [jobId]);
+
+  // Fetch skill slots when job is loaded and is a team job
+  useEffect(() => {
+    if (job?.is_team_job) {
+      fetchSkillSlots();
+    }
+  }, [job?.is_team_job, job?.jobID]);
+
+  const fetchSkillSlots = async () => {
+    if (!job?.jobID) return;
+    try {
+      setLoadingSkillSlots(true);
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${job.jobID}/skill-slots`,
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      if (response.ok) {
+        const data: JobSkillSlotsResponse = await response.json();
+        setSkillSlots(data.skill_slots || []);
+      }
+    } catch (err) {
+      console.error("Error fetching skill slots:", err);
+    } finally {
+      setLoadingSkillSlots(false);
+    }
+  };
 
   const fetchJobDetails = async () => {
     try {
@@ -314,6 +354,162 @@ export default function JobDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Team Job Skill Slots Section */}
+            {job.is_team_job && (
+              <Card className="border-purple-200 bg-purple-50/30">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <Users className="h-5 w-5 text-purple-600" />
+                      Team Skill Slots
+                    </h2>
+                    <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                      {job.total_workers_assigned || 0}/{job.total_workers_needed || 0} Filled
+                    </Badge>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="mb-6">
+                    <div className="flex justify-between text-sm text-gray-600 mb-1">
+                      <span>Assignment Progress</span>
+                      <span>{job.team_fill_percentage || Math.round(((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-purple-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${
+                          (job.total_workers_assigned || 0) >= (job.total_workers_needed || 0)
+                            ? "bg-green-600"
+                            : "bg-purple-600"
+                        }`}
+                        style={{
+                          width: `${Math.min(((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {loadingSkillSlots ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                      <span className="ml-2 text-gray-600">Loading skill slots...</span>
+                    </div>
+                  ) : skillSlots.length > 0 ? (
+                    <div className="space-y-4">
+                      {skillSlots.map((slot) => (
+                        <div
+                          key={slot.skill_slot_id}
+                          className={`p-4 rounded-lg border ${
+                            slot.status === "FILLED"
+                              ? "bg-green-50 border-green-200"
+                              : slot.status === "PARTIALLY_FILLED"
+                              ? "bg-yellow-50 border-yellow-200"
+                              : "bg-gray-50 border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="h-4 w-4 text-gray-600" />
+                              <span className="font-semibold text-gray-900">
+                                {slot.specialization_name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                className={
+                                  slot.status === "FILLED"
+                                    ? "bg-green-100 text-green-700"
+                                    : slot.status === "PARTIALLY_FILLED"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }
+                              >
+                                {slot.assigned_employees?.length || 0}/{slot.workers_needed} workers
+                              </Badge>
+                              {slot.skill_level && (
+                                <Badge variant="outline" className="text-xs">
+                                  {slot.skill_level}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {slot.budget_allocated && (
+                            <div className="text-sm text-gray-600 mb-3">
+                              Budget: ₱{slot.budget_allocated.toLocaleString()}
+                            </div>
+                          )}
+
+                          {/* Assigned employees for this slot */}
+                          {slot.assigned_employees && slot.assigned_employees.length > 0 ? (
+                            <div className="space-y-2">
+                              {slot.assigned_employees.map((emp) => (
+                                <div
+                                  key={emp.assignment_id}
+                                  className="flex items-center justify-between p-2 bg-white rounded border"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-8 w-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                      {emp.employee_name?.charAt(0) || "?"}
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-900 text-sm">
+                                        {emp.employee_name}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        {emp.is_primary_contact && (
+                                          <span className="flex items-center gap-1 text-yellow-600">
+                                            <Crown className="h-3 w-3" /> Lead
+                                          </span>
+                                        )}
+                                        {emp.employee_rating && (
+                                          <span className="flex items-center gap-1">
+                                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                            {emp.employee_rating.toFixed(1)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {emp.client_confirmed_arrival ? (
+                                      <Badge className="bg-green-100 text-green-700 text-xs">
+                                        <UserCheck className="h-3 w-3 mr-1" />
+                                        Arrived
+                                      </Badge>
+                                    ) : (
+                                      <Badge className="bg-gray-100 text-gray-600 text-xs">
+                                        <UserX className="h-3 w-3 mr-1" />
+                                        Not Arrived
+                                      </Badge>
+                                    )}
+                                    {emp.worker_marked_complete && (
+                                      <Badge className="bg-blue-100 text-blue-700 text-xs">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Complete
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-500 italic py-2">
+                              No employees assigned to this slot yet
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Users className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                      <p>No skill slots defined for this team job</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Materials Needed */}
             {job.materialsNeeded && job.materialsNeeded.length > 0 && (
