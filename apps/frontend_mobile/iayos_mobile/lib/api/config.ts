@@ -294,6 +294,10 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/reject-invite`,
   APPLY_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_URL}/api/mobile/jobs/applications/my`,
+  APPLICATION_DETAIL: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}`,
+  WITHDRAW_APPLICATION: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}/withdraw`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/approve-completion`,

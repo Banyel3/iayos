@@ -2503,6 +2503,210 @@ def mobile_get_my_applications(request):
         )
 
 
+@mobile_router.get("/applications/{application_id}", auth=dual_auth)
+def mobile_get_application_detail(request, application_id: int):
+    """
+    Get detailed information about a specific application
+    Only the worker who submitted the application can view it
+    """
+    from .models import Profile, WorkerProfile
+    from accounts.models import JobApplication
+    
+    try:
+        print(f"📋 [MOBILE] Fetching application {application_id} for {request.auth.email}")
+        
+        # Get user's profile using profile_type from JWT if available
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Fallback - assume WORKER for this endpoint
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+            
+        if not profile:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Only workers can view applications"},
+                status=403
+            )
+        
+        # Get the application
+        try:
+            application = JobApplication.objects.select_related(
+                'jobID', 'jobID__clientID', 'jobID__clientID__profileID',
+                'applied_skill_slot'
+            ).get(
+                applicationID=application_id,
+                workerID=worker_profile
+            )
+        except JobApplication.DoesNotExist:
+            return Response(
+                {"error": "Application not found"},
+                status=404
+            )
+        
+        job = application.jobID
+        client_profile = job.clientID.profileID
+        
+        # Build response data
+        application_data = {
+            "application_id": application.applicationID,
+            "job_id": job.jobID,
+            "job_title": job.title,
+            "job_description": job.description,
+            "job_budget": float(job.budget),
+            "job_location": job.location,
+            "job_status": job.status,
+            "job_category": job.category,
+            "job_urgency": job.urgency,
+            "application_status": application.status,
+            "proposal_message": application.proposalMessage,
+            "proposed_budget": float(application.proposedBudget) if application.proposedBudget else None,
+            "estimated_duration": application.estimatedDuration,
+            "budget_option": application.budgetOption,
+            "created_at": application.createdAt.isoformat(),
+            "updated_at": application.updatedAt.isoformat(),
+            "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
+            "client_img": (
+                getattr(client_profile, 'profileImage', None)
+                or getattr(client_profile, 'profileImg', None)
+            ),
+            "client_id": client_profile.profileID,
+            "is_team_job": job.is_team_job,
+            "applied_skill_slot_id": application.applied_skill_slot.skillSlotID if application.applied_skill_slot else None,
+            "applied_skill_slot_name": application.applied_skill_slot.skill_required if application.applied_skill_slot else None,
+            "can_withdraw": application.status == JobApplication.ApplicationStatus.PENDING,
+        }
+        
+        print(f"✅ [MOBILE] Application {application_id} fetched successfully")
+        
+        return {
+            "success": True,
+            "application": application_data
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error fetching application detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch application: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.delete("/applications/{application_id}/withdraw", auth=dual_auth)
+def mobile_withdraw_application(request, application_id: int):
+    """
+    Withdraw a pending application
+    Only the worker who submitted the application can withdraw it
+    Only PENDING applications can be withdrawn
+    """
+    from .models import Profile, WorkerProfile, Notification
+    from accounts.models import JobApplication
+    
+    try:
+        print(f"🔙 [MOBILE] Worker {request.auth.email} withdrawing application {application_id}")
+        
+        # Get user's profile using profile_type from JWT if available
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Fallback - assume WORKER for this endpoint
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+            
+        if not profile:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Only workers can withdraw applications"},
+                status=403
+            )
+        
+        # Get the application
+        try:
+            application = JobApplication.objects.select_related(
+                'jobID', 'jobID__clientID', 'jobID__clientID__profileID'
+            ).get(
+                applicationID=application_id,
+                workerID=worker_profile
+            )
+        except JobApplication.DoesNotExist:
+            return Response(
+                {"error": "Application not found"},
+                status=404
+            )
+        
+        # Check if application can be withdrawn
+        if application.status != JobApplication.ApplicationStatus.PENDING:
+            return Response(
+                {"error": f"Cannot withdraw application with status '{application.status}'. Only pending applications can be withdrawn."},
+                status=400
+            )
+        
+        # Update application status
+        application.status = JobApplication.ApplicationStatus.WITHDRAWN
+        application.save()
+        
+        job = application.jobID
+        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}".strip()
+        
+        # Create notification for the client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="APPLICATION_WITHDRAWN",
+            title=f"Application Withdrawn for '{job.title}'",
+            message=f"{worker_name} has withdrawn their application for your job posting.",
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID
+        )
+        
+        print(f"✅ [MOBILE] Application {application_id} withdrawn successfully")
+        
+        return {
+            "success": True,
+            "message": "Application withdrawn successfully",
+            "application_id": application.applicationID
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error withdrawing application: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to withdraw application: {str(e)}"},
+            status=500
+        )
+
+
 @mobile_router.get("/jobs/search", auth=jwt_auth)
 def mobile_job_search(request, query: str, page: int = 1, limit: int = 20):
     """
