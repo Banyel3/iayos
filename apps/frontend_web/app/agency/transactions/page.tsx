@@ -34,7 +34,7 @@ interface AgencyTransaction {
   balance_after?: number;
 }
 
-type TransactionFilter = "all" | "DEPOSIT" | "WITHDRAWAL" | "PAYMENT" | "PAYMENT_RECEIVED";
+type TransactionFilter = "all" | "DEPOSIT" | "WITHDRAWAL" | "PAYMENT" | "EARNING" | "PENDING_EARNING" | "REFUND" | "FEE";
 type StatusFilter = "all" | "COMPLETED" | "PENDING" | "FAILED";
 
 export default function AgencyTransactionsPage() {
@@ -94,13 +94,19 @@ export default function AgencyTransactionsPage() {
     toast.success("Transactions refreshed");
   };
 
+  // For agencies, incoming money types: EARNING, PENDING_EARNING, DEPOSIT, REFUND
+  const isIncomingType = (type: string) => 
+    ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(type);
+
   const getTransactionIcon = (type: string) => {
+    if (isIncomingType(type)) {
+      return <ArrowDownLeft className="h-5 w-5 text-green-600" />;
+    }
     switch (type) {
       case "WITHDRAWAL":
+      case "PAYMENT":
+      case "FEE":
         return <ArrowUpRight className="h-5 w-5 text-red-600" />;
-      case "DEPOSIT":
-      case "PAYMENT_RECEIVED":
-        return <ArrowDownLeft className="h-5 w-5 text-green-600" />;
       default:
         return <Wallet className="h-5 w-5 text-gray-600" />;
     }
@@ -153,16 +159,34 @@ export default function AgencyTransactionsPage() {
             Deposit
           </span>
         );
-      case "PAYMENT_RECEIVED":
+      case "EARNING":
+        return (
+          <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">
+            Earning
+          </span>
+        );
+      case "PENDING_EARNING":
+        return (
+          <span className="px-2 py-1 bg-yellow-50 text-yellow-600 rounded text-xs font-medium">
+            Pending Earning
+          </span>
+        );
+      case "REFUND":
         return (
           <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-medium">
-            Payment Received
+            Refund
           </span>
         );
       case "PAYMENT":
         return (
           <span className="px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs font-medium">
             Payment
+          </span>
+        );
+      case "FEE":
+        return (
+          <span className="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-medium">
+            Platform Fee
           </span>
         );
       default:
@@ -175,8 +199,9 @@ export default function AgencyTransactionsPage() {
   };
 
   // Calculate summary stats
+  // For agencies: DEPOSIT, EARNING, PENDING_EARNING, REFUND are incoming
   const totalDeposits = transactions
-    .filter((t: AgencyTransaction) => t.type === "DEPOSIT" || t.type === "PAYMENT_RECEIVED")
+    .filter((t: AgencyTransaction) => ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type))
     .filter((t: AgencyTransaction) => t.status === "COMPLETED")
     .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
@@ -294,8 +319,11 @@ export default function AgencyTransactionsPage() {
                   <option value="all">All Types</option>
                   <option value="DEPOSIT">Deposits</option>
                   <option value="WITHDRAWAL">Withdrawals</option>
-                  <option value="PAYMENT_RECEIVED">Payments Received</option>
+                  <option value="EARNING">Earnings</option>
+                  <option value="PENDING_EARNING">Pending Earnings</option>
+                  <option value="REFUND">Refunds</option>
                   <option value="PAYMENT">Payments Made</option>
+                  <option value="FEE">Platform Fees</option>
                 </select>
               </div>
 

@@ -185,7 +185,7 @@ export default function AgencyWalletPage() {
                   <p className="text-2xl font-bold text-gray-900">
                     {formatCurrency(
                       transactions
-                        .filter((t: any) => t.type === "PAYMENT_RECEIVED")
+                        .filter((t: any) => ["EARNING", "PENDING_EARNING", "DEPOSIT", "REFUND"].includes(t.type))
                         .reduce((sum: number, t: any) => sum + t.amount, 0)
                     )}
                   </p>
@@ -322,50 +322,50 @@ export default function AgencyWalletPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {recentTransactions.map((tx: any) => (
-                      <div
-                        key={tx.id}
-                        className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`p-2 rounded-lg ${
-                              tx.type === "DEPOSIT" || tx.type === "PAYMENT_RECEIVED"
-                                ? "bg-green-100"
-                                : "bg-red-100"
+                    {recentTransactions.map((tx: any) => {
+                      // For agencies, incoming money types: EARNING, PENDING_EARNING, DEPOSIT, REFUND
+                      // Outgoing money types: WITHDRAWAL, PAYMENT, FEE
+                      const isIncoming = ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(tx.type);
+                      
+                      return (
+                        <div
+                          key={tx.id}
+                          className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`p-2 rounded-lg ${
+                                isIncoming
+                                  ? "bg-green-100"
+                                  : "bg-red-100"
+                              }`}
+                            >
+                              {isIncoming ? (
+                                <ArrowDownLeft className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <ArrowUpRight className="h-4 w-4 text-red-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm text-gray-900">{tx.description}</p>
+                              <p className="text-xs text-gray-400">
+                                {formatDistanceToNow(new Date(tx.created_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                          </div>
+                          <p
+                            className={`font-semibold ${
+                              isIncoming
+                                ? "text-green-600"
+                                : "text-red-600"
                             }`}
                           >
-                            {tx.type === "DEPOSIT" || tx.type === "PAYMENT_RECEIVED" ? (
-                              <ArrowDownLeft
-                                className={`h-4 w-4 ${
-                                  tx.type === "DEPOSIT" || tx.type === "PAYMENT_RECEIVED"
-                                    ? "text-green-600"
-                                    : "text-red-600"
-                                }`}
-                              />
-                            ) : (
-                              <ArrowUpRight className="h-4 w-4 text-red-600" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">{tx.description}</p>
-                            <p className="text-xs text-gray-400">
-                              {formatDistanceToNow(new Date(tx.created_at), { addSuffix: true })}
-                            </p>
-                          </div>
+                            {isIncoming ? "+" : "-"}
+                            {formatCurrency(tx.amount)}
+                          </p>
                         </div>
-                        <p
-                          className={`font-semibold ${
-                            tx.type === "DEPOSIT" || tx.type === "PAYMENT_RECEIVED"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {tx.type === "DEPOSIT" || tx.type === "PAYMENT_RECEIVED" ? "+" : "-"}
-                          {formatCurrency(tx.amount)}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

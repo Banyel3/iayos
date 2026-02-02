@@ -3107,3 +3107,229 @@ def reply_to_agency_ticket(request, ticket_id: int):
         import traceback
         traceback.print_exc()
         return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ===========================================================================
+# WALLET PENDING EARNINGS
+# ===========================================================================
+
+@router.get("/wallet/pending-earnings", auth=cookie_auth)
+def agency_get_pending_earnings(request):
+    """
+    Get detailed list of pending earnings (Due Balance) for the agency.
+    Shows all completed jobs where payment is held in the 7-day buffer period.
+    
+    Returns:
+        - List of pending payments with job details and release dates
+        - Total pending amount
+        - Buffer period info from PlatformSettings
+    """
+    try:
+        from accounts.models import Wallet
+        from decimal import Decimal
+        from jobs.payment_buffer_service import (
+            get_pending_earnings_for_account, 
+            get_payment_buffer_days
+        )
+        
+        # Get wallet for pending balance
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+            pending_total = float(wallet.pendingEarnings)
+        except Wallet.DoesNotExist:
+            pending_total = 0.0
+        
+        # Get detailed list of pending earnings
+        pending_list = get_pending_earnings_for_account(request.auth)
+        
+        buffer_days = get_payment_buffer_days()
+        
+        logger.info(f"📋 [Agency] Pending earnings for {request.auth.email}: {len(pending_list)} payments, ₱{pending_total} total")
+        
+        return {
+            "success": True,
+            "pending_earnings": pending_list,
+            "items": pending_list,  # Alias for frontend compatibility
+            "total_pending": pending_total,
+            "count": len(pending_list),
+            "buffer_days": buffer_days,
+            "info_message": f"Payments are held for {buffer_days} days after job completion before being released to your wallet."
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ [Agency] Error fetching pending earnings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch pending earnings"},
+            status=500
+        )
+
+
+# ===========================================================================
+# CHANGE PASSWORD
+# ===========================================================================
+
+@router.post("/change-password", auth=cookie_auth)
+def agency_change_password(request):
+    """
+    Change the password for the currently logged-in agency user.
+    
+    Request body:
+        - current_password: Current password for verification
+        - new_password: New password to set
+    
+    Returns:
+        - success: True if password changed
+        - message: Status message
+    """
+    try:
+        import json
+        from django.contrib.auth.hashers import check_password, make_password
+        
+        user = request.auth
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        current_password = body.get('current_password', '').strip()
+        new_password = body.get('new_password', '').strip()
+        
+        # Validate inputs
+        if not current_password:
+            return Response({'success': False, 'error': 'Current password is required'}, status=400)
+        if not new_password:
+            return Response({'success': False, 'error': 'New password is required'}, status=400)
+        if len(new_password) < 8:
+            return Response({'success': False, 'error': 'New password must be at least 8 characters'}, status=400)
+        
+        # Verify current password
+        if not check_password(current_password, user.password):
+            return Response({'success': False, 'error': 'Current password is incorrect'}, status=400)
+        
+        # Check password strength (must have uppercase, lowercase, and number)
+        import re
+        if not re.search(r'[A-Z]', new_password):
+            return Response({'success': False, 'error': 'Password must contain at least one uppercase letter'}, status=400)
+        if not re.search(r'[a-z]', new_password):
+            return Response({'success': False, 'error': 'Password must contain at least one lowercase letter'}, status=400)
+        if not re.search(r'\d', new_password):
+            return Response({'success': False, 'error': 'Password must contain at least one number'}, status=400)
+        
+        # Don't allow same password
+        if check_password(new_password, user.password):
+            return Response({'success': False, 'error': 'New password cannot be the same as current password'}, status=400)
+        
+        # Update password
+        user.password = make_password(new_password)
+        user.save()
+        
+        logger.info(f"✅ Password changed for agency user: {user.email}")
+        
+        return {
+            'success': True,
+            'message': 'Password changed successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error changing password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ===========================================================================
+# REVIEW RESPONSES
+# ===========================================================================
+
+@router.post("/reviews/{review_id}/respond", auth=cookie_auth)
+def agency_respond_to_review(request, review_id: int):
+    """
+    Allow agency to respond to a customer review.
+    
+    Request body:
+        - response: The agency's response text (min 10 chars)
+    
+    Returns:
+        - success: True if response saved
+        - message: Status message
+    """
+    try:
+        import json
+        from accounts.models import JobReview, Agency
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Get review
+        try:
+            review = JobReview.objects.get(reviewID=review_id)
+        except JobReview.DoesNotExist:
+            return Response({'success': False, 'error': 'Review not found'}, status=404)
+        
+        # Verify the review is about this agency or one of their employees
+        # Check if the reviewee is the agency account OR an employee of the agency
+        is_about_agency = (review.revieweeID == user)
+        is_about_employee = False
+        
+        if not is_about_agency:
+            # Check if reviewee is an employee of this agency
+            from agency.models import AgencyEmployee
+            is_about_employee = AgencyEmployee.objects.filter(
+                agencyFK=agency,
+                profileFK__accountFK=review.revieweeID
+            ).exists()
+        
+        if not is_about_agency and not is_about_employee:
+            return Response({
+                'success': False, 
+                'error': 'You can only respond to reviews about your agency or employees'
+            }, status=403)
+        
+        # Check if already responded
+        if review.reviewerResponse:
+            return Response({
+                'success': False, 
+                'error': 'This review already has a response'
+            }, status=400)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        response_text = body.get('response', '').strip()
+        
+        if not response_text:
+            return Response({'success': False, 'error': 'Response text is required'}, status=400)
+        if len(response_text) < 10:
+            return Response({'success': False, 'error': 'Response must be at least 10 characters'}, status=400)
+        if len(response_text) > 1000:
+            return Response({'success': False, 'error': 'Response cannot exceed 1000 characters'}, status=400)
+        
+        # Save response
+        review.reviewerResponse = response_text
+        review.reviewerResponseAt = timezone.now()
+        review.save()
+        
+        logger.info(f"✅ Agency responded to review #{review_id}")
+        
+        return {
+            'success': True,
+            'message': 'Response submitted successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error responding to review: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
