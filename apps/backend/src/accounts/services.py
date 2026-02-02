@@ -1152,7 +1152,7 @@ def get_pending_kyc_submissions():
         raise ValueError(f"Failed to fetch pending KYC: {str(e)}")
 
 
-def get_user_notifications(user_account_id, limit=50, unread_only=False):
+def get_user_notifications(user_account_id, limit=50, unread_only=False, profile_type=None):
     """
     Fetch notifications for a specific user.
     
@@ -1160,14 +1160,27 @@ def get_user_notifications(user_account_id, limit=50, unread_only=False):
         user_account_id: The account ID of the user
         limit: Maximum number of notifications to return (default 50)
         unread_only: If True, only return unread notifications
+        profile_type: Filter by profile type (WORKER or CLIENT). 
+                     If None, returns notifications with null profile_type only (account-level).
+                     If provided, returns notifications for that profile type AND null profile_type.
         
     Returns:
         List of notification dictionaries
     """
     from .models import Notification
+    from django.db.models import Q
     
     try:
         queryset = Notification.objects.filter(accountFK__accountID=user_account_id)
+        
+        # Filter by profile_type: show notifications for the specific profile + account-level (null)
+        if profile_type:
+            queryset = queryset.filter(
+                Q(profile_type=profile_type) | Q(profile_type__isnull=True)
+            )
+        else:
+            # If no profile_type provided, only show account-level notifications
+            queryset = queryset.filter(profile_type__isnull=True)
         
         if unread_only:
             queryset = queryset.filter(isRead=False)
@@ -1185,6 +1198,7 @@ def get_user_notifications(user_account_id, limit=50, unread_only=False):
                 "createdAt": notif.createdAt.isoformat(),
                 "readAt": notif.readAt.isoformat() if notif.readAt else None,
                 "relatedKYCLogID": notif.relatedKYCLogID,
+                "profileType": notif.profile_type,
             })
         
         return notifications
@@ -1257,23 +1271,38 @@ def mark_all_notifications_as_read(user_account_id):
         raise
 
 
-def get_unread_notification_count(user_account_id):
+def get_unread_notification_count(user_account_id, profile_type=None):
     """
     Get the count of unread notifications for a user.
 
     Args:
         user_account_id: The account ID of the user
+        profile_type: Filter by profile type (WORKER or CLIENT).
+                     If None, counts only account-level notifications.
+                     If provided, counts profile-specific + account-level notifications.
 
     Returns:
         Integer count of unread notifications
     """
     from .models import Notification
+    from django.db.models import Q
 
     try:
-        count = Notification.objects.filter(
+        queryset = Notification.objects.filter(
             accountFK__accountID=user_account_id,
             isRead=False
-        ).count()
+        )
+        
+        # Filter by profile_type: count notifications for the specific profile + account-level (null)
+        if profile_type:
+            queryset = queryset.filter(
+                Q(profile_type=profile_type) | Q(profile_type__isnull=True)
+            )
+        else:
+            # If no profile_type provided, only count account-level notifications
+            queryset = queryset.filter(profile_type__isnull=True)
+        
+        count = queryset.count()
 
         return count
 

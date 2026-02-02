@@ -1484,6 +1484,7 @@ def get_kyc_comparison_data(request):
 def get_notifications(request, limit: int = 50, unread_only: bool = False):
     """
     Get notifications for the authenticated user.
+    Filters by profile_type from JWT token to show profile-specific notifications.
     
     Query params:
     - limit: Maximum number of notifications to return (default 50)
@@ -1493,7 +1494,9 @@ def get_notifications(request, limit: int = 50, unread_only: bool = False):
         from .services import get_user_notifications
         
         user = request.auth
-        notifications = get_user_notifications(user.accountID, limit, unread_only)
+        # Get profile_type from JWT token for dual-profile filtering
+        profile_type = getattr(user, 'profile_type', None)
+        notifications = get_user_notifications(user.accountID, limit, unread_only, profile_type)
         
         return {
             "success": True,
@@ -1558,13 +1561,16 @@ def mark_all_notifications_read(request):
 def get_unread_count(request):
     """
     Get the count of unread notifications for the authenticated user.
+    Filters by profile_type from JWT token to count profile-specific notifications.
     Supports both mobile (Bearer token) and web (cookie) authentication.
     """
     try:
         from .services import get_unread_notification_count
 
         user = request.auth
-        count = get_unread_notification_count(user.accountID)
+        # Get profile_type from JWT token for dual-profile filtering
+        profile_type = getattr(user, 'profile_type', None)
+        count = get_unread_notification_count(user.accountID, profile_type)
 
         return {"success": True, "unread_count": count}
 
