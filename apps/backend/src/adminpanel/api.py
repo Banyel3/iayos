@@ -1219,6 +1219,49 @@ def release_escrow_payment(request, transaction_id: int):
         return {"success": False, "error": str(e)}
 
 
+@router.post("/payments/release-pending/{job_id}", auth=cookie_auth)
+def admin_release_pending_payment(request, job_id: int):
+    """
+    Admin-only: Force release pending payment for a job (skips 7-day buffer).
+    Transfers from pendingEarnings to balance immediately.
+    """
+    try:
+        from accounts.models import Job
+        from jobs.payment_buffer_service import release_pending_payment
+        
+        # Get the job
+        job = Job.objects.select_related(
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK'
+        ).get(jobID=job_id)
+        
+        # Check if already released
+        if job.paymentReleasedToWorker:
+            return {"success": False, "error": "Payment already released for this job"}
+        
+        # Force release (bypasses date check and backjob check)
+        result = release_pending_payment(job, force=True)
+        
+        if result['success']:
+            print(f"✅ Admin {request.auth.email} force-released payment for job #{job_id}: ₱{result.get('amount', 0)}")
+            return {
+                "success": True,
+                "message": f"Payment released successfully",
+                "amount": float(result.get('amount', 0)),
+                "job_id": job_id
+            }
+        else:
+            return {"success": False, "error": result.get('error', 'Unknown error')}
+            
+    except Job.DoesNotExist:
+        return {"success": False, "error": f"Job #{job_id} not found"}
+    except Exception as e:
+        print(f"❌ Error in admin_release_pending_payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 @router.post("/transactions/{transaction_id}/refund", auth=cookie_auth)
 def refund_transaction(request, transaction_id: int):
     """

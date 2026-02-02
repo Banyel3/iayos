@@ -60,10 +60,11 @@ export default function WalletDepositScreen() {
   const [amountError, setAmountError] = useState<string | null>(null);
   const [pendingDeposit, setPendingDeposit] = useState<number | null>(null);
   const [webViewHandled, setWebViewHandled] = useState(false);
-  
+
   // TODO: REMOVE FOR PROD - Testing mode for GCash direct
   const [isTestingMode, setIsTestingMode] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("qrph");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<PaymentMethod>("qrph");
 
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
@@ -165,7 +166,7 @@ export default function WalletDepositScreen() {
 
     try {
       setIsProcessing(true);
-      
+
       // TODO: REMOVE FOR PROD - Use GCash direct in testing mode if selected
       let response: WalletDepositResponse;
       if (isTestingMode && selectedPaymentMethod === "gcash") {
@@ -175,7 +176,7 @@ export default function WalletDepositScreen() {
         // QR PH payment - standard flow
         response = await depositMutation.mutateAsync({ amount });
       }
-      
+
       const invoiceUrl = getInvoiceUrl(response);
       setPendingDeposit(amount);
       setAmountError(null);
@@ -272,7 +273,7 @@ export default function WalletDepositScreen() {
   // Intercept navigation requests BEFORE they load to catch success/failure redirects
   const handleShouldStartLoadWithRequest = (request: any): boolean => {
     const url = request.url as string;
-    
+
     if (!url || webViewHandled) {
       return true;
     }
@@ -541,56 +542,78 @@ export default function WalletDepositScreen() {
             <Text style={styles.sectionSubtitle}>
               🧪 Testing Mode - Choose payment method
             </Text>
-            
+
             <View style={styles.paymentMethodContainer}>
               <TouchableOpacity
                 style={[
                   styles.paymentMethodButton,
-                  selectedPaymentMethod === "qrph" && styles.paymentMethodButtonActive,
+                  selectedPaymentMethod === "qrph" &&
+                    styles.paymentMethodButtonActive,
                 ]}
                 onPress={() => setSelectedPaymentMethod("qrph")}
               >
-                <Ionicons 
-                  name="qr-code" 
-                  size={24} 
-                  color={selectedPaymentMethod === "qrph" ? Colors.white : Colors.textPrimary} 
+                <Ionicons
+                  name="qr-code"
+                  size={24}
+                  color={
+                    selectedPaymentMethod === "qrph"
+                      ? Colors.white
+                      : Colors.textPrimary
+                  }
                 />
-                <Text style={[
-                  styles.paymentMethodText,
-                  selectedPaymentMethod === "qrph" && styles.paymentMethodTextActive,
-                ]}>
+                <Text
+                  style={[
+                    styles.paymentMethodText,
+                    selectedPaymentMethod === "qrph" &&
+                      styles.paymentMethodTextActive,
+                  ]}
+                >
                   QR PH
                 </Text>
-                <Text style={[
-                  styles.paymentMethodSubtext,
-                  selectedPaymentMethod === "qrph" && styles.paymentMethodSubtextActive,
-                ]}>
+                <Text
+                  style={[
+                    styles.paymentMethodSubtext,
+                    selectedPaymentMethod === "qrph" &&
+                      styles.paymentMethodSubtextActive,
+                  ]}
+                >
                   Any banking app
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
                   styles.paymentMethodButton,
-                  selectedPaymentMethod === "gcash" && styles.paymentMethodButtonActive,
+                  selectedPaymentMethod === "gcash" &&
+                    styles.paymentMethodButtonActive,
                 ]}
                 onPress={() => setSelectedPaymentMethod("gcash")}
               >
-                <Ionicons 
-                  name="wallet" 
-                  size={24} 
-                  color={selectedPaymentMethod === "gcash" ? Colors.white : Colors.textPrimary} 
+                <Ionicons
+                  name="wallet"
+                  size={24}
+                  color={
+                    selectedPaymentMethod === "gcash"
+                      ? Colors.white
+                      : Colors.textPrimary
+                  }
                 />
-                <Text style={[
-                  styles.paymentMethodText,
-                  selectedPaymentMethod === "gcash" && styles.paymentMethodTextActive,
-                ]}>
+                <Text
+                  style={[
+                    styles.paymentMethodText,
+                    selectedPaymentMethod === "gcash" &&
+                      styles.paymentMethodTextActive,
+                  ]}
+                >
                   GCash Direct
                 </Text>
-                <Text style={[
-                  styles.paymentMethodSubtext,
-                  selectedPaymentMethod === "gcash" && styles.paymentMethodSubtextActive,
-                ]}>
+                <Text
+                  style={[
+                    styles.paymentMethodSubtext,
+                    selectedPaymentMethod === "gcash" &&
+                      styles.paymentMethodSubtextActive,
+                  ]}
+                >
                   Opens GCash app
                 </Text>
               </TouchableOpacity>
@@ -601,22 +624,32 @@ export default function WalletDepositScreen() {
         {/* Payment Info Card - Dynamic based on selected method */}
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons 
-              name={selectedPaymentMethod === "gcash" ? "wallet" : "qr-code"} 
-              size={24} 
-              color={Colors.primary} 
+            <Ionicons
+              name={selectedPaymentMethod === "gcash" ? "wallet" : "qr-code"}
+              size={24}
+              color={Colors.primary}
             />
             <Text style={styles.infoTitle}>
-              {selectedPaymentMethod === "gcash" ? "GCash Direct Payment" : "QR PH Payment"}
+              {selectedPaymentMethod === "gcash"
+                ? "GCash Direct Payment"
+                : "QR PH Payment"}
             </Text>
           </View>
           {selectedPaymentMethod === "gcash" ? (
             <>
               <Text style={styles.infoText}>
-                🧪 <Text style={{fontWeight: "600"}}>Testing Mode:</Text> You'll be redirected to GCash to complete your payment directly in the GCash app.
+                🧪 <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
+                You'll be redirected to GCash to complete your payment directly
+                in the GCash app.
               </Text>
-              <Text style={[styles.infoText, { marginTop: Spacing.sm, color: Colors.warning }]}>
-                ⚠️ This option is for testing only and will be removed in production.
+              <Text
+                style={[
+                  styles.infoText,
+                  { marginTop: Spacing.sm, color: Colors.warning },
+                ]}
+              >
+                ⚠️ This option is for testing only and will be removed in
+                production.
               </Text>
             </>
           ) : (

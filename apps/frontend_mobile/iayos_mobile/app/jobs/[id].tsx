@@ -196,13 +196,13 @@ export default function JobDetailScreen() {
   const [proposedBudget, setProposedBudget] = useState("");
   const [estimatedDuration, setEstimatedDuration] = useState("");
   const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
-    "ACCEPT"
+    "ACCEPT",
   );
 
   // Team Job state
   const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
   const [selectedSkillSlot, setSelectedSkillSlot] = useState<SkillSlot | null>(
-    null
+    null,
   );
   const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
@@ -220,7 +220,7 @@ export default function JobDetailScreen() {
     "[JobDetail] Parsed jobId:",
     jobId,
     "isValidJobId:",
-    isValidJobId
+    isValidJobId,
   );
 
   // Fetch job details
@@ -350,7 +350,7 @@ export default function JobDetailScreen() {
       const data = (await response.json()) as any;
       if (data.success && data.applications) {
         const jobApplications = data.applications.filter(
-          (app: any) => app.job_id.toString() === id
+          (app: any) => app.job_id.toString() === id,
         );
         const hasApplied = jobApplications.length > 0;
         const appliedSlotIds = jobApplications
@@ -383,7 +383,9 @@ export default function JobDetailScreen() {
       const responseData = (await response.json().catch(() => null)) as any;
 
       if (!response.ok) {
-        throw new Error(getErrorMessage(responseData, "Failed to submit application"));
+        throw new Error(
+          getErrorMessage(responseData, "Failed to submit application"),
+        );
       }
 
       return responseData;
@@ -391,7 +393,7 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Application submitted successfully! You can view your application status in My Applications."
+        "Application submitted successfully! You can view your application status in My Applications.",
       );
       setShowApplicationModal(false);
       setProposalMessage("");
@@ -456,7 +458,7 @@ export default function JobDetailScreen() {
               router.back();
             },
           },
-        ]
+        ],
       );
     },
     onError: (error: Error) => {
@@ -491,7 +493,7 @@ export default function JobDetailScreen() {
               router.back();
             },
           },
-        ]
+        ],
       );
       setShowRejectInviteModal(false);
       setRejectReason("");
@@ -516,7 +518,7 @@ export default function JobDetailScreen() {
         return { applications: [], total: 0 };
       }
       const response = await apiRequest(
-        ENDPOINTS.JOB_APPLICATIONS(parseInt(id))
+        ENDPOINTS.JOB_APPLICATIONS(parseInt(id)),
       );
       const data = await response.json();
       return data as { applications: JobApplication[]; total: number };
@@ -533,7 +535,7 @@ export default function JobDetailScreen() {
         ENDPOINTS.ACCEPT_APPLICATION(parseInt(id), applicationId),
         {
           method: "POST",
-        }
+        },
       );
       return response.json();
     },
@@ -555,7 +557,7 @@ export default function JobDetailScreen() {
         ENDPOINTS.REJECT_APPLICATION(parseInt(id), applicationId),
         {
           method: "POST",
-        }
+        },
       );
       return response.json();
     },
@@ -570,7 +572,7 @@ export default function JobDetailScreen() {
 
   const handleAcceptApplication = (
     applicationId: number,
-    workerName: string
+    workerName: string,
   ) => {
     Alert.alert(
       "Accept Application",
@@ -582,13 +584,13 @@ export default function JobDetailScreen() {
           style: "default",
           onPress: () => acceptApplicationMutation.mutate(applicationId),
         },
-      ]
+      ],
     );
   };
 
   const handleRejectApplication = (
     applicationId: number,
-    workerName: string
+    workerName: string,
   ) => {
     Alert.alert(
       "Reject Application",
@@ -600,7 +602,7 @@ export default function JobDetailScreen() {
           style: "destructive",
           onPress: () => rejectApplicationMutation.mutate(applicationId),
         },
-      ]
+      ],
     );
   };
 
@@ -608,7 +610,7 @@ export default function JobDetailScreen() {
     if (job?.status === "IN_PROGRESS") {
       Alert.alert(
         "Cannot Delete",
-        "You cannot delete a job that is currently in progress."
+        "You cannot delete a job that is currently in progress.",
       );
       return;
     }
@@ -626,7 +628,7 @@ export default function JobDetailScreen() {
           style: "destructive",
           onPress: () => deleteJobMutation.mutate(),
         },
-      ]
+      ],
     );
   };
 
@@ -681,7 +683,7 @@ export default function JobDetailScreen() {
           style: "default",
           onPress: () => acceptInviteMutation.mutate(),
         },
-      ]
+      ],
     );
   };
 
@@ -724,7 +726,7 @@ export default function JobDetailScreen() {
   // Team job applications (for clients)
   const { data: teamApplicationsData } = useTeamJobApplications(
     parseInt(id),
-    isClient && isTeamJob
+    isClient && isTeamJob,
   );
 
   // Accept/reject team applications
@@ -733,7 +735,7 @@ export default function JobDetailScreen() {
 
   // Check if current worker is assigned to this team job
   const currentWorkerAssignment = job?.worker_assignments?.find(
-    (assignment) => assignment.worker_id === user?.profile_data?.id
+    (assignment) => assignment.worker_id === user?.profile_data?.id,
   );
 
   // Team job applications list for client view
@@ -747,7 +749,7 @@ export default function JobDetailScreen() {
 
     // Check if worker has the required skill
     const hasRequiredSkill = mySkills.some(
-      (skill) => skill.id === slot.specialization_id
+      (skill) => skill.id === slot.specialization_id,
     );
 
     if (!hasRequiredSkill) {
@@ -775,7 +777,7 @@ export default function JobDetailScreen() {
               setShowTeamApplyModal(true);
             },
           },
-        ]
+        ],
       );
       return;
     }
@@ -818,7 +820,7 @@ export default function JobDetailScreen() {
           setProposedBudget("");
           setEstimatedDuration("");
         },
-      }
+      },
     );
   };
 
@@ -841,7 +843,7 @@ export default function JobDetailScreen() {
             });
           },
         },
-      ]
+      ],
     );
   };
 
@@ -858,13 +860,13 @@ export default function JobDetailScreen() {
             clientApproveTeamJob.mutate({ jobId: parseInt(id) });
           },
         },
-      ]
+      ],
     );
   };
 
   const handleAcceptTeamApplication = (
     applicationId: number,
-    workerName: string
+    workerName: string,
   ) => {
     Alert.alert(
       "Accept Team Application",
@@ -880,13 +882,13 @@ export default function JobDetailScreen() {
               applicationId,
             }),
         },
-      ]
+      ],
     );
   };
 
   const handleRejectTeamApplication = (
     applicationId: number,
-    workerName: string
+    workerName: string,
   ) => {
     Alert.alert("Reject Application", `Reject ${workerName}'s application?`, [
       { text: "Cancel", style: "cancel" },
@@ -1065,19 +1067,18 @@ export default function JobDetailScreen() {
         <Text style={styles.headerTitle}>Job Details</Text>
         <View style={styles.headerRight}>
           {/* Edit button - only show for job owner on ACTIVE jobs */}
-          {user?.accountID === job.postedBy?.id &&
-            job.status === "ACTIVE" && (
-              <TouchableOpacity
-                onPress={() => router.push(`/jobs/edit/${id}` as any)}
-                style={styles.editButton}
-              >
-                <Ionicons
-                  name="pencil-outline"
-                  size={22}
-                  color={Colors.primary}
-                />
-              </TouchableOpacity>
-            )}
+          {user?.accountID === job.postedBy?.id && job.status === "ACTIVE" && (
+            <TouchableOpacity
+              onPress={() => router.push(`/jobs/edit/${id}` as any)}
+              style={styles.editButton}
+            >
+              <Ionicons
+                name="pencil-outline"
+                size={22}
+                color={Colors.primary}
+              />
+            </TouchableOpacity>
+          )}
           {/* Delete button - for job owner on non-active jobs */}
           {user?.accountID === job.postedBy?.id &&
             job.status !== "IN_PROGRESS" &&
@@ -1433,7 +1434,7 @@ export default function JobDetailScreen() {
               const slotColors = getSlotStatusColor(slot.status);
               const assignedWorkers =
                 job.worker_assignments?.filter(
-                  (a) => a.skill_slot_id === slot.skill_slot_id
+                  (a) => a.skill_slot_id === slot.skill_slot_id,
                 ) || [];
 
               return (
@@ -1556,7 +1557,7 @@ export default function JobDetailScreen() {
                             )}
                           </View>
                         );
-                      }
+                      },
                     )}
                   </View>
 
@@ -1766,7 +1767,7 @@ export default function JobDetailScreen() {
                       onPress={() =>
                         handleAcceptTeamApplication(
                           app.application_id,
-                          app.worker_name
+                          app.worker_name,
                         )
                       }
                       disabled={acceptTeamApplication.isPending}
@@ -1789,7 +1790,7 @@ export default function JobDetailScreen() {
                       onPress={() =>
                         handleRejectTeamApplication(
                           app.application_id,
-                          app.worker_name
+                          app.worker_name,
                         )
                       }
                       disabled={rejectTeamApplication.isPending}
@@ -2009,7 +2010,7 @@ export default function JobDetailScreen() {
                             onPress={() =>
                               handleRejectApplication(
                                 application.id,
-                                application.worker.name
+                                application.worker.name,
                               )
                             }
                             disabled={rejectApplicationMutation.isPending}
@@ -2037,7 +2038,7 @@ export default function JobDetailScreen() {
                             onPress={() =>
                               handleAcceptApplication(
                                 application.id,
-                                application.worker.name
+                                application.worker.name,
                               )
                             }
                             disabled={acceptApplicationMutation.isPending}
@@ -2072,11 +2073,11 @@ export default function JobDetailScreen() {
             <Text style={styles.sectionTitle}>Job Feedback</Text>
             {renderReviewCard(
               isWorker ? "From Client" : "Client → Worker",
-              job.reviews?.clientToWorker
+              job.reviews?.clientToWorker,
             )}
             {renderReviewCard(
               isWorker ? "Your Feedback" : "Worker → Client",
-              job.reviews?.workerToClient
+              job.reviews?.workerToClient,
             )}
           </View>
         )}
@@ -2094,7 +2095,9 @@ export default function JobDetailScreen() {
                   <Ionicons name="receipt" size={22} color={Colors.white} />
                 </View>
                 <View style={styles.viewReceiptTextContainer}>
-                  <Text style={styles.viewReceiptButtonTitle}>View Receipt</Text>
+                  <Text style={styles.viewReceiptButtonTitle}>
+                    View Receipt
+                  </Text>
                   <Text style={styles.viewReceiptButtonSubtitle}>
                     Payment breakdown and job details
                   </Text>

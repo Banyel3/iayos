@@ -25,7 +25,7 @@ import { useWalletBalance } from "@/lib/hooks/useHomeData";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "PAYPAL";
+  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -67,7 +67,8 @@ export default function AgencyWithdrawPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        const methods = (data.payment_methods || []).filter((m: PaymentMethod) => m.is_verified);
+        // Show all payment methods (no verification check - admins process manually)
+        const methods = data.payment_methods || [];
         setPaymentMethods(methods);
         // Auto-select primary method
         const primary = methods.find((m: PaymentMethod) => m.is_primary);
@@ -108,6 +109,12 @@ export default function AgencyWithdrawPage() {
         return <Building2 className="h-5 w-5 text-gray-600" />;
       case "PAYPAL":
         return <CreditCard className="h-5 w-5 text-blue-500" />;
+      case "VISA":
+        return <CreditCard className="h-5 w-5 text-indigo-600" />;
+      case "GRABPAY":
+        return <Smartphone className="h-5 w-5 text-green-600" />;
+      case "MAYA":
+        return <Smartphone className="h-5 w-5 text-green-500" />;
       default:
         return <CreditCard className="h-5 w-5 text-gray-600" />;
     }
@@ -121,6 +128,12 @@ export default function AgencyWithdrawPage() {
         return method.bank_name || "Bank Transfer";
       case "PAYPAL":
         return "PayPal";
+      case "VISA":
+        return "Visa";
+      case "GRABPAY":
+        return "GrabPay";
+      case "MAYA":
+        return "Maya";
       default:
         return method.type;
     }
@@ -239,7 +252,7 @@ export default function AgencyWithdrawPage() {
               <div className="text-sm text-blue-700">
                 <p className="font-medium">Processing Time</p>
                 <p className="mt-1">
-                  Your withdrawal will be processed within 1-3 business days after admin approval.
+                  Your withdrawal will be processed within 24 hours after admin approval.
                   You&apos;ll receive a notification once the payment is sent.
                 </p>
               </div>
@@ -449,14 +462,14 @@ export default function AgencyWithdrawPage() {
             )}
 
             {/* Processing Info */}
-            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-start gap-3">
-                <Clock className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <Clock className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-yellow-900">Manual Processing</p>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Withdrawal requests are reviewed and processed manually by our admin team.
-                    Funds will be transferred within 1-3 business days after approval.
+                  <p className="font-medium text-blue-900">Processing Time</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Withdrawal requests are reviewed and processed within 24 hours.
+                    You&apos;ll receive a notification once the payment is sent to your selected account.
                   </p>
                 </div>
               </div>

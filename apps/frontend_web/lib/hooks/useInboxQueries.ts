@@ -82,7 +82,9 @@ export function useMarkJobComplete() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to mark job as complete"));
+        throw new Error(
+          getErrorMessage(error, "Failed to mark job as complete"),
+        );
       }
 
       return response.json();
@@ -125,7 +127,9 @@ export function useApproveJobCompletion() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to approve job completion"));
+        throw new Error(
+          getErrorMessage(error, "Failed to approve job completion"),
+        );
       }
 
       return response.json();

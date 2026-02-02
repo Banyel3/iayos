@@ -196,33 +196,33 @@ export default function AgencyChatScreen() {
     const files = Array.from(e.target.files || []);
     const remainingSlots = 10 - completionPhotos.length;
     const newFiles = files.slice(0, remainingSlots);
-    
+
     // Validate file types and sizes
-    const validFiles = newFiles.filter(file => {
-      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    const validFiles = newFiles.filter((file) => {
+      const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
       const maxSize = 5 * 1024 * 1024; // 5MB
       return validTypes.includes(file.type) && file.size <= maxSize;
     });
 
     if (validFiles.length > 0) {
-      setCompletionPhotos(prev => [...prev, ...validFiles]);
+      setCompletionPhotos((prev) => [...prev, ...validFiles]);
       // Create preview URLs
-      validFiles.forEach(file => {
+      validFiles.forEach((file) => {
         const url = URL.createObjectURL(file);
-        setPhotoPreviewUrls(prev => [...prev, url]);
+        setPhotoPreviewUrls((prev) => [...prev, url]);
       });
     }
 
     // Reset input
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
   // Remove a photo from the list
   const handleRemovePhoto = (index: number) => {
-    setCompletionPhotos(prev => prev.filter((_, i) => i !== index));
-    setPhotoPreviewUrls(prev => {
+    setCompletionPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviewUrls((prev) => {
       // Revoke the URL to free memory
       URL.revokeObjectURL(prev[index]);
       return prev.filter((_, i) => i !== index);
@@ -234,7 +234,7 @@ export default function AgencyChatScreen() {
     if (!conversation?.job.id) return;
 
     const jobId = conversation.job.id;
-    
+
     try {
       setIsUploadingPhotos(true);
       setUploadProgress(0);
@@ -260,12 +260,16 @@ export default function AgencyChatScreen() {
       setShowMarkCompleteModal(false);
       setCompletionNotes("");
       setCompletionPhotos([]);
-      photoPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+      photoPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
       setPhotoPreviewUrls([]);
       setUploadProgress(0);
       refetch();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to mark job as complete");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to mark job as complete",
+      );
     } finally {
       setIsUploadingPhotos(false);
     }
@@ -274,16 +278,22 @@ export default function AgencyChatScreen() {
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation?.job.id) return;
-    if (ratingQuality === 0 || ratingCommunication === 0 || ratingPunctuality === 0 || ratingProfessionalism === 0) return;
+    if (
+      ratingQuality === 0 ||
+      ratingCommunication === 0 ||
+      ratingPunctuality === 0 ||
+      ratingProfessionalism === 0
+    )
+      return;
 
     submitReviewMutation.mutate(
-      { 
-        jobId: conversation.job.id, 
+      {
+        jobId: conversation.job.id,
         rating_quality: ratingQuality,
         rating_communication: ratingCommunication,
         rating_punctuality: ratingPunctuality,
         rating_professionalism: ratingProfessionalism,
-        reviewText 
+        reviewText,
       },
       {
         onSuccess: () => {
@@ -766,63 +776,67 @@ export default function AgencyChatScreen() {
                   </div>
                 </div>
               ) : (
-              /* Inline message bubble for agency chat */
-              <div
-                className={`flex mb-3 ${
-                  message.is_mine ? "justify-end" : "justify-start"
-                }`}
-              >
-                {!message.is_mine && (
-                  <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
-                    <AvatarImage src={message.sender_avatar || ""} />
-                    <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
-                      {getInitials(message.sender_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+                /* Inline message bubble for agency chat */
                 <div
-                  className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                    message.is_mine
-                      ? "bg-blue-600 text-white rounded-br-sm"
-                      : "bg-white border border-gray-200 text-gray-900 rounded-bl-sm"
+                  className={`flex mb-3 ${
+                    message.is_mine ? "justify-end" : "justify-start"
                   }`}
                 >
                   {!message.is_mine && (
-                    <p className="text-xs font-medium text-gray-500 mb-1">
-                      {message.sender_name}
-                      {message.sent_by_agency && (
-                        <Badge variant="outline" className="ml-2 text-xs py-0">
-                          <Building2 className="h-3 w-3 mr-1" />
-                          Agency
-                        </Badge>
-                      )}
-                    </p>
+                    <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
+                      <AvatarImage src={message.sender_avatar || ""} />
+                      <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
+                        {getInitials(message.sender_name)}
+                      </AvatarFallback>
+                    </Avatar>
                   )}
-                  {message.message_type === "IMAGE" && message.message_text ? (
-                    <img
-                      src={message.message_text}
-                      alt="Image"
-                      className="max-w-full rounded-lg cursor-pointer"
-                      onClick={() => setShowImageModal(message.message_text)}
-                    />
-                  ) : message.message_type === "IMAGE" ? (
-                    <div className="text-sm text-gray-500 italic">
-                      [Image not available]
-                    </div>
-                  ) : (
-                    <p className="text-sm whitespace-pre-wrap">
-                      {message.message_text}
-                    </p>
-                  )}
-                  <p
-                    className={`text-xs mt-1 ${
-                      message.is_mine ? "text-blue-200" : "text-gray-400"
+                  <div
+                    className={`max-w-[70%] rounded-2xl px-4 py-2 ${
+                      message.is_mine
+                        ? "bg-blue-600 text-white rounded-br-sm"
+                        : "bg-white border border-gray-200 text-gray-900 rounded-bl-sm"
                     }`}
                   >
-                    {format(new Date(message.created_at), "h:mm a")}
-                  </p>
+                    {!message.is_mine && (
+                      <p className="text-xs font-medium text-gray-500 mb-1">
+                        {message.sender_name}
+                        {message.sent_by_agency && (
+                          <Badge
+                            variant="outline"
+                            className="ml-2 text-xs py-0"
+                          >
+                            <Building2 className="h-3 w-3 mr-1" />
+                            Agency
+                          </Badge>
+                        )}
+                      </p>
+                    )}
+                    {message.message_type === "IMAGE" &&
+                    message.message_text ? (
+                      <img
+                        src={message.message_text}
+                        alt="Image"
+                        className="max-w-full rounded-lg cursor-pointer"
+                        onClick={() => setShowImageModal(message.message_text)}
+                      />
+                    ) : message.message_type === "IMAGE" ? (
+                      <div className="text-sm text-gray-500 italic">
+                        [Image not available]
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">
+                        {message.message_text}
+                      </p>
+                    )}
+                    <p
+                      className={`text-xs mt-1 ${
+                        message.is_mine ? "text-blue-200" : "text-gray-400"
+                      }`}
+                    >
+                      {format(new Date(message.created_at), "h:mm a")}
+                    </p>
+                  </div>
                 </div>
-              </div>
               )}
             </div>
           );
@@ -993,7 +1007,7 @@ export default function AgencyChatScreen() {
                     setShowMarkCompleteModal(false);
                     setCompletionNotes("");
                     setCompletionPhotos([]);
-                    photoPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+                    photoPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
                     setPhotoPreviewUrls([]);
                   }}
                   disabled={isUploadingPhotos}
@@ -1039,12 +1053,28 @@ export default function AgencyChatScreen() {
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Multi-criteria Star Ratings */}
+              {/* Multi-criteria Star Ratings - Client-appropriate labels */}
               {[
-                { label: "🏆 Quality of Work", value: ratingQuality, setter: setRatingQuality },
-                { label: "💬 Communication", value: ratingCommunication, setter: setRatingCommunication },
-                { label: "⏰ Punctuality", value: ratingPunctuality, setter: setRatingPunctuality },
-                { label: "👔 Professionalism", value: ratingProfessionalism, setter: setRatingProfessionalism },
+                {
+                  label: "📋 Clarity of Requirements",
+                  value: ratingQuality,
+                  setter: setRatingQuality,
+                },
+                {
+                  label: "💬 Communication",
+                  value: ratingCommunication,
+                  setter: setRatingCommunication,
+                },
+                {
+                  label: "💳 Payment Promptness",
+                  value: ratingPunctuality,
+                  setter: setRatingPunctuality,
+                },
+                {
+                  label: "👔 Professionalism",
+                  value: ratingProfessionalism,
+                  setter: setRatingProfessionalism,
+                },
               ].map((criteria) => (
                 <div key={criteria.label}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1104,8 +1134,10 @@ export default function AgencyChatScreen() {
                   className="flex-1"
                   onClick={handleSubmitReview}
                   disabled={
-                    ratingQuality === 0 || ratingCommunication === 0 || 
-                    ratingPunctuality === 0 || ratingProfessionalism === 0 || 
+                    ratingQuality === 0 ||
+                    ratingCommunication === 0 ||
+                    ratingPunctuality === 0 ||
+                    ratingProfessionalism === 0 ||
                     submitReviewMutation.isPending
                   }
                 >

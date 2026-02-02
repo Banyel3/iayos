@@ -284,12 +284,13 @@ export function useToggleMaterialAvailability() {
       id: number;
       isAvailable: boolean;
     }) => {
+      // Backend expects FormData with snake_case field names
+      const formData = new FormData();
+      formData.append("is_available", isAvailable.toString());
+
       const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isAvailable }),
+        body: formData,
       });
 
       if (!response.ok) {

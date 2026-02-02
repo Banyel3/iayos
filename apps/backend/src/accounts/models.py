@@ -1192,6 +1192,15 @@ class Notification(models.Model):
     relatedJobID = models.BigIntegerField(null=True, blank=True)
     relatedApplicationID = models.BigIntegerField(null=True, blank=True)
     
+    # Profile type for dual-profile filtering (WORKER or CLIENT)
+    # If null, notification is shown to all profiles
+    profile_type = models.CharField(
+        max_length=20,
+        choices=[('WORKER', 'Worker'), ('CLIENT', 'Client')],
+        null=True,
+        blank=True
+    )
+    
     createdAt = models.DateTimeField(auto_now_add=True)
     readAt = models.DateTimeField(null=True, blank=True)
     
@@ -1200,6 +1209,7 @@ class Notification(models.Model):
         indexes = [
             models.Index(fields=['accountFK', '-createdAt']),
             models.Index(fields=['accountFK', 'isRead']),
+            models.Index(fields=['accountFK', 'profile_type', '-createdAt']),
         ]
     
     def __str__(self):

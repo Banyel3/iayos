@@ -284,13 +284,7 @@ export function useAgencyArchiveConversation() {
  */
 export function useUploadCompletionPhoto() {
   return useMutation({
-    mutationFn: async ({
-      jobId,
-      file,
-    }: {
-      jobId: number;
-      file: File;
-    }) => {
+    mutationFn: async ({ jobId, file }: { jobId: number; file: File }) => {
       const formData = new FormData();
       formData.append("image", file);
 
@@ -306,7 +300,10 @@ export function useUploadCompletionPhoto() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          getErrorMessage(error, `Failed to upload photo: ${response.statusText}`),
+          getErrorMessage(
+            error,
+            `Failed to upload photo: ${response.statusText}`,
+          ),
         );
       }
 
@@ -344,7 +341,10 @@ export function useAgencyMarkComplete() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          getErrorMessage(error, `Failed to mark complete: ${response.statusText}`),
+          getErrorMessage(
+            error,
+            `Failed to mark complete: ${response.statusText}`,
+          ),
         );
       }
 
@@ -396,7 +396,10 @@ export function useAgencySubmitReview() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          getErrorMessage(error, `Failed to submit review: ${response.statusText}`),
+          getErrorMessage(
+            error,
+            `Failed to submit review: ${response.statusText}`,
+          ),
         );
       }
 

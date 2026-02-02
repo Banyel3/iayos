@@ -78,6 +78,16 @@ interface CreateJobRequest {
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
   job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
   work_environment: "INDOOR" | "OUTDOOR" | "BOTH";
+  // Multi-employee mode for agencies
+  skill_slots?: SkillSlot[];
+}
+
+// Skill slot for multi-employee agency hiring
+interface SkillSlot {
+  specialization_id: number;
+  workers_needed: number;
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  notes?: string;
 }
 
 export default function CreateJobScreen() {
@@ -121,6 +131,16 @@ export default function CreateJobScreen() {
   const [workEnvironment, setWorkEnvironment] = useState<
     "INDOOR" | "OUTDOOR" | "BOTH"
   >("INDOOR");
+
+  // Multi-employee mode for agencies
+  const [isTeamHire, setIsTeamHire] = useState(false);
+  const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
+  const [showAddSlotModal, setShowAddSlotModal] = useState(false);
+  const [newSlotSpecializationId, setNewSlotSpecializationId] = useState<number | null>(null);
+  const [newSlotWorkersNeeded, setNewSlotWorkersNeeded] = useState("1");
+  const [newSlotSkillLevel, setNewSlotSkillLevel] = useState<"ENTRY" | "INTERMEDIATE" | "EXPERT">("INTERMEDIATE");
+  const [newSlotNotes, setNewSlotNotes] = useState("");
+
   const queryClient = useQueryClient();
   // Jobs only use Wallet payment - deposits via QR PH (any bank/e-wallet)
   // No payment method selection needed - always WALLET
@@ -219,6 +239,52 @@ export default function CreateJobScreen() {
   const handleApplySuggestedPrice = useCallback((price: number) => {
     setBudget(price.toFixed(2));
   }, []);
+
+  // Multi-employee skill slot management
+  const addSkillSlot = useCallback(() => {
+    if (!newSlotSpecializationId) {
+      Alert.alert("Error", "Please select a specialization");
+      return;
+    }
+    const workersCount = parseInt(newSlotWorkersNeeded) || 1;
+    if (workersCount < 1 || workersCount > 10) {
+      Alert.alert("Error", "Workers needed must be between 1 and 10");
+      return;
+    }
+    // Check total workers doesn't exceed 20
+    const currentTotal = skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+    if (currentTotal + workersCount > 20) {
+      Alert.alert("Error", `Cannot add ${workersCount} workers. Maximum total is 20. Current: ${currentTotal}`);
+      return;
+    }
+    
+    setSkillSlots(prev => [...prev, {
+      specialization_id: newSlotSpecializationId,
+      workers_needed: workersCount,
+      skill_level_required: newSlotSkillLevel,
+      notes: newSlotNotes.trim() || undefined,
+    }]);
+    
+    // Reset form
+    setNewSlotSpecializationId(null);
+    setNewSlotWorkersNeeded("1");
+    setNewSlotSkillLevel("INTERMEDIATE");
+    setNewSlotNotes("");
+    setShowAddSlotModal(false);
+  }, [newSlotSpecializationId, newSlotWorkersNeeded, newSlotSkillLevel, newSlotNotes, skillSlots]);
+
+  const removeSkillSlot = useCallback((index: number) => {
+    setSkillSlots(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const getTotalWorkersNeeded = useCallback(() => {
+    return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+  }, [skillSlots]);
+
+  const getSpecializationName = useCallback((specId: number) => {
+    const cat = categories.find(c => c.id === specId);
+    return cat?.name || `Specialization #${specId}`;
+  }, [categories]);
 
   // Fetch categories
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
@@ -379,6 +445,14 @@ export default function CreateJobScreen() {
       return;
     }
 
+    // Team hire validation for agencies
+    if (agencyId && isTeamHire) {
+      if (skillSlots.length === 0) {
+        Alert.alert("Error", "Please add at least one skill slot for team hiring");
+        return;
+      }
+    }
+
     // Wallet balance check only - deposits use QR PH (any bank/e-wallet)
 
     // Check wallet balance
@@ -425,6 +499,10 @@ export default function CreateJobScreen() {
     }
     if (agencyId) {
       (jobData as any).agency_id = parseInt(agencyId);
+      // Add skill slots for team hiring
+      if (isTeamHire && skillSlots.length > 0) {
+        jobData.skill_slots = skillSlots;
+      }
     }
 
     createJobMutation.mutate(jobData);
@@ -551,6 +629,97 @@ export default function CreateJobScreen() {
                 )}
               </View>
             </View>
+
+            {/* Team Hire Section - Only visible when hiring an agency */}
+            {agencyId && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>👥 Team Hiring</Text>
+                
+                {/* Team Hire Toggle */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleInfo}>
+                    <Text style={styles.toggleLabel}>Hire Multiple Workers</Text>
+                    <Text style={styles.toggleHint}>
+                      Request workers with different skills for this job
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.toggle, isTeamHire && styles.toggleActive]}
+                    onPress={() => {
+                      setIsTeamHire(!isTeamHire);
+                      if (!isTeamHire) {
+                        // Resetting to team hire mode
+                        setSkillSlots([]);
+                      }
+                    }}
+                  >
+                    <View style={[styles.toggleKnob, isTeamHire && styles.toggleKnobActive]} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Skill Slots List */}
+                {isTeamHire && (
+                  <View style={styles.skillSlotsContainer}>
+                    {skillSlots.length === 0 ? (
+                      <View style={styles.emptySlots}>
+                        <Ionicons name="people-outline" size={32} color={Colors.textHint} />
+                        <Text style={styles.emptySlotsText}>
+                          No skill slots added yet. Add workers with different specializations.
+                        </Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={styles.slotsSummary}>
+                          Total: {getTotalWorkersNeeded()} worker{getTotalWorkersNeeded() !== 1 ? 's' : ''} across {skillSlots.length} slot{skillSlots.length !== 1 ? 's' : ''}
+                        </Text>
+                        {skillSlots.map((slot, index) => (
+                          <View key={index} style={styles.slotCard}>
+                            <View style={styles.slotHeader}>
+                              <Text style={styles.slotTitle}>
+                                {getSpecializationName(slot.specialization_id)}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => removeSkillSlot(index)}
+                                style={styles.removeSlotBtn}
+                              >
+                                <Ionicons name="close-circle" size={24} color={Colors.error} />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.slotDetails}>
+                              <View style={styles.slotBadge}>
+                                <Ionicons name="people" size={14} color={Colors.primary} />
+                                <Text style={styles.slotBadgeText}>
+                                  {slot.workers_needed} worker{slot.workers_needed !== 1 ? 's' : ''}
+                                </Text>
+                              </View>
+                              <View style={[styles.slotBadge, styles.slotBadgeSkill]}>
+                                <Text style={styles.slotBadgeText}>
+                                  {slot.skill_level_required === 'ENTRY' ? '🌱 Entry' :
+                                   slot.skill_level_required === 'INTERMEDIATE' ? '⭐ Intermediate' :
+                                   '👑 Expert'}
+                                </Text>
+                              </View>
+                            </View>
+                            {slot.notes && (
+                              <Text style={styles.slotNotes}>{slot.notes}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Add Slot Button */}
+                    <TouchableOpacity
+                      style={styles.addSlotBtn}
+                      onPress={() => setShowAddSlotModal(true)}
+                    >
+                      <Ionicons name="add-circle" size={20} color={Colors.white} />
+                      <Text style={styles.addSlotBtnText}>Add Skill Slot</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Budget Section */}
             <View style={styles.section}>
@@ -776,6 +945,142 @@ export default function CreateJobScreen() {
                     )}
                     style={styles.barangayList}
                   />
+                </View>
+              </View>
+            </Modal>
+
+            {/* Add Skill Slot Modal */}
+            <Modal
+              visible={showAddSlotModal}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => setShowAddSlotModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Add Skill Slot</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowAddSlotModal(false)}
+                      style={styles.modalCloseButton}
+                    >
+                      <Text style={styles.modalCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.modalBody}>
+                    {/* Specialization Selection */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Specialization *</Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.categoryScroll}
+                      >
+                        {categories.map((category) => (
+                          <TouchableOpacity
+                            key={category.id}
+                            style={[
+                              styles.categoryChip,
+                              newSlotSpecializationId === category.id && styles.categoryChipActive,
+                            ]}
+                            onPress={() => setNewSlotSpecializationId(category.id)}
+                          >
+                            <Text
+                              style={[
+                                styles.categoryChipText,
+                                newSlotSpecializationId === category.id && styles.categoryChipTextActive,
+                              ]}
+                            >
+                              {category.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+
+                    {/* Workers Needed */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Workers Needed *</Text>
+                      <View style={styles.workersRow}>
+                        <TouchableOpacity
+                          style={styles.workerBtn}
+                          onPress={() => {
+                            const current = parseInt(newSlotWorkersNeeded) || 1;
+                            if (current > 1) setNewSlotWorkersNeeded((current - 1).toString());
+                          }}
+                        >
+                          <Text style={styles.workerBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.workersCount}>{newSlotWorkersNeeded}</Text>
+                        <TouchableOpacity
+                          style={styles.workerBtn}
+                          onPress={() => {
+                            const current = parseInt(newSlotWorkersNeeded) || 1;
+                            if (current < 10) setNewSlotWorkersNeeded((current + 1).toString());
+                          }}
+                        >
+                          <Text style={styles.workerBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Skill Level */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Skill Level Required</Text>
+                      <View style={styles.skillLevelRow}>
+                        {(["ENTRY", "INTERMEDIATE", "EXPERT"] as const).map((level) => (
+                          <TouchableOpacity
+                            key={level}
+                            style={[
+                              styles.skillLevelBtn,
+                              newSlotSkillLevel === level && styles.skillLevelBtnActive,
+                            ]}
+                            onPress={() => setNewSlotSkillLevel(level)}
+                          >
+                            <Text
+                              style={[
+                                styles.skillLevelText,
+                                newSlotSkillLevel === level && styles.skillLevelTextActive,
+                              ]}
+                            >
+                              {level === 'ENTRY' ? '🌱 Entry' :
+                               level === 'INTERMEDIATE' ? '⭐ Intermediate' :
+                               '👑 Expert'}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* Notes */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Notes (Optional)</Text>
+                      <TextInput
+                        style={[styles.input, styles.textArea]}
+                        placeholder="Any specific requirements for this role..."
+                        value={newSlotNotes}
+                        onChangeText={setNewSlotNotes}
+                        multiline
+                        numberOfLines={3}
+                        textAlignVertical="top"
+                        placeholderTextColor={Colors.textHint}
+                        maxLength={200}
+                      />
+                    </View>
+                  </ScrollView>
+
+                  {/* Add Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.addSlotConfirmBtn,
+                      !newSlotSpecializationId && styles.addSlotConfirmBtnDisabled,
+                    ]}
+                    onPress={addSkillSlot}
+                    disabled={!newSlotSpecializationId}
+                  >
+                    <Text style={styles.addSlotConfirmBtnText}>Add Skill Slot</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </Modal>
@@ -1881,5 +2186,211 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.success,
     fontWeight: "500",
+  },
+  // Team Hire Styles
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  toggleHint: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.border,
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: Colors.primary,
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: "flex-end",
+  },
+  skillSlotsContainer: {
+    marginTop: 8,
+  },
+  emptySlots: {
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  emptySlotsText: {
+    fontSize: 14,
+    color: Colors.textHint,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  slotsSummary: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.primary,
+    marginBottom: 12,
+  },
+  slotCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  slotHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  slotTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  removeSlotBtn: {
+    padding: 4,
+  },
+  slotDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  slotBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary + "15",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  slotBadgeSkill: {
+    backgroundColor: Colors.warning + "15",
+  },
+  slotBadgeText: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontWeight: "500",
+  },
+  slotNotes: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+  addSlotBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 12,
+    gap: 6,
+    marginTop: 8,
+  },
+  addSlotBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  modalBody: {
+    maxHeight: 400,
+    paddingHorizontal: 4,
+  },
+  workersRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  workerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workerBtnText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: Colors.white,
+  },
+  workersCount: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: Colors.textPrimary,
+    minWidth: 50,
+    textAlign: "center",
+  },
+  skillLevelRow: {
+    flexDirection: "column",
+    gap: 8,
+  },
+  skillLevelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  skillLevelBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "10",
+  },
+  skillLevelText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  skillLevelTextActive: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  addSlotConfirmBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  addSlotConfirmBtnDisabled: {
+    backgroundColor: Colors.border,
+  },
+  addSlotConfirmBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.white,
   },
 });

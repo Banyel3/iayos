@@ -536,7 +536,9 @@ const MyRequestsPage = () => {
       }
     } catch (error) {
       console.error("Error creating job:", error);
-      setJobPostError(getErrorMessage(error, "Failed to create job. Please try again."));
+      setJobPostError(
+        getErrorMessage(error, "Failed to create job. Please try again."),
+      );
     } finally {
       setIsSubmittingJob(false);
     }
@@ -870,7 +872,9 @@ const MyRequestsPage = () => {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error("Error response:", errorData);
-          throw new Error(getErrorMessage(errorData, "Failed to fetch applications"));
+          throw new Error(
+            getErrorMessage(errorData, "Failed to fetch applications"),
+          );
         }
 
         const data = await response.json();
@@ -2599,11 +2603,13 @@ const MyRequestsPage = () => {
                                   handleAcceptApplication(application.id)
                                 }
                                 disabled={
-                                  processingApplication?.id === Number(application.id)
+                                  processingApplication?.id ===
+                                  Number(application.id)
                                 }
                                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center"
                               >
-                                {processingApplication?.id === Number(application.id) &&
+                                {processingApplication?.id ===
+                                  Number(application.id) &&
                                 processingApplication?.action === "accept" ? (
                                   <>
                                     <svg
@@ -2637,11 +2643,13 @@ const MyRequestsPage = () => {
                                   handleRejectApplication(application.id)
                                 }
                                 disabled={
-                                  processingApplication?.id === Number(application.id)
+                                  processingApplication?.id ===
+                                  Number(application.id)
                                 }
                                 className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center"
                               >
-                                {processingApplication?.id === Number(application.id) &&
+                                {processingApplication?.id ===
+                                  Number(application.id) &&
                                 processingApplication?.action === "reject" ? (
                                   <>
                                     <svg

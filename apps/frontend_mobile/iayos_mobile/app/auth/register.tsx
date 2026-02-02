@@ -307,6 +307,7 @@ export default function RegisterScreen() {
         password,
         confirmPassword,
         street_address: trimmedStreet,
+        barangay: barangay.trim(),
         city: trimmedCity,
         province: trimmedProvince,
         postal_code: trimmedPostal,
