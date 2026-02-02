@@ -66,8 +66,9 @@ export default function ConversationCard({
       };
     }
     // For 1:1 conversations
+    // Fallback chain: other_participant name -> job title -> "Chat"
     return {
-      name: conversation.other_participant?.name || "Unknown",
+      name: conversation.other_participant?.name || conversation.job?.title || "Chat",
       avatar: conversation.other_participant?.avatar || null,
       showTeamBadge: false,
     };

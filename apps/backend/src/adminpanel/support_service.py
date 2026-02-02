@@ -85,7 +85,7 @@ def get_tickets(
                 'status': t.status,
                 'ticket_type': t.ticketType,
                 'agency_id': str(t.agencyFK_id) if t.agencyFK_id else None,
-                'agency_name': t.agencyFK.agencyName if t.agencyFK else None,
+                'agency_name': t.agencyFK.businessName if t.agencyFK else None,
                 'assigned_to': str(t.assignedTo_id) if t.assignedTo else None,
                 'assigned_to_name': t.assignedTo.email.split('@')[0] if t.assignedTo else None,
                 'created_at': t.createdAt.isoformat(),

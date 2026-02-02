@@ -2048,7 +2048,9 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         # A person can be both an agency employee AND an individual worker - these are two
         # different systems that coexist. We only exclude agency OWNERS from the workers list.
         
-        # Get all worker profiles, excluding agency owners only
+        # Get all worker profiles, excluding:
+        # 1. Agency owners (they manage agencies, not individual workers)
+        # 2. The current user's own worker profile (can't hire yourself)
         workers = WorkerProfile.objects.select_related(
             'profileID',
             'profileID__accountFK'
@@ -2057,6 +2059,8 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             profileID__accountFK__KYCVerified=True
         ).exclude(
             profileID__accountFK__accountID__in=agency_owner_account_ids
+        ).exclude(
+            profileID__accountFK=user  # Exclude own worker profile
         ).order_by('-profileID__accountFK__createdAt')
 
         total_count = workers.count()
@@ -2921,9 +2925,34 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 # REVIEW & RATING SERVICES (Phase 8)
 # ===========================================================================
 
-def submit_review_mobile(user: Accounts, job_id: int, rating_quality: int, rating_communication: int, rating_punctuality: int, rating_professionalism: int, comment: str, review_type: str) -> Dict[str, Any]:
-    # Submit a review for a completed job with multi-criteria ratings.
-    # Validates job completion, reviewer eligibility, and creates review record.
+def submit_review_mobile(
+    user: Accounts, 
+    job_id: int, 
+    rating_quality: int, 
+    rating_communication: int, 
+    rating_punctuality: int, 
+    rating_professionalism: int, 
+    comment: str, 
+    review_type: str,
+    review_target: Optional[str] = None,
+    employee_id: Optional[int] = None,
+    worker_assignment_id: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Submit a review for a completed job with multi-criteria ratings.
+    
+    Supports:
+    - Regular jobs: Client reviews worker, worker reviews client
+    - Agency jobs: Client reviews individual employees AND the agency
+    - Team jobs: Client reviews individual workers in team
+    
+    Args:
+        review_target: 'EMPLOYEE' (agency employee), 'AGENCY', 'TEAM_WORKER', or None (regular)
+        employee_id: JobEmployeeAssignment ID for agency employee reviews
+        worker_assignment_id: JobWorkerAssignment ID for team job worker reviews
+    """
+    from agency.models import AgencyEmployee
+    from .models import JobEmployeeAssignment
     
     try:
         # Validate job exists and is completed
@@ -2935,36 +2964,141 @@ def submit_review_mobile(user: Accounts, job_id: int, rating_quality: int, ratin
         if job.status != 'COMPLETED':
             return {'success': False, 'error': 'Can only review completed jobs'}
 
-        # Determine reviewer and reviewee based on review type
+        # Initialize review fields
+        reviewer_type = None
+        reviewee = None
+        reviewee_profile = None
+        reviewee_employee = None
+        reviewee_agency = None
+        
+        # Handle different review scenarios
         if review_type == 'CLIENT_TO_WORKER':
-            # Client reviewing worker
             reviewer_type = 'CLIENT'
             if not job.clientID or job.clientID.profileID.accountFK.accountID != user.accountID:
                 return {'success': False, 'error': 'You are not the client for this job'}
-            if not job.assignedWorkerID:
-                return {'success': False, 'error': 'No worker assigned to this job'}
-            reviewee = job.assignedWorkerID.profileID.accountFK
-            reviewee_profile = job.assignedWorkerID.profileID  # Worker's profile
+            
+            # Check what type of job this is
+            if review_target == 'EMPLOYEE' and employee_id:
+                # Agency job - reviewing a specific employee
+                try:
+                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__accountFK').get(
+                        assignmentID=employee_id,
+                        job=job
+                    )
+                    reviewee_employee = assignment.employee
+                    # Check if already reviewed this employee
+                    existing = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=user,
+                        revieweeEmployeeID=reviewee_employee
+                    ).exists()
+                    if existing:
+                        return {'success': False, 'error': 'You have already reviewed this employee'}
+                except JobEmployeeAssignment.DoesNotExist:
+                    return {'success': False, 'error': 'Employee assignment not found'}
+                    
+            elif review_target == 'AGENCY':
+                # Agency job - reviewing the agency itself
+                if not job.assignedAgencyFK:
+                    return {'success': False, 'error': 'No agency assigned to this job'}
+                reviewee_agency = job.assignedAgencyFK
+                # Check if already reviewed this agency
+                existing = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeAgencyID=reviewee_agency
+                ).exists()
+                if existing:
+                    return {'success': False, 'error': 'You have already reviewed this agency'}
+                    
+            elif review_target == 'TEAM_WORKER' and worker_assignment_id:
+                # Team job - reviewing a specific worker
+                try:
+                    assignment = JobWorkerAssignment.objects.select_related('workerID', 'workerID__profileID', 'workerID__profileID__accountFK').get(
+                        assignmentID=worker_assignment_id,
+                        jobID=job
+                    )
+                    reviewee = assignment.workerID.profileID.accountFK
+                    reviewee_profile = assignment.workerID.profileID
+                    # Check if already reviewed this worker
+                    existing = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=user,
+                        revieweeID=reviewee
+                    ).exists()
+                    if existing:
+                        return {'success': False, 'error': 'You have already reviewed this worker'}
+                except JobWorkerAssignment.DoesNotExist:
+                    return {'success': False, 'error': 'Worker assignment not found'}
+                    
+            elif job.assignedAgencyFK:
+                # Legacy: Agency job without specific target - return error with guidance
+                return {
+                    'success': False, 
+                    'error': 'This is an agency job. Please specify review_target (EMPLOYEE or AGENCY) and employee_id if reviewing an employee.'
+                }
+            elif job.is_team_job:
+                # Team job without specific target - return error with guidance
+                return {
+                    'success': False,
+                    'error': 'This is a team job. Please specify review_target=TEAM_WORKER and worker_assignment_id.'
+                }
+            else:
+                # Regular job - reviewing the assigned worker
+                if not job.assignedWorkerID:
+                    return {'success': False, 'error': 'No worker assigned to this job'}
+                reviewee = job.assignedWorkerID.profileID.accountFK
+                reviewee_profile = job.assignedWorkerID.profileID
+                # Check if already reviewed
+                existing = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeID=reviewee
+                ).exists()
+                if existing:
+                    return {'success': False, 'error': 'You have already reviewed this job'}
+                    
         elif review_type == 'WORKER_TO_CLIENT':
-            # Worker reviewing client
+            # Worker reviewing client (same for all job types)
             reviewer_type = 'WORKER'
-            if not job.assignedWorkerID or job.assignedWorkerID.profileID.accountFK.accountID != user.accountID:
-                return {'success': False, 'error': 'You are not the worker for this job'}
+            
+            # Verify this user is a worker on this job
+            is_worker = False
+            if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK.accountID == user.accountID:
+                is_worker = True
+            elif job.is_team_job:
+                # Check team job assignments
+                is_worker = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    workerID__profileID__accountFK=user,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).exists()
+            elif job.assignedAgencyFK:
+                # Check agency employee assignments
+                is_worker = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    employee__accountFK=user,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).exists()
+            
+            if not is_worker:
+                return {'success': False, 'error': 'You are not a worker for this job'}
+            
             if not job.clientID:
                 return {'success': False, 'error': 'No client for this job'}
             reviewee = job.clientID.profileID.accountFK
-            reviewee_profile = job.clientID.profileID  # Client's profile
+            reviewee_profile = job.clientID.profileID
+            
+            # Check if already reviewed
+            existing = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=user,
+                revieweeID=reviewee
+            ).exists()
+            if existing:
+                return {'success': False, 'error': 'You have already reviewed the client'}
         else:
             return {'success': False, 'error': 'Invalid review type'}
-
-        # Check if review already exists
-        existing_review = JobReview.objects.filter(
-            jobID=job,
-            reviewerID=user
-        ).first()
-
-        if existing_review:
-            return {'success': False, 'error': 'You have already reviewed this job'}
 
         # Validate all criteria ratings are between 1-5
         for rating_name, rating_value in [

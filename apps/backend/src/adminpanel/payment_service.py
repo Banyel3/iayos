@@ -1232,7 +1232,7 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
                     'phone': job.assignedWorkerID.profileID.contactNum if job.assignedWorkerID else 'N/A'
                 } if worker else None,
                 'agency': {
-                    'id': agency.agencyID,
+                    'id': agency.agencyId,
                     'name': agency.agencyName,
                     'email': agency.ownerFK.email if agency.ownerFK else 'N/A'
                 } if agency else None,

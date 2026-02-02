@@ -4281,7 +4281,13 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
 def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema):
     """
     Submit a review after job completion
-    Supports both client-to-worker and worker-to-client reviews
+    
+    Supports:
+    - Regular jobs: client-to-worker and worker-to-client reviews
+    - Agency jobs: Client reviews individual employees (review_target='EMPLOYEE', employee_id=X)
+                   and the agency itself (review_target='AGENCY')
+    - Team jobs: Client reviews individual workers (review_target='TEAM_WORKER', worker_assignment_id=X)
+    
     Includes category ratings (quality, communication, punctuality, professionalism)
     """
     from .mobile_services import submit_review_mobile
@@ -4296,7 +4302,10 @@ def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema
             rating_punctuality=payload.rating_punctuality,
             rating_professionalism=payload.rating_professionalism,
             comment=payload.comment,
-            review_type=payload.review_type
+            review_type=payload.review_type,
+            review_target=payload.review_target,
+            employee_id=payload.employee_id,
+            worker_assignment_id=payload.worker_assignment_id
         )
 
         if result['success']:
@@ -4314,6 +4323,159 @@ def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema
             {"error": "Failed to submit review"},
             status=500
         )
+
+
+@mobile_router.get("/reviews/pending/{job_id}", auth=jwt_auth)
+def mobile_get_pending_reviews(request, job_id: int):
+    """
+    Get pending reviews needed for a job.
+    
+    For agency jobs: Returns list of employees not yet reviewed + agency review status
+    For team jobs: Returns list of workers not yet reviewed
+    For regular jobs: Returns whether worker/client review is pending
+    
+    Used by mobile app to show review UI with correct targets.
+    """
+    from .models import Job, JobReview, JobEmployeeAssignment, JobWorkerAssignment
+    
+    try:
+        user = request.auth
+        
+        try:
+            job = Job.objects.select_related('clientID', 'assignedWorkerID', 'assignedAgencyFK').get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Determine user role
+        is_client = job.clientID and job.clientID.profileID.accountFK.accountID == user.accountID
+        is_worker = False
+        
+        if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK.accountID == user.accountID:
+            is_worker = True
+        elif job.is_team_job:
+            is_worker = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID__accountFK=user,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        elif job.assignedAgencyFK:
+            is_worker = JobEmployeeAssignment.objects.filter(
+                job=job,
+                employee__accountFK=user,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            ).exists()
+        
+        if not is_client and not is_worker:
+            return Response({"error": "You are not part of this job"}, status=403)
+        
+        result = {
+            'job_id': job_id,
+            'job_type': 'team' if job.is_team_job else ('agency' if job.assignedAgencyFK else 'regular'),
+            'is_client': is_client,
+            'is_worker': is_worker,
+            'pending_reviews': []
+        }
+        
+        if is_client:
+            # Client needs to review workers/employees/agency
+            if job.assignedAgencyFK:
+                # Agency job - get pending employee reviews and agency review
+                assigned_employees = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).select_related('employee', 'employee__accountFK')
+                
+                reviewed_employee_ids = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeEmployeeID__isnull=False
+                ).values_list('revieweeEmployeeID', flat=True))
+                
+                for assignment in assigned_employees:
+                    if assignment.employee.employeeID not in reviewed_employee_ids:
+                        result['pending_reviews'].append({
+                            'type': 'EMPLOYEE',
+                            'employee_id': assignment.assignmentID,  # Use assignment ID
+                            'employee_name': assignment.employee.name,
+                            'employee_account_id': assignment.employee.accountFK.accountID if assignment.employee.accountFK else None
+                        })
+                
+                # Check if agency review is pending
+                agency_reviewed = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeAgencyID__isnull=False
+                ).exists()
+                
+                if not agency_reviewed:
+                    result['pending_reviews'].append({
+                        'type': 'AGENCY',
+                        'agency_id': job.assignedAgencyFK.agencyId,
+                        'agency_name': job.assignedAgencyFK.businessName
+                    })
+                    
+            elif job.is_team_job:
+                # Team job - get pending worker reviews
+                assigned_workers = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID', 'workerID__profileID', 'workerID__profileID__accountFK')
+                
+                reviewed_worker_ids = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeID__isnull=False
+                ).values_list('revieweeID', flat=True))
+                
+                for assignment in assigned_workers:
+                    worker_account_id = assignment.workerID.profileID.accountFK.accountID
+                    if worker_account_id not in reviewed_worker_ids:
+                        result['pending_reviews'].append({
+                            'type': 'TEAM_WORKER',
+                            'worker_assignment_id': assignment.assignmentID,
+                            'worker_name': f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip(),
+                            'worker_account_id': worker_account_id
+                        })
+            else:
+                # Regular job - check if worker review pending
+                if job.assignedWorkerID:
+                    worker_reviewed = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=user,
+                        revieweeID=job.assignedWorkerID.profileID.accountFK
+                    ).exists()
+                    
+                    if not worker_reviewed:
+                        result['pending_reviews'].append({
+                            'type': 'WORKER',
+                            'worker_id': job.assignedWorkerID.workerProfileID,
+                            'worker_name': f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip(),
+                            'worker_account_id': job.assignedWorkerID.profileID.accountFK.accountID
+                        })
+        else:
+            # Worker needs to review client
+            client_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=user,
+                revieweeID=job.clientID.profileID.accountFK
+            ).exists()
+            
+            if not client_reviewed:
+                result['pending_reviews'].append({
+                    'type': 'CLIENT',
+                    'client_id': job.clientID.clientProfileID,
+                    'client_name': f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip(),
+                    'client_account_id': job.clientID.profileID.accountFK.accountID
+                })
+        
+        result['all_reviews_complete'] = len(result['pending_reviews']) == 0
+        return result
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Get pending reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to get pending reviews"}, status=500)
 
 
 @mobile_router.get("/reviews/worker/{worker_id}", auth=jwt_auth)

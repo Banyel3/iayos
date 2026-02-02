@@ -1154,7 +1154,8 @@ export default function ChatScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {conversation.other_participant?.name ||
-              (conversation.is_team_job ? conversation.job?.title : "Unknown")}
+              conversation.job?.title ||
+              "Chat"}
           </Text>
           {/* Show assigned workers for agency jobs (client view) - Multi-employee support */}
           {conversation.is_agency_job &&
