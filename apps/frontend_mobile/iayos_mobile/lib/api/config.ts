@@ -234,9 +234,14 @@ export const VERIFY_OTP_ENDPOINT = `${API_URL}/api/accounts/verify-otp`;
 export const RESEND_OTP_ENDPOINT = `${API_URL}/api/accounts/resend-otp`;
 
 export const API_BASE_URL = `${API_URL}/api`;
-export const WS_BASE_URL = __DEV__
-  ? `ws://${DEV_IP}:8001`
-  : "wss://ws.iayos.com";
+
+// WebSocket URL - Use production WebSocket if API is pointing to production
+// This allows testing production chat in Expo Go while still in __DEV__ mode
+const isUsingProductionAPI = API_URL.includes("iayos.online") || API_URL.includes("iayos.com");
+export const WS_BASE_URL = process.env.EXPO_PUBLIC_WS_URL 
+  || (isUsingProductionAPI ? "wss://api.iayos.online" : (__DEV__ ? `ws://${DEV_IP}:8001` : "wss://api.iayos.online"));
+
+console.log(`[API Config] WS_BASE_URL = ${WS_BASE_URL}`);
 
 /**
  * Convert relative media URLs to absolute URLs for React Native Image component.
