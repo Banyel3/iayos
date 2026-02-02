@@ -2934,9 +2934,9 @@ def submit_review_mobile(
     rating_professionalism: int, 
     comment: str, 
     review_type: str,
-    review_target: str = None,
-    employee_id: int = None,
-    worker_assignment_id: int = None
+    review_target: Optional[str] = None,
+    employee_id: Optional[int] = None,
+    worker_assignment_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Submit a review for a completed job with multi-criteria ratings.
@@ -2952,6 +2952,7 @@ def submit_review_mobile(
         worker_assignment_id: JobWorkerAssignment ID for team job worker reviews
     """
     from agency.models import AgencyEmployee
+    from .models import JobEmployeeAssignment
     
     try:
         # Validate job exists and is completed

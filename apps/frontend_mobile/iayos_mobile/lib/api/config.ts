@@ -147,7 +147,9 @@ export const debugNetworkDiagnostics = async (
       `[Network][DEBUG] (${label}) Health check failed after ${elapsedMs}ms`,
     );
     console.error(`[Network][DEBUG] (${label}) Error name: ${error?.name}`);
-    console.error(`[Network][DEBUG] (${label}) Error message: ${error?.message}`);
+    console.error(
+      `[Network][DEBUG] (${label}) Error message: ${error?.message}`,
+    );
   }
 };
 
@@ -191,7 +193,9 @@ export const preflightBackendReachability = async (
         `[Network][DEBUG] (${label}) Health check failed after ${elapsedMs}ms`,
       );
       console.error(`[Network][DEBUG] (${label}) Error name: ${error?.name}`);
-      console.error(`[Network][DEBUG] (${label}) Error message: ${error?.message}`);
+      console.error(
+        `[Network][DEBUG] (${label}) Error message: ${error?.message}`,
+      );
     }
     if (!failOpen) {
       throw new Error(
@@ -368,10 +372,6 @@ export const ENDPOINTS = {
   WORKER_PROFILE: `${API_URL}/api/mobile/auth/profile`,
   UPDATE_PROFILE_MOBILE: `${API_URL}/api/mobile/profile/update`,
   UPDATE_WORKER_PROFILE: `${API_BASE_URL}/accounts/worker/profile`,
-  APPLICATION_DETAIL: (id: number) =>
-    `${API_URL}/api/mobile/applications/${id}`,
-  WITHDRAW_APPLICATION: (id: number) =>
-    `${API_URL}/api/mobile/applications/${id}/withdraw`,
 
   // Phase 5: Photo Upload (Avatar & Portfolio)
   UPLOAD_AVATAR: `${API_URL}/api/mobile/profile/upload-image`,
