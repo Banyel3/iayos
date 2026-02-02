@@ -6032,4 +6032,165 @@ def get_job_receipt(request, job_id: int):
         traceback.print_exc()
         return Response({"error": f"Failed to generate receipt: {str(e)}"}, status=500)
 
+
+@router.get("/{job_id}/payment-timeline", auth=dual_auth)
+def get_job_payment_timeline(request, job_id: int):
+    """
+    Get the payment timeline for a job, showing all payment-related events.
+    Useful for tracking payment progress from job creation to final release.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from jobs.payment_buffer_service import get_payment_buffer_days
+    
+    try:
+        # Get the job
+        job = Job.objects.select_related(
+            'clientID__profileID__accountFK',
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK__accountFK'
+        ).get(jobID=job_id)
+        
+        # Verify user is client or assigned worker/agency for this job
+        user = request.auth
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == user
+        )
+        is_agency = (
+            job.assignedAgencyFK and 
+            job.assignedAgencyFK.accountFK == user
+        )
+        
+        if not (is_client or is_worker or is_agency):
+            return Response({"error": "You don't have access to this job's payment timeline"}, status=403)
+        
+        # Build timeline events
+        timeline = []
+        now = timezone.now()
+        
+        # 1. Job Created
+        timeline.append({
+            "event": "JOB_CREATED",
+            "title": "Job Posted",
+            "description": f"Job '{job.title}' was posted",
+            "date": job.createdAt.isoformat() if job.createdAt else None,
+            "status": "completed",
+            "amount": float(job.budget) if job.budget else 0
+        })
+        
+        # 2. Escrow Payment
+        if job.escrowPaid:
+            timeline.append({
+                "event": "ESCROW_PAID",
+                "title": "Escrow Deposited",
+                "description": "50% downpayment deposited in escrow",
+                "date": job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
+                "status": "completed",
+                "amount": float(job.escrowAmount) if job.escrowAmount else 0
+            })
+        else:
+            timeline.append({
+                "event": "ESCROW_PENDING",
+                "title": "Escrow Pending",
+                "description": "Awaiting 50% downpayment",
+                "date": None,
+                "status": "pending" if job.status in ['ACTIVE', 'IN_PROGRESS'] else "skipped",
+                "amount": float(job.budget) * 0.5 if job.budget else 0
+            })
+        
+        # 3. Work Started
+        if job.clientConfirmedWorkStarted:
+            timeline.append({
+                "event": "WORK_STARTED",
+                "title": "Work Started",
+                "description": "Client confirmed work has started",
+                "date": job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+                "status": "completed"
+            })
+        
+        # 4. Job Completion
+        if job.workerMarkedComplete:
+            timeline.append({
+                "event": "WORKER_COMPLETED",
+                "title": "Worker Marked Complete",
+                "description": "Worker marked the job as complete",
+                "date": job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
+                "status": "completed"
+            })
+        
+        if job.clientMarkedComplete:
+            timeline.append({
+                "event": "CLIENT_APPROVED",
+                "title": "Client Approved",
+                "description": "Client approved the completed work",
+                "date": job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
+                "status": "completed"
+            })
+        
+        # 5. Final Payment
+        if job.remainingPaymentPaid:
+            timeline.append({
+                "event": "FINAL_PAYMENT",
+                "title": "Final Payment Made",
+                "description": f"Remaining 50% paid via {job.finalPaymentMethod or 'wallet'}",
+                "date": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                "status": "completed",
+                "amount": float(job.remainingPayment) if job.remainingPayment else 0
+            })
+        elif job.status == 'COMPLETED':
+            timeline.append({
+                "event": "FINAL_PAYMENT_PENDING",
+                "title": "Final Payment Pending",
+                "description": "Awaiting final 50% payment",
+                "date": None,
+                "status": "pending",
+                "amount": float(job.remainingPayment) if job.remainingPayment else (float(job.budget) * 0.5 if job.budget else 0)
+            })
+        
+        # 6. Buffer Period
+        buffer_days = get_payment_buffer_days()
+        buffer_start = job.clientMarkedCompleteAt or job.completedAt
+        
+        if buffer_start:
+            buffer_end = buffer_start + timedelta(days=buffer_days)
+            remaining_days = max(0, (buffer_end - now).days)
+            
+            if job.paymentReleasedToWorker:
+                timeline.append({
+                    "event": "PAYMENT_RELEASED",
+                    "title": "Payment Released",
+                    "description": "Earnings released to worker's wallet",
+                    "date": job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                    "status": "completed",
+                    "amount": float(job.budget) if job.budget else 0
+                })
+            else:
+                timeline.append({
+                    "event": "BUFFER_PERIOD",
+                    "title": f"Buffer Period ({remaining_days} days remaining)",
+                    "description": f"Payment will be released on {buffer_end.strftime('%b %d, %Y')}",
+                    "date": buffer_end.isoformat(),
+                    "status": "in_progress" if remaining_days > 0 else "pending",
+                    "remaining_days": remaining_days
+                })
+        
+        return {
+            "success": True,
+            "job_id": job.jobID,
+            "job_title": job.title,
+            "job_status": job.status,
+            "total_budget": float(job.budget) if job.budget else 0,
+            "timeline": timeline
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error generating payment timeline for job {job_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to generate payment timeline: {str(e)}"}, status=500)
+
 #endregion
