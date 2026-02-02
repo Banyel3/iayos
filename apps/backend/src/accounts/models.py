@@ -1916,6 +1916,44 @@ class JobApplication(models.Model):
         return f"Application by {self.workerID.profileID.firstName} for {self.jobID.title}"
 
 
+class SavedJob(models.Model):
+    """
+    Jobs saved by workers for later viewing
+    """
+    savedJobID = models.BigAutoField(primary_key=True)
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='saved_by_workers'
+    )
+    workerID = models.ForeignKey(
+        'WorkerProfile',
+        on_delete=models.CASCADE,
+        related_name='saved_jobs'
+    )
+    
+    # Timestamps
+    savedAt = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'saved_jobs'
+        ordering = ['-savedAt']
+        indexes = [
+            models.Index(fields=['workerID', '-savedAt']),
+            models.Index(fields=['jobID']),
+        ]
+        # Prevent duplicate saves
+        constraints = [
+            models.UniqueConstraint(
+                fields=['jobID', 'workerID'],
+                name='unique_saved_job'
+            )
+        ]
+    
+    def __str__(self):
+        return f"Saved: {self.jobID.title} by {self.workerID.profileID.firstName}"
+
+
 class JobDispute(models.Model):
     """
     Disputes related to jobs between clients and workers

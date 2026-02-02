@@ -2545,6 +2545,271 @@ def mobile_job_search(request, query: str, page: int = 1, limit: int = 20):
         )
 
 
+#region SAVED JOBS ENDPOINTS
+
+@mobile_router.post("/jobs/{job_id}/save", auth=dual_auth)
+def mobile_save_job(request, job_id: int):
+    """
+    Save a job for later viewing
+    Only workers can save jobs
+    """
+    from .models import Profile, WorkerProfile, Job, SavedJob
+    
+    try:
+        print(f"💾 [MOBILE] Worker {request.auth.email} saving job {job_id}")
+        
+        # Get user's profile using profile_type from JWT if available
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Fallback - assume WORKER for this endpoint
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+            
+        if not profile or profile.profileType != 'WORKER':
+            return Response(
+                {"error": "Only workers can save jobs"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get the job
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Check if already saved
+        existing_save = SavedJob.objects.filter(
+            jobID=job,
+            workerID=worker_profile
+        ).first()
+        
+        if existing_save:
+            return {
+                "success": True,
+                "message": "Job already saved",
+                "saved_job_id": existing_save.savedJobID
+            }
+        
+        # Create saved job record
+        saved_job = SavedJob.objects.create(
+            jobID=job,
+            workerID=worker_profile
+        )
+        
+        print(f"✅ [MOBILE] Job {job_id} saved successfully (ID: {saved_job.savedJobID})")
+        
+        return {
+            "success": True,
+            "message": "Job saved successfully",
+            "saved_job_id": saved_job.savedJobID
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error saving job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to save job: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.delete("/jobs/{job_id}/save", auth=dual_auth)
+def mobile_unsave_job(request, job_id: int):
+    """
+    Unsave a previously saved job
+    Only workers can unsave jobs
+    """
+    from .models import Profile, WorkerProfile, Job, SavedJob
+    
+    try:
+        print(f"🗑️ [MOBILE] Worker {request.auth.email} unsaving job {job_id}")
+        
+        # Get user's profile using profile_type from JWT if available
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Fallback - assume WORKER for this endpoint
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+            
+        if not profile or profile.profileType != 'WORKER':
+            return Response(
+                {"error": "Only workers can unsave jobs"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get and delete the saved job record
+        deleted_count, _ = SavedJob.objects.filter(
+            jobID_id=job_id,
+            workerID=worker_profile
+        ).delete()
+        
+        if deleted_count == 0:
+            return Response(
+                {"error": "Saved job not found"},
+                status=404
+            )
+        
+        print(f"✅ [MOBILE] Job {job_id} unsaved successfully")
+        
+        return {
+            "success": True,
+            "message": "Job unsaved successfully"
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error unsaving job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to unsave job: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.get("/jobs/saved", auth=dual_auth)
+def mobile_get_saved_jobs(request, page: int = 1, limit: int = 20):
+    """
+    Get all saved jobs for the current worker
+    Returns paginated list with job details
+    """
+    from .models import Profile, WorkerProfile, SavedJob
+    
+    try:
+        print(f"📋 [MOBILE] Fetching saved jobs for {request.auth.email}")
+        
+        # Get user's profile using profile_type from JWT if available
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Fallback - assume WORKER for this endpoint
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+            
+        if not profile or profile.profileType != 'WORKER':
+            return Response(
+                {"error": "Only workers can view saved jobs"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get saved jobs with pagination
+        saved_jobs = SavedJob.objects.filter(
+            workerID=worker_profile
+        ).select_related(
+            'jobID',
+            'jobID__clientID__profileID',
+            'jobID__categoryID'
+        ).order_by('-savedAt')
+        
+        # Paginate
+        total = saved_jobs.count()
+        start = (page - 1) * limit
+        end = start + limit
+        saved_jobs_page = saved_jobs[start:end]
+        
+        # Format the response
+        jobs_data = []
+        for saved in saved_jobs_page:
+            job = saved.jobID
+            client_profile = job.clientID.profileID
+            
+            jobs_data.append({
+                "job_id": job.jobID,
+                "title": job.title,
+                "description": job.description,
+                "budget": float(job.budget),
+                "location": job.location,
+                "urgency_level": job.urgencyLevel,
+                "created_at": job.createdAt.isoformat(),
+                "category_name": job.categoryID.name if job.categoryID else "General",
+                "category_id": job.categoryID.specializationID if job.categoryID else None,
+                "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
+                "client_avatar": getattr(client_profile, 'profileImage', None),
+                "expected_duration": job.expectedDuration or "Not specified",
+                "job_status": job.status,
+                "saved_at": saved.savedAt.isoformat(),
+                "is_applied": hasattr(worker_profile, 'job_applications') and 
+                              worker_profile.job_applications.filter(jobID=job).exists(),
+                # Team job fields
+                "is_team_job": job.is_team_job,
+                "total_workers_needed": job.total_workers_needed,
+                "total_workers_assigned": job.total_workers_assigned,
+                "team_fill_percentage": job.team_fill_percentage,
+            })
+        
+        print(f"✅ [MOBILE] Found {len(jobs_data)} saved jobs (total: {total})")
+        
+        return {
+            "success": True,
+            "jobs": jobs_data,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "has_next": end < total
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error fetching saved jobs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch saved jobs: {str(e)}"},
+            status=500
+        )
+
+
+#endregion
+
 #endregion
 
 #region MOBILE DASHBOARD ENDPOINTS
