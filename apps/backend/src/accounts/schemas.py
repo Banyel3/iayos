@@ -216,6 +216,10 @@ class SubmitReviewMobileSchema(Schema):
     rating_professionalism: int  # Professionalism
     comment: str
     review_type: str  # 'CLIENT_TO_WORKER' | 'WORKER_TO_CLIENT'
+    # Agency job review fields (optional - for agency/multi-employee jobs)
+    review_target: Optional[str] = None  # 'EMPLOYEE' | 'AGENCY' | 'TEAM_WORKER' | None (regular job)
+    employee_id: Optional[int] = None  # For agency employee reviews (JobEmployeeAssignment)
+    worker_assignment_id: Optional[int] = None  # For team job worker reviews (JobWorkerAssignment)
 
 class SendMessageMobileSchema(Schema):
     """Schema for sending chat message"""
