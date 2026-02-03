@@ -1,4 +1,4 @@
-name: "Deploy Backend to Render"
+name: "Deploy Backend to DigitalOcean"
 
 on:
   push:
@@ -23,9 +23,13 @@ on:
 permissions:
   contents: read
 
+env:
+  REGISTRY: registry.digitalocean.com/iayos-registry
+  IMAGE_NAME: iayos-backend
+
 jobs:
-  deploy:
-    name: Deploy to Render
+  build-and-deploy:
+    name: Build and Deploy to DigitalOcean
     runs-on: ubuntu-latest
     environment: production
 
@@ -39,47 +43,129 @@ jobs:
           echo "Files changed in backend:"
           git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^apps/backend/" || echo "No backend changes"
 
-      - name: Trigger Render deployment
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" ]; then
+            echo "❌ Error: DIGITALOCEAN_ACCESS_TOKEN secret not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DO_APP_ID }}" ]; then
+            echo "❌ Error: DO_APP_ID secret not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
+
+      - name: Login to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: backend-production
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Deploy to DigitalOcean App Platform
         env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          DO_APP_ID: ${{ secrets.DO_APP_ID }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
-            echo "❌ Error: RENDER_DEPLOY_HOOK secret not set"
-            echo "Please add your Render deploy hook URL to GitHub Secrets"
-            exit 1
-          fi
-
-          echo "🚀 Triggering Render deployment..."
-
-          response=$(curl -s -w "\n%{http_code}" -X POST "$RENDER_DEPLOY_HOOK")
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
-
-          echo "Response: $body"
-          echo "HTTP Status: $http_code"
-
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            echo "✅ Deployment triggered successfully!"
-            echo "🔗 Check status at: https://dashboard.render.com"
+          echo "🚀 Creating deployment for app $DO_APP_ID..."
+          
+          # Create deployment and capture output
+          deployment_output=$(doctl apps create-deployment $DO_APP_ID --format ID,Phase --no-header 2>&1)
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Deployment created successfully!"
+            echo "$deployment_output"
+            
+            # Extract deployment ID
+            deployment_id=$(echo "$deployment_output" | awk '{print $1}')
+            echo "DEPLOYMENT_ID=$deployment_id" >> $GITHUB_ENV
+            echo "Deployment ID: $deployment_id"
           else
-            echo "❌ Deployment trigger failed with status $http_code"
+            echo "❌ Failed to create deployment"
+            echo "$deployment_output"
             exit 1
           fi
 
-      - name: Wait for deployment (optional)
+      - name: Wait for deployment to complete
+        env:
+          DO_APP_ID: ${{ secrets.DO_APP_ID }}
         run: |
-          echo "⏳ Deployment initiated. This may take 5-10 minutes."
-          echo "Monitor progress at: https://dashboard.render.com"
+          echo "⏳ Waiting for deployment to complete (timeout: 10 minutes)..."
+          
+          max_attempts=60
+          attempt=0
+          
+          while [ $attempt -lt $max_attempts ]; do
+            # Get deployment status
+            status=$(doctl apps get $DO_APP_ID --format ActiveDeployment.Phase --no-header 2>/dev/null || echo "UNKNOWN")
+            
+            echo "Attempt $((attempt + 1))/$max_attempts: Status = $status"
+            
+            case $status in
+              "ACTIVE")
+                echo "✅ Deployment completed successfully!"
+                exit 0
+                ;;
+              "ERROR"|"FAILED")
+                echo "❌ Deployment failed with status: $status"
+                echo "Check logs: doctl apps logs $DO_APP_ID"
+                exit 1
+                ;;
+              "PENDING_BUILD"|"BUILDING"|"PENDING_DEPLOY"|"DEPLOYING")
+                echo "  Still deploying..."
+                sleep 10
+                ;;
+              *)
+                echo "  Unknown status: $status, waiting..."
+                sleep 10
+                ;;
+            esac
+            
+            attempt=$((attempt + 1))
+          done
+          
+          echo "⚠️ Deployment timeout after 10 minutes. Check DigitalOcean dashboard."
+          exit 1
 
-      - name: Notify deployment started
-        if: success()
+      - name: Verify deployment health
         run: |
-          echo "::notice title=🚀 Deployment Started::Backend deployment to Render initiated successfully. Monitor at https://dashboard.render.com"
+          echo "🏥 Checking application health..."
+          sleep 30  # Wait for app to fully start
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://api.iayos.online/health/status || echo "000")
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Health check passed! API is responding."
+          else
+            echo "⚠️ Health check returned status: $response"
+            echo "  The deployment may still be initializing. Check manually."
+          fi
 
-      - name: Notify deployment failed
-        if: failure()
+      - name: Notify deployment status
+        if: always()
         run: |
-          echo "::error title=❌ Deployment Failed::Backend deployment to Render failed. Check logs for details."
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "::notice title=🚀 Deployment Successful::Backend deployed to DigitalOcean successfully. Live at https://api.iayos.online"
+          else
+            echo "::error title=❌ Deployment Failed::Backend deployment to DigitalOcean failed. Check logs for details."
+          fi
 
       - name: Create deployment summary
         if: always()
@@ -90,41 +176,16 @@ jobs:
           echo "**Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" == "success" ]; then
-            echo "### ✅ Deployment Triggered Successfully" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🔗 [Monitor deployment on Render Dashboard](https://dashboard.render.com)" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 [DigitalOcean Dashboard](https://cloud.digitalocean.com/apps)" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "⏱️ **Estimated time**: 5-10 minutes" >> $GITHUB_STEP_SUMMARY
             echo "🌐 **Live URL**: https://api.iayos.online" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Please check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
           fi
-
-      # Optional: Uncomment to enable Slack notifications
-      # - name: Send Slack notification
-      #   if: always()
-      #   uses: 8398a7/action-slack@v3
-      #   with:
-      #     status: ${{ job.status }}
-      #     text: |
-      #       Backend deployment to Render ${{ job.status }}
-      #       Commit: ${{ github.sha }}
-      #       Author: ${{ github.actor }}
-      #     webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-
-      # Optional: Uncomment to enable Discord notifications
-      # - name: Send Discord notification
-      #   if: always()
-      #   uses: sarisia/actions-status-discord@v1
-      #   with:
-      #     webhook: ${{ secrets.DISCORD_WEBHOOK }}
-      #     status: ${{ job.status }}
-      #     title: "Backend Deployment"
-      #     description: "Deployment to Render ${{ job.status }}"
-      #     url: https://dashboard.render.com
