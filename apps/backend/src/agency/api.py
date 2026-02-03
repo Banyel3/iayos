@@ -1657,7 +1657,7 @@ def get_job_skill_slots_endpoint(request, job_id: int):
             return Response({'success': False, 'error': 'This job is not assigned to your agency'}, status=403)
         
         # Get skill slots with assignments
-        slots = JobSkillSlot.objects.filter(job=job).select_related('specializationID')
+        slots = JobSkillSlot.objects.filter(jobID=job).select_related('specializationID')
         
         result = []
         for slot in slots:
@@ -1691,7 +1691,7 @@ def get_job_skill_slots_endpoint(request, job_id: int):
                 'specialization_id': slot.specializationID.specializationID,
                 'specialization_name': slot.specializationID.specializationName,
                 'workers_needed': slot.workers_needed,
-                'skill_level_required': slot.skill_level,
+                'skill_level_required': slot.skill_level_required,
                 'notes': slot.notes,
                 'status': status,
                 'assigned_count': assigned_count,
