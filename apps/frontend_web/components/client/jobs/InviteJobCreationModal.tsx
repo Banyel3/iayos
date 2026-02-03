@@ -33,6 +33,9 @@ interface JobFormData {
   preferred_start_date: string;
   materials_needed: string[];
   payment_method: "WALLET" | "GCASH";
+  payment_model: "PROJECT" | "DAILY";
+  daily_rate: string;
+  duration_days: string;
 }
 
 interface Category {
@@ -64,6 +67,9 @@ export default function InviteJobCreationModal({
     preferred_start_date: "",
     materials_needed: [],
     payment_method: "WALLET",
+    payment_model: "PROJECT",
+    daily_rate: "",
+    duration_days: "",
   });
 
   const [currentMaterial, setCurrentMaterial] = useState("");
@@ -182,14 +188,34 @@ export default function InviteJobCreationModal({
     }
 
     if (currentStep === 2) {
-      const budget = parseFloat(formData.budget);
-      if (!formData.budget || isNaN(budget) || budget <= 0) {
-        setError("Please enter a valid budget amount");
-        return false;
-      }
-      if (budget < 500) {
-        setError("Minimum budget is ₱500");
-        return false;
+      if (formData.payment_model === "DAILY") {
+        // Daily rate validation
+        const dailyRate = parseFloat(formData.daily_rate);
+        const durationDays = parseInt(formData.duration_days);
+        
+        if (!formData.daily_rate || isNaN(dailyRate) || dailyRate <= 0) {
+          setError("Please enter a valid daily rate");
+          return false;
+        }
+        if (dailyRate < 500) {
+          setError("Minimum daily rate is ₱500");
+          return false;
+        }
+        if (!formData.duration_days || isNaN(durationDays) || durationDays < 1) {
+          setError("Please enter the number of work days (at least 1)");
+          return false;
+        }
+      } else {
+        // Project-based validation
+        const budget = parseFloat(formData.budget);
+        if (!formData.budget || isNaN(budget) || budget <= 0) {
+          setError("Please enter a valid budget amount");
+          return false;
+        }
+        if (budget < 500) {
+          setError("Minimum budget is ₱500");
+          return false;
+        }
       }
       if (!formData.expected_duration.trim()) {
         setError("Expected duration is required");
@@ -198,12 +224,25 @@ export default function InviteJobCreationModal({
     }
 
     if (currentStep === 4) {
-      const budget = parseFloat(formData.budget);
-      const downpayment = budget * 0.5;
+      let totalRequired: number;
+      
+      if (formData.payment_model === "DAILY") {
+        // Daily: 100% upfront escrow + 10% platform fee
+        const dailyRate = parseFloat(formData.daily_rate) || 0;
+        const durationDays = parseInt(formData.duration_days) || 0;
+        const escrow = dailyRate * durationDays;
+        const platformFee = escrow * 0.1;
+        totalRequired = escrow + platformFee;
+      } else {
+        // Project: 50% downpayment + 5% platform fee on downpayment
+        const budget = parseFloat(formData.budget);
+        const downpayment = budget * 0.5;
+        totalRequired = downpayment * 1.05; // 5% fee on downpayment
+      }
 
-      if (formData.payment_method === "WALLET" && walletBalance < downpayment) {
+      if (formData.payment_method === "WALLET" && walletBalance < totalRequired) {
         setError(
-          `Insufficient wallet balance. You need ₱${downpayment.toFixed(2)} but only have ₱${walletBalance.toFixed(2)}`
+          `Insufficient wallet balance. You need ₱${totalRequired.toFixed(2)} but only have ₱${walletBalance.toFixed(2)}`
         );
         return false;
       }
@@ -230,11 +269,16 @@ export default function InviteJobCreationModal({
     setError(null);
 
     try {
+      // Calculate budget based on payment model
+      const calculatedBudget = formData.payment_model === "DAILY"
+        ? parseFloat(formData.daily_rate) * parseInt(formData.duration_days)
+        : parseFloat(formData.budget);
+
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         category_id: formData.category_id,
-        budget: parseFloat(formData.budget),
+        budget: calculatedBudget,
         location: formData.location.trim(),
         expected_duration: formData.expected_duration.trim(),
         urgency: formData.urgency,
@@ -242,6 +286,9 @@ export default function InviteJobCreationModal({
         materials_needed: formData.materials_needed,
         agency_id: agency.agencyId,
         payment_method: formData.payment_method,
+        payment_model: formData.payment_model,
+        daily_rate: formData.payment_model === "DAILY" ? parseFloat(formData.daily_rate) : null,
+        duration_days: formData.payment_model === "DAILY" ? parseInt(formData.duration_days) : null,
       };
 
       const response = await fetch(`/api/jobs/create-invite`, {
@@ -307,6 +354,9 @@ export default function InviteJobCreationModal({
       preferred_start_date: "",
       materials_needed: [],
       payment_method: "WALLET",
+      payment_model: "PROJECT",
+      daily_rate: "",
+      duration_days: "",
     });
     setCurrentMaterial("");
     setError(null);
@@ -471,65 +521,189 @@ export default function InviteJobCreationModal({
           {/* Step 2: Budget & Timeline */}
           {step === 2 && (
             <div className="space-y-4">
+              {/* Payment Model Toggle */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Total Budget (₱) *
+                  Payment Model *
                 </label>
-                <input
-                  type="number"
-                  value={formData.budget}
-                  onChange={(e) => updateFormData("budget", e.target.value)}
-                  placeholder="e.g., 50000"
-                  min="500"
-                  step="100"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {budget > 0 && (
-                  <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-gray-700 font-medium mb-2">
-                      Payment Breakdown:
-                    </p>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <p>
-                        • Worker receives:{" "}
-                        <span className="font-semibold text-gray-900">
-                          ₱{budget.toFixed(2)}
-                        </span>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => updateFormData("payment_model", "PROJECT")}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${
+                      formData.payment_model === "PROJECT"
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-semibold">📋 Project-Based</div>
+                    <div className="text-xs mt-1">Fixed budget, 50% upfront</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateFormData("payment_model", "DAILY")}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${
+                      formData.payment_model === "DAILY"
+                        ? "border-green-500 bg-green-50 text-green-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-semibold">📅 Daily Rate</div>
+                    <div className="text-xs mt-1">Pay per day worked</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Project-Based Budget Input */}
+              {formData.payment_model === "PROJECT" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Budget (₱) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.budget}
+                    onChange={(e) => updateFormData("budget", e.target.value)}
+                    placeholder="e.g., 50000"
+                    min="500"
+                    step="100"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {budget > 0 && (
+                    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-sm text-gray-700 font-medium mb-2">
+                        Payment Breakdown:
                       </p>
-                      <p>
-                        • 50% Downpayment (Escrow):{" "}
-                        <span className="font-semibold">
-                          ₱{downpayment.toFixed(2)}
-                        </span>
-                      </p>
-                      <p className="text-xs">
-                        • Platform fee (10% of downpayment):{" "}
-                        <span className="font-semibold">
-                          ₱{(downpayment * 0.1).toFixed(2)}
-                        </span>
-                      </p>
-                      <p className="border-t border-blue-200 pt-1 font-semibold text-blue-600">
-                        • You pay now (downpayment + fee):{" "}
-                        <span className="font-bold">
-                          ₱{(downpayment + downpayment * 0.1).toFixed(2)}
-                        </span>
-                      </p>
-                      <p>
-                        • Remaining (Upon Completion):{" "}
-                        <span className="font-semibold">
-                          ₱{remaining.toFixed(2)}
-                        </span>
-                      </p>
-                      <p className="border-t border-blue-200 pt-1 font-semibold text-gray-900">
-                        • Grand Total:{" "}
-                        <span className="font-bold">
-                          ₱{(budget + downpayment * 0.1).toFixed(2)}
-                        </span>
-                      </p>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p>
+                          • Worker receives:{" "}
+                          <span className="font-semibold text-gray-900">
+                            ₱{budget.toFixed(2)}
+                          </span>
+                        </p>
+                        <p>
+                          • 50% Downpayment (Escrow):{" "}
+                          <span className="font-semibold">
+                            ₱{downpayment.toFixed(2)}
+                          </span>
+                        </p>
+                        <p className="text-xs">
+                          • Platform fee (10% of downpayment):{" "}
+                          <span className="font-semibold">
+                            ₱{(downpayment * 0.1).toFixed(2)}
+                          </span>
+                        </p>
+                        <p className="border-t border-blue-200 pt-1 font-semibold text-blue-600">
+                          • You pay now (downpayment + fee):{" "}
+                          <span className="font-bold">
+                            ₱{(downpayment + downpayment * 0.1).toFixed(2)}
+                          </span>
+                        </p>
+                        <p>
+                          • Remaining (Upon Completion):{" "}
+                          <span className="font-semibold">
+                            ₱{remaining.toFixed(2)}
+                          </span>
+                        </p>
+                        <p className="border-t border-blue-200 pt-1 font-semibold text-gray-900">
+                          • Grand Total:{" "}
+                          <span className="font-bold">
+                            ₱{(budget + downpayment * 0.1).toFixed(2)}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Daily Rate Inputs */}
+              {formData.payment_model === "DAILY" && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Daily Rate (₱) *
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.daily_rate}
+                        onChange={(e) => updateFormData("daily_rate", e.target.value)}
+                        placeholder="e.g., 1500"
+                        min="500"
+                        step="100"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Work Days *
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.duration_days}
+                        onChange={(e) => updateFormData("duration_days", e.target.value)}
+                        placeholder="e.g., 5"
+                        min="1"
+                        step="1"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
                     </div>
                   </div>
-                )}
-              </div>
+                  {parseFloat(formData.daily_rate) > 0 && parseInt(formData.duration_days) > 0 && (
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-gray-700 font-medium mb-2">
+                        Daily Rate Payment Breakdown:
+                      </p>
+                      {(() => {
+                        const dailyRate = parseFloat(formData.daily_rate) || 0;
+                        const days = parseInt(formData.duration_days) || 0;
+                        const escrow = dailyRate * days;
+                        const platformFee = escrow * 0.1;
+                        const total = escrow + platformFee;
+                        return (
+                          <div className="space-y-1 text-sm text-gray-600">
+                            <p>
+                              • Daily rate:{" "}
+                              <span className="font-semibold text-gray-900">
+                                ₱{dailyRate.toFixed(2)}/day
+                              </span>
+                            </p>
+                            <p>
+                              • Expected work days:{" "}
+                              <span className="font-semibold">
+                                {days} days
+                              </span>
+                            </p>
+                            <p>
+                              • Total Escrow (100% upfront):{" "}
+                              <span className="font-semibold">
+                                ₱{escrow.toFixed(2)}
+                              </span>
+                            </p>
+                            <p className="text-xs">
+                              • Platform fee (10%):{" "}
+                              <span className="font-semibold">
+                                ₱{platformFee.toFixed(2)}
+                              </span>
+                            </p>
+                            <p className="border-t border-green-200 pt-1 font-semibold text-green-600">
+                              • You pay now:{" "}
+                              <span className="font-bold">
+                                ₱{total.toFixed(2)}
+                              </span>
+                            </p>
+                            <p className="text-xs text-green-700 mt-2">
+                              ℹ️ Payment released daily after attendance confirmed by both parties.
+                              Extensions require mutual approval + additional escrow.
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
