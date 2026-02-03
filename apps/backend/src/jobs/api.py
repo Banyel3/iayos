@@ -6874,7 +6874,7 @@ def cancel_daily_job(request, job_id: int, data: dict):
     return result
 
 
-@router.get("/{job_id}/daily/escrow-estimate", auth=dual_auth)
+@router.get("/daily/escrow-estimate", auth=dual_auth)
 def get_daily_escrow_estimate(request, job_id: int = None, daily_rate: float = None, num_workers: int = 1, num_days: int = None):
     """
     Calculate escrow estimate for a daily job.

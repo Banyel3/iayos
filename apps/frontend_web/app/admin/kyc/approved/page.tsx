@@ -20,9 +20,11 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Brain,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 import { useToast } from "@/components/ui/toast";
+import KYCExtractedDataComparison from "@/components/admin/KYCExtractedDataComparison";
 
 interface ApprovedKYC {
   id: string;
@@ -280,40 +282,82 @@ export default function ApprovedKYCPage() {
 
       console.log(`📄 Found ${kycFiles.length} files for record ${record.id}:`, kycFiles);
 
-      const files: KYCFiles = {
-        frontId: null,
-        backId: null,
-        clearance: null,
-        selfie: null,
-        businessPermit: null,
-        repFront: null,
-        repBack: null,
-        addressProof: null,
-        authLetter: null,
+      // For agency, map fileType to keys; for user, use fileName patterns
+      let frontID, backID, clearance, selfie, addressProof;
+      
+      if (isAgency) {
+        frontID = kycFiles.find((f: any) => f.fileType === "REP_ID_FRONT");
+        backID = kycFiles.find((f: any) => f.fileType === "REP_ID_BACK");
+        clearance = kycFiles.find((f: any) => f.fileType === "BUSINESS_PERMIT");
+        selfie = kycFiles.find((f: any) => f.fileType === "AUTH_LETTER");
+        addressProof = kycFiles.find((f: any) => f.fileType === "ADDRESS_PROOF");
+      } else {
+        // Use fileName.includes() pattern like pending page
+        frontID = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("frontid")
+        );
+        backID = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("backid")
+        );
+        clearance = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("clearance")
+        );
+        selfie = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("selfie")
+        );
+      }
+
+      // Prepare the request body with file URLs from Supabase storage
+      const requestBody = {
+        frontIDLink: frontID?.fileURL || "",
+        backIDLink: backID?.fileURL || "",
+        clearanceLink: clearance?.fileURL || "",
+        selfieLink: selfie?.fileURL || "",
+        addressProofLink: addressProof?.fileURL || "",
       };
 
-      if (isAgency) {
-        // Agency KYC files
-        kycFiles.forEach((file: any) => {
-          if (file.businessPermit) files.businessPermit = file.businessPermit;
-          if (file.representativeFront) files.repFront = file.representativeFront;
-          if (file.representativeBack) files.repBack = file.representativeBack;
-          if (file.addressProof) files.addressProof = file.addressProof;
-          if (file.authorizationLetter) files.authLetter = file.authorizationLetter;
-        });
-      } else {
-        // User KYC files
-        kycFiles.forEach((file: any) => {
-          if (file.frontID) files.frontId = file.frontID;
-          if (file.backID) files.backId = file.backID;
-          if (file.clearance) files.clearance = file.clearance;
-          if (file.selfie) files.selfie = file.selfie;
-        });
+      console.log("📤 Sending file URLs to backend for signed URLs:", requestBody);
+
+      // Call backend API to get signed URLs
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/review`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error("❌ Backend error getting signed URLs:", errorData);
+        throw new Error(`Failed to fetch signed URLs: ${response.statusText}`);
       }
+
+      const signedUrls = await response.json();
+      console.log("✅ Received signed URLs:", signedUrls);
+
+      const files: KYCFiles = {
+        frontId: signedUrls.frontIDLink || null,
+        backId: signedUrls.backIDLink || null,
+        clearance: signedUrls.clearanceLink || null,
+        selfie: signedUrls.selfieLink || null,
+        businessPermit: isAgency ? signedUrls.clearanceLink : null,
+        repFront: isAgency ? signedUrls.frontIDLink : null,
+        repBack: isAgency ? signedUrls.backIDLink : null,
+        addressProof: signedUrls.addressProofLink || null,
+        authLetter: isAgency ? signedUrls.selfieLink : null,
+      };
 
       setKycFilesMap((prev) => ({ ...prev, [record.id]: files }));
     } catch (error) {
       console.error("❌ Error processing KYC files:", error);
+      showToast({
+        type: "error",
+        title: "Failed to Load Documents",
+        message: error instanceof Error ? error.message : "Unable to load KYC documents",
+        duration: 5000,
+      });
     } finally {
       setLoadingFiles((prev) => ({ ...prev, [record.id]: false }));
     }
@@ -630,84 +674,104 @@ export default function ApprovedKYCPage() {
                           <span className="ml-3 text-gray-600">Loading documents...</span>
                         </div>
                       ) : kycFilesMap[record.id] ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          {record.userType === "agency" ? (
-                            // Agency documents
-                            <>
-                              {kycFilesMap[record.id].businessPermit && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].businessPermit!}
-                                  label="Business Permit"
-                                  recordId={record.id}
-                                />
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Left Column: Document Images */}
+                          <div className="space-y-4">
+                            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-blue-600" />
+                              Submitted Documents
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              {record.userType === "agency" ? (
+                                // Agency documents
+                                <>
+                                  {kycFilesMap[record.id].businessPermit && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].businessPermit!}
+                                      label="Business Permit"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].repFront && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].repFront!}
+                                      label="Representative ID (Front)"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].repBack && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].repBack!}
+                                      label="Representative ID (Back)"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].addressProof && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].addressProof!}
+                                      label="Address Proof"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].authLetter && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].authLetter!}
+                                      label="Authorization Letter"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                </>
+                              ) : (
+                                // User documents
+                                <>
+                                  {kycFilesMap[record.id].frontId && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].frontId!}
+                                      label="ID Front"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].backId && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].backId!}
+                                      label="ID Back"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].clearance && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].clearance!}
+                                      label="NBI/Police Clearance"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                  {kycFilesMap[record.id].selfie && (
+                                    <KYCDocumentImage
+                                      url={kycFilesMap[record.id].selfie!}
+                                      label="Selfie"
+                                      recordId={record.id}
+                                    />
+                                  )}
+                                </>
                               )}
-                              {kycFilesMap[record.id].repFront && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].repFront!}
-                                  label="Representative ID (Front)"
-                                  recordId={record.id}
-                                />
+                              {/* Show message if no documents found */}
+                              {Object.values(kycFilesMap[record.id]).every(v => v === null) && (
+                                <div className="col-span-full text-center py-8 text-gray-500">
+                                  <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                                  <p>No documents available for this record</p>
+                                </div>
                               )}
-                              {kycFilesMap[record.id].repBack && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].repBack!}
-                                  label="Representative ID (Back)"
-                                  recordId={record.id}
-                                />
-                              )}
-                              {kycFilesMap[record.id].addressProof && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].addressProof!}
-                                  label="Address Proof"
-                                  recordId={record.id}
-                                />
-                              )}
-                              {kycFilesMap[record.id].authLetter && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].authLetter!}
-                                  label="Authorization Letter"
-                                  recordId={record.id}
-                                />
-                              )}
-                            </>
-                          ) : (
-                            // User documents
-                            <>
-                              {kycFilesMap[record.id].frontId && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].frontId!}
-                                  label="ID Front"
-                                  recordId={record.id}
-                                />
-                              )}
-                              {kycFilesMap[record.id].backId && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].backId!}
-                                  label="ID Back"
-                                  recordId={record.id}
-                                />
-                              )}
-                              {kycFilesMap[record.id].clearance && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].clearance!}
-                                  label="NBI/Police Clearance"
-                                  recordId={record.id}
-                                />
-                              )}
-                              {kycFilesMap[record.id].selfie && (
-                                <KYCDocumentImage
-                                  url={kycFilesMap[record.id].selfie!}
-                                  label="Selfie"
-                                  recordId={record.id}
-                                />
-                              )}
-                            </>
-                          )}
-                          {/* Show message if no documents found */}
-                          {Object.values(kycFilesMap[record.id]).every(v => v === null) && (
-                            <div className="col-span-full text-center py-8 text-gray-500">
-                              <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                              <p>No documents available for this record</p>
+                            </div>
+                          </div>
+                          
+                          {/* Right Column: OCR Extracted Data */}
+                          {record.userType !== "agency" && (
+                            <div className="space-y-4">
+                              <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                                <Brain className="w-5 h-5 text-blue-600" />
+                                OCR Extracted Data
+                              </h4>
+                              <KYCExtractedDataComparison kycId={parseInt(record.kycId)} />
                             </div>
                           )}
                         </div>
