@@ -1463,9 +1463,16 @@ class Job(models.Model):
     )
     
     @property
+    def has_skill_slots(self):
+        """Check if this job has skill slots (unified hiring model).
+        This replaces is_team_job flag as the source of truth."""
+        return self.skill_slots.exists()
+    
+    @property
     def total_workers_needed(self):
-        """Calculate total workers needed across all skill slots for team jobs."""
-        if not self.is_team_job:
+        """Calculate total workers needed across all skill slots.
+        For agency jobs with skill slots, sum workers_needed. Otherwise 1."""
+        if not self.has_skill_slots:
             return 1
         return self.skill_slots.aggregate(
             total=models.Sum('workers_needed')
@@ -1473,8 +1480,8 @@ class Job(models.Model):
     
     @property
     def total_workers_assigned(self):
-        """Count of workers currently assigned to this team job."""
-        if not self.is_team_job:
+        """Count of workers currently assigned to this job."""
+        if not self.has_skill_slots:
             return 1 if self.assignedWorkerID else 0
         return self.worker_assignments.filter(
             assignment_status='ACTIVE'
@@ -1482,7 +1489,7 @@ class Job(models.Model):
     
     @property
     def team_fill_percentage(self):
-        """Percentage of team positions filled."""
+        """Percentage of positions filled."""
         needed = self.total_workers_needed
         if needed == 0:
             return 0
@@ -1490,8 +1497,8 @@ class Job(models.Model):
     
     @property
     def can_start_team_job(self):
-        """Check if team job has enough workers to start."""
-        if not self.is_team_job:
+        """Check if job has enough workers to start."""
+        if not self.has_skill_slots:
             return self.assignedWorkerID is not None
         return self.team_fill_percentage >= float(self.team_job_start_threshold)
     # ============================================================
