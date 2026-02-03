@@ -912,6 +912,9 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
             'clientID__profileID',
             'categoryID',
             'assignedEmployeeID'
+        ).prefetch_related(
+            'skill_slots',
+            'skill_slots__specializationID'
         ).order_by('-createdAt')[offset:offset + limit]
         
         # Format response
@@ -929,6 +932,20 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                     'email': job.assignedEmployeeID.email,
                     'role': job.assignedEmployeeID.role,
                 }
+            
+            # Build skill slots data for team jobs
+            skill_slots_data = []
+            if job.is_team_job:
+                for slot in job.skill_slots.all():
+                    skill_slots_data.append({
+                        'skill_slot_id': slot.skillSlotID,
+                        'specialization_id': slot.specializationID.specializationID,
+                        'specialization_name': slot.specializationID.specializationName,
+                        'workers_needed': slot.workers_needed,
+                        'budget_allocated': float(slot.budget_allocated) if slot.budget_allocated else 0,
+                        'skill_level_required': slot.skill_level_required,
+                        'status': slot.status,
+                    })
             
             jobs_data.append({
                 'jobID': job.jobID,
@@ -948,6 +965,12 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                 'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
                 'assignedEmployee': assigned_employee,
                 'inviteStatus': job.inviteStatus,
+                # Team job fields
+                'is_team_job': job.is_team_job,
+                'total_workers_needed': job.total_workers_needed,
+                'total_workers_assigned': job.total_workers_assigned,
+                'team_fill_percentage': job.team_fill_percentage,
+                'skill_slots': skill_slots_data,
                 'client': {
                     'id': client_profile.accountFK.accountID,
                     'name': f"{client_profile.firstName} {client_profile.lastName}",

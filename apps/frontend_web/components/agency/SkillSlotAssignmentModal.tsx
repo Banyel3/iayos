@@ -55,6 +55,7 @@ interface SkillSlotAssignmentModalProps {
     assignments: SlotAssignment[],
     primaryContactId: number | null
   ) => Promise<void>;
+  isPendingInvite?: boolean; // True if this is part of accepting a pending invite
 }
 
 export default function SkillSlotAssignmentModal({
@@ -64,6 +65,7 @@ export default function SkillSlotAssignmentModal({
   employees,
   skillSlots,
   onAssign,
+  isPendingInvite = false,
 }: SkillSlotAssignmentModalProps) {
   // Track selections per slot: { slotId: Set<employeeId> }
   const [slotSelections, setSlotSelections] = useState<
@@ -335,9 +337,16 @@ export default function SkillSlotAssignmentModal({
             <div>
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <Users className="text-blue-600" size={24} />
-                Assign Team to Skill Slots
+                {isPendingInvite ? "Accept Invite & Assign Team" : "Assign Team to Skill Slots"}
               </h2>
-              <p className="text-sm text-gray-600 mt-1">{job?.title}</p>
+              <p className="text-sm text-gray-600 mt-1">
+                {job?.title}
+                {isPendingInvite && (
+                  <span className="ml-2 text-orange-600 font-medium">
+                    (Fill all slots to accept)
+                  </span>
+                )}
+              </p>
             </div>
             <button
               onClick={onClose}

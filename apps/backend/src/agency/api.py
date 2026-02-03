@@ -1188,7 +1188,7 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
                         balanceAfter=client_wallet.balance,
                         status=Transaction.TransactionStatus.COMPLETED,
                         description=f"Refund for rejected INVITE job: {job.title}",
-                        relatedJobID=job,
+                        relatedJobPosting=job,
                         completedAt=timezone.now(),
                         referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
                     )
