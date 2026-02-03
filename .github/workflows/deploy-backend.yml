@@ -109,8 +109,17 @@ jobs:
           attempt=0
           
           while [ $attempt -lt $max_attempts ]; do
-            # Get deployment status
-            status=$(doctl apps get $DO_APP_ID --format ActiveDeployment.Phase --no-header 2>/dev/null || echo "UNKNOWN")
+            # Get deployment status using list-deployments (more reliable than apps get)
+            if [ -n "$DEPLOYMENT_ID" ]; then
+              # Check specific deployment by ID
+              status=$(doctl apps list-deployments $DO_APP_ID --format ID,Phase --no-header 2>/dev/null | grep "^$DEPLOYMENT_ID" | awk '{print $2}' || echo "UNKNOWN")
+            else
+              # Fallback: get the latest deployment status
+              status=$(doctl apps list-deployments $DO_APP_ID --format Phase --no-header 2>/dev/null | head -1 || echo "UNKNOWN")
+            fi
+            
+            # Trim whitespace
+            status=$(echo "$status" | xargs)
             
             echo "Attempt $((attempt + 1))/$max_attempts: Status = $status"
             
@@ -119,17 +128,21 @@ jobs:
                 echo "✅ Deployment completed successfully!"
                 exit 0
                 ;;
-              "ERROR"|"FAILED")
+              "ERROR"|"FAILED"|"CANCELED")
                 echo "❌ Deployment failed with status: $status"
                 echo "Check logs: doctl apps logs $DO_APP_ID"
                 exit 1
                 ;;
-              "PENDING_BUILD"|"BUILDING"|"PENDING_DEPLOY"|"DEPLOYING")
+              "PENDING_BUILD"|"BUILDING"|"PENDING_DEPLOY"|"DEPLOYING"|"PENDING")
                 echo "  Still deploying..."
                 sleep 10
                 ;;
+              "UNKNOWN"|"")
+                echo "  Could not get status, waiting..."
+                sleep 10
+                ;;
               *)
-                echo "  Unknown status: $status, waiting..."
+                echo "  Status: $status, waiting..."
                 sleep 10
                 ;;
             esac
