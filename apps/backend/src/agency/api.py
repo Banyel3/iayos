@@ -1639,11 +1639,12 @@ def get_job_skill_slots_endpoint(request, job_id: int):
         - Current assignments (employees assigned to this slot)
         - Status (OPEN, PARTIALLY_FILLED, FILLED)
     """
-    from accounts.models import Job, JobSkillSlot, JobEmployeeAssignment
+    from accounts.models import Agency, Job, JobSkillSlot, JobEmployeeAssignment
     
     try:
         # Verify agency account
-        agency = AgencyProfile.objects.filter(accountFK=request.auth).first()
+        account = request.auth
+        agency = Agency.objects.filter(accountFK=account).first()
         if not agency:
             return Response({'success': False, 'error': 'Agency account not found'}, status=400)
         
