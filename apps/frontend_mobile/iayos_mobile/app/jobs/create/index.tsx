@@ -132,8 +132,8 @@ export default function CreateJobScreen() {
     "INDOOR" | "OUTDOOR" | "BOTH"
   >("INDOOR");
 
-  // Multi-employee mode for agencies
-  const [isTeamHire, setIsTeamHire] = useState(false);
+  // Skill slots for agency hiring (unified model - no toggle needed)
+  // When hiring an agency, skill slots are always used (even for 1 worker)
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
   const [newSlotSpecializationId, setNewSlotSpecializationId] = useState<
@@ -193,7 +193,7 @@ export default function CreateJobScreen() {
   } = usePricePrediction();
 
   // Debounce timer ref for price prediction
-  const predictionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
@@ -401,7 +401,7 @@ export default function CreateJobScreen() {
           pathname: "/payments/wallet",
           params: {
             jobId: data.job_posting_id.toString(),
-            budget: budget || String(jobData.budget), // full job budget for breakdown
+            budget: budget || "0", // full job budget for breakdown
             title: title || "Job Request", // Pass title for better UX
           },
         } as any);
@@ -470,12 +470,12 @@ export default function CreateJobScreen() {
       return;
     }
 
-    // Team hire validation for agencies
-    if (agencyId && isTeamHire) {
+    // Skill slot validation for agency jobs (unified model - always require at least 1 slot)
+    if (agencyId) {
       if (skillSlots.length === 0) {
         Alert.alert(
           "Error",
-          "Please add at least one skill slot for team hiring",
+          "Please add at least one worker requirement for this agency job",
         );
         return;
       }
@@ -527,8 +527,8 @@ export default function CreateJobScreen() {
     }
     if (agencyId) {
       (jobData as any).agency_id = parseInt(agencyId);
-      // Add skill slots for team hiring
-      if (isTeamHire && skillSlots.length > 0) {
+      // Always add skill slots for agency jobs (unified hiring model)
+      if (skillSlots.length > 0) {
         jobData.skill_slots = skillSlots;
       }
     }
@@ -663,71 +663,43 @@ export default function CreateJobScreen() {
               </View>
             </View>
 
-            {/* Team Hire Section - Only visible when hiring an agency */}
+            {/* Worker Requirements Section - Only visible when hiring an agency */}
             {agencyId && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>👥 Team Hiring</Text>
+                <Text style={styles.sectionTitle}>👥 Worker Requirements</Text>
+                <Text style={styles.sectionHint}>
+                  Specify the workers you need for this job. You can add multiple skill types.
+                </Text>
 
-                {/* Team Hire Toggle */}
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}>
-                    <Text style={styles.toggleLabel}>
-                      Hire Multiple Workers
-                    </Text>
-                    <Text style={styles.toggleHint}>
-                      Request workers with different skills for this job
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.toggle, isTeamHire && styles.toggleActive]}
-                    onPress={() => {
-                      setIsTeamHire(!isTeamHire);
-                      if (!isTeamHire) {
-                        // Resetting to team hire mode
-                        setSkillSlots([]);
-                      }
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.toggleKnob,
-                        isTeamHire && styles.toggleKnobActive,
-                      ]}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Skill Slots List */}
-                {isTeamHire && (
-                  <View style={styles.skillSlotsContainer}>
-                    {skillSlots.length === 0 ? (
-                      <View style={styles.emptySlots}>
-                        <Ionicons
-                          name="people-outline"
-                          size={32}
-                          color={Colors.textHint}
-                        />
-                        <Text style={styles.emptySlotsText}>
-                          No skill slots added yet. Add workers with different
-                          specializations.
-                        </Text>
-                      </View>
-                    ) : (
-                      <>
-                        <Text style={styles.slotsSummary}>
-                          Total: {getTotalWorkersNeeded()} worker
-                          {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
-                          {skillSlots.length} slot
-                          {skillSlots.length !== 1 ? "s" : ""}
-                        </Text>
-                        {skillSlots.map((slot, index) => (
-                          <View key={index} style={styles.slotCard}>
-                            <View style={styles.slotHeader}>
-                              <Text style={styles.slotTitle}>
-                                {getSpecializationName(slot.specialization_id)}
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() => removeSkillSlot(index)}
+                {/* Skill Slots List - Always shown for agency jobs */}
+                <View style={styles.skillSlotsContainer}>
+                  {skillSlots.length === 0 ? (
+                    <View style={styles.emptySlots}>
+                      <Ionicons
+                        name="people-outline"
+                        size={32}
+                        color={Colors.textHint}
+                      />
+                      <Text style={styles.emptySlotsText}>
+                        No workers added yet. Add at least one worker requirement.
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.slotsSummary}>
+                        Total: {getTotalWorkersNeeded()} worker
+                        {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
+                        {skillSlots.length} requirement
+                        {skillSlots.length !== 1 ? "s" : ""}
+                      </Text>
+                      {skillSlots.map((slot, index) => (
+                        <View key={index} style={styles.slotCard}>
+                          <View style={styles.slotHeader}>
+                            <Text style={styles.slotTitle}>
+                              {getSpecializationName(slot.specialization_id)}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => removeSkillSlot(index)}
                                 style={styles.removeSlotBtn}
                               >
                                 <Ionicons
@@ -773,7 +745,7 @@ export default function CreateJobScreen() {
                       </>
                     )}
 
-                    {/* Add Slot Button */}
+                    {/* Add Worker Button */}
                     <TouchableOpacity
                       style={styles.addSlotBtn}
                       onPress={() => setShowAddSlotModal(true)}
@@ -783,10 +755,9 @@ export default function CreateJobScreen() {
                         size={20}
                         color={Colors.white}
                       />
-                      <Text style={styles.addSlotBtnText}>Add Skill Slot</Text>
+                      <Text style={styles.addSlotBtnText}>Add Worker Requirement</Text>
                     </TouchableOpacity>
                   </View>
-                )}
               </View>
             )}
 
@@ -1659,6 +1630,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
   inputGroup: {
