@@ -15,6 +15,8 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -133,6 +135,10 @@ export default function KYCUploadScreen() {
   const [clearanceError, setClearanceError] = useState<string | null>(null);
   const [selfieError, setSelfieError] = useState<string | null>(null);
 
+  // Camera guidance modal state
+  const [showCameraGuide, setShowCameraGuide] = useState(false);
+  const [pendingCaptureType, setPendingCaptureType] = useState<"front" | "back" | "clearance" | "selfie" | null>(null);
+
   // Computed: is ANY validation in progress?
   const isValidating =
     isValidatingFrontID ||
@@ -176,9 +182,22 @@ export default function KYCUploadScreen() {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
-    // Security: Only allow camera capture, no gallery uploads
-    // This ensures users take live photos of their documents
-    captureImage(type);
+    // Show camera guidance modal before capturing
+    // For selfie, skip the ID frame guide
+    if (type === "selfie") {
+      captureImage(type);
+    } else {
+      setPendingCaptureType(type);
+      setShowCameraGuide(true);
+    }
+  };
+
+  const handleOpenCameraFromGuide = () => {
+    setShowCameraGuide(false);
+    if (pendingCaptureType) {
+      captureImage(pendingCaptureType);
+      setPendingCaptureType(null);
+    }
   };
 
   const captureImage = async (
@@ -929,6 +948,13 @@ export default function KYCUploadScreen() {
                 source={{ uri: frontIDFile.uri }}
                 style={styles.previewImage}
               />
+              {/* ID Frame Overlay on Preview */}
+              <View style={styles.idFrameOverlay} pointerEvents="none">
+                <View style={styles.idFrameCornerTL} />
+                <View style={styles.idFrameCornerTR} />
+                <View style={styles.idFrameCornerBL} />
+                <View style={styles.idFrameCornerBR} />
+              </View>
               {!frontIDError && (
                 <View style={styles.uploadSuccessBadge}>
                   <Ionicons
@@ -977,6 +1003,20 @@ export default function KYCUploadScreen() {
                 source={{ uri: backIDFile.uri }}
                 style={styles.previewImage}
               />
+              {/* ID Frame Overlay on Preview */}
+              <View style={styles.idFrameOverlay} pointerEvents="none">
+                <View style={styles.idFrameCornerTL} />
+                <View style={styles.idFrameCornerTR} />
+                <View style={styles.idFrameCornerBL} />
+                <View style={styles.idFrameCornerBR} />
+              </View>
+              {/* ID Frame Overlay on Preview */}
+              <View style={styles.idFrameOverlay} pointerEvents="none">
+                <View style={styles.idFrameCornerTL} />
+                <View style={styles.idFrameCornerTR} />
+                <View style={styles.idFrameCornerBL} />
+                <View style={styles.idFrameCornerBR} />
+              </View>
               {!backIDError && (
                 <View style={styles.uploadSuccessBadge}>
                   <Ionicons
@@ -1091,6 +1131,13 @@ export default function KYCUploadScreen() {
                 source={{ uri: clearanceFile.uri }}
                 style={styles.previewImage}
               />
+              {/* Clearance Frame Overlay on Preview */}
+              <View style={styles.idFrameOverlay} pointerEvents="none">
+                <View style={styles.idFrameCornerTL} />
+                <View style={styles.idFrameCornerTR} />
+                <View style={styles.idFrameCornerBL} />
+                <View style={styles.idFrameCornerBR} />
+              </View>
               {!clearanceError && (
                 <View style={styles.uploadSuccessBadge}>
                   <Ionicons
@@ -1422,6 +1469,85 @@ export default function KYCUploadScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Camera Guidance Modal */}
+      <Modal
+        visible={showCameraGuide}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCameraGuide(false)}
+      >
+        <View style={styles.cameraGuideModalOverlay}>
+          <View style={styles.cameraGuideModalContent}>
+            {/* Close button */}
+            <TouchableOpacity
+              style={styles.cameraGuideCloseButton}
+              onPress={() => {
+                setShowCameraGuide(false);
+                setPendingCaptureType(null);
+              }}
+            >
+              <Ionicons name="close" size={24} color={Colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Title */}
+            <Text style={styles.cameraGuideTitle}>
+              {pendingCaptureType === "clearance" ? "Position Clearance Document" : "Position Your ID Card"}
+            </Text>
+            <Text style={styles.cameraGuideSubtitle}>
+              Align the document within the frame for best results
+            </Text>
+
+            {/* ID Frame Guide Visual */}
+            <View style={styles.cameraGuideFrameContainer}>
+              <View style={styles.cameraGuideFrame}>
+                {/* Corner markers */}
+                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerTL]} />
+                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerTR]} />
+                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerBL]} />
+                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerBR]} />
+                
+                {/* Center icon */}
+                <Ionicons 
+                  name={pendingCaptureType === "clearance" ? "document-text-outline" : "card-outline"} 
+                  size={64} 
+                  color={Colors.primary} 
+                />
+                <Text style={styles.cameraGuideFrameText}>
+                  {pendingCaptureType === "front" && "FRONT"}
+                  {pendingCaptureType === "back" && "BACK"}
+                  {pendingCaptureType === "clearance" && "CLEARANCE"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Tips */}
+            <View style={styles.cameraGuideTips}>
+              <View style={styles.cameraGuideTipRow}>
+                <Ionicons name="sunny-outline" size={20} color={Colors.warning} />
+                <Text style={styles.cameraGuideTipText}>Ensure good lighting</Text>
+              </View>
+              <View style={styles.cameraGuideTipRow}>
+                <Ionicons name="expand-outline" size={20} color={Colors.primary} />
+                <Text style={styles.cameraGuideTipText}>Fill the frame with the document</Text>
+              </View>
+              <View style={styles.cameraGuideTipRow}>
+                <Ionicons name="hand-left-outline" size={20} color={Colors.success} />
+                <Text style={styles.cameraGuideTipText}>Hold steady - avoid blur</Text>
+              </View>
+            </View>
+
+            {/* Action Button */}
+            <TouchableOpacity
+              style={styles.cameraGuideOpenButton}
+              onPress={handleOpenCameraFromGuide}
+            >
+              <Ionicons name="camera" size={24} color={Colors.white} />
+              <Text style={styles.cameraGuideOpenButtonText}>Open Camera</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1713,5 +1839,186 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.error,
     textAlign: "center",
+  },
+  // ID Frame Overlay styles for preview images
+  idFrameOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  idFrameCornerTL: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    width: 24,
+    height: 24,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: Colors.primary,
+    borderTopLeftRadius: 4,
+  },
+  idFrameCornerTR: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderColor: Colors.primary,
+    borderTopRightRadius: 4,
+  },
+  idFrameCornerBL: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    width: 24,
+    height: 24,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: Colors.primary,
+    borderBottomLeftRadius: 4,
+  },
+  idFrameCornerBR: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderColor: Colors.primary,
+    borderBottomRightRadius: 4,
+  },
+  // Camera Guidance Modal styles
+  cameraGuideModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  cameraGuideModalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    alignItems: "center",
+  },
+  cameraGuideCloseButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 1,
+  },
+  cameraGuideTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  cameraGuideSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  cameraGuideFrameContainer: {
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  cameraGuideFrame: {
+    width: 280,
+    height: 180,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(93, 123, 242, 0.05)",
+  },
+  cameraGuideCorner: {
+    position: "absolute",
+    width: 32,
+    height: 32,
+  },
+  cameraGuideCornerTL: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: Colors.primary,
+    borderTopLeftRadius: 8,
+  },
+  cameraGuideCornerTR: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: Colors.primary,
+    borderTopRightRadius: 8,
+  },
+  cameraGuideCornerBL: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: Colors.primary,
+    borderBottomLeftRadius: 8,
+  },
+  cameraGuideCornerBR: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: Colors.primary,
+    borderBottomRightRadius: 8,
+  },
+  cameraGuideFrameText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.primary,
+    letterSpacing: 2,
+  },
+  cameraGuideTips: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  cameraGuideTipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  cameraGuideTipText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  cameraGuideOpenButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: BorderRadius.lg,
+    width: "100%",
+    gap: 8,
+    ...Shadows.md,
+  },
+  cameraGuideOpenButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.white,
   },
 });
