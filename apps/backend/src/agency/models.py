@@ -172,6 +172,26 @@ class AgencyEmployee(models.Model):
     avatar = models.CharField(max_length=1000, blank=True, null=True)  # URL to avatar image
     rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)  # 0.00 to 5.00
     
+    # Rate fields for daily/hourly jobs
+    hourly_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Employee's hourly rate in PHP"
+    )
+    daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Employee's daily rate in PHP"
+    )
+    is_available_daily_jobs = models.BooleanField(
+        default=True,
+        help_text="Whether employee accepts daily rate jobs"
+    )
+    
     # Performance tracking fields (Agency Phase 2)
     employeeOfTheMonth = models.BooleanField(
         default=False,

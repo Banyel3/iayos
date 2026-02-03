@@ -164,6 +164,17 @@ class WorkerProfile(models.Model):
         blank=True,
         help_text="Worker's hourly rate in PHP"
     )
+    daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Worker's daily rate in PHP"
+    )
+    is_available_daily_jobs = models.BooleanField(
+        default=True,
+        help_text="Whether worker accepts daily rate jobs"
+    )
     profile_completion_percentage = models.IntegerField(
         default=0,
         help_text="Profile completion percentage (0-100)"
@@ -1300,6 +1311,50 @@ class Job(models.Model):
     
     # Budget (always project-based)
     budget = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # ============================================================
+    # PAYMENT MODEL - Project vs Daily Rate
+    # ============================================================
+    class PaymentModel(models.TextChoices):
+        PROJECT = "PROJECT", "Project-based (fixed budget)"
+        DAILY = "DAILY", "Daily rate (per day worked)"
+    
+    payment_model = models.CharField(
+        max_length=10,
+        choices=PaymentModel.choices,
+        default="PROJECT",
+        help_text="Payment model: PROJECT = fixed budget, DAILY = per day worked"
+    )
+    
+    # Daily rate specific fields
+    duration_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Expected number of work days (for DAILY payment model)"
+    )
+    daily_rate_agreed = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Agreed daily rate per worker (for DAILY payment model)"
+    )
+    actual_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Actual date when work started (for daily payment tracking)"
+    )
+    total_days_worked = models.PositiveIntegerField(
+        default=0,
+        help_text="Total days worked across all workers"
+    )
+    daily_escrow_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Total amount escrowed for daily job (daily_rate × workers × days)"
+    )
+    # ============================================================
     
     # Escrow Payment Fields
     escrowAmount = models.DecimalField(
@@ -2767,6 +2822,25 @@ class JobWorkerAssignment(models.Model):
         help_text="Client's rating for this specific worker's contribution"
     )
     
+    # Daily payment tracking fields
+    daily_rate_at_assignment = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Daily rate locked at time of assignment"
+    )
+    days_worked = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of days this worker has worked"
+    )
+    total_earned = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Total amount earned by this worker on this job"
+    )
+    
     # Timestamps
     assignedAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -2805,3 +2879,282 @@ class JobWorkerAssignment(models.Model):
     
     def __str__(self):
         return f"{self.workerID.profileID.firstName} - Position {self.slot_position} in {self.skillSlotID}"
+
+
+# ============================================================
+# DAILY PAYMENT MODEL - Per-Day Work Tracking
+# ============================================================
+
+class DailyAttendance(models.Model):
+    """
+    Tracks daily attendance for workers on daily-rate jobs.
+    - Freelance workers: Each worker logs their own attendance
+    - Agency jobs: Agency rep logs attendance for all assigned employees
+    """
+    attendanceID = models.BigAutoField(primary_key=True)
+    
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='daily_attendance'
+    )
+    
+    # For freelance/team jobs
+    workerID = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.CASCADE,
+        related_name='daily_attendance',
+        null=True,
+        blank=True,
+        help_text='Worker (for freelance workers)'
+    )
+    
+    # For team job assignments
+    assignmentID = models.ForeignKey(
+        JobWorkerAssignment,
+        on_delete=models.CASCADE,
+        related_name='daily_attendance',
+        null=True,
+        blank=True,
+        help_text='Assignment (for team jobs)'
+    )
+    
+    # For agency jobs
+    employeeID = models.ForeignKey(
+        'agency.AgencyEmployee',
+        on_delete=models.CASCADE,
+        related_name='daily_attendance',
+        null=True,
+        blank=True,
+        help_text='Agency employee (for agency jobs)'
+    )
+    
+    # Work date
+    date = models.DateField(help_text='Work date')
+    time_in = models.DateTimeField(null=True, blank=True, help_text='Clock in time')
+    time_out = models.DateTimeField(null=True, blank=True, help_text='Clock out time')
+    
+    # Status
+    class AttendanceStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending confirmation"
+        PRESENT = "PRESENT", "Present (full day)"
+        HALF_DAY = "HALF_DAY", "Half day"
+        ABSENT = "ABSENT", "Absent"
+        DISPUTED = "DISPUTED", "Disputed"
+    
+    status = models.CharField(
+        max_length=15,
+        choices=AttendanceStatus.choices,
+        default="PENDING",
+        help_text='Attendance status for this day'
+    )
+    
+    # Confirmation tracking
+    worker_confirmed = models.BooleanField(default=False)
+    worker_confirmed_at = models.DateTimeField(null=True, blank=True)
+    client_confirmed = models.BooleanField(default=False)
+    client_confirmed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Payment
+    amount_earned = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount earned for this day'
+    )
+    payment_processed = models.BooleanField(
+        default=False,
+        help_text='Whether payment has been moved to pendingEarnings'
+    )
+    payment_processed_at = models.DateTimeField(null=True, blank=True)
+    
+    notes = models.TextField(blank=True, default='')
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'daily_attendance'
+        ordering = ['-date', 'jobID']
+        indexes = [
+            models.Index(fields=['jobID', 'date'], name='daily_att_job_date_idx'),
+            models.Index(fields=['workerID', 'date'], name='daily_att_worker_date_idx'),
+            models.Index(fields=['status'], name='daily_att_status_idx'),
+            models.Index(fields=['payment_processed'], name='daily_att_payment_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['jobID', 'workerID', 'date'],
+                name='unique_worker_attendance_per_day'
+            ),
+        ]
+    
+    def is_confirmed(self):
+        """Check if both worker and client have confirmed attendance."""
+        return self.worker_confirmed and self.client_confirmed
+    
+    def __str__(self):
+        worker_name = ''
+        if self.workerID:
+            worker_name = self.workerID.profileID.firstName
+        elif self.employeeID:
+            worker_name = self.employeeID.fullName
+        return f"{worker_name} - {self.date} ({self.status})"
+
+
+class DailyJobExtension(models.Model):
+    """
+    Tracks requests to extend daily jobs.
+    Requires mutual approval from both client and worker/agency.
+    """
+    extensionID = models.BigAutoField(primary_key=True)
+    
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='extensions'
+    )
+    
+    additional_days = models.PositiveIntegerField(help_text='Number of additional days requested')
+    additional_escrow = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text='Additional escrow needed (daily_rate × workers × additional_days)'
+    )
+    reason = models.TextField(help_text='Reason for extension request')
+    
+    class ExtensionStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending approval"
+        APPROVED = "APPROVED", "Approved by both parties"
+        REJECTED = "REJECTED", "Rejected"
+        CANCELLED = "CANCELLED", "Cancelled by requester"
+    
+    status = models.CharField(
+        max_length=15,
+        choices=ExtensionStatus.choices,
+        default="PENDING"
+    )
+    
+    class RequestedBy(models.TextChoices):
+        CLIENT = "CLIENT", "Client"
+        WORKER = "WORKER", "Worker"
+        AGENCY = "AGENCY", "Agency"
+    
+    requested_by = models.CharField(
+        max_length=10,
+        choices=RequestedBy.choices,
+        help_text='Who requested the extension'
+    )
+    requestedByUser = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='extension_requests'
+    )
+    
+    # Mutual approval tracking
+    client_approved = models.BooleanField(default=False)
+    client_approved_at = models.DateTimeField(null=True, blank=True)
+    worker_approved = models.BooleanField(default=False)
+    worker_approved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Escrow collection
+    escrow_collected = models.BooleanField(
+        default=False,
+        help_text='Whether additional escrow has been collected'
+    )
+    escrow_collected_at = models.DateTimeField(null=True, blank=True)
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'daily_job_extensions'
+        ordering = ['-createdAt']
+    
+    def is_fully_approved(self):
+        """Check if both parties have approved."""
+        return self.client_approved and self.worker_approved
+    
+    def __str__(self):
+        return f"Extension +{self.additional_days} days for Job #{self.jobID_id} ({self.status})"
+
+
+class DailyRateChange(models.Model):
+    """
+    Tracks requests to change daily rate during in-progress jobs.
+    Requires mutual approval from both client and worker/agency.
+    """
+    changeID = models.BigAutoField(primary_key=True)
+    
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='rate_changes'
+    )
+    
+    old_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    new_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.TextField(help_text='Reason for rate change request')
+    effective_date = models.DateField(help_text='Date from which new rate applies')
+    
+    class ChangeStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending approval"
+        APPROVED = "APPROVED", "Approved by both parties"
+        REJECTED = "REJECTED", "Rejected"
+        CANCELLED = "CANCELLED", "Cancelled by requester"
+    
+    status = models.CharField(
+        max_length=15,
+        choices=ChangeStatus.choices,
+        default="PENDING"
+    )
+    
+    class RequestedBy(models.TextChoices):
+        CLIENT = "CLIENT", "Client"
+        WORKER = "WORKER", "Worker"
+        AGENCY = "AGENCY", "Agency"
+    
+    requested_by = models.CharField(
+        max_length=10,
+        choices=RequestedBy.choices,
+        help_text='Who requested the rate change'
+    )
+    requestedByUser = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='rate_change_requests'
+    )
+    
+    # Mutual approval tracking
+    client_approved = models.BooleanField(default=False)
+    client_approved_at = models.DateTimeField(null=True, blank=True)
+    worker_approved = models.BooleanField(default=False)
+    worker_approved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Escrow adjustment
+    escrow_adjusted = models.BooleanField(
+        default=False,
+        help_text='Whether escrow has been adjusted for rate change'
+    )
+    escrow_adjustment_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount added/refunded for rate change (positive=client pays more)'
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'daily_rate_changes'
+        ordering = ['-createdAt']
+    
+    def is_fully_approved(self):
+        """Check if both parties have approved."""
+        return self.client_approved and self.worker_approved
+    
+    def __str__(self):
+        return f"Rate change ₱{self.old_rate}→₱{self.new_rate} for Job #{self.jobID_id} ({self.status})"

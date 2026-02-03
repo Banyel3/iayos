@@ -6292,3 +6292,637 @@ def get_job_payment_timeline(request, job_id: int):
         return Response({"error": f"Failed to generate payment timeline: {str(e)}"}, status=500)
 
 #endregion
+
+
+# =============================================================================
+# region Daily Payment Endpoints
+# =============================================================================
+
+@router.post("/{job_id}/daily/attendance", auth=dual_auth)
+def log_daily_attendance(request, job_id: int, data: dict):
+    """
+    Log attendance for a day of work on a daily-rate job.
+    
+    For freelance workers: worker logs their own attendance
+    For agency jobs: agency rep logs attendance for all employees
+    
+    Required fields:
+        - work_date: str (YYYY-MM-DD)
+        - status: str (PENDING, PRESENT, HALF_DAY, ABSENT)
+    
+    Optional fields:
+        - time_in: str (ISO datetime)
+        - time_out: str (ISO datetime)
+        - notes: str
+        - assignment_id: int (for team jobs)
+        - employee_id: int (for agency jobs)
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from datetime import date
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    # Determine worker type and validate access
+    user = request.auth
+    profile_type = getattr(user, 'profile_type', None)
+    
+    # Parse date
+    work_date_str = data.get('work_date')
+    if not work_date_str:
+        return Response({"error": "work_date is required"}, status=400)
+    
+    try:
+        work_date = date.fromisoformat(work_date_str)
+    except ValueError:
+        return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+    
+    status = data.get('status', 'PENDING')
+    if status not in ['PENDING', 'PRESENT', 'HALF_DAY', 'ABSENT']:
+        return Response({"error": "Invalid status. Use PENDING, PRESENT, HALF_DAY, or ABSENT"}, status=400)
+    
+    # Parse optional time fields
+    time_in = None
+    time_out = None
+    if data.get('time_in'):
+        try:
+            time_in = datetime.fromisoformat(data['time_in'])
+        except ValueError:
+            pass
+    if data.get('time_out'):
+        try:
+            time_out = datetime.fromisoformat(data['time_out'])
+        except ValueError:
+            pass
+    
+    # Get worker/assignment/employee
+    worker = None
+    assignment = None
+    employee_id = data.get('employee_id')
+    
+    if data.get('assignment_id'):
+        from accounts.models import JobWorkerAssignment
+        try:
+            assignment = JobWorkerAssignment.objects.get(
+                assignmentID=data['assignment_id'],
+                jobID=job
+            )
+        except JobWorkerAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found"}, status=404)
+    elif not employee_id:
+        # Single worker job - get assigned worker
+        worker = job.assignedWorkerID
+        if not worker:
+            return Response({"error": "No worker assigned to this job"}, status=400)
+    
+    result = DailyPaymentService.log_attendance(
+        job=job,
+        work_date=work_date,
+        worker=worker,
+        assignment=assignment,
+        employee_id=employee_id,
+        time_in=time_in,
+        time_out=time_out,
+        status=status,
+        notes=data.get('notes', '')
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to log attendance')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/confirm-worker", auth=dual_auth)
+def confirm_attendance_worker(request, job_id: int, attendance_id: int):
+    """
+    Worker confirms their attendance for a specific day.
+    For agency jobs, agency rep confirms on behalf of employees.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyAttendance
+    
+    try:
+        attendance = DailyAttendance.objects.get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    result = DailyPaymentService.confirm_attendance_worker(attendance, request.auth)
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/confirm-client", auth=dual_auth)
+def confirm_attendance_client(request, job_id: int, attendance_id: int, data: dict = None):
+    """
+    Client confirms attendance for a worker's day.
+    Client can optionally adjust the attendance status.
+    
+    Optional fields:
+        - approved_status: str (PRESENT, HALF_DAY, ABSENT)
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyAttendance
+    
+    try:
+        attendance = DailyAttendance.objects.get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    # Verify client ownership
+    if attendance.jobID.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can confirm attendance"}, status=403)
+    
+    approved_status = data.get('approved_status') if data else None
+    
+    result = DailyPaymentService.confirm_attendance_client(
+        attendance, 
+        request.auth,
+        approved_status=approved_status
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+    
+    return result
+
+
+@router.get("/{job_id}/daily/attendance", auth=dual_auth)
+def get_daily_attendance(request, job_id: int, start_date: str = None, end_date: str = None):
+    """
+    Get attendance records for a daily job.
+    
+    Optional filters:
+        - start_date: str (YYYY-MM-DD)
+        - end_date: str (YYYY-MM-DD)
+    """
+    from accounts.models import DailyAttendance
+    from datetime import date
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    queryset = DailyAttendance.objects.filter(jobID=job).order_by('-date')
+    
+    # Apply date filters
+    if start_date:
+        try:
+            queryset = queryset.filter(date__gte=date.fromisoformat(start_date))
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            queryset = queryset.filter(date__lte=date.fromisoformat(end_date))
+        except ValueError:
+            pass
+    
+    records = []
+    for attendance in queryset:
+        worker_name = None
+        if attendance.workerID:
+            worker_name = f"{attendance.workerID.profileID.accountFK.firstName} {attendance.workerID.profileID.accountFK.lastName}"
+        elif attendance.employeeID:
+            worker_name = f"{attendance.employeeID.first_name} {attendance.employeeID.last_name}"
+        
+        records.append({
+            'attendance_id': attendance.attendanceID,
+            'date': str(attendance.date),
+            'worker_name': worker_name,
+            'status': attendance.status,
+            'time_in': attendance.time_in.isoformat() if attendance.time_in else None,
+            'time_out': attendance.time_out.isoformat() if attendance.time_out else None,
+            'amount_earned': float(attendance.amount_earned),
+            'worker_confirmed': attendance.worker_confirmed,
+            'client_confirmed': attendance.client_confirmed,
+            'payment_processed': attendance.payment_processed,
+            'notes': attendance.notes,
+        })
+    
+    return {
+        'success': True,
+        'job_id': job_id,
+        'daily_rate': float(job.daily_rate_agreed or 0),
+        'records': records,
+        'total_records': len(records)
+    }
+
+
+@router.get("/{job_id}/daily/summary", auth=dual_auth)
+def get_daily_job_summary(request, job_id: int):
+    """
+    Get a comprehensive summary of a daily-rate job.
+    Includes attendance stats, payment info, and pending requests.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    return DailyPaymentService.get_daily_summary(job)
+
+
+@router.post("/{job_id}/daily/extension", auth=dual_auth)
+def request_daily_extension(request, job_id: int, data: dict):
+    """
+    Request an extension for a daily job.
+    Requires mutual approval from both client and worker/agency.
+    
+    Required fields:
+        - additional_days: int
+        - reason: str
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    additional_days = data.get('additional_days')
+    reason = data.get('reason')
+    
+    if not additional_days or additional_days < 1:
+        return Response({"error": "additional_days must be at least 1"}, status=400)
+    
+    if not reason:
+        return Response({"error": "reason is required"}, status=400)
+    
+    # Determine who is requesting
+    user = request.auth
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        requested_by = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        requested_by = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        requested_by = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can request extensions"}, status=403)
+    
+    result = DailyPaymentService.request_extension(
+        job=job,
+        additional_days=additional_days,
+        reason=reason,
+        requested_by=requested_by,
+        user=user
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to request extension')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/extension/{extension_id}/approve", auth=dual_auth)
+def approve_daily_extension(request, job_id: int, extension_id: int):
+    """
+    Approve an extension request.
+    When both parties approve, additional escrow is collected and job is extended.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyJobExtension
+    
+    try:
+        extension = DailyJobExtension.objects.get(
+            extensionID=extension_id,
+            jobID__jobID=job_id
+        )
+    except DailyJobExtension.DoesNotExist:
+        return Response({"error": "Extension request not found"}, status=404)
+    
+    job = extension.jobID
+    user = request.auth
+    
+    # Determine approver type
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        approver_type = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        approver_type = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        approver_type = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can approve extensions"}, status=403)
+    
+    result = DailyPaymentService.approve_extension(extension, approver_type, user)
+    
+    if not result.get('success'):
+        status_code = 402 if result.get('needs_top_up') else 400
+        return Response({"error": result.get('error', 'Failed to approve extension')}, status=status_code)
+    
+    return result
+
+
+@router.get("/{job_id}/daily/extensions", auth=dual_auth)
+def get_daily_extensions(request, job_id: int):
+    """
+    Get all extension requests for a daily job.
+    """
+    from accounts.models import DailyJobExtension
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    extensions = DailyJobExtension.objects.filter(jobID=job).order_by('-created_at')
+    
+    records = []
+    for ext in extensions:
+        records.append({
+            'extension_id': ext.extensionID,
+            'additional_days': ext.additional_days,
+            'additional_escrow': float(ext.additional_escrow),
+            'reason': ext.reason,
+            'requested_by': ext.requested_by,
+            'status': ext.status,
+            'client_approved': ext.client_approved,
+            'worker_approved': ext.worker_approved,
+            'created_at': ext.created_at.isoformat(),
+        })
+    
+    return {
+        'success': True,
+        'job_id': job_id,
+        'extensions': records,
+        'total': len(records)
+    }
+
+
+@router.post("/{job_id}/daily/rate-change", auth=dual_auth)
+def request_rate_change(request, job_id: int, data: dict):
+    """
+    Request a rate change for a daily job.
+    Requires mutual approval from both client and worker/agency.
+    
+    Required fields:
+        - new_rate: float/decimal (new daily rate)
+        - reason: str
+        - effective_date: str (YYYY-MM-DD)
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from datetime import date
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    new_rate = data.get('new_rate')
+    reason = data.get('reason')
+    effective_date_str = data.get('effective_date')
+    
+    if not new_rate or Decimal(str(new_rate)) <= 0:
+        return Response({"error": "new_rate must be positive"}, status=400)
+    
+    if not reason:
+        return Response({"error": "reason is required"}, status=400)
+    
+    if not effective_date_str:
+        return Response({"error": "effective_date is required"}, status=400)
+    
+    try:
+        effective_date = date.fromisoformat(effective_date_str)
+    except ValueError:
+        return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+    
+    # Determine who is requesting
+    user = request.auth
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        requested_by = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        requested_by = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        requested_by = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can request rate changes"}, status=403)
+    
+    result = DailyPaymentService.request_rate_change(
+        job=job,
+        new_rate=Decimal(str(new_rate)),
+        reason=reason,
+        effective_date=effective_date,
+        requested_by=requested_by,
+        user=user
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to request rate change')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/rate-change/{change_id}/approve", auth=dual_auth)
+def approve_rate_change(request, job_id: int, change_id: int):
+    """
+    Approve a rate change request.
+    When both parties approve, job rate is updated and escrow adjusted.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyRateChange
+    
+    try:
+        rate_change = DailyRateChange.objects.get(
+            changeID=change_id,
+            jobID__jobID=job_id
+        )
+    except DailyRateChange.DoesNotExist:
+        return Response({"error": "Rate change request not found"}, status=404)
+    
+    job = rate_change.jobID
+    user = request.auth
+    
+    # Determine approver type
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        approver_type = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        approver_type = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        approver_type = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can approve rate changes"}, status=403)
+    
+    result = DailyPaymentService.approve_rate_change(rate_change, approver_type, user)
+    
+    if not result.get('success'):
+        status_code = 402 if result.get('needs_top_up') else 400
+        return Response({"error": result.get('error', 'Failed to approve rate change')}, status=status_code)
+    
+    return result
+
+
+@router.get("/{job_id}/daily/rate-changes", auth=dual_auth)
+def get_rate_changes(request, job_id: int):
+    """
+    Get all rate change requests for a daily job.
+    """
+    from accounts.models import DailyRateChange
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    rate_changes = DailyRateChange.objects.filter(jobID=job).order_by('-created_at')
+    
+    records = []
+    for change in rate_changes:
+        records.append({
+            'change_id': change.changeID,
+            'old_rate': float(change.old_rate),
+            'new_rate': float(change.new_rate),
+            'reason': change.reason,
+            'effective_date': str(change.effective_date),
+            'requested_by': change.requested_by,
+            'status': change.status,
+            'client_approved': change.client_approved,
+            'worker_approved': change.worker_approved,
+            'escrow_adjustment_amount': float(change.escrow_adjustment_amount),
+            'created_at': change.created_at.isoformat(),
+        })
+    
+    return {
+        'success': True,
+        'job_id': job_id,
+        'rate_changes': records,
+        'total': len(records)
+    }
+
+
+@router.post("/{job_id}/daily/cancel", auth=dual_auth)
+def cancel_daily_job(request, job_id: int, data: dict):
+    """
+    Cancel remaining days of a daily job.
+    Refunds unused escrow to client.
+    
+    Required fields:
+        - reason: str
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    reason = data.get('reason')
+    if not reason:
+        return Response({"error": "reason is required"}, status=400)
+    
+    # Determine who is cancelling
+    user = request.auth
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        cancelled_by = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        cancelled_by = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        cancelled_by = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can cancel jobs"}, status=403)
+    
+    result = DailyPaymentService.cancel_remaining_days(
+        job=job,
+        reason=reason,
+        cancelled_by=cancelled_by,
+        user=user
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to cancel job')}, status=400)
+    
+    return result
+
+
+@router.get("/{job_id}/daily/escrow-estimate", auth=dual_auth)
+def get_daily_escrow_estimate(request, job_id: int = None, daily_rate: float = None, num_workers: int = 1, num_days: int = None):
+    """
+    Calculate escrow estimate for a daily job.
+    Can be used before job creation to show client the cost.
+    
+    Query params:
+        - daily_rate: float (required if no job_id)
+        - num_workers: int (default 1)
+        - num_days: int (required if no job_id)
+    
+    Or provide job_id to get estimate for an existing job.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    if job_id:
+        try:
+            job = Job.objects.get(jobID=job_id)
+            daily_rate = float(job.daily_rate_agreed or 0)
+            num_workers = job.total_workers_needed or 1
+            num_days = job.duration_days or 0
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+    
+    if not daily_rate or not num_days:
+        return Response({"error": "daily_rate and num_days are required"}, status=400)
+    
+    if daily_rate <= 0:
+        return Response({"error": "daily_rate must be positive"}, status=400)
+    
+    if num_days < 1:
+        return Response({"error": "num_days must be at least 1"}, status=400)
+    
+    result = DailyPaymentService.calculate_daily_escrow(
+        Decimal(str(daily_rate)),
+        num_workers,
+        num_days
+    )
+    
+    # Convert Decimals to floats for JSON
+    return {
+        'success': True,
+        'daily_rate': float(result['daily_rate']),
+        'num_workers': result['num_workers'],
+        'num_days': result['num_days'],
+        'escrow_amount': float(result['escrow_amount']),
+        'platform_fee': float(result['platform_fee']),
+        'total_required': float(result['total_required']),
+        'breakdown': f"₱{result['daily_rate']} × {result['num_workers']} workers × {result['num_days']} days = ₱{result['escrow_amount']} + ₱{result['platform_fee']} fee = ₱{result['total_required']} total"
+    }
+
+# endregion
