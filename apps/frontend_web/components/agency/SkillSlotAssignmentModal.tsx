@@ -29,7 +29,7 @@ interface Employee {
   rating: number | null;
   totalJobsCompleted: number;
   isActive: boolean;
-  specializations?: number[]; // List of specialization IDs employee has
+  specializations?: string[]; // List of specialization names employee has
   workload?: EmployeeWorkload;
 }
 
@@ -137,9 +137,13 @@ export default function SkillSlotAssignmentModal({
   const getEligibleEmployeesForSlot = (slot: JobSkillSlot): Employee[] => {
     return employees.filter((emp) => {
       if (!emp.isActive) return false;
-      // Check if employee has the required specialization
+      // Check if employee has the required specialization (match by name)
       if (emp.specializations && emp.specializations.length > 0) {
-        return emp.specializations.includes(slot.specialization_id);
+        // Case-insensitive match on specialization name
+        const slotSpecName = slot.specialization_name.toLowerCase();
+        return emp.specializations.some(
+          (spec) => spec.toLowerCase() === slotSpecName
+        );
       }
       // If no specializations data, allow all (fallback for legacy data)
       return true;
