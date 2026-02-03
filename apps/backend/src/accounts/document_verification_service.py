@@ -696,20 +696,17 @@ class DocumentVerificationService:
             warnings.append(f"Low resolution image ({width}x{height})")
         
         # Check blur using Laplacian variance
+        # NOTE: Blur check is now warning-only, not rejection (temporarily disabled strict check)
         try:
             gray = image.convert('L')
             img_array = np.array(gray)
             laplacian_var = self._calculate_laplacian_variance(img_array)
             
+            # TEMPORARILY DISABLED: Blur rejection
+            # Keep as warning only - don't block uploads for blur if other AI checks pass
             if laplacian_var < MAX_BLUR_THRESHOLD:
-                return {
-                    "status": "FAILED",
-                    "rejection_reason": "IMAGE_TOO_BLURRY",
-                    "score": 0.3,
-                    "reason": f"Image is too blurry (sharpness: {laplacian_var:.1f}). Please upload a clearer image.",
-                    "warnings": [],
-                    "blur_score": laplacian_var
-                }
+                warnings.append(f"Image appears blurry (sharpness: {laplacian_var:.1f}). Consider uploading a clearer image.")
+                # Previously rejected here - now just warn
             
             if laplacian_var < MAX_BLUR_THRESHOLD * 2:
                 warnings.append(f"Image slightly blurry (sharpness: {laplacian_var:.1f})")
