@@ -3,16 +3,7 @@ name: "Deploy Backend to DigitalOcean"
 on:
   push:
     branches: ["main"]
-    paths:
-      # Only deploy when backend code changes
-      - "apps/backend/**"
-      - "Dockerfile"
-      - "docker-compose.yml"
-      - "requirements.txt"
-      - ".env.docker.example"
-      # Exclude documentation changes
-      - "!apps/backend/**/*.md"
-      - "!apps/backend/README.md"
+    # Deploy on ANY push to main (backend changes trigger deployment)
   workflow_dispatch:
     inputs:
       force_deploy:
