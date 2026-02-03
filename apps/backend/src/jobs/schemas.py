@@ -200,3 +200,53 @@ class TeamWorkerCompletionSchema(Schema):
 class TeamJobStartSchema(Schema):
     """Schema for starting a team job (when threshold reached or manually)"""
     force_start: bool = False  # True to start even if threshold not met
+
+
+# ===========================================================================
+# DAILY PAYMENT SCHEMAS - Daily Rate Job Support
+# ===========================================================================
+
+class LogAttendanceSchema(Schema):
+    """Schema for logging daily attendance"""
+    work_date: str  # YYYY-MM-DD format
+    status: str  # PENDING, PRESENT, HALF_DAY, ABSENT
+    time_in: Optional[str] = None  # ISO datetime
+    time_out: Optional[str] = None  # ISO datetime
+    notes: Optional[str] = None
+    assignment_id: Optional[int] = None  # For team jobs
+    employee_id: Optional[int] = None  # For agency jobs
+
+
+class ConfirmAttendanceSchema(Schema):
+    """Schema for confirming attendance (worker or client)"""
+    adjusted_status: Optional[str] = None  # Optional status adjustment
+
+
+class RequestExtensionSchema(Schema):
+    """Schema for requesting a job extension"""
+    additional_days: int
+    reason: str
+
+
+class ApproveExtensionSchema(Schema):
+    """Schema for approving/rejecting extension"""
+    approve: bool
+    rejection_reason: Optional[str] = None
+
+
+class RequestRateChangeSchema(Schema):
+    """Schema for requesting a rate change"""
+    new_rate: float  # new daily rate
+    reason: str
+    effective_date: str  # YYYY-MM-DD format
+
+
+class ApproveRateChangeSchema(Schema):
+    """Schema for approving/rejecting rate change"""
+    approve: bool
+    rejection_reason: Optional[str] = None
+
+
+class CancelDailyJobSchema(Schema):
+    """Schema for canceling a daily job"""
+    reason: str

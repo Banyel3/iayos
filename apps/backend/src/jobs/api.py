@@ -7,7 +7,11 @@ from accounts.models import ClientProfile, Specializations, Profile, WorkerProfi
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
-from .schemas import CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
+from .schemas import (
+    CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, 
+    JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema,
+    LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema
+)
 from datetime import datetime
 from django.utils import timezone
 from decimal import Decimal
@@ -6299,7 +6303,7 @@ def get_job_payment_timeline(request, job_id: int):
 # =============================================================================
 
 @router.post("/{job_id}/daily/attendance", auth=dual_auth)
-def log_daily_attendance(request, job_id: int, data: dict):
+def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
     """
     Log attendance for a day of work on a daily-rate job.
     
@@ -6333,7 +6337,7 @@ def log_daily_attendance(request, job_id: int, data: dict):
     profile_type = getattr(user, 'profile_type', None)
     
     # Parse date
-    work_date_str = data.get('work_date')
+    work_date_str = data.work_date
     if not work_date_str:
         return Response({"error": "work_date is required"}, status=400)
     
@@ -6342,34 +6346,34 @@ def log_daily_attendance(request, job_id: int, data: dict):
     except ValueError:
         return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
     
-    status = data.get('status', 'PENDING')
+    status = data.status or 'PENDING'
     if status not in ['PENDING', 'PRESENT', 'HALF_DAY', 'ABSENT']:
         return Response({"error": "Invalid status. Use PENDING, PRESENT, HALF_DAY, or ABSENT"}, status=400)
     
     # Parse optional time fields
     time_in = None
     time_out = None
-    if data.get('time_in'):
+    if data.time_in:
         try:
-            time_in = datetime.fromisoformat(data['time_in'])
+            time_in = datetime.fromisoformat(data.time_in)
         except ValueError:
             pass
-    if data.get('time_out'):
+    if data.time_out:
         try:
-            time_out = datetime.fromisoformat(data['time_out'])
+            time_out = datetime.fromisoformat(data.time_out)
         except ValueError:
             pass
     
     # Get worker/assignment/employee
     worker = None
     assignment = None
-    employee_id = data.get('employee_id')
+    employee_id = data.employee_id
     
-    if data.get('assignment_id'):
+    if data.assignment_id:
         from accounts.models import JobWorkerAssignment
         try:
             assignment = JobWorkerAssignment.objects.get(
-                assignmentID=data['assignment_id'],
+                assignmentID=data.assignment_id,
                 jobID=job
             )
         except JobWorkerAssignment.DoesNotExist:
@@ -6389,7 +6393,7 @@ def log_daily_attendance(request, job_id: int, data: dict):
         time_in=time_in,
         time_out=time_out,
         status=status,
-        notes=data.get('notes', '')
+        notes=data.notes or ''
     )
     
     if not result.get('success'):
@@ -6546,7 +6550,7 @@ def get_daily_job_summary(request, job_id: int):
 
 
 @router.post("/{job_id}/daily/extension", auth=dual_auth)
-def request_daily_extension(request, job_id: int, data: dict):
+def request_daily_extension(request, job_id: int, data: RequestExtensionSchema):
     """
     Request an extension for a daily job.
     Requires mutual approval from both client and worker/agency.
@@ -6565,8 +6569,8 @@ def request_daily_extension(request, job_id: int, data: dict):
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
     
-    additional_days = data.get('additional_days')
-    reason = data.get('reason')
+    additional_days = data.additional_days
+    reason = data.reason
     
     if not additional_days or additional_days < 1:
         return Response({"error": "additional_days must be at least 1"}, status=400)
@@ -6679,7 +6683,7 @@ def get_daily_extensions(request, job_id: int):
 
 
 @router.post("/{job_id}/daily/rate-change", auth=dual_auth)
-def request_rate_change(request, job_id: int, data: dict):
+def request_rate_change(request, job_id: int, data: RequestRateChangeSchema):
     """
     Request a rate change for a daily job.
     Requires mutual approval from both client and worker/agency.
@@ -6700,9 +6704,9 @@ def request_rate_change(request, job_id: int, data: dict):
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
     
-    new_rate = data.get('new_rate')
-    reason = data.get('reason')
-    effective_date_str = data.get('effective_date')
+    new_rate = data.new_rate
+    reason = data.reason
+    effective_date_str = data.effective_date
     
     if not new_rate or Decimal(str(new_rate)) <= 0:
         return Response({"error": "new_rate must be positive"}, status=400)
@@ -6826,7 +6830,7 @@ def get_rate_changes(request, job_id: int):
 
 
 @router.post("/{job_id}/daily/cancel", auth=dual_auth)
-def cancel_daily_job(request, job_id: int, data: dict):
+def cancel_daily_job(request, job_id: int, data: CancelDailyJobSchema):
     """
     Cancel remaining days of a daily job.
     Refunds unused escrow to client.
@@ -6844,7 +6848,7 @@ def cancel_daily_job(request, job_id: int, data: dict):
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
     
-    reason = data.get('reason')
+    reason = data.reason
     if not reason:
         return Response({"error": "reason is required"}, status=400)
     
