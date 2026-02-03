@@ -1,0 +1,251 @@
+### Daily Payment API Endpoint Tests
+### Use this file to test all daily payment endpoints against the live backend
+### Requires: Backend running on localhost:8000, valid JWT token
+
+@baseUrl = http://localhost:8000
+@contentType = application/json
+
+### ============================================
+### 1. AUTHENTICATION - Get JWT Token
+### ============================================
+
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: {{contentType}}
+
+{
+  "email": "worker@test.com",
+  "password": "testpass123"
+}
+
+###
+@authToken = {{login.response.body.access_token}}
+
+### ============================================
+### 2. ESCROW ESTIMATE (No auth required for estimate)
+### ============================================
+
+# @name escrowEstimate
+GET {{baseUrl}}/api/jobs/0/daily/escrow-estimate?daily_rate=1500&num_workers=1&num_days=5
+Authorization: Bearer {{authToken}}
+
+### Expected: 200 OK with breakdown
+### {
+###   "success": true,
+###   "daily_rate": 1500,
+###   "num_workers": 1,
+###   "num_days": 5,
+###   "escrow_amount": 7500,
+###   "platform_fee": 750,
+###   "total_required": 8250
+### }
+
+### ============================================
+### 3. CREATE A DAILY JOB (via invite endpoint)
+### ============================================
+
+# First login as client
+# @name clientLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: {{contentType}}
+
+{
+  "email": "client@test.com",
+  "password": "testpass123"
+}
+
+###
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ============================================
+### 4. ATTENDANCE ENDPOINTS
+### ============================================
+
+### Log attendance for a daily job
+# @name logAttendance
+POST {{baseUrl}}/api/jobs/1/daily/attendance
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "work_date": "2026-02-03",
+  "status": "PRESENT",
+  "time_in": "2026-02-03T08:00:00",
+  "time_out": "2026-02-03T17:00:00",
+  "notes": "Completed full day of work"
+}
+
+### Expected: 200 OK or 400 if job is not daily-rate
+### If job doesn't exist: 404
+### If job is PROJECT type: {"error": "This job is not a daily-rate job"}
+
+### ============================================
+### 5. GET ATTENDANCE RECORDS
+### ============================================
+
+# @name getAttendance
+GET {{baseUrl}}/api/jobs/1/daily/attendance
+Authorization: Bearer {{authToken}}
+
+### Expected: 200 OK with records array or 400 if not daily job
+
+### ============================================
+### 6. GET DAILY JOB SUMMARY
+### ============================================
+
+# @name getDailySummary
+GET {{baseUrl}}/api/jobs/1/daily/summary
+Authorization: Bearer {{authToken}}
+
+### Expected: 200 OK with summary or 400 if not daily job
+
+### ============================================
+### 7. EXTENSION ENDPOINTS
+### ============================================
+
+### Request an extension
+# @name requestExtension
+POST {{baseUrl}}/api/jobs/1/daily/extension
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "additional_days": 3,
+  "reason": "Project scope expanded, need more time to complete"
+}
+
+### Expected: 200 OK or 400 if validation fails
+
+### Get all extensions
+# @name getExtensions
+GET {{baseUrl}}/api/jobs/1/daily/extensions
+Authorization: Bearer {{authToken}}
+
+### Expected: 200 OK with extensions array
+
+### ============================================
+### 8. RATE CHANGE ENDPOINTS
+### ============================================
+
+### Request a rate change
+# @name requestRateChange
+POST {{baseUrl}}/api/jobs/1/daily/rate-change
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "new_rate": 2000,
+  "reason": "Complexity increased, requiring additional skills",
+  "effective_date": "2026-02-10"
+}
+
+### Expected: 200 OK or 400 if validation fails
+
+### Get all rate changes
+# @name getRateChanges
+GET {{baseUrl}}/api/jobs/1/daily/rate-changes
+Authorization: Bearer {{authToken}}
+
+### Expected: 200 OK with rate_changes array
+
+### ============================================
+### 9. CANCEL DAILY JOB
+### ============================================
+
+### Cancel remaining days (refunds unused escrow)
+# @name cancelDailyJob
+POST {{baseUrl}}/api/jobs/1/daily/cancel
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "reason": "Project requirements changed"
+}
+
+### Expected: 200 OK with refund amount or error
+
+### ============================================
+### 10. CONFIRMATION ENDPOINTS
+### ============================================
+
+### Worker confirms attendance (use attendance_id from logAttendance response)
+# @name workerConfirmAttendance
+POST {{baseUrl}}/api/jobs/1/daily/attendance/1/confirm-worker
+Authorization: Bearer {{authToken}}
+
+### Expected: 200 OK with confirmation status
+
+### Client confirms attendance
+# @name clientConfirmAttendance
+POST {{baseUrl}}/api/jobs/1/daily/attendance/1/confirm-client
+Authorization: Bearer {{clientToken}}
+Content-Type: {{contentType}}
+
+{
+  "approved_status": "PRESENT"
+}
+
+### Expected: 200 OK with confirmation and payment processing
+
+### ============================================
+### ERROR CASE TESTS
+### ============================================
+
+### Test: Job not found (404)
+GET {{baseUrl}}/api/jobs/99999/daily/summary
+Authorization: Bearer {{authToken}}
+
+### Expected: 404 {"error": "Job not found"}
+
+### Test: Job is not daily-rate (use a PROJECT job ID)
+GET {{baseUrl}}/api/jobs/1/daily/summary
+Authorization: Bearer {{authToken}}
+
+### Expected: 400 {"error": "This job is not a daily-rate job"} if PROJECT type
+
+### Test: Invalid date format
+POST {{baseUrl}}/api/jobs/1/daily/attendance
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "work_date": "invalid-date",
+  "status": "PRESENT"
+}
+
+### Expected: 400 {"error": "Invalid date format. Use YYYY-MM-DD"}
+
+### Test: Invalid status
+POST {{baseUrl}}/api/jobs/1/daily/attendance
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "work_date": "2026-02-03",
+  "status": "INVALID_STATUS"
+}
+
+### Expected: 400 {"error": "Invalid status. Use PENDING, PRESENT, HALF_DAY, or ABSENT"}
+
+### Test: Missing required fields for extension
+POST {{baseUrl}}/api/jobs/1/daily/extension
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "additional_days": 0
+}
+
+### Expected: 400 {"error": "additional_days must be at least 1"}
+
+### Test: Missing reason for rate change
+POST {{baseUrl}}/api/jobs/1/daily/rate-change
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "new_rate": 2000,
+  "effective_date": "2026-02-10"
+}
+
+### Expected: 400 {"error": "reason is required"}
