@@ -165,6 +165,78 @@ def get_kyc_extracted_data(request, kyc_id: int):
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch extracted data"}
 
+
+@router.get("/kyc/agency/{kyc_id}/extracted-data", auth=cookie_auth)
+def get_agency_kyc_extracted_data(request, kyc_id: int):
+    """
+    Get AI-extracted Agency KYC data for admin review.
+    Shows extracted values side-by-side with user-confirmed values.
+    
+    Path params:
+    - kyc_id: AgencyKYC record ID
+    
+    Returns:
+    - confirmed: User-confirmed fields (business info + representative info)
+    - overall_confidence: AI confidence score
+    """
+    try:
+        from agency.models import AgencyKYC, AgencyKYCExtractedData
+        
+        print(f"🔍 [ADMIN AGENCY KYC] Fetching extracted data for Agency KYC ID: {kyc_id}")
+        
+        # Get AgencyKYC record
+        try:
+            kyc_record = AgencyKYC.objects.get(agencyKycID=kyc_id)
+        except AgencyKYC.DoesNotExist:
+            return {"success": False, "error": f"Agency KYC record {kyc_id} not found"}
+        
+        # Get extracted data
+        try:
+            extracted = AgencyKYCExtractedData.objects.get(agencyKyc=kyc_record)
+            
+            # Build confirmed data object
+            confirmed_data = {
+                "business_name": extracted.confirmed_business_name or extracted.extracted_business_name or "",
+                "business_type": extracted.confirmed_business_type or extracted.extracted_business_type or "",
+                "business_address": extracted.confirmed_business_address or extracted.extracted_business_address or "",
+                "permit_number": extracted.confirmed_permit_number or extracted.extracted_permit_number or "",
+                "permit_issue_date": str(extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date or "") if (extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date) else "",
+                "permit_expiry_date": str(extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date or "") if (extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date) else "",
+                "dti_number": extracted.confirmed_dti_number or extracted.extracted_dti_number or "",
+                "sec_number": extracted.confirmed_sec_number or extracted.extracted_sec_number or "",
+                "tin": extracted.confirmed_tin or extracted.extracted_tin or "",
+                "rep_full_name": extracted.confirmed_rep_full_name or extracted.extracted_rep_full_name or "",
+                "rep_id_number": extracted.confirmed_rep_id_number or extracted.extracted_rep_id_number or "",
+                "rep_birth_date": str(extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date or "") if (extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date) else "",
+                "rep_address": extracted.confirmed_rep_address or extracted.extracted_rep_address or "",
+            }
+            
+            return {
+                "success": True,
+                "kyc_id": kyc_id,
+                "has_extracted_data": True,
+                "extraction_status": extracted.extraction_status,
+                "overall_confidence": extracted.overall_confidence,
+                "confirmed": confirmed_data,
+                "user_edited_fields": extracted.user_edited_fields or [],
+                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
+                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
+            }
+            
+        except AgencyKYCExtractedData.DoesNotExist:
+            return {
+                "success": True,
+                "kyc_id": kyc_id,
+                "has_extracted_data": False,
+                "message": "No extracted data available for this Agency KYC record"
+            }
+            
+    except Exception as e:
+        print(f"❌ [ADMIN AGENCY KYC] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch agency extracted data"}
+
     
 @router.post("/kyc/review", auth=cookie_auth)
 def review_kyc(request):
