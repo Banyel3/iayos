@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import KYCExtractedDataComparison from "@/components/admin/KYCExtractedDataComparison";
+import UserSubmittedDataSection from "@/components/admin/UserSubmittedDataSection";
 
 interface KYCRecord {
   id: string;
@@ -585,6 +586,12 @@ export default function KYCDetailPage() {
               )}
             </div>
 
+            {/* User Submitted Data Section - for admin to compare with documents */}
+            <UserSubmittedDataSection
+              kycId={parseInt(record.id.replace("kyc_", "").replace("agency_", ""))}
+              isAgency={record.userType === "agency"}
+            />
+
             {/* Review Information */}
             {(record.reviewedBy || record.rejectionReason) && (
               <div className="border-t pt-6">
@@ -756,14 +763,6 @@ export default function KYCDetailPage() {
               </dl>
             </CardContent>
           </Card>
-
-          {/* AI Extracted Data Comparison */}
-          {record.userType !== "agency" && (
-            <KYCExtractedDataComparison
-              kycId={parseInt(record.id.replace("kyc_", ""))}
-              isAgency={false}
-            />
-          )}
         </div>
       </div>
 
