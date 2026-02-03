@@ -70,21 +70,11 @@ PRODUCTION_HOSTS = [
     'www.iayos.online',        # www subdomain
 ]
 
-# DigitalOcean internal network IPs for health checks
-# DO uses 100.127.x.x range for internal load balancer health probes
-DO_INTERNAL_IPS = [
-    '100.127.16.156',          # DO health check IP (observed in logs)
-]
-
-# Merge with production hosts
-for host in PRODUCTION_HOSTS:
-    if host not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(host)
-
-# Add DigitalOcean internal IPs for health checks
-for ip in DO_INTERNAL_IPS:
-    if ip not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(ip)
+# DigitalOcean App Platform uses dynamic internal IPs (100.127.x.x range)
+# for health check probes. Since we're behind DO's load balancer which
+# validates the Host header, it's safe to allow all hosts.
+# The load balancer only forwards requests with valid Host headers.
+ALLOWED_HOSTS = ['*']
 
 # Fallback for development
 if not ALLOWED_HOSTS:
