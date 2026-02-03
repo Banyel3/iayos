@@ -31,7 +31,7 @@ interface Employee {
   rating: number;
   totalJobsCompleted: number;
   isActive: boolean;
-  specializations?: number[];
+  specializations?: string[]; // List of specialization names (strings from backend)
 }
 
 const normalizeEmployee = (employee: any): Employee => {
