@@ -577,6 +577,36 @@ export const ENDPOINTS = {
   // Worker profile score for improvement suggestions (worker's own profile only)
   WORKER_PROFILE_SCORE: (workerId: number) =>
     `${API_URL}/api/ml/worker-rating-for-profile/${workerId}`,
+
+  // Daily Rate Payment System (12 endpoints)
+  // Attendance tracking
+  DAILY_ATTENDANCE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance`,
+  DAILY_ATTENDANCE_CONFIRM_WORKER: (jobId: number, attendanceId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/confirm-worker`,
+  DAILY_ATTENDANCE_CONFIRM_CLIENT: (jobId: number, attendanceId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/confirm-client`,
+  // Summary and estimates
+  DAILY_SUMMARY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/summary`,
+  DAILY_ESCROW_ESTIMATE: `${API_URL}/api/jobs/daily/escrow-estimate`,
+  // Extensions
+  DAILY_EXTENSIONS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/extensions`,
+  DAILY_EXTENSION_REQUEST: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/extension`,
+  DAILY_EXTENSION_APPROVE: (jobId: number, extensionId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/extension/${extensionId}/approve`,
+  // Rate changes
+  DAILY_RATE_CHANGES: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/rate-changes`,
+  DAILY_RATE_CHANGE_REQUEST: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/rate-change`,
+  DAILY_RATE_CHANGE_APPROVE: (jobId: number, changeId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/rate-change/${changeId}/approve`,
+  // Cancellation
+  DAILY_CANCEL: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/cancel`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
