@@ -24,7 +24,11 @@ import {
   Edit2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { JOB_CATEGORIES } from "@/lib/job-categories";
+
+interface Specialization {
+  specializationID: number;
+  categoryName: string;
+}
 
 interface Employee {
   id: string | number;
@@ -86,6 +90,7 @@ function Rating({ value }: { value?: number | null }) {
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null,
   );
@@ -141,8 +146,23 @@ export default function EmployeesPage() {
     const controller = new AbortController();
     fetchEmployees();
     fetchLeaderboard();
+    fetchSpecializations();
     return () => controller.abort();
   }, []);
+
+  const fetchSpecializations = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/accounts/specializations`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSpecializations(data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching specializations:", error);
+    }
+  };
 
   const fetchLeaderboard = async () => {
     try {
@@ -645,19 +665,19 @@ export default function EmployeesPage() {
                         Specializations * (select one or more)
                       </label>
                       <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                        {JOB_CATEGORIES.map((category) => (
+                        {specializations.map((spec) => (
                           <button
-                            key={category.id}
+                            key={spec.specializationID}
                             type="button"
-                            onClick={() => toggleSpecialization(category.name)}
+                            onClick={() => toggleSpecialization(spec.categoryName)}
                             className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                              selectedSpecializations.includes(category.name)
+                              selectedSpecializations.includes(spec.categoryName)
                                 ? "bg-blue-600 text-white border-blue-600"
                                 : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                             }`}
                           >
-                            {category.name}
-                            {selectedSpecializations.includes(category.name) && (
+                            {spec.categoryName}
+                            {selectedSpecializations.includes(spec.categoryName) && (
                               <CheckCircle className="inline-block ml-1 h-3 w-3" />
                             )}
                           </button>
@@ -1164,19 +1184,19 @@ export default function EmployeesPage() {
                     Specializations * (select one or more)
                   </label>
                   <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                    {JOB_CATEGORIES.map((category) => (
+                    {specializations.map((spec) => (
                       <button
-                        key={category.id}
+                        key={spec.specializationID}
                         type="button"
-                        onClick={() => toggleEditSpecialization(category.name)}
+                        onClick={() => toggleEditSpecialization(spec.categoryName)}
                         className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                          editSpecializations.includes(category.name)
+                          editSpecializations.includes(spec.categoryName)
                             ? "bg-blue-600 text-white border-blue-600"
                             : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                         }`}
                       >
-                        {category.name}
-                        {editSpecializations.includes(category.name) && (
+                        {spec.categoryName}
+                        {editSpecializations.includes(spec.categoryName) && (
                           <CheckCircle className="inline-block ml-1 h-3 w-3" />
                         )}
                       </button>
