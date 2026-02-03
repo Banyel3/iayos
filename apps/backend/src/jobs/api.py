@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -589,6 +589,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     transaction_status = Transaction.TransactionStatus.COMPLETED
                     print(f"💸 Deducted ₱{total_to_charge} from wallet (₱{downpayment} escrow + ₱{platform_fee} fee). New balance: ₱{wallet.balance}")
                 
+                # Determine if this is a team job (agency with skill slots)
+                is_team_job = bool(data.agency_id and data.skill_slots and len(data.skill_slots) > 0)
+                
                 # Create job posting
                 job_posting = JobPosting.objects.create(
                     clientID=client_profile,
@@ -609,10 +612,37 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
                     assignedWorkerID=worker_profile if data.worker_id else None,
                     assignedAgencyFK=assigned_agency if data.agency_id else None,
-                    status=JobPosting.JobStatus.ACTIVE
+                    status=JobPosting.JobStatus.ACTIVE,
+                    is_team_job=is_team_job
                 )
                 
-                print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
+                print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'}, is_team_job: {is_team_job})")
+                
+                # Create skill slots for team jobs
+                if is_team_job and data.skill_slots:
+                    total_workers = sum(slot.workers_needed for slot in data.skill_slots)
+                    num_slots = len(data.skill_slots)
+                    budget_per_slot = Decimal(str(data.budget)) / Decimal(str(num_slots)) if num_slots > 0 else Decimal('0')
+                    
+                    print(f"👷 Creating {num_slots} skill slots for {total_workers} total workers")
+                    
+                    for slot_data in data.skill_slots:
+                        try:
+                            slot_specialization = Specializations.objects.get(
+                                specializationID=slot_data.specialization_id
+                            )
+                            JobSkillSlot.objects.create(
+                                jobID=job_posting,
+                                specializationID=slot_specialization,
+                                workers_needed=slot_data.workers_needed,
+                                budget_allocated=budget_per_slot,
+                                skill_level_required=slot_data.skill_level_required.upper() if slot_data.skill_level_required else 'ENTRY',
+                                notes=slot_data.notes or '',
+                                status='OPEN'
+                            )
+                            print(f"   ✅ Created slot: {slot_specialization.specializationName} x{slot_data.workers_needed}")
+                        except Specializations.DoesNotExist:
+                            print(f"   ⚠️ Specialization {slot_data.specialization_id} not found, skipping slot")
                 
                 # If worker_id provided (direct hire), auto-create application and accept it
                 if data.worker_id:

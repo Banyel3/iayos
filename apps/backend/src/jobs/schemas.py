@@ -15,6 +15,14 @@ class CreateJobPostingSchema(Schema):
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
 
 
+class MobileSkillSlotSchema(Schema):
+    """Schema for skill slots sent from mobile app"""
+    specialization_id: int
+    workers_needed: int = 1
+    skill_level_required: Optional[str] = "ENTRY"  # ENTRY, INTERMEDIATE, EXPERT
+    notes: Optional[str] = None
+
+
 class CreateJobPostingMobileSchema(Schema):
     """Mobile-specific job posting schema with optional worker_id for direct hiring"""
     title: str
@@ -29,6 +37,7 @@ class CreateJobPostingMobileSchema(Schema):
     payment_method: Optional[str] = "WALLET"  # WALLET only
     worker_id: Optional[int] = None  # If provided, job is for specific worker
     agency_id: Optional[int] = None  # If provided, job is for specific agency
+    skill_slots: Optional[list[MobileSkillSlotSchema]] = None  # For team hiring with multiple workers
 
 
 class JobPostingResponseSchema(Schema):
