@@ -93,10 +93,15 @@ jobs:
             echo "✅ Deployment created successfully!"
             echo "$deployment_output"
             
-            # Extract deployment ID
-            deployment_id=$(echo "$deployment_output" | awk '{print $1}')
-            echo "DEPLOYMENT_ID=$deployment_id" >> $GITHUB_ENV
-            echo "Deployment ID: $deployment_id"
+            # Extract deployment ID (skip 'Notice:' lines, grep for UUID)
+            deployment_id=$(echo "$deployment_output" | grep -E '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}' | head -1 | awk '{print $1}')
+            
+            if [ -n "$deployment_id" ]; then
+              echo "DEPLOYMENT_ID=$deployment_id" >> "$GITHUB_ENV"
+              echo "Deployment ID: $deployment_id"
+            else
+              echo "⚠️ Could not extract deployment ID, but deployment created"
+            fi
           else
             echo "❌ Failed to create deployment"
             echo "$deployment_output"
