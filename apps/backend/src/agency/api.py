@@ -1585,9 +1585,11 @@ def assign_employees_to_slots_endpoint(request, job_id: int):
     """
     import json
     try:
+        print(f"📋 assign_employees_to_slots_endpoint called for job_id={job_id}")
         data = json.loads(request.body)
         assignments = data.get('assignments', [])
         primary_contact_employee_id = data.get('primary_contact_employee_id')
+        print(f"   Assignments count: {len(assignments)}, Primary contact: {primary_contact_employee_id}")
         
         if not assignments:
             return Response({'success': False, 'error': 'assignments list is required'}, status=400)

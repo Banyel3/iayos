@@ -2253,28 +2253,37 @@ def assign_employees_to_slots(
     from django.db import transaction
     import json
     
+    print(f"📋 assign_employees_to_slots service called: job_id={job_id}, assignments={len(assignments)}")
+    
     # Get agency
     try:
         agency = AgencyProfile.objects.get(accountFK=agency_account)
+        print(f"   Found agency: {agency.businessName}")
     except AgencyProfile.DoesNotExist:
+        print(f"   ❌ Agency not found for account {agency_account}")
         return {'success': False, 'error': 'Agency account not found'}
     
     # Get job
     try:
         job = Job.objects.select_related('assignedAgencyFK', 'clientID__profileID__accountFK').get(jobID=job_id)
+        print(f"   Found job: {job.title}, status={job.status}, inviteStatus={job.inviteStatus}")
     except Job.DoesNotExist:
+        print(f"   ❌ Job {job_id} not found")
         return {'success': False, 'error': f'Job {job_id} not found'}
     
     # Verify job belongs to this agency
     if job.assignedAgencyFK != agency:
+        print(f"   ❌ Job not assigned to this agency (assigned to {job.assignedAgencyFK})")
         return {'success': False, 'error': 'This job is not assigned to your agency'}
     
     # Verify it's a multi-employee job
     if not job.is_team_job:
+        print(f"   ❌ Not a team job")
         return {'success': False, 'error': 'This is not a multi-employee job. Use regular employee assignment.'}
     
     # Verify job is in correct status (ACTIVE with ACCEPTED invite)
     if job.inviteStatus != 'ACCEPTED':
+        print(f"   ❌ Job invite not accepted yet (current: {job.inviteStatus})")
         return {'success': False, 'error': 'Job invite must be accepted before assigning employees'}
     
     # Get all skill slots for this job

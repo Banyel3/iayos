@@ -406,32 +406,59 @@ export default function AgencyJobsPage() {
       return;
     }
 
-    // For team jobs, open skill slot modal FIRST (before accepting)
-    if (job.is_team_job) {
-      setSelectedJobForAssignment(job);
-      setIsPendingInviteFlow(true);
-      setLoadingSkillSlots(true);
-      try {
-        const slots = await fetchSkillSlots(job.jobID);
-        if (slots.length > 0) {
-          setSelectedJobSkillSlots(slots);
-          setSkillSlotModalOpen(true);
-        } else {
-          setError("No skill slots found for this team job");
-        }
-      } catch (error) {
-        console.error("Error loading skill slots:", error);
-        setError("Failed to load skill slots");
-      } finally {
-        setLoadingSkillSlots(false);
-      }
-      return;
-    }
+    // NEW FLOW: Just accept the invite, don't assign employees here
+    // Employee assignment happens in the "Accepted" tab
+    try {
+      setError(null);
+      setSuccessMessage(null);
+      
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${jobId}/accept`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
 
-    // For non-team jobs, open assign modal with single employee limit
-    setSelectedJobForAssignment(job);
-    setIsPendingInviteFlow(true);
-    setAssignModalOpen(true);
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMessage = getErrorMessage(
+          errorData,
+          "Failed to accept invitation",
+        );
+
+        // Provide user-friendly message for payment-related errors
+        if (errorMessage.includes("escrow payment")) {
+          throw new Error(
+            "This job invitation cannot be accepted yet. The client has not completed the payment. " +
+              "Please wait for the client to complete their GCash/payment transaction.",
+          );
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      // Success - show message and refresh lists
+      setSuccessMessage(
+        `Invitation accepted for "${job.title}"! Go to the Accepted tab to assign employees.`,
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // Remove from pending invites
+      setPendingInvites((prev) => prev.filter((j) => j.jobID !== jobId));
+      
+      // Refresh accepted jobs list
+      await fetchAcceptedJobs();
+      
+      // Switch to Accepted tab so user can assign employees
+      setActiveTab("accepted");
+    } catch (err) {
+      console.error("Error accepting invitation:", err);
+      setError(err instanceof Error ? err.message : "Failed to accept invitation");
+    }
   };
 
   // Helper to accept invite then assign employees (for pending invite flow)
@@ -542,11 +569,6 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      // If this is a pending invite, accept first before assigning
-      if (isPendingInviteFlow) {
-        await acceptInviteAndAssign(selectedJobForAssignment.jobID);
-      }
-
       const response = await fetch(
         `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
         {
@@ -590,23 +612,14 @@ export default function AgencyJobsPage() {
 
       // Show success message
       const count = employeeIds.length;
-      const baseMessage = isPendingInviteFlow
-        ? `Invitation accepted and ${count} employee${count > 1 ? "s" : ""} assigned`
-        : `${count} employee${count > 1 ? "s" : ""} successfully assigned`;
       setSuccessMessage(
-        `${baseMessage} to "${selectedJobForAssignment.title}"! Job is now In Progress.`,
+        `${count} employee${count > 1 ? "s" : ""} successfully assigned to "${selectedJobForAssignment.title}"! Job is now In Progress.`,
       );
 
       // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: "smooth" });
 
       // Refresh job lists
-      if (isPendingInviteFlow) {
-        // Remove from pending invites
-        setPendingInvites((prevInvites) =>
-          prevInvites.filter((job) => job.jobID !== selectedJobForAssignment.jobID),
-        );
-      }
       await fetchAcceptedJobs();
       await fetchInProgressJobs();
 
@@ -661,11 +674,6 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      // If this is a pending invite, accept first before assigning
-      if (isPendingInviteFlow) {
-        await acceptInviteAndAssign(selectedJobForAssignment.jobID);
-      }
-
       const response = await fetch(
         `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees-to-slots`,
         {
@@ -691,22 +699,13 @@ export default function AgencyJobsPage() {
 
       // Show success message
       const count = assignments.length;
-      const baseMessage = isPendingInviteFlow
-        ? `Invitation accepted and ${count} worker${count > 1 ? "s" : ""} assigned to skill slots`
-        : `${count} worker${count > 1 ? "s" : ""} successfully assigned to skill slots`;
       setSuccessMessage(
-        `${baseMessage} for "${selectedJobForAssignment.title}"! Job is now In Progress.`,
+        `${count} worker${count > 1 ? "s" : ""} successfully assigned to skill slots for "${selectedJobForAssignment.title}"! Job is now In Progress.`,
       );
 
       window.scrollTo({ top: 0, behavior: "smooth" });
 
       // Refresh job lists
-      if (isPendingInviteFlow) {
-        // Remove from pending invites
-        setPendingInvites((prevInvites) =>
-          prevInvites.filter((job) => job.jobID !== selectedJobForAssignment.jobID),
-        );
-      }
       await fetchAcceptedJobs();
       await fetchInProgressJobs();
 
