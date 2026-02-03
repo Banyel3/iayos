@@ -2247,7 +2247,8 @@ def assign_employees_to_slots(
         - Employees must have the specialization matching the slot (strict matching)
         - Each employee can only be assigned to one slot per job
     """
-    from accounts.models import Job, JobSkillSlot, JobEmployeeAssignment, Notification, JobLog, Specializations, Conversation
+    from accounts.models import Job, JobSkillSlot, JobEmployeeAssignment, Notification, JobLog, Specializations
+    from profiles.models import Conversation
     from .models import AgencyEmployee
     from django.utils import timezone
     from django.db import transaction

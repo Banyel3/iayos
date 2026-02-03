@@ -1,0 +1,39 @@
+### Test assign-employees-to-slots endpoint
+### This tests the fix for Conversation import error
+
+@baseUrl = http://localhost:8000
+
+### 1. Login as agency user first
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "agency@test.com",
+  "password": "password123"
+}
+
+### 2. Get agency jobs to find a team job with skill slots
+# @name getJobs
+GET {{baseUrl}}/api/agency/jobs?status=ACTIVE
+Cookie: {{login.response.headers.set-cookie}}
+
+### 3. Get skill slots for a specific job (replace JOB_ID with actual ID)
+# @name getSlots
+GET {{baseUrl}}/api/agency/jobs/123/skill-slots
+Cookie: {{login.response.headers.set-cookie}}
+
+### 4. Assign employees to slots (replace with actual IDs)
+# This is the endpoint that was returning "Internal server error"
+# Should now work after fixing Conversation import
+# @name assignEmployees
+POST {{baseUrl}}/api/agency/jobs/123/assign-employees-to-slots
+Content-Type: application/json
+Cookie: {{login.response.headers.set-cookie}}
+
+{
+  "assignments": [
+    {"skill_slot_id": 1, "employee_id": 1}
+  ],
+  "primary_contact_employee_id": 1
+}
