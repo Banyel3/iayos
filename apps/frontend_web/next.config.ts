@@ -10,6 +10,16 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  // Permanent redirects for removed worker/client web routes (SEO cleanup)
+  async redirects() {
+    return [
+      {
+        source: '/dashboard/:path*',
+        destination: '/mobile-only',
+        permanent: true, // 301 redirect
+      },
+    ];
+  },
   // Enable experimental features for better caching
   experimental: {
     staleTimes: {
