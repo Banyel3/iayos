@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "iayos_mobile",
-    "slug": "iayos",
+    "slug": "iayos_mobile",
     "version": "1.21.2",
     "orientation": "portrait",
     "icon": "./assets/images/android-icon-foreground.png",
@@ -32,10 +32,7 @@
     "web": {
       "bundler": "metro"
     },
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-router",
       [
@@ -91,9 +88,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "24252bfc-2034-404b-bc64-1bf5a808c55c"
+        "projectId": "9aefe802-18a0-41ab-9d65-c112999529f8"
       }
     },
-    "owner": "banyel33s-organization"
+    "owner": "banyel"
   }
 }
