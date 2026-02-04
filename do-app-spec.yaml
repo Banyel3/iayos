@@ -1,0 +1,218 @@
+# DigitalOcean App Platform Specification
+# Deploy: doctl apps create --spec do-app-spec.yaml
+# Update: doctl apps update <APP_ID> --spec do-app-spec.yaml
+
+name: iayos-backend
+region: sgp # Singapore - closest to Philippines
+
+services:
+  - name: backend
+    # Option 1: Deploy from Container Registry (recommended for production)
+    image:
+      registry_type: DOCR
+      repository: iayos-backend
+      tag: latest
+
+    # Option 2: Deploy from GitHub (auto-deploy on push)
+    # Uncomment below and comment out 'image' section above
+    # github:
+    #   repo: Banyel3/iayos
+    #   branch: main
+    #   deploy_on_push: true
+    # dockerfile_path: Dockerfile
+    # build_command: ""  # Not needed - Dockerfile handles build
+
+    # Instance Configuration
+    instance_count: 1
+    instance_size_slug: professional-xs # $12/month (1GB RAM, 1 vCPU)
+    # Alternative: basic-xxs ($5/month, 512MB RAM) for budget option
+
+    # HTTP Configuration
+    http_port: 8000
+    routes:
+      - path: /
+
+    # Health Check
+    health_check:
+      http_path: /health/status
+      initial_delay_seconds: 60 # Wait for migrations
+      period_seconds: 30
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 5
+
+    # Run Command (uses Dockerfile ENTRYPOINT by default)
+    # Uncomment only if you need to override
+    # run_command: /app/backend/start.sh
+
+    # Environment Variables
+    # Replace ${...} placeholders with actual values in DigitalOcean dashboard
+    # Or use: doctl apps update <APP_ID> --env KEY=VALUE
+    envs:
+      # ===========================================
+      # DATABASE (Render PostgreSQL - External)
+      # ===========================================
+      - key: DATABASE_URL
+        value: "${DATABASE_URL}"
+        type: SECRET
+        # Get from: Render Dashboard → PostgreSQL → Connect → External Database URL
+        # Format: postgresql://user:pass@host:port/db?sslmode=require
+
+      # ===========================================
+      # DJANGO CORE SETTINGS
+      # ===========================================
+      - key: DJANGO_SECRET_KEY
+        value: "${DJANGO_SECRET_KEY}"
+        type: SECRET
+
+      - key: DEBUG
+        value: "false"
+
+      - key: ENVIRONMENT
+        value: "production"
+
+      - key: ALLOWED_HOSTS
+        value: "${APP_DOMAIN},api.iayos.online,iayos.online,www.iayos.online"
+
+      # ===========================================
+      # URLS & CORS
+      # ===========================================
+      - key: FRONTEND_URL
+        value: "https://iayos.online"
+
+      - key: BACKEND_URL
+        value: "https://${APP_DOMAIN}"
+
+      - key: EXPO_PUBLIC_API_URL
+        value: "https://api.iayos.online"
+
+      # ===========================================
+      # SUPABASE STORAGE
+      # ===========================================
+      - key: SUPABASE_URL
+        value: "${SUPABASE_URL}"
+        type: SECRET
+
+      - key: SUPABASE_SECRET_KEY
+        value: "${SUPABASE_SECRET_KEY}"
+        type: SECRET
+
+      - key: SUPABASE_ANON_KEY
+        value: "${SUPABASE_ANON_KEY}"
+        type: SECRET
+
+      # ===========================================
+      # PAYMONGO PAYMENTS (Primary)
+      # ===========================================
+      - key: PAYMENT_PROVIDER
+        value: "paymongo"
+
+      - key: PAYMONGO_SECRET_KEY
+        value: "${PAYMONGO_SECRET_KEY}"
+        type: SECRET
+
+      - key: PAYMONGO_PUBLIC_KEY
+        value: "${PAYMONGO_PUBLIC_KEY}"
+        type: SECRET
+
+      - key: PAYMONGO_WEBHOOK_SECRET
+        value: "${PAYMONGO_WEBHOOK_SECRET}"
+        type: SECRET
+
+      # ===========================================
+      # XENDIT (Legacy - for rollback)
+      # ===========================================
+      - key: XENDIT_API_KEY
+        value: "${XENDIT_API_KEY}"
+        type: SECRET
+
+      - key: XENDIT_WEBHOOK_TOKEN
+        value: "${XENDIT_WEBHOOK_TOKEN}"
+        type: SECRET
+
+      # ===========================================
+      # EMAIL (Resend)
+      # ===========================================
+      - key: RESEND_API_KEY
+        value: "${RESEND_API_KEY}"
+        type: SECRET
+
+      # ===========================================
+      # GOOGLE OAUTH
+      # ===========================================
+      - key: AUTH_GOOGLE_ID
+        value: "${AUTH_GOOGLE_ID}"
+        type: SECRET
+
+      - key: AUTH_GOOGLE_SECRET
+        value: "${AUTH_GOOGLE_SECRET}"
+        type: SECRET
+
+      # ===========================================
+      # FACE API (Remains on Render)
+      # ===========================================
+      - key: FACE_API_URL
+        value: "https://iayos-face-api.onrender.com"
+
+      # ===========================================
+      # REDIS (Required for WebSocket support)
+      # ===========================================
+      - key: REDIS_URL
+        value: "rediss://default:AWnhAAIncDE1MjE4MWE0M2U5OGM0YzdjOGE5M2RhNDA0OTM2NTczMXAxMjcxMDU@exotic-leopard-27105.upstash.io:6379"
+        type: SECRET
+
+      # ===========================================
+      # ADMIN CREDENTIALS (for test user creation)
+      # ===========================================
+      - key: ADMIN_EMAIL
+        value: "${ADMIN_EMAIL}"
+        type: SECRET
+
+      - key: ADMIN_PASSWORD
+        value: "${ADMIN_PASSWORD}"
+        type: SECRET
+
+      # ===========================================
+      # OBSERVABILITY (Optional)
+      # ===========================================
+      - key: SENTRY_DSN
+        value: "${SENTRY_DSN}"
+        type: SECRET
+
+      - key: LOG_LEVEL
+        value: "INFO"
+
+      # ===========================================
+      # FEATURE FLAGS
+      # ===========================================
+      - key: TESTING
+        value: "false"
+
+      - key: RATE_LIMIT_DISABLED
+        value: "false"
+
+# ===========================================
+# MANAGED REDIS (Optional - uncomment to add)
+# ===========================================
+# databases:
+#   - name: iayos-redis
+#     engine: REDIS
+#     version: "7"
+#     size: db-s-1vcpu-1gb
+#     num_nodes: 1
+
+# ===========================================
+# DOMAIN CONFIGURATION
+# ===========================================
+domains:
+  - domain: api.iayos.online
+    type: PRIMARY
+    # After adding domain, create CNAME record:
+    # api.iayos.online → <app-name>.ondigitalocean.app
+
+# ===========================================
+# ALERTS (Optional - configure in dashboard)
+# ===========================================
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
