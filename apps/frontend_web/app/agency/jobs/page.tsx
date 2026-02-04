@@ -265,12 +265,8 @@ export default function AgencyJobsPage() {
       }
 
       const data = await response.json();
-      // Only show IN_PROGRESS jobs that have an assigned employee
-      // Jobs without employees should appear in Accepted tab instead
-      const jobsWithEmployees = (data.jobs || []).filter(
-        (job: Job) => job.assignedEmployeeID,
-      );
-      setInProgressJobs(jobsWithEmployees);
+      // Backend already filters by status=IN_PROGRESS, trust the backend
+      setInProgressJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
     } finally {
