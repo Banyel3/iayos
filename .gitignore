@@ -18,6 +18,10 @@
 !.env.example
 !.env.*.example
 
+# Deployment config copies (temp files)
+/.env.digitalocean
+/do-spec-temp.yaml
+
 # Cookie/session files
 cookies.txt
 admin_cookies.txt
@@ -214,7 +218,11 @@ tensorboard/
 # =============================================================================
 # DATABASE & BACKUPS
 # =============================================================================
-# SQL dumps (keep in apps/backend/backups/ but ignore by default)
+# Database backups
+**/backups/
+**/*.sql
+!**/migrations/**/*.sql
+!**/scripts/database/**/*.sql
 *.sql.gz
 *.dump
 
@@ -229,6 +237,19 @@ tensorboard/
 *_errors.txt
 coverage/
 .nyc_output/
+
+# Test files in root (should be in tests/)
+/test_*.py
+/diagnose_*.py
+/test_*.png
+/test_*.jpg
+/test_*.jpeg
+/*-debug.md
+/test-bypass.md
+
+# Test databases
+**/src/*.db
+*.db
 
 # =============================================================================
 # TEMPORARY & GENERATED FILES
