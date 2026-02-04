@@ -194,8 +194,12 @@ def create_team_job(
             description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
         )
     
-    # Note: Team group conversation is created when job STARTS (not when posted)
-    # This follows the single-job pattern where conversation is created at work start
+    # Create team group conversation immediately for early communication
+    # Workers will be added as participants when their applications are accepted
+    conversation, created = Conversation.create_team_conversation(
+        job_posting=job,
+        client_profile=client_profile
+    )
     
     return {
         'success': True,
