@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "../../components";
 import { useToast } from "@/components/ui/toast";
-import KYCExtractedDataComparison from "@/components/admin/KYCExtractedDataComparison";
+import UserSubmittedDataSection from "@/components/admin/UserSubmittedDataSection";
 
 interface ApprovedKYC {
   id: string;
@@ -764,16 +764,14 @@ export default function ApprovedKYCPage() {
                             </div>
                           </div>
                           
-                          {/* Right Column: OCR Extracted Data */}
-                          {record.userType !== "agency" && (
-                            <div className="space-y-4">
-                              <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                                <Brain className="w-5 h-5 text-blue-600" />
-                                OCR Extracted Data
-                              </h4>
-                              <KYCExtractedDataComparison kycId={parseInt(record.kycId)} />
-                            </div>
-                          )}
+                          {/* Right Column: User Submitted Data */}
+                          <div className="space-y-4">
+                            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-blue-600" />
+                              User Submitted Data
+                            </h4>
+                            <UserSubmittedDataSection kycId={parseInt(record.kycId)} isAgency={record.userType === "agency"} />
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-8 text-gray-500">
