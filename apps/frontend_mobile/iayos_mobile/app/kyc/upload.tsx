@@ -1,6 +1,7 @@
 // app/kyc/upload.tsx
 // KYC document upload screen - 7-step flow with separate verification screens
 // Updated: Per-step OCR extraction with dedicated verification steps
+// Updated: Uses expo-camera via /kyc/camera screen for real-time overlay guide
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
@@ -48,6 +49,7 @@ import {
   OCR_TIMEOUT,
   KYC_UPLOAD_TIMEOUT,
 } from "@/lib/api/config";
+import { cameraEvents } from "@/lib/utils/cameraEvents";
 import { compressImage } from "@/lib/utils/image-utils";
 
 // Total steps in the KYC flow
@@ -135,9 +137,7 @@ export default function KYCUploadScreen() {
   const [clearanceError, setClearanceError] = useState<string | null>(null);
   const [selfieError, setSelfieError] = useState<string | null>(null);
 
-  // Camera guidance modal state
-  const [showCameraGuide, setShowCameraGuide] = useState(false);
-  const [pendingCaptureType, setPendingCaptureType] = useState<"front" | "back" | "clearance" | "selfie" | null>(null);
+  // Camera guide modal removed - now using /kyc/camera screen with built-in overlay
 
   // Computed: is ANY validation in progress?
   const isValidating =
@@ -162,48 +162,93 @@ export default function KYCUploadScreen() {
     }
   }, [hasSubmittedKYC, isPending, kycLoading, router]);
 
-  const requestPermissions = async () => {
-    const { status: cameraStatus } =
-      await ImagePicker.requestCameraPermissionsAsync();
+  // Subscribe to camera capture events
+  // When the camera screen captures a photo, it emits the URI back to us
+  useEffect(() => {
+    const unsubscribeFront = cameraEvents.on("front", (uri: string) => {
+      console.log("[KYC] Received front ID photo from camera");
+      handleCameraPhotoReceived("front", uri);
+    });
+    const unsubscribeBack = cameraEvents.on("back", (uri: string) => {
+      console.log("[KYC] Received back ID photo from camera");
+      handleCameraPhotoReceived("back", uri);
+    });
+    const unsubscribeClearance = cameraEvents.on("clearance", (uri: string) => {
+      console.log("[KYC] Received clearance photo from camera");
+      handleCameraPhotoReceived("clearance", uri);
+    });
+    const unsubscribeSelfie = cameraEvents.on("selfie", (uri: string) => {
+      console.log("[KYC] Received selfie photo from camera");
+      handleCameraPhotoReceived("selfie", uri);
+    });
+
+    return () => {
+      unsubscribeFront();
+      unsubscribeBack();
+      unsubscribeClearance();
+      unsubscribeSelfie();
+    };
+  }, []);
+
+  // Handle photo received from camera screen
+  const handleCameraPhotoReceived = (
+    type: "front" | "back" | "clearance" | "selfie",
+    uri: string,
+  ) => {
+    // Create a mock ImagePickerAsset-like object to reuse existing handleImageSelected
+    // Note: ImagePickerAsset.type is "image" | "video" | etc., not MIME type
+    const asset = {
+      uri,
+      width: 0,
+      height: 0,
+      fileName: `${type}_${Date.now()}.jpg`,
+      type: "image",
+      assetId: null,
+      base64: null,
+      exif: null,
+      duration: null,
+      mimeType: "image/jpeg",
+    } as ImagePicker.ImagePickerAsset;
+
+    handleImageSelected(type, asset);
+  };
+
+  const requestMediaPermissions = async () => {
     const { status: mediaStatus } =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (cameraStatus !== "granted") {
+    if (mediaStatus !== "granted") {
       Alert.alert(
-        "Camera Permission Required",
-        "Camera access is required to capture your documents for verification.",
+        "Gallery Permission Required",
+        "Gallery access is required to select photos from your library.",
       );
       return false;
     }
     return true;
   };
 
+  // Navigate to camera screen with real-time overlay guide
+  const openCamera = (type: "front" | "back" | "clearance" | "selfie") => {
+    router.push({
+      pathname: "/kyc/camera",
+      params: { documentType: type },
+    });
+  };
+
   const pickImage = async (type: "front" | "back" | "clearance" | "selfie") => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
-
-    // Show camera guidance modal before capturing
-    // For selfie, skip the ID frame guide
-    if (type === "selfie") {
-      captureImage(type);
-    } else {
-      setPendingCaptureType(type);
-      setShowCameraGuide(true);
-    }
+    // Open camera screen directly - it has real-time overlay guide built-in
+    // No need for pre-capture modal anymore
+    openCamera(type);
   };
 
-  const handleOpenCameraFromGuide = () => {
-    setShowCameraGuide(false);
-    if (pendingCaptureType) {
-      captureImage(pendingCaptureType);
-      setPendingCaptureType(null);
-    }
-  };
-
-  const captureImage = async (
+  // Legacy: For gallery selection (if we add a "Choose from gallery" option later)
+  const pickFromGallery = async (
     type: "front" | "back" | "clearance" | "selfie",
   ) => {
-    const result = await ImagePicker.launchCameraAsync({
+    const hasPermission = await requestMediaPermissions();
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
       quality: 1.0,
@@ -1470,84 +1515,7 @@ export default function KYCUploadScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Camera Guidance Modal */}
-      <Modal
-        visible={showCameraGuide}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowCameraGuide(false)}
-      >
-        <View style={styles.cameraGuideModalOverlay}>
-          <View style={styles.cameraGuideModalContent}>
-            {/* Close button */}
-            <TouchableOpacity
-              style={styles.cameraGuideCloseButton}
-              onPress={() => {
-                setShowCameraGuide(false);
-                setPendingCaptureType(null);
-              }}
-            >
-              <Ionicons name="close" size={24} color={Colors.textSecondary} />
-            </TouchableOpacity>
-
-            {/* Title */}
-            <Text style={styles.cameraGuideTitle}>
-              {pendingCaptureType === "clearance" ? "Position Clearance Document" : "Position Your ID Card"}
-            </Text>
-            <Text style={styles.cameraGuideSubtitle}>
-              Align the document within the frame for best results
-            </Text>
-
-            {/* ID Frame Guide Visual */}
-            <View style={styles.cameraGuideFrameContainer}>
-              <View style={styles.cameraGuideFrame}>
-                {/* Corner markers */}
-                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerTL]} />
-                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerTR]} />
-                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerBL]} />
-                <View style={[styles.cameraGuideCorner, styles.cameraGuideCornerBR]} />
-                
-                {/* Center icon */}
-                <Ionicons 
-                  name={pendingCaptureType === "clearance" ? "document-text-outline" : "card-outline"} 
-                  size={64} 
-                  color={Colors.primary} 
-                />
-                <Text style={styles.cameraGuideFrameText}>
-                  {pendingCaptureType === "front" && "FRONT"}
-                  {pendingCaptureType === "back" && "BACK"}
-                  {pendingCaptureType === "clearance" && "CLEARANCE"}
-                </Text>
-              </View>
-            </View>
-
-            {/* Tips */}
-            <View style={styles.cameraGuideTips}>
-              <View style={styles.cameraGuideTipRow}>
-                <Ionicons name="sunny-outline" size={20} color={Colors.warning} />
-                <Text style={styles.cameraGuideTipText}>Ensure good lighting</Text>
-              </View>
-              <View style={styles.cameraGuideTipRow}>
-                <Ionicons name="expand-outline" size={20} color={Colors.primary} />
-                <Text style={styles.cameraGuideTipText}>Fill the frame with the document</Text>
-              </View>
-              <View style={styles.cameraGuideTipRow}>
-                <Ionicons name="hand-left-outline" size={20} color={Colors.success} />
-                <Text style={styles.cameraGuideTipText}>Hold steady - avoid blur</Text>
-              </View>
-            </View>
-
-            {/* Action Button */}
-            <TouchableOpacity
-              style={styles.cameraGuideOpenButton}
-              onPress={handleOpenCameraFromGuide}
-            >
-              <Ionicons name="camera" size={24} color={Colors.white} />
-              <Text style={styles.cameraGuideOpenButtonText}>Open Camera</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Camera Guidance Modal removed - now using /kyc/camera screen with built-in overlay */}
     </SafeAreaView>
   );
 }
@@ -1894,131 +1862,5 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     borderBottomRightRadius: 4,
   },
-  // Camera Guidance Modal styles
-  cameraGuideModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "flex-end",
-  },
-  cameraGuideModalContent: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: "center",
-  },
-  cameraGuideCloseButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    padding: 8,
-    zIndex: 1,
-  },
-  cameraGuideTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.textPrimary,
-    marginTop: 8,
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  cameraGuideSubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  cameraGuideFrameContainer: {
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  cameraGuideFrame: {
-    width: 280,
-    height: 180,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderStyle: "dashed",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(93, 123, 242, 0.05)",
-  },
-  cameraGuideCorner: {
-    position: "absolute",
-    width: 32,
-    height: 32,
-  },
-  cameraGuideCornerTL: {
-    top: -2,
-    left: -2,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: Colors.primary,
-    borderTopLeftRadius: 8,
-  },
-  cameraGuideCornerTR: {
-    top: -2,
-    right: -2,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderColor: Colors.primary,
-    borderTopRightRadius: 8,
-  },
-  cameraGuideCornerBL: {
-    bottom: -2,
-    left: -2,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: Colors.primary,
-    borderBottomLeftRadius: 8,
-  },
-  cameraGuideCornerBR: {
-    bottom: -2,
-    right: -2,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderColor: Colors.primary,
-    borderBottomRightRadius: 8,
-  },
-  cameraGuideFrameText: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: "600",
-    color: Colors.primary,
-    letterSpacing: 2,
-  },
-  cameraGuideTips: {
-    width: "100%",
-    marginBottom: 24,
-  },
-  cameraGuideTipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  cameraGuideTipText: {
-    marginLeft: 12,
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  cameraGuideOpenButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: BorderRadius.lg,
-    width: "100%",
-    gap: 8,
-    ...Shadows.md,
-  },
-  cameraGuideOpenButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: Colors.white,
-  },
+  // Camera Guidance Modal styles removed - now using /kyc/camera screen with built-in overlay
 });
