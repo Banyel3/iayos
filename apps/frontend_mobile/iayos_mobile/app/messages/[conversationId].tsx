@@ -271,25 +271,22 @@ export default function ChatScreen() {
   const handleMarkTeamAssignmentComplete = (assignmentId: number) => {
     if (!conversation) return;
 
-    Alert.prompt(
+    Alert.alert(
       "Mark Assignment Complete",
-      "Add optional completion notes:",
+      "Are you sure you want to mark this assignment as complete?",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Submit",
-          onPress: (notes?: string) => {
+          onPress: () => {
             markTeamAssignmentCompleteMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
-              notes: notes || undefined,
+              notes: undefined,
             });
           },
         },
-      ],
-      "plain-text",
-      "",
-      "default",
+      ]
     );
   };
 
@@ -491,24 +488,21 @@ export default function ChatScreen() {
       return;
     }
 
-    Alert.prompt(
+    Alert.alert(
       "Mark Backjob Complete",
-      "Add optional completion notes:",
+      "Are you sure you want to mark this backjob as complete?",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Submit",
-          onPress: (notes?: string) => {
+          onPress: () => {
             markBackjobCompleteMutation.mutate({
               jobId: conversation.job.id,
-              notes: notes || undefined,
+              notes: undefined,
             });
           },
         },
-      ],
-      "plain-text",
-      "",
-      "default",
+      ]
     );
   };
 
@@ -538,16 +532,19 @@ export default function ChatScreen() {
     if (!conversation) return;
 
     // Check ratings based on role:
-    // CLIENT reviewing WORKER: requires all 4 category ratings
-    // WORKER reviewing CLIENT: requires only single rating
+    // CLIENT reviewing WORKER: Punctuality, Reliability, Skill, Workmanship
+    // WORKER reviewing CLIENT: Professionalism, Communication, Quality, Value
     const isClientReviewing = conversation.my_role === "CLIENT";
 
     const isRatingComplete = isClientReviewing
-      ? ratingQuality > 0 &&
-        ratingCommunication > 0 &&
-        ratingPunctuality > 0 &&
-        ratingProfessionalism > 0
-      : singleRating > 0;
+      ? ratingPunctuality > 0 &&
+        ratingProfessionalism > 0 &&
+        ratingQuality > 0 &&
+        ratingCommunication > 0
+      : ratingPunctuality > 0 &&
+        ratingProfessionalism > 0 &&
+        ratingQuality > 0 &&
+        ratingCommunication > 0;
 
     if (!isRatingComplete) {
       Alert.alert(
@@ -2550,31 +2547,31 @@ export default function ChatScreen() {
                       )}
 
                       {/* Rating Section - Conditional based on reviewer role */}
-                      {conversation.my_role === "CLIENT" ? (
-                        /* Multi-Criteria Star Ratings for CLIENT reviewing WORKER */
+                      {conversation.my_role === "WORKER" ? (
+                        /* Multi-Criteria Star Ratings for WORKER reviewing CLIENT */
                         <View style={styles.multiCriteriaContainer}>
-                          {/* Quality Rating */}
+                          {/* Professionalism Rating */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
-                              <Text style={styles.criteriaIcon}>🏆</Text>
-                              <Text style={styles.criteriaLabel}>Quality</Text>
+                              <Text style={styles.criteriaIcon}>👔</Text>
+                              <Text style={styles.criteriaLabel}>Professionalism</Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
                                 <TouchableOpacity
                                   key={star}
-                                  onPress={() => setRatingQuality(star)}
+                                  onPress={() => setRatingProfessionalism(star)}
                                   style={styles.starButtonSmall}
                                 >
                                   <Ionicons
                                     name={
-                                      star <= ratingQuality
+                                      star <= ratingProfessionalism
                                         ? "star"
                                         : "star-outline"
                                     }
                                     size={24}
                                     color={
-                                      star <= ratingQuality
+                                      star <= ratingProfessionalism
                                         ? "#FFB800"
                                         : Colors.border
                                     }
@@ -2617,12 +2614,45 @@ export default function ChatScreen() {
                             </View>
                           </View>
 
-                          {/* Punctuality Rating */}
+                          {/* Quality Rating */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
-                              <Text style={styles.criteriaIcon}>⏰</Text>
+                              <Text style={styles.criteriaIcon}>🏆</Text>
                               <Text style={styles.criteriaLabel}>
-                                Punctuality
+                                Quality
+                              </Text>
+                            </View>
+                            <View style={styles.criteriaStarsRow}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity
+                                  key={star}
+                                  onPress={() => setRatingQuality(star)}
+                                  style={styles.starButtonSmall}
+                                >
+                                  <Ionicons
+                                    name={
+                                      star <= ratingQuality
+                                        ? "star"
+                                        : "star-outline"
+                                    }
+                                    size={24}
+                                    color={
+                                      star <= ratingQuality
+                                        ? "#FFB800"
+                                        : Colors.border
+                                    }
+                                  />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
+
+                          {/* Value Rating - using ratingPunctuality state */}
+                          <View style={styles.criteriaRow}>
+                            <View style={styles.criteriaLabelRow}>
+                              <Text style={styles.criteriaIcon}>💰</Text>
+                              <Text style={styles.criteriaLabel}>
+                                Value
                               </Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
@@ -2649,13 +2679,47 @@ export default function ChatScreen() {
                               ))}
                             </View>
                           </View>
-
-                          {/* Professionalism Rating */}
+                        </View>
+                      ) : (
+                        /* Multi-Criteria Star Ratings for CLIENT reviewing WORKER */
+                        <View style={styles.multiCriteriaContainer}>
+                          {/* Punctuality Rating */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
-                              <Text style={styles.criteriaIcon}>👔</Text>
+                              <Text style={styles.criteriaIcon}>⏰</Text>
+                              <Text style={styles.criteriaLabel}>Punctuality</Text>
+                            </View>
+                            <View style={styles.criteriaStarsRow}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity
+                                  key={star}
+                                  onPress={() => setRatingPunctuality(star)}
+                                  style={styles.starButtonSmall}
+                                >
+                                  <Ionicons
+                                    name={
+                                      star <= ratingPunctuality
+                                        ? "star"
+                                        : "star-outline"
+                                    }
+                                    size={24}
+                                    color={
+                                      star <= ratingPunctuality
+                                        ? "#FFB800"
+                                        : Colors.border
+                                    }
+                                  />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
+
+                          {/* Reliability Rating - using ratingProfessionalism state */}
+                          <View style={styles.criteriaRow}>
+                            <View style={styles.criteriaLabelRow}>
+                              <Text style={styles.criteriaIcon}>✅</Text>
                               <Text style={styles.criteriaLabel}>
-                                Professionalism
+                                Reliability
                               </Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
@@ -2682,46 +2746,72 @@ export default function ChatScreen() {
                               ))}
                             </View>
                           </View>
-                        </View>
-                      ) : (
-                        /* Single Rating for WORKER reviewing CLIENT */
-                        <View style={styles.singleRatingContainer}>
-                          <View style={styles.criteriaStarsRow}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <TouchableOpacity
-                                key={star}
-                                onPress={() => setSingleRating(star)}
-                                style={styles.starButtonLarge}
-                              >
-                                <Ionicons
-                                  name={
-                                    star <= singleRating
-                                      ? "star"
-                                      : "star-outline"
-                                  }
-                                  size={36}
-                                  color={
-                                    star <= singleRating
-                                      ? "#FFB800"
-                                      : Colors.border
-                                  }
-                                />
-                              </TouchableOpacity>
-                            ))}
+
+                          {/* Skill Rating - using ratingQuality state */}
+                          <View style={styles.criteriaRow}>
+                            <View style={styles.criteriaLabelRow}>
+                              <Text style={styles.criteriaIcon}>🔧</Text>
+                              <Text style={styles.criteriaLabel}>
+                                Skill
+                              </Text>
+                            </View>
+                            <View style={styles.criteriaStarsRow}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity
+                                  key={star}
+                                  onPress={() => setRatingQuality(star)}
+                                  style={styles.starButtonSmall}
+                                >
+                                  <Ionicons
+                                    name={
+                                      star <= ratingQuality
+                                        ? "star"
+                                        : "star-outline"
+                                    }
+                                    size={24}
+                                    color={
+                                      star <= ratingQuality
+                                        ? "#FFB800"
+                                        : Colors.border
+                                    }
+                                  />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
                           </View>
-                          {singleRating > 0 && (
-                            <Text style={styles.singleRatingLabel}>
-                              {singleRating === 5
-                                ? "Excellent"
-                                : singleRating === 4
-                                  ? "Good"
-                                  : singleRating === 3
-                                    ? "Fair"
-                                    : singleRating === 2
-                                      ? "Poor"
-                                      : "Very Poor"}
-                            </Text>
-                          )}
+
+                          {/* Workmanship Rating - using ratingCommunication state */}
+                          <View style={styles.criteriaRow}>
+                            <View style={styles.criteriaLabelRow}>
+                              <Text style={styles.criteriaIcon}>🛠️</Text>
+                              <Text style={styles.criteriaLabel}>
+                                Workmanship
+                              </Text>
+                            </View>
+                            <View style={styles.criteriaStarsRow}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity
+                                  key={star}
+                                  onPress={() => setRatingCommunication(star)}
+                                  style={styles.starButtonSmall}
+                                >
+                                  <Ionicons
+                                    name={
+                                      star <= ratingCommunication
+                                        ? "star"
+                                        : "star-outline"
+                                    }
+                                    size={24}
+                                    color={
+                                      star <= ratingCommunication
+                                        ? "#FFB800"
+                                        : Colors.border
+                                    }
+                                  />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
                         </View>
                       )}
 
@@ -3611,7 +3701,7 @@ const styles = StyleSheet.create({
   },
   waitingButtonText: {
     ...Typography.body.medium,
-    color: Colors.textSecondary,
+    color: Colors.textPrimary,
     fontWeight: "500",
     fontStyle: "italic",
   },
