@@ -1,19 +1,20 @@
 """
-Backfill script to ensure all IN_PROGRESS jobs have assignedEmployeeID set.
+Backfill script to ensure all IN_PROGRESS jobs have proper assignments OR conversations.
 
 This script fixes data inconsistency where jobs had their status changed to IN_PROGRESS
-but didn't get assigned to any employee, causing them to appear incorrectly in the
-"Accepted Jobs" tab instead of "In Progress" tab.
+but didn't get assigned to any employee AND didn't have a conversation created.
 
 The fix ensures:
-1. Jobs with status=IN_PROGRESS should have assignedEmployeeID set
-2. If no employee is assigned, revert status to ACTIVE
-3. For team jobs, check if at least one worker is assigned via JobWorkerAssignment
+1. Jobs with status=IN_PROGRESS should have assignedEmployeeID set OR active conversation
+2. If no employee AND no conversation → revert status to ACTIVE (orphaned state)
+3. For team jobs, check if workers assigned OR conversation exists (team slots filled)
+4. For agency jobs, check if employee assigned OR conversation exists (accepted invite flow)
 """
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from accounts.models import Job, JobWorkerAssignment
+from profiles.models import Conversation
 
 
 class Command(BaseCommand):
@@ -51,24 +52,30 @@ class Command(BaseCommand):
             job_type = 'TEAM' if job.is_team_job else 'REGULAR'
             
             if job.is_team_job:
-                # For team jobs, check JobWorkerAssignment
+                # For team jobs, check JobWorkerAssignment AND conversation
                 assigned_workers = JobWorkerAssignment.objects.filter(
                     jobID=job,
                     assignment_status='ACTIVE'
                 ).count()
                 
-                if assigned_workers > 0:
+                # Check if conversation exists (team slots filled creates conversation + IN_PROGRESS together)
+                has_conversation = Conversation.objects.filter(
+                    relatedJobPosting=job,
+                    status=Conversation.ConversationStatus.ACTIVE
+                ).exists()
+                
+                if assigned_workers > 0 or has_conversation:
+                    reason = f'{assigned_workers} workers assigned' if assigned_workers > 0 else 'conversation exists (team slots filled)'
                     self.stdout.write(
-                        f'✅ {job_type} Job #{job.jobID} "{job.title}" - '
-                        f'{assigned_workers} workers assigned (correct)'
+                        f'✅ {job_type} Job #{job.jobID} "{job.title}" - {reason} (correct)'
                     )
                     already_correct += 1
                 else:
-                    # No workers assigned, should revert to ACTIVE
+                    # No workers AND no conversation = orphaned, should revert to ACTIVE
                     self.stdout.write(
                         self.style.WARNING(
                             f'⚠️  {job_type} Job #{job.jobID} "{job.title}" - '
-                            f'IN_PROGRESS but no workers assigned, reverting to ACTIVE'
+                            f'IN_PROGRESS but no workers assigned AND no conversation, reverting to ACTIVE'
                         )
                     )
                     if not dry_run:
@@ -78,19 +85,25 @@ class Command(BaseCommand):
                     reverted_jobs += 1
             
             else:
-                # For regular jobs, check assignedEmployeeID
-                if job.assignedEmployeeID:
+                # For regular jobs, check assignedEmployeeID AND conversation
+                # (Agency INVITE jobs create conversation on acceptance, before employee assignment)
+                has_conversation = Conversation.objects.filter(
+                    relatedJobPosting=job,
+                    status=Conversation.ConversationStatus.ACTIVE
+                ).exists()
+                
+                if job.assignedEmployeeID or has_conversation:
+                    reason = f'assigned to employee #{job.assignedEmployeeID.employeeID}' if job.assignedEmployeeID else 'conversation exists (invite accepted)'
                     self.stdout.write(
-                        f'✅ {job_type} Job #{job.jobID} "{job.title}" - '
-                        f'Assigned to employee #{job.assignedEmployeeID.employeeID} (correct)'
+                        f'✅ {job_type} Job #{job.jobID} "{job.title}" - {reason} (correct)'
                     )
                     already_correct += 1
                 else:
-                    # No employee assigned, should revert to ACTIVE
+                    # No employee AND no conversation = orphaned, should revert to ACTIVE
                     self.stdout.write(
                         self.style.WARNING(
                             f'⚠️  {job_type} Job #{job.jobID} "{job.title}" - '
-                            f'IN_PROGRESS but no employee assigned, reverting to ACTIVE'
+                            f'IN_PROGRESS but no employee assigned AND no conversation, reverting to ACTIVE'
                         )
                     )
                     if not dry_run:
