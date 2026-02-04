@@ -1850,10 +1850,37 @@ export default function ChatScreen() {
                       conversation.team_worker_assignments.every(
                         (a) => a.worker_marked_complete,
                       );
+                    const allWorkersArrived =
+                      conversation.team_worker_assignments.every(
+                        (a) => a.client_confirmed_arrival,
+                      );
+                    const arrivedCount =
+                      conversation.team_worker_assignments.filter(
+                        (a) => a.client_confirmed_arrival,
+                      ).length;
                     const completedCount =
                       conversation.team_worker_assignments.filter(
                         (a) => a.worker_marked_complete,
                       ).length;
+
+                    // Show waiting for arrivals if not all arrived
+                    if (!allWorkersArrived) {
+                      return (
+                        <View
+                          style={[styles.actionButton, styles.waitingButton]}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            Confirm all worker arrivals first ({arrivedCount} of{" "}
+                            {conversation.team_worker_assignments.length} arrived)
+                          </Text>
+                        </View>
+                      );
+                    }
 
                     // Show progress if not all complete
                     if (!allWorkersComplete) {
