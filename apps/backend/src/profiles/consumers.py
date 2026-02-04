@@ -186,14 +186,26 @@ class InboxConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_user_info(self):
-        """Get current user's profile information"""
+        """Get current user's profile information (supports dual profiles)"""
         try:
-            profile = Profile.objects.get(accountFK=self.user)
+            # Handle dual-profile users by checking profile_type from JWT
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            
+            if profile:
+                return {
+                    'id': profile.profileID,
+                    'name': f"{profile.firstName} {profile.lastName}"
+                }
             return {
-                'id': profile.profileID,
-                'name': f"{profile.firstName} {profile.lastName}"
+                'id': 0,
+                'name': 'Unknown'
             }
-        except Profile.DoesNotExist:
+        except Exception as e:
+            print(f"[InboxWS] Error in get_user_info: {str(e)}")
             return {
                 'id': 0,
                 'name': 'Unknown'
@@ -201,9 +213,16 @@ class InboxConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_user_profile(self):
+        """Get user profile (supports dual profiles)"""
         try:
-            return Profile.objects.get(accountFK=self.user)
-        except Profile.DoesNotExist:
+            # Handle dual-profile users by checking profile_type from JWT
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                return Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                return Profile.objects.filter(accountFK=self.user).first()
+        except Exception as e:
+            print(f"[InboxWS] Error in get_user_profile: {str(e)}")
             return None
 
     @database_sync_to_async
