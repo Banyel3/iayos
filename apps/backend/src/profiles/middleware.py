@@ -10,14 +10,20 @@ User = get_user_model()
 
 @database_sync_to_async
 def get_user_from_jwt(token):
-    """Get user from JWT token"""
+    """Get user from JWT token and attach profile_type for dual-profile users"""
     try:
         # Decode the JWT token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
+        profile_type = payload.get('profile_type')  # Extract profile_type from JWT
         
         if user_id:
-            return User.objects.get(accountID=user_id)
+            user = User.objects.get(accountID=user_id)
+            # Attach profile_type to user object for dual-profile support
+            if profile_type:
+                user.profile_type = profile_type
+                print(f"[WebSocket Auth] Profile type from JWT: {profile_type}")
+            return user
     except jwt.ExpiredSignatureError:
         print(f"[WebSocket Auth] Token has expired")
     except jwt.InvalidTokenError as e:
