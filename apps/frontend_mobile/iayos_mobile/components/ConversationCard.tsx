@@ -18,7 +18,11 @@ export default function ConversationCard({
   conversation,
 }: ConversationCardProps) {
   const handlePress = () => {
-    router.push(`/messages/${conversation.id}` as any);
+    const route = `/messages/${conversation.id}`;
+    console.log(`[ConversationCard] 🔍 Navigating to: ${route}`);
+    console.log(`[ConversationCard] 📋 Conversation ID: ${conversation.id} (type: ${typeof conversation.id})`);
+    console.log(`[ConversationCard] 👤 Other party: ${conversation.other_party_name}`);
+    router.push(route as any);
   };
 
   // Format timestamp

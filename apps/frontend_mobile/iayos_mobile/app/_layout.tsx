@@ -205,6 +205,14 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen
+                  name="messages/[conversationId]"
+                  options={{
+                    headerShown: false,
+                    presentation: "card",
+                    animation: "slide_from_right",
+                  }}
+                />
+                <Stack.Screen
                   name="notifications/index"
                   options={{ headerShown: false }}
                 />
