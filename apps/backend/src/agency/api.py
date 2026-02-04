@@ -1065,6 +1065,7 @@ def accept_job_invite(request, job_id: int):
                 defaults={
                     'client': job.clientID.profileID,
                     'worker': None,  # For agency jobs, worker is None
+                    'agency': agency,  # Link conversation to this agency for proper filtering
                     'status': Conversation.ConversationStatus.ACTIVE
                 }
             )
@@ -1761,17 +1762,13 @@ def get_agency_conversations(request, filter: str = "all"):
         agency_employees = AgencyEmployee.objects.filter(agency=account)
         print(f"👥 Agency employees: {agency_employees.count()}")
         
-        # Get agency's profile (to find conversations where agency is worker)
-        agency_profile = Profile.objects.filter(accountFK=account).first()
+        # Find all conversations where:
+        # 1. Conversation is directly linked to this agency (via agency field)
+        # 2. Or the related job is assigned to this agency (assignedAgencyFK)
+        # NOTE: Removed legacy Q(worker=agency_profile) condition - agencies don't have Profile records,
+        # and when agency_profile=None, it incorrectly matched ALL agency conversations (worker=None)
         
-        # Find all jobs where:
-        # 1. Job was sent to agency (inviteStatus = ACCEPTED, invitedAgencyID exists)
-        # 2. Or job is assigned to this agency (assignedAgencyFK)
-        # 3. Or conversation is directly linked to this agency
-        
-        # Get conversations where agency is the worker (for INVITE jobs) or agency is assigned
         conversations_query = Conversation.objects.filter(
-            Q(worker=agency_profile) |  # Agency is in worker role (legacy)
             Q(agency=agency) |  # Direct agency link on Conversation
             Q(relatedJobPosting__assignedAgencyFK=agency)  # Job is assigned to this agency
         ).select_related(

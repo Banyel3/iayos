@@ -1,0 +1,87 @@
+### Agency Conversations Filter Fix - Test File
+### Issue: /api/agency/conversations?filter=all was returning ALL agency conversations
+### instead of only the logged-in agency's conversations
+###
+### Bug: When agency_profile=None, Q(worker=agency_profile) matched ALL conversations
+### where worker=None (i.e., ALL agency conversations)
+###
+### Fix: Removed the faulty Q(worker=agency_profile) condition
+
+@baseUrl = http://localhost:8000
+
+### =====================================================
+### SETUP: Login as downtown@gmail.com agency
+### =====================================================
+
+# @name loginDowntown
+POST {{baseUrl}}/api/agency/auth/login
+Content-Type: application/json
+
+{
+  "email": "downtown@gmail.com",
+  "password": "password123"
+}
+
+### =====================================================
+### TEST 1: Get conversations for downtown@gmail.com
+### EXPECTED: Only see "Renovate Window for restaurant" job
+### =====================================================
+
+# @name getDowntownConversations
+GET {{baseUrl}}/api/agency/conversations?filter=all
+Cookie: sessionid={{loginDowntown.response.headers.Set-Cookie}}
+
+### Should return ONLY conversations where:
+### - Q(agency=downtown_agency) OR
+### - Q(relatedJobPosting__assignedAgencyFK=downtown_agency)
+### Should NOT return conversations from devante@gmail.com or other agencies
+
+### =====================================================
+### SETUP: Login as devante@gmail.com agency (different agency)
+### =====================================================
+
+# @name loginDevante
+POST {{baseUrl}}/api/agency/auth/login
+Content-Type: application/json
+
+{
+  "email": "devante@gmail.com",
+  "password": "password123"
+}
+
+### =====================================================
+### TEST 2: Get conversations for devante@gmail.com
+### EXPECTED: Only see devante's jobs, NOT downtown's jobs
+### =====================================================
+
+# @name getDevanteConversations
+GET {{baseUrl}}/api/agency/conversations?filter=all
+Cookie: sessionid={{loginDevante.response.headers.Set-Cookie}}
+
+### Should return ONLY devante's conversations
+### Should NOT include "Renovate Window for restaurant" (belongs to downtown)
+
+### =====================================================
+### TEST 3: Verify unread filter also works correctly
+### =====================================================
+
+# @name getDowntownUnread
+GET {{baseUrl}}/api/agency/conversations?filter=unread
+Cookie: sessionid={{loginDowntown.response.headers.Set-Cookie}}
+
+### =====================================================
+### TEST 4: Verify archived filter also works correctly
+### =====================================================
+
+# @name getDowntownArchived
+GET {{baseUrl}}/api/agency/conversations?filter=archived
+Cookie: sessionid={{loginDowntown.response.headers.Set-Cookie}}
+
+### =====================================================
+### VALIDATION CHECKLIST
+### =====================================================
+### ✅ downtown@gmail.com only sees downtown's conversations
+### ✅ devante@gmail.com only sees devante's conversations
+### ✅ "Renovate Window for restaurant" appears ONLY in downtown's results
+### ✅ No cross-agency data leakage
+### ✅ All filter types (all, unread, archived) work correctly
