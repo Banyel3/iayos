@@ -28,6 +28,9 @@ import {
   UserX,
 } from "lucide-react";
 import { JobSkillSlot, JobSkillSlotsResponse } from "@/types/agency-team-jobs";
+import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
+import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
+import { DailyJobScheduleCard } from "@/components/agency/DailyJobScheduleCard";
 
 interface AssignedEmployee {
   employee_id: number;
@@ -50,6 +53,12 @@ interface Job {
     name: string;
   } | null;
   budget: number;
+  payment_model?: 'PROJECT' | 'DAILY';
+  daily_rate_agreed?: number;
+  duration_days?: number;
+  actual_start_date?: string;
+  total_days_worked?: number;
+  daily_escrow_total?: number;
   location: string;
   urgency: string;
   status: string;
@@ -301,8 +310,16 @@ export default function JobDetailPage() {
                     <div>
                       <div className="text-sm text-gray-600">Budget</div>
                       <div className="text-lg font-semibold text-gray-900">
-                        ₱{job.budget?.toLocaleString()}
+                        <JobBudgetDisplay
+                          budget={job.budget}
+                          paymentModel={job.payment_model}
+                          dailyRate={job.daily_rate_agreed}
+                          durationDays={job.duration_days}
+                        />
                       </div>
+                      {job.payment_model && (
+                        <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                      )}
                     </div>
                   </div>
 
@@ -354,6 +371,17 @@ export default function JobDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Daily Job Schedule Card */}
+            {job.payment_model === 'DAILY' && (
+              <DailyJobScheduleCard
+                dailyRate={job.daily_rate_agreed}
+                durationDays={job.duration_days}
+                totalDaysWorked={job.total_days_worked}
+                dailyEscrowTotal={job.daily_escrow_total}
+                actualStartDate={job.actual_start_date}
+              />
+            )}
 
             {/* Team Job Skill Slots Section */}
             {job.is_team_job && (

@@ -12,6 +12,8 @@ import {
   SkillSlotAssignmentModal,
 } from "@/components/agency";
 import AssignEmployeesModal from "@/components/agency/AssignEmployeesModal";
+import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
+import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
 import {
   Loader2,
   AlertCircle,
@@ -77,6 +79,12 @@ interface Job {
     name: string;
   } | null;
   budget: number;
+  payment_model?: 'PROJECT' | 'DAILY';
+  daily_rate_agreed?: number;
+  duration_days?: number;
+  actual_start_date?: string;
+  total_days_worked?: number;
+  daily_escrow_total?: number;
   location: string;
   urgency: string;
   status: string;
@@ -995,8 +1003,16 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -1157,8 +1173,16 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -1245,8 +1269,16 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -1330,8 +1362,16 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
