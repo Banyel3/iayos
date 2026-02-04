@@ -40,14 +40,6 @@
       }
     }
   },
-  "update": {
-    "production": {
-      "channel": "production"
-    },
-    "preview": {
-      "channel": "preview"
-    }
-  },
   "submit": {
     "production": {
       "android": {
