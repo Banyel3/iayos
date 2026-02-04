@@ -1744,9 +1744,15 @@ def get_agency_conversations(request, filter: str = "all"):
         
         # Verify user is an agency (has AgencyKYC)
         from .models import AgencyKYC, AgencyEmployee
+        from accounts.models import Agency
         agency_kyc = AgencyKYC.objects.filter(accountFK=account).first()
         if not agency_kyc:
             return Response({"error": "Agency account not found"}, status=400)
+        
+        # Get the Agency model instance (needed for FK relationships)
+        agency = Agency.objects.filter(accountFK=account).first()
+        if not agency:
+            return Response({"error": "Agency profile not found"}, status=404)
         
         print(f"\n🏢 === AGENCY CONVERSATIONS DEBUG ===")
         print(f"📧 Agency account: {account.email}")
@@ -1761,12 +1767,13 @@ def get_agency_conversations(request, filter: str = "all"):
         # Find all jobs where:
         # 1. Job was sent to agency (inviteStatus = ACCEPTED, invitedAgencyID exists)
         # 2. Or job is assigned to this agency (assignedAgencyFK)
-        from .models import AgencyEmployee
+        # 3. Or conversation is directly linked to this agency
         
         # Get conversations where agency is the worker (for INVITE jobs) or agency is assigned
         conversations_query = Conversation.objects.filter(
-            Q(worker=agency_profile) |  # Agency is in worker role
-            Q(relatedJobPosting__assignedAgencyFK=account)  # Job is assigned to this agency
+            Q(worker=agency_profile) |  # Agency is in worker role (legacy)
+            Q(agency=agency) |  # Direct agency link on Conversation
+            Q(relatedJobPosting__assignedAgencyFK=agency)  # Job is assigned to this agency
         ).select_related(
             'client__accountFK',
             'worker__accountFK',
