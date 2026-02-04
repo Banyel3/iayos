@@ -477,6 +477,14 @@ export const ENDPOINTS = {
   // Job Receipt/Invoice
   JOB_RECEIPT: (jobId: number) => `${API_URL}/api/jobs/${jobId}/receipt`,
 
+  // Daily Attendance (for DAILY payment model jobs)
+  WORKER_CHECK_IN: (jobId: number) =>
+    `${API_URL}/api/mobile/daily-attendance/${jobId}/worker-check-in`,
+  WORKER_CHECK_OUT: (jobId: number) =>
+    `${API_URL}/api/mobile/daily-attendance/${jobId}/worker-check-out`,
+  CLIENT_CONFIRM_ATTENDANCE: (attendanceId: number) =>
+    `${API_URL}/api/mobile/daily-attendance/${attendanceId}/client-confirm`,
+
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,
   JOB_PAYMENT_STATUS: (id: number) =>

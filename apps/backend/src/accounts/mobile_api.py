@@ -6496,3 +6496,317 @@ def cleanup_maestro_test_data(request):
             {"error": f"Cleanup failed: {str(e)}"},
             status=500
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DAILY ATTENDANCE ENDPOINTS - Worker Clock In/Out + Client Confirmation
+# ══════════════════════════════════════════════════════════════════════════════
+# These endpoints provide simplified daily attendance tracking for the chat screen.
+# Time constraints: Check-in/out allowed only between 6 AM - 8 PM.
+# Auto-payment triggers when client confirms worker has gone home.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mobile_router.post("/daily-attendance/{job_id}/worker-check-in", auth=dual_auth)
+def worker_check_in(request, job_id: int):
+    """
+    Worker clocks in for a daily job.
+    Creates attendance record with time_in and marks worker_confirmed=True.
+    
+    Constraints:
+    - Only between 6 AM and 8 PM
+    - Only for IN_PROGRESS daily-rate jobs
+    - Only once per day per worker
+    """
+    from django.utils import timezone
+    from datetime import time as dt_time
+    from .models import Job, DailyAttendance, WorkerProfile, Profile
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        print(f"⏰ [MOBILE] Worker check-in request for job {job_id} by {request.auth.email}")
+        
+        # Get job
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Validate job is DAILY payment model
+        if job.payment_model != 'DAILY':
+            return Response({"error": "This is not a daily-rate job"}, status=400)
+        
+        # Validate job is IN_PROGRESS
+        if job.status != 'IN_PROGRESS':
+            return Response({"error": f"Job must be in progress. Current status: {job.status}"}, status=400)
+        
+        # Validate time constraints: 6 AM - 8 PM
+        now = timezone.now()
+        current_time = now.time()
+        start_time = dt_time(6, 0, 0)   # 6 AM
+        end_time = dt_time(20, 0, 0)    # 8 PM
+        
+        if current_time < start_time or current_time > end_time:
+            return Response({
+                "error": "Check-in is only allowed between 6:00 AM and 8:00 PM",
+                "current_time": current_time.strftime("%H:%M"),
+                "allowed_start": "06:00",
+                "allowed_end": "20:00"
+            }, status=400)
+        
+        # Get worker's profile
+        profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            profileType=profile_type
+        ).first()
+        
+        if not profile:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+        
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Get worker profile
+        try:
+            worker = profile.workerprofile
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=404)
+        
+        # Verify worker is assigned to this job
+        is_assigned = (job.assignedWorkerID == worker)
+        if not is_assigned:
+            return Response({"error": "You are not assigned to this job"}, status=403)
+        
+        today = now.date()
+        
+        # Check if already checked in today
+        existing_attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            workerID=worker,
+            date=today
+        ).first()
+        
+        if existing_attendance and existing_attendance.time_in:
+            return Response({
+                "error": "Already checked in for today",
+                "attendance_id": existing_attendance.attendanceID,
+                "time_in": existing_attendance.time_in.isoformat() if existing_attendance.time_in else None
+            }, status=400)
+        
+        # Create or update attendance record
+        attendance, created = DailyAttendance.objects.update_or_create(
+            jobID=job,
+            workerID=worker,
+            date=today,
+            defaults={
+                'time_in': now,
+                'status': 'PENDING',
+                'worker_confirmed': True,
+                'worker_confirmed_at': now,
+                'amount_earned': job.daily_rate_agreed,  # Will be adjusted if HALF_DAY or ABSENT
+            }
+        )
+        
+        print(f"✅ [MOBILE] Worker checked in: attendance_id={attendance.attendanceID}, time_in={now}")
+        
+        return {
+            "success": True,
+            "attendance_id": attendance.attendanceID,
+            "time_in": now.isoformat(),
+            "date": str(today),
+            "message": "Successfully checked in",
+            "awaiting_client_confirmation": True
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Worker check-in error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Check-in failed: {str(e)}"}, status=500)
+
+
+@mobile_router.post("/daily-attendance/{job_id}/worker-check-out", auth=dual_auth)
+def worker_check_out(request, job_id: int):
+    """
+    Worker clocks out for a daily job.
+    Updates attendance record with time_out.
+    
+    Constraints:
+    - Only between 6 AM and 8 PM
+    - Must have checked in today first
+    - Only once per day
+    """
+    from django.utils import timezone
+    from datetime import time as dt_time
+    from .models import Job, DailyAttendance, WorkerProfile, Profile
+    
+    try:
+        print(f"⏰ [MOBILE] Worker check-out request for job {job_id} by {request.auth.email}")
+        
+        # Get job
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Validate job is DAILY payment model
+        if job.payment_model != 'DAILY':
+            return Response({"error": "This is not a daily-rate job"}, status=400)
+        
+        # Validate time constraints: 6 AM - 8 PM
+        now = timezone.now()
+        current_time = now.time()
+        start_time = dt_time(6, 0, 0)   # 6 AM
+        end_time = dt_time(20, 0, 0)    # 8 PM
+        
+        if current_time < start_time or current_time > end_time:
+            return Response({
+                "error": "Check-out is only allowed between 6:00 AM and 8:00 PM",
+                "current_time": current_time.strftime("%H:%M"),
+                "allowed_start": "06:00",
+                "allowed_end": "20:00"
+            }, status=400)
+        
+        # Get worker's profile
+        profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            profileType=profile_type
+        ).first()
+        
+        if not profile:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+        
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Get worker profile
+        try:
+            worker = profile.workerprofile
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=404)
+        
+        today = now.date()
+        
+        # Get today's attendance record
+        try:
+            attendance = DailyAttendance.objects.get(
+                jobID=job,
+                workerID=worker,
+                date=today
+            )
+        except DailyAttendance.DoesNotExist:
+            return Response({"error": "No check-in found for today. Please check in first."}, status=400)
+        
+        # Check if already checked out
+        if attendance.time_out:
+            return Response({
+                "error": "Already checked out for today",
+                "attendance_id": attendance.attendanceID,
+                "time_out": attendance.time_out.isoformat()
+            }, status=400)
+        
+        # Update time_out
+        attendance.time_out = now
+        attendance.save()
+        
+        # Calculate hours worked
+        hours_worked = None
+        if attendance.time_in:
+            delta = now - attendance.time_in
+            hours_worked = round(delta.total_seconds() / 3600, 2)
+        
+        print(f"✅ [MOBILE] Worker checked out: attendance_id={attendance.attendanceID}, time_out={now}, hours={hours_worked}")
+        
+        return {
+            "success": True,
+            "attendance_id": attendance.attendanceID,
+            "time_in": attendance.time_in.isoformat() if attendance.time_in else None,
+            "time_out": now.isoformat(),
+            "hours_worked": hours_worked,
+            "date": str(today),
+            "message": "Successfully checked out. Awaiting client confirmation for payment.",
+            "awaiting_client_confirmation": not attendance.client_confirmed
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Worker check-out error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Check-out failed: {str(e)}"}, status=500)
+
+
+@mobile_router.post("/daily-attendance/{attendance_id}/client-confirm", auth=dual_auth)
+def client_confirm_attendance(request, attendance_id: int, approved_status: str = None):
+    """
+    Client confirms worker's attendance and triggers auto-payment.
+    
+    Optional:
+    - approved_status: PRESENT (full day), HALF_DAY, ABSENT (no payment)
+    
+    Auto-payment is triggered when client confirms. Payment goes to worker's 
+    pendingEarnings (7-day buffer before available for withdrawal).
+    """
+    from django.utils import timezone
+    from .models import DailyAttendance
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        print(f"✅ [MOBILE] Client confirming attendance {attendance_id} by {request.auth.email}")
+        
+        # Get attendance record
+        try:
+            attendance = DailyAttendance.objects.select_related(
+                'jobID', 'workerID__profileID'
+            ).get(attendanceID=attendance_id)
+        except DailyAttendance.DoesNotExist:
+            return Response({"error": "Attendance record not found"}, status=404)
+        
+        job = attendance.jobID
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can confirm attendance"}, status=403)
+        
+        # Check if already confirmed
+        if attendance.client_confirmed:
+            return Response({
+                "error": "Attendance already confirmed by client",
+                "attendance_id": attendance.attendanceID,
+                "payment_processed": attendance.payment_processed
+            }, status=400)
+        
+        # Use the service for client confirmation (handles status override + payment)
+        result = DailyPaymentService.confirm_attendance_client(
+            attendance,
+            request.auth,
+            approved_status=approved_status
+        )
+        
+        if not result.get('success'):
+            return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+        
+        # Enhance response with worker info
+        worker_name = None
+        if attendance.workerID and attendance.workerID.profileID:
+            p = attendance.workerID.profileID
+            worker_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
+        
+        print(f"✅ [MOBILE] Attendance confirmed: id={attendance_id}, status={attendance.status}, payment_processed={attendance.payment_processed}")
+        
+        return {
+            "success": True,
+            "attendance_id": attendance.attendanceID,
+            "worker_name": worker_name,
+            "date": str(attendance.date),
+            "status": attendance.status,
+            "amount_earned": float(attendance.amount_earned),
+            "payment_processed": attendance.payment_processed,
+            "message": f"Attendance confirmed. {'Payment processed.' if attendance.payment_processed else 'Awaiting worker confirmation.'}"
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Client confirm attendance error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Confirmation failed: {str(e)}"}, status=500)
