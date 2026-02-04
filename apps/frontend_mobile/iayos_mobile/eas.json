@@ -30,8 +30,7 @@
       "channel": "production",
       "android": {
         "buildType": "apk",
-        "prebuildCommand": "npx expo prebuild --clean",
-        "resourceClass": "large"
+        "prebuildCommand": "npx expo prebuild --clean"
       },
       "ios": {
         "resourceClass": "m1-medium"
