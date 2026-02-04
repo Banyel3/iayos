@@ -142,6 +142,7 @@ export const unstable_settings = {
 /**
  * AppUpdateWrapper - Checks for required app updates on startup.
  * Shows a blocking modal if the app version is below minimum required.
+ * Supports OTA updates and in-app APK download with progress.
  * Must be rendered inside QueryClientProvider.
  */
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
@@ -161,6 +162,11 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
         downloadUrl={appUpdate.downloadUrl}
         forceUpdate={appUpdate.forceUpdate}
         onDismiss={() => setDismissed(true)}
+        // New props for enhanced update
+        ota={appUpdate.ota}
+        download={appUpdate.download}
+        onApplyOTA={appUpdate.applyOTAUpdate}
+        onDownloadAPK={appUpdate.downloadAndInstallAPK}
       />
     </>
   );
