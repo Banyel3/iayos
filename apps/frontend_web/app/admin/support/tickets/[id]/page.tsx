@@ -20,7 +20,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar, useMainContentClass } from "../../../components";
 
 interface Message {
   id: string;
@@ -72,6 +72,7 @@ export default function TicketDetailPage() {
   const router = useRouter();
   const params = useParams();
   const ticketId = params?.id as string;
+  const mainClass = useMainContentClass("p-8 min-h-screen");
 
   const [loading, setLoading] = useState(true);
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
@@ -219,7 +220,7 @@ export default function TicketDetailPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-full">
             <MessageSquare className="h-12 w-12 text-gray-400 animate-pulse" />
           </div>
@@ -232,7 +233,7 @@ export default function TicketDetailPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="text-center">
             <p className="text-gray-500">Ticket not found</p>
             <Button
@@ -250,7 +251,7 @@ export default function TicketDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-[1600px] mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-center gap-4">

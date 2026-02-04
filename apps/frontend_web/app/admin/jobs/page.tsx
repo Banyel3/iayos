@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar } from "../components";
+import { Sidebar, useMainContentClass } from "../components";
 import {
   Card,
   CardContent,
@@ -37,6 +37,7 @@ interface JobStats {
 }
 
 export default function JobsManagementPage() {
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const [stats, setStats] = useState<JobStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -67,7 +68,7 @@ export default function JobsManagementPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="pl-72 p-6 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -121,7 +122,7 @@ export default function JobsManagementPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="pl-72 p-6 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-6">

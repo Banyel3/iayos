@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useSidebar } from "./SidebarContext";
 import UserSearchModal from "@/components/admin/UserSearchModal";
 import {
   Users,
@@ -321,7 +322,7 @@ const navigation: NavItem[] = [
 ];
 
 export default function Sidebar({ className }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebar();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
@@ -332,6 +333,29 @@ export default function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+
+  // Auto-expand parent menu when a child route is active
+  useEffect(() => {
+    const activeParents: string[] = [];
+    navigation.forEach((item) => {
+      if (item.children) {
+        const hasActiveChild = item.children.some((child) =>
+          pathname.startsWith(child.href)
+        );
+        if (hasActiveChild) {
+          activeParents.push(item.name);
+        }
+      }
+    });
+    
+    // Only update if we have active parents that aren't already expanded
+    if (activeParents.length > 0) {
+      setExpandedItems((prev) => {
+        const newExpanded = [...new Set([...prev, ...activeParents])];
+        return newExpanded;
+      });
+    }
+  }, [pathname]);
 
   // Fetch pending KYC count on mount and refresh every 30 seconds
   useEffect(() => {

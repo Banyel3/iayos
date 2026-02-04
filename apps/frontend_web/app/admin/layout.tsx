@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { AdminLayoutWrapper } from "./components";
 
 export default async function AdminLayout({
   children,
@@ -56,5 +57,5 @@ export default async function AdminLayout({
     redirect("/auth/login");
   }
 
-  return <div className="admin-theme">{children}</div>;
+  return <div className="admin-theme"><AdminLayoutWrapper>{children}</AdminLayoutWrapper></div>;
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar } from "../components";
+import { Sidebar, useMainContentClass } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,7 @@ interface ChartDataPoint {
 }
 
 export default function AnalyticsDashboard() {
+  const mainClass = useMainContentClass("min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50");
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [revenueData, setRevenueData] = useState<ChartDataPoint[]>([]);
   const [userGrowthData, setUserGrowthData] = useState<ChartDataPoint[]>([]);
@@ -122,7 +123,7 @@ export default function AnalyticsDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className={mainClass}>
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 text-white">
           {/* Blur Orbs */}

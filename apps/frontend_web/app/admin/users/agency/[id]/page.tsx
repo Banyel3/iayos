@@ -30,7 +30,7 @@ import {
   Award,
   Trash2,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar, useMainContentClass } from "../../../components";
 import Link from "next/link";
 
 interface Address {
@@ -268,11 +268,14 @@ export default function AgencyDetailPage() {
     }
   };
 
+  const mainClass = useMainContentClass("p-6 min-h-screen");
+  const loadingClass = useMainContentClass("flex items-center justify-center min-h-screen");
+
   if (loading) {
     return (
       <div className="min-h-screen">
         <Sidebar />
-        <div className="pl-72 flex items-center justify-center min-h-screen">
+        <div className={loadingClass}>
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
             <p className="text-gray-600">Loading agency details...</p>
@@ -286,7 +289,7 @@ export default function AgencyDetailPage() {
     return (
       <div className="min-h-screen">
         <Sidebar />
-        <div className="pl-72 flex items-center justify-center min-h-screen">
+        <div className={loadingClass}>
           <Card className="p-8 text-center max-w-md">
             <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error</h2>
@@ -309,7 +312,7 @@ export default function AgencyDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="pl-72 p-6 min-h-screen">
+      <main className={mainClass}>
         {/* Header */}
         <div className="mb-6">
           <Button

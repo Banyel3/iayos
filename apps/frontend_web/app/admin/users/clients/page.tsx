@@ -25,7 +25,7 @@ import {
   Star,
   Briefcase,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface Client {
   id: string;
@@ -90,6 +90,7 @@ export default function ClientsPage() {
     null,
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
+  const mainClass = useMainContentClass("p-8 min-h-screen");
 
   const fetchClients = async () => {
     setLoading(true);
@@ -268,7 +269,7 @@ export default function ClientsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -291,7 +292,7 @@ export default function ClientsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-8 text-white shadow-xl">

@@ -20,7 +20,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { useToast } from "@/components/ui/toast";
 
 interface RejectedKYC {
@@ -48,6 +48,7 @@ export default function RejectedKYCPage() {
     "all" | "allowed" | "not_allowed" | "resubmitted"
   >("all");
   const { showToast } = useToast();
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch rejected KYC logs on component mount
@@ -152,7 +153,7 @@ export default function RejectedKYCPage() {
   return (
     <div className="min-h-screen">
       <Sidebar />
-      <main className="pl-72 p-6 min-h-screen">
+      <main className={mainClass}>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>

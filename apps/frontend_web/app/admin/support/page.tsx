@@ -21,7 +21,7 @@ import {
   Clock,
   Star,
 } from "lucide-react";
-import { Sidebar } from "../components";
+import { Sidebar, useMainContentClass } from "../components";
 
 interface SupportStats {
   open_tickets: number;
@@ -32,6 +32,7 @@ interface SupportStats {
 }
 
 export default function SupportPage() {
+  const mainClass = useMainContentClass("p-6 space-y-6 min-h-screen");
   const [stats, setStats] = useState<SupportStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -86,7 +87,7 @@ export default function SupportPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="pl-72 p-6 space-y-6 min-h-screen">
+      <main className={mainClass}>
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
