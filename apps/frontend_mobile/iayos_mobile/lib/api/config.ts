@@ -244,7 +244,7 @@ export const WS_BASE_URL =
   (isUsingProductionAPI
     ? "wss://api.iayos.online"
     : __DEV__
-      ? `ws://${DEV_IP}:8001`
+      ? `ws://${DEV_IP}:8000`
       : "wss://api.iayos.online");
 
 console.log(`[API Config] WS_BASE_URL = ${WS_BASE_URL}`);
