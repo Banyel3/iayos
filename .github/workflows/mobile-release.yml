@@ -436,61 +436,50 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update Render Mobile Version
+      - name: Update DigitalOcean Mobile Version
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.ref_name == 'main'
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
+          DO_APP_ID: ${{ secrets.DO_APP_ID }}
           NEW_VERSION: ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}
         run: |
-          echo "📱 Updating Render mobile version to $NEW_VERSION..."
-
-          # Update MOBILE_MIN_VERSION (forces update for older versions)
-          MIN_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_MIN_VERSION" \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
+          echo "📱 Updating DigitalOcean mobile version to $NEW_VERSION..."
+          
+          # Get current app spec
+          echo "📋 Fetching current app spec..."
+          CURRENT_SPEC=$(curl -s -X GET "https://api.digitalocean.com/v2/apps/$DO_APP_ID" \
+            -H "Authorization: Bearer $DO_API_TOKEN" \
+            -H "Content-Type: application/json")
+          
+          # Extract and update the spec with new mobile version env vars
+          # Using jq to properly update the env vars
+          UPDATED_SPEC=$(echo "$CURRENT_SPEC" | jq --arg version "$NEW_VERSION" '
+            .app.spec.services[0].envs = (
+              [.app.spec.services[0].envs[] | select(.key != "MOBILE_CURRENT_VERSION" and .key != "MOBILE_MIN_VERSION")] +
+              [{"key": "MOBILE_CURRENT_VERSION", "value": $version, "scope": "RUN_AND_BUILD_TIME", "type": "GENERAL"},
+               {"key": "MOBILE_MIN_VERSION", "value": $version, "scope": "RUN_AND_BUILD_TIME", "type": "GENERAL"}]
+            ) | .app.spec'
+          )
+          
+          # Update the app with new spec
+          echo "🔄 Updating app with new mobile version env vars..."
+          UPDATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.digitalocean.com/v2/apps/$DO_APP_ID" \
+            -H "Authorization: Bearer $DO_API_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"value\": \"$NEW_VERSION\"}")
-
-          MIN_HTTP_CODE=$(echo "$MIN_RESPONSE" | tail -n1)
-          MIN_BODY=$(echo "$MIN_RESPONSE" | head -n-1)
-
-          if [ "$MIN_HTTP_CODE" -eq 200 ] || [ "$MIN_HTTP_CODE" -eq 201 ]; then
-            echo "✅ MOBILE_MIN_VERSION updated to $NEW_VERSION"
-          else
-            echo "⚠️ Failed to update MOBILE_MIN_VERSION (HTTP $MIN_HTTP_CODE): $MIN_BODY"
-          fi
-
-          # Update MOBILE_CURRENT_VERSION (latest available version)
-          CURRENT_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars/MOBILE_CURRENT_VERSION" \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"value\": \"$NEW_VERSION\"}")
-
-          CURRENT_HTTP_CODE=$(echo "$CURRENT_RESPONSE" | tail -n1)
-          CURRENT_BODY=$(echo "$CURRENT_RESPONSE" | head -n-1)
-
-          if [ "$CURRENT_HTTP_CODE" -eq 200 ] || [ "$CURRENT_HTTP_CODE" -eq 201 ]; then
+            -d "{\"spec\": $UPDATED_SPEC}")
+          
+          UPDATE_HTTP_CODE=$(echo "$UPDATE_RESPONSE" | tail -n1)
+          UPDATE_BODY=$(echo "$UPDATE_RESPONSE" | head -n-1)
+          
+          if [ "$UPDATE_HTTP_CODE" -eq 200 ]; then
             echo "✅ MOBILE_CURRENT_VERSION updated to $NEW_VERSION"
+            echo "✅ MOBILE_MIN_VERSION updated to $NEW_VERSION"
+            echo "🚀 DigitalOcean will automatically redeploy with new env vars!"
+            echo "🔗 Monitor at: https://cloud.digitalocean.com/apps/$DO_APP_ID"
           else
-            echo "⚠️ Failed to update MOBILE_CURRENT_VERSION (HTTP $CURRENT_HTTP_CODE): $CURRENT_BODY"
-          fi
-
-          # Trigger Render redeploy to apply new env vars
-          echo "🚀 Triggering Render redeploy to apply new env vars..."
-          DEPLOY_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{"clearCache": false}')
-
-          DEPLOY_HTTP_CODE=$(echo "$DEPLOY_RESPONSE" | tail -n1)
-          DEPLOY_BODY=$(echo "$DEPLOY_RESPONSE" | head -n-1)
-
-          if [ "$DEPLOY_HTTP_CODE" -eq 200 ] || [ "$DEPLOY_HTTP_CODE" -eq 201 ]; then
-            echo "✅ Render redeploy triggered successfully!"
-            echo "🔗 Monitor at: https://dashboard.render.com"
-          else
-            echo "❌ Failed to trigger Render redeploy (HTTP $DEPLOY_HTTP_CODE): $DEPLOY_BODY"
-            echo "::warning::Render redeploy failed. You may need to manually restart the backend."
+            echo "❌ Failed to update DigitalOcean app (HTTP $UPDATE_HTTP_CODE)"
+            echo "Response: $UPDATE_BODY"
+            echo "::warning::DigitalOcean update failed. You may need to manually update the env vars."
           fi
 
       - name: Summary
