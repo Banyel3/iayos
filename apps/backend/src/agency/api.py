@@ -1760,13 +1760,13 @@ def get_agency_conversations(request, filter: str = "all"):
         
         # Find all jobs where:
         # 1. Job was sent to agency (inviteStatus = ACCEPTED, invitedAgencyID exists)
-        # 2. Or job has an assigned employee from this agency
+        # 2. Or job is assigned to this agency (assignedAgencyFK)
         from .models import AgencyEmployee
         
-        # Get conversations where agency is the worker (for INVITE jobs)
+        # Get conversations where agency is the worker (for INVITE jobs) or agency is assigned
         conversations_query = Conversation.objects.filter(
             Q(worker=agency_profile) |  # Agency is in worker role
-            Q(relatedJobPosting__assignedEmployeeID__agency=account)  # Employee from this agency is assigned
+            Q(relatedJobPosting__assignedAgencyFK=account)  # Job is assigned to this agency
         ).select_related(
             'client__accountFK',
             'worker__accountFK',
