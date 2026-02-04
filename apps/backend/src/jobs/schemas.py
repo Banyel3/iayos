@@ -28,16 +28,28 @@ class CreateJobPostingMobileSchema(Schema):
     title: str
     description: str
     category_id: int
-    budget: float
+    budget: Optional[float] = None  # Required for PROJECT, not for DAILY
     location: str
     expected_duration: Optional[str] = None
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
+    urgency_level: Optional[str] = None  # Frontend alias for urgency
     preferred_start_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET only
+    downpayment_method: Optional[str] = None  # Frontend alias for payment_method
     worker_id: Optional[int] = None  # If provided, job is for specific worker
     agency_id: Optional[int] = None  # If provided, job is for specific agency
     skill_slots: Optional[list[MobileSkillSlotSchema]] = None  # For team hiring with multiple workers
+    
+    # Daily payment model fields
+    payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
+    daily_rate: Optional[float] = None  # Required for DAILY model
+    duration_days: Optional[int] = None  # Required for DAILY model
+    
+    # ML enhancement fields (from Mobile Phase 1)
+    skill_level_required: Optional[str] = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
+    job_scope: Optional[str] = "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    work_environment: Optional[str] = "INDOOR"  # INDOOR, OUTDOOR, BOTH
 
 
 class JobPostingResponseSchema(Schema):

@@ -596,20 +596,23 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 # Determine if this is a team job (agency with skill slots)
                 is_team_job = bool(data.agency_id and data.skill_slots and len(data.skill_slots) > 0)
                 
+                # Support frontend field aliases: urgency_level → urgency
+                urgency_value = (data.urgency_level or data.urgency or "MEDIUM").upper()
+                
                 # Create job posting
                 job_posting = JobPosting.objects.create(
                     clientID=client_profile,
                     title=data.title,
                     description=data.description,
                     categoryID=category,
-                    budget=data.budget,
+                    budget=float(total_budget),
                     escrowAmount=downpayment,
                     escrowPaid=escrow_paid,
                     escrowPaidAt=escrow_paid_at,
                     remainingPayment=remaining_payment,
                     location=data.location,
                     expectedDuration=data.expected_duration,
-                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    urgency=urgency_value,
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
@@ -617,16 +620,34 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     assignedWorkerID=worker_profile if data.worker_id else None,
                     assignedAgencyFK=assigned_agency if data.agency_id else None,
                     status=JobPosting.JobStatus.ACTIVE,
-                    is_team_job=is_team_job
+                    is_team_job=is_team_job,
+                    payment_model=payment_model,
+                    daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
+                    duration_days=data.duration_days if payment_model == "DAILY" else None
                 )
                 
                 print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'}, is_team_job: {is_team_job})")
+                
+                # If DAILY payment model, set up daily payment schedule and attendance tracking
+                if payment_model == "DAILY":
+                    from jobs.daily_payment_service import DailyPaymentService
+                    num_workers = 1  # Default to 1 worker for single hire
+                    if is_team_job and data.skill_slots:
+                        num_workers = sum(slot.workers_needed for slot in data.skill_slots)
+                    
+                    DailyPaymentService.setup_daily_job(
+                        job=job_posting,
+                        daily_rate=Decimal(str(data.daily_rate)),
+                        num_workers=num_workers,
+                        duration_days=data.duration_days
+                    )
+                    print(f"✅ Daily payment schedule created: {num_workers} worker(s) × ₱{data.daily_rate}/day × {data.duration_days} days")
                 
                 # Create skill slots for team jobs
                 if is_team_job and data.skill_slots:
                     total_workers = sum(slot.workers_needed for slot in data.skill_slots)
                     num_slots = len(data.skill_slots)
-                    budget_per_slot = Decimal(str(data.budget)) / Decimal(str(num_slots)) if num_slots > 0 else Decimal('0')
+                    budget_per_slot = total_budget / Decimal(str(num_slots)) if num_slots > 0 else Decimal('0')
                     
                     print(f"👷 Creating {num_slots} skill slots for {total_workers} total workers")
                     
@@ -654,7 +675,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         jobID=job_posting,
                         workerID=worker_profile,
                         proposalMessage=f"Direct hire by client",
-                        proposedBudget=data.budget,
+                        proposedBudget=float(total_budget),
                         estimatedDuration=data.expected_duration or "As discussed",
                         budgetOption="ACCEPT",
                         status=JobApplication.ApplicationStatus.ACCEPTED
@@ -769,28 +790,47 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 # Determine job type: INVITE if worker/agency direct hire, otherwise LISTING
                 job_type = JobPosting.JobType.INVITE if (data.worker_id or data.agency_id) else JobPosting.JobType.LISTING
                 
+                # Support frontend field aliases
+                urgency_value = (data.urgency_level or data.urgency or "MEDIUM").upper()
+                
                 # Create job posting first (with escrowPaid=False)
                 job_posting = JobPosting.objects.create(
                     clientID=client_profile,
                     title=data.title,
                     description=data.description,
                     categoryID=category,
-                    budget=data.budget,
+                    budget=float(total_budget),
                     escrowAmount=downpayment,
                     escrowPaid=False,
                     remainingPayment=remaining_payment,
                     location=data.location,
                     expectedDuration=data.expected_duration,
-                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    urgency=urgency_value,
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
                     inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
                     assignedAgencyFK=assigned_agency if data.agency_id else None,
-                    status=JobPosting.JobStatus.ACTIVE
+                    status=JobPosting.JobStatus.ACTIVE,
+                    payment_model=payment_model,
+                    daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
+                    duration_days=data.duration_days if payment_model == "DAILY" else None
                 )
                 
                 print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
+                
+                # If DAILY payment model, set up daily payment schedule and attendance tracking
+                if payment_model == "DAILY":
+                    from jobs.daily_payment_service import DailyPaymentService
+                    num_workers = 1  # Default to 1 worker for single hire (agencies not supported via GCASH yet)
+                    
+                    DailyPaymentService.setup_daily_job(
+                        job=job_posting,
+                        daily_rate=Decimal(str(data.daily_rate)),
+                        num_workers=num_workers,
+                        duration_days=data.duration_days
+                    )
+                    print(f"✅ Daily payment schedule created: {num_workers} worker(s) × ₱{data.daily_rate}/day × {data.duration_days} days")
                 
                 # If worker_id provided, auto-create application (but don't accept until payment)
                 if data.worker_id:
@@ -799,7 +839,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         jobID=job_posting,
                         workerID=worker_profile,
                         proposalMessage=f"Direct hire by client (pending payment)",
-                        proposedBudget=data.budget,
+                        proposedBudget=float(total_budget),
                         estimatedDuration=data.expected_duration or "As discussed",
                         budgetOption="ACCEPT",
                         status=JobApplication.ApplicationStatus.PENDING

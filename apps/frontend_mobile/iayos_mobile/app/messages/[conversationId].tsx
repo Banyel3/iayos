@@ -50,6 +50,11 @@ import {
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
+import {
+  useWorkerCheckIn,
+  useWorkerCheckOut,
+  useClientConfirmAttendance,
+} from "../../lib/hooks/useDailyPayment";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
@@ -160,6 +165,11 @@ export default function ChatScreen() {
   const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
+
+  // Daily attendance mutations
+  const workerCheckInMutation = useWorkerCheckIn();
+  const workerCheckOutMutation = useWorkerCheckOut();
+  const clientConfirmAttendanceMutation = useClientConfirmAttendance();
 
   // Get current user for team job assignment identification
   const { user } = useAuth();
@@ -1424,6 +1434,211 @@ export default function ChatScreen() {
                       </ScrollView>
                     </View>
                   )}
+
+                {/* DAILY JOB: Attendance Tracking Section */}
+                {conversation.job?.payment_model === "DAILY" && (
+                  <View style={styles.dailyAttendanceSection}>
+                    <View style={styles.teamArrivalHeader}>
+                      <Text style={styles.teamArrivalTitle}>
+                        📅 Daily Attendance
+                      </Text>
+                      <Text style={styles.teamArrivalProgress}>
+                        {format(new Date(), "MMM d, yyyy")}
+                      </Text>
+                    </View>
+
+                    {/* Worker View: Check-in/Check-out buttons */}
+                    {conversation.my_role === "WORKER" && (
+                      <View style={styles.dailyWorkerActions}>
+                        {(() => {
+                          // Find today's attendance for this worker
+                          const todayAttendance = conversation.attendance_today?.find(
+                            (a) =>
+                              a.worker_id === user?.profile_data?.workerProfileId
+                          );
+
+                          // No attendance yet - show check-in button
+                          if (!todayAttendance || !todayAttendance.time_in) {
+                            return (
+                              <TouchableOpacity
+                                style={[styles.actionButton, styles.checkInButton]}
+                                onPress={() => workerCheckInMutation.mutate(conversation.job.id)}
+                                disabled={workerCheckInMutation.isPending}
+                              >
+                                {workerCheckInMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.white} />
+                                ) : (
+                                  <>
+                                    <Ionicons name="log-in-outline" size={20} color={Colors.white} />
+                                    <Text style={styles.actionButtonText}>Check In</Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          }
+
+                          // Checked in but not out - show check-out button
+                          if (todayAttendance.time_in && !todayAttendance.time_out) {
+                            return (
+                              <View style={styles.dailyStatusContainer}>
+                                <View style={styles.checkedInBadge}>
+                                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                                  <Text style={styles.checkedInText}>
+                                    Checked in at {format(new Date(todayAttendance.time_in), "h:mm a")}
+                                  </Text>
+                                </View>
+                                <TouchableOpacity
+                                  style={[styles.actionButton, styles.checkOutButton]}
+                                  onPress={() => workerCheckOutMutation.mutate(conversation.job.id)}
+                                  disabled={workerCheckOutMutation.isPending}
+                                >
+                                  {workerCheckOutMutation.isPending ? (
+                                    <ActivityIndicator size="small" color={Colors.white} />
+                                  ) : (
+                                    <>
+                                      <Ionicons name="log-out-outline" size={20} color={Colors.white} />
+                                      <Text style={styles.actionButtonText}>Check Out</Text>
+                                    </>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }
+
+                          // Checked out - show status
+                          if (todayAttendance.time_out) {
+                            return (
+                              <View style={styles.dailyStatusContainer}>
+                                <View style={styles.checkedInBadge}>
+                                  <Ionicons name="checkmark-done-circle" size={16} color={Colors.success} />
+                                  <Text style={styles.checkedInText}>
+                                    {format(new Date(todayAttendance.time_in), "h:mm a")} - {format(new Date(todayAttendance.time_out), "h:mm a")}
+                                  </Text>
+                                </View>
+                                {todayAttendance.client_confirmed ? (
+                                  <View style={styles.paymentProcessedBadge}>
+                                    <Ionicons name="wallet" size={14} color={Colors.success} />
+                                    <Text style={styles.paymentProcessedText}>
+                                      ₱{Number(todayAttendance.amount_earned).toLocaleString()} paid
+                                    </Text>
+                                  </View>
+                                ) : (
+                                  <Text style={styles.awaitingConfirmText}>
+                                    Awaiting client confirmation...
+                                  </Text>
+                                )}
+                              </View>
+                            );
+                          }
+
+                          return null;
+                        })()}
+                      </View>
+                    )}
+
+                    {/* Client View: Confirm attendance for each worker */}
+                    {conversation.my_role === "CLIENT" && (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.teamWorkersScrollView}
+                        contentContainerStyle={styles.teamWorkersScrollContent}
+                      >
+                        {conversation.attendance_today && conversation.attendance_today.length > 0 ? (
+                          conversation.attendance_today.map((attendance: any) => (
+                            <View
+                              key={attendance.attendance_id}
+                              style={[
+                                styles.teamWorkerCardCompact,
+                                attendance.client_confirmed && styles.teamWorkerCardConfirmed,
+                              ]}
+                            >
+                              <View style={styles.teamWorkerInfoCompact}>
+                                {attendance.worker_avatar ? (
+                                  <Image
+                                    source={{ uri: attendance.worker_avatar }}
+                                    style={styles.teamWorkerAvatarCompact}
+                                  />
+                                ) : (
+                                  <View style={[styles.teamWorkerAvatarCompact, styles.teamWorkerAvatarPlaceholder]}>
+                                    <Ionicons name="person" size={16} color={Colors.textSecondary} />
+                                  </View>
+                                )}
+                                <View style={styles.teamWorkerDetailsCompact}>
+                                  <Text style={styles.teamWorkerNameCompact} numberOfLines={1}>
+                                    {attendance.worker_name?.split(" ")[0] || "Worker"}
+                                  </Text>
+                                  {attendance.time_in && (
+                                    <Text style={styles.teamWorkerSkillCompact}>
+                                      {format(new Date(attendance.time_in), "h:mm a")}
+                                      {attendance.time_out && ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
+                                    </Text>
+                                  )}
+                                </View>
+                              </View>
+
+                              {attendance.client_confirmed ? (
+                                <View style={styles.arrivedBadgeCompact}>
+                                  <Ionicons name="wallet" size={14} color={Colors.success} />
+                                  <Text style={styles.arrivedTextCompact}>
+                                    ₱{Number(attendance.amount_earned).toLocaleString()}
+                                  </Text>
+                                </View>
+                              ) : attendance.time_out ? (
+                                <TouchableOpacity
+                                  style={styles.confirmArrivalButtonCompact}
+                                  onPress={() =>
+                                    Alert.alert(
+                                      "Confirm Attendance",
+                                      `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
+                                      [
+                                        { text: "Cancel", style: "cancel" },
+                                        {
+                                          text: "Confirm & Pay",
+                                          onPress: () =>
+                                            clientConfirmAttendanceMutation.mutate({
+                                              attendanceId: attendance.attendance_id,
+                                            }),
+                                        },
+                                      ]
+                                    )
+                                  }
+                                  disabled={clientConfirmAttendanceMutation.isPending}
+                                >
+                                  {clientConfirmAttendanceMutation.isPending ? (
+                                    <ActivityIndicator size="small" color={Colors.white} />
+                                  ) : (
+                                    <Text style={styles.confirmArrivalButtonTextCompact}>Pay</Text>
+                                  )}
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={styles.pendingBadge}>
+                                  <Ionicons name="time-outline" size={14} color={Colors.warning} />
+                                  <Text style={styles.pendingText}>Working</Text>
+                                </View>
+                              )}
+                            </View>
+                          ))
+                        ) : (
+                          <View style={styles.noAttendanceContainer}>
+                            <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
+                            <Text style={styles.noAttendanceText}>
+                              No attendance logged for today
+                            </Text>
+                          </View>
+                        )}
+                      </ScrollView>
+                    )}
+
+                    {/* Daily rate info */}
+                    <View style={styles.dailyRateInfo}>
+                      <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
+                      <Text style={styles.dailyRateAmount}>
+                        ₱{conversation.job.daily_rate?.toLocaleString() || "0"}
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
                 {conversation.is_team_job &&
@@ -3068,6 +3283,103 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.white,
     fontWeight: "600",
+  },
+  // Daily Attendance Styles
+  dailyAttendanceSection: {
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  dailyWorkerActions: {
+    marginVertical: Spacing.xs,
+  },
+  dailyStatusContainer: {
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  checkedInBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+  },
+  checkedInText: {
+    ...Typography.body.small,
+    color: Colors.success,
+    fontWeight: "500",
+  },
+  checkInButton: {
+    backgroundColor: Colors.primary,
+  },
+  checkOutButton: {
+    backgroundColor: Colors.warning,
+  },
+  paymentProcessedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+  },
+  paymentProcessedText: {
+    ...Typography.body.small,
+    color: Colors.success,
+    fontWeight: "600",
+  },
+  awaitingConfirmText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFF3E0",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+  },
+  pendingText: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
+  noAttendanceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+  },
+  noAttendanceText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  dailyRateInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  dailyRateLabel: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  dailyRateAmount: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   // Legacy team styles - keeping for reference
   teamWorkerCard: {

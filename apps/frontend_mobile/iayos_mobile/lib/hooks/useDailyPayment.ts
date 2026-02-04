@@ -603,3 +603,177 @@ export const useCancelDailyJob = () => {
     },
   });
 };
+
+// ============================================================================
+// Daily Attendance Check-In/Out (Chat Screen Actions)
+// ============================================================================
+
+/**
+ * Response for check-in/check-out actions
+ */
+export interface CheckInOutResponse {
+  success: boolean;
+  attendance_id: number;
+  time_in?: string;
+  time_out?: string;
+  date: string;
+  hours_worked?: number;
+  message: string;
+  awaiting_client_confirmation: boolean;
+}
+
+/**
+ * Response for client confirmation action
+ */
+export interface ClientConfirmResponse {
+  success: boolean;
+  attendance_id: number;
+  worker_name?: string;
+  date: string;
+  status: AttendanceStatus;
+  amount_earned: number;
+  payment_processed: boolean;
+  message: string;
+}
+
+/**
+ * Worker checks in for a daily job (from chat screen)
+ * Creates attendance record with time_in.
+ * Constraints: Only between 6 AM - 8 PM
+ */
+export const useWorkerCheckIn = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number): Promise<CheckInOutResponse> => {
+      const response = await apiRequest(ENDPOINTS.WORKER_CHECK_IN(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Check-in failed"));
+      }
+      return response.json() as Promise<CheckInOutResponse>;
+    },
+    onSuccess: (data, jobId) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] }); // Refresh chat to show updated attendance
+
+      Toast.show({
+        type: "success",
+        text1: "Checked In ✅",
+        text2: data.message || "You've clocked in for today",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Check-in Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+/**
+ * Worker checks out for a daily job (from chat screen)
+ * Updates attendance record with time_out.
+ * Constraints: Only between 6 AM - 8 PM, must have checked in first
+ */
+export const useWorkerCheckOut = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number): Promise<CheckInOutResponse> => {
+      const response = await apiRequest(ENDPOINTS.WORKER_CHECK_OUT(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Check-out failed"));
+      }
+      return response.json() as Promise<CheckInOutResponse>;
+    },
+    onSuccess: (data, jobId) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] }); // Refresh chat to show updated attendance
+
+      Toast.show({
+        type: "success",
+        text1: "Checked Out ✅",
+        text2: data.message || "Awaiting client confirmation for payment",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Check-out Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+/**
+ * Client confirms worker's attendance (from chat screen)
+ * Triggers auto-payment when client confirms.
+ */
+export const useClientConfirmAttendance = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      attendanceId,
+      approvedStatus,
+    }: {
+      attendanceId: number;
+      approvedStatus?: "PRESENT" | "HALF_DAY" | "ABSENT";
+    }): Promise<ClientConfirmResponse> => {
+      let url = ENDPOINTS.CLIENT_CONFIRM_ATTENDANCE(attendanceId);
+      if (approvedStatus) {
+        url += `?approved_status=${approvedStatus}`;
+      }
+
+      const response = await apiRequest(url, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Confirmation failed"));
+      }
+      return response.json() as Promise<ClientConfirmResponse>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] }); // Refresh chat to show updated attendance
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Attendance Confirmed ✅",
+        text2: data.payment_processed
+          ? `Payment of ₱${data.amount_earned.toFixed(0)} processed`
+          : "Awaiting worker confirmation",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Confirmation Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};

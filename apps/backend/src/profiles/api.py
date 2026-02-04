@@ -1661,6 +1661,63 @@ def get_conversation_messages(request, conversation_id: int):
                 "remaining_days": remaining_days,
             }
 
+        # Get today's attendance for daily-rate jobs (DAILY payment model)
+        attendance_today = []
+        if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
+            from accounts.models import DailyAttendance
+            today = timezone.now().date()
+            
+            # Query attendance records for today
+            attendance_records = DailyAttendance.objects.filter(
+                jobID=job,
+                date=today
+            ).select_related(
+                'workerID__profileID',  # Freelance worker
+                'employeeID',  # Agency employee
+                'assignmentID__workerID__profileID'  # Team worker
+            )
+            
+            for record in attendance_records:
+                # Determine worker info based on worker type
+                worker_name = "Unknown Worker"
+                worker_avatar = None
+                worker_id = None
+                
+                if record.workerID:  # Freelance worker
+                    profile = record.workerID.profileID
+                    worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
+                    worker_avatar = profile.profileImg
+                    worker_id = record.workerID_id
+                elif record.employeeID:  # Agency employee
+                    worker_name = record.employeeID.name or "Employee"
+                    worker_avatar = record.employeeID.avatar
+                    worker_id = record.employeeID.employeeID
+                elif record.assignmentID:  # Team worker (via JobWorkerAssignment)
+                    profile = record.assignmentID.workerID.profileID
+                    worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
+                    worker_avatar = profile.profileImg
+                    worker_id = record.assignmentID.workerID_id
+                
+                attendance_today.append({
+                    "attendance_id": record.attendanceID,
+                    "worker_id": worker_id,
+                    "worker_name": worker_name,
+                    "worker_avatar": worker_avatar,
+                    "date": record.date.isoformat(),
+                    "time_in": record.time_in.isoformat() if record.time_in else None,
+                    "time_out": record.time_out.isoformat() if record.time_out else None,
+                    "status": record.status,
+                    "worker_confirmed": record.worker_confirmed,
+                    "worker_confirmed_at": record.worker_confirmed_at.isoformat() if record.worker_confirmed_at else None,
+                    "client_confirmed": record.client_confirmed,
+                    "client_confirmed_at": record.client_confirmed_at.isoformat() if record.client_confirmed_at else None,
+                    "amount_earned": float(record.amount_earned) if record.amount_earned else 0.0,
+                    "payment_processed": record.payment_processed,
+                    "notes": record.notes or "",
+                })
+            
+            print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1668,6 +1725,9 @@ def get_conversation_messages(request, conversation_id: int):
                 "id": job.jobID,
                 "title": job.title,
                 "status": job.status,
+                "payment_model": getattr(job, 'payment_model', 'PROJECT'),  # PROJECT or DAILY
+                "daily_rate": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
                 "budget": float(job.budget),
                 "location": job.location,
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
@@ -1697,7 +1757,8 @@ def get_conversation_messages(request, conversation_id: int):
             "my_role": my_role,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages),
-            "backjob": backjob_info
+            "backjob": backjob_info,
+            "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
         }
         
     except Exception as e:
