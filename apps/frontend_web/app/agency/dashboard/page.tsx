@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { formatDistanceToNow } from "date-fns";
+import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 
 interface AgencyStats {
   total_employees: number;
@@ -33,6 +34,9 @@ interface RecentJob {
   status: string;
   inviteStatus: string;
   budget: number;
+  payment_model?: 'PROJECT' | 'DAILY';
+  daily_rate_agreed?: number;
+  duration_days?: number;
   updatedAt: string;
   assignedEmployeeId?: number;
   assignedEmployeeName?: string;
@@ -369,7 +373,12 @@ export default function AgencyDashboardPage() {
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-green-600 font-medium">
-                              ₱{job.budget.toLocaleString()}
+                              <JobBudgetDisplay
+                                budget={job.budget}
+                                paymentModel={job.payment_model}
+                                dailyRate={job.daily_rate_agreed}
+                                durationDays={job.duration_days}
+                              />
                             </span>
                             <span className="text-xs text-gray-400">•</span>
                             <span className="text-xs text-orange-600 font-medium">
