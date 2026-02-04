@@ -2727,10 +2727,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: "700",
   },
-  inputDisabled: {
-    backgroundColor: Colors.backgroundSecondary,
-    opacity: 0.6,
-  },
   dailyNote: {
     fontSize: 13,
     color: Colors.textSecondary,
