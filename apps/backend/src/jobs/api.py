@@ -519,24 +519,54 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     status=400
                 )
         
-        # Calculate 50% downpayment (escrow)
-        downpayment = Decimal(str(data.budget)) * Decimal('0.5')
-        remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
+        # Determine payment model
+        payment_model = (data.payment_model or "PROJECT").upper()
         
-        # Calculate platform fee (10% of TOTAL BUDGET - this is our revenue)
-        platform_fee = Decimal(str(data.budget)) * Decimal('0.10')  # 10% platform fee on total budget
-        
-        # Client pays: downpayment + platform fee upfront, then remaining payment at completion
-        total_to_charge = downpayment + platform_fee  # Total amount to charge client for first payment
-        
-        print(f"💰 Payment breakdown:")
-        print(f"   Total Budget: ₱{data.budget}")
-        print(f"   Downpayment (50%): ₱{downpayment}")
-        print(f"   Platform Fee (10% of budget): ₱{platform_fee}")
-        print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
-        print(f"   Remaining (50%): ₱{remaining_payment}")
-        print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
-        print(f"   Worker Receives: ₱{data.budget} (full budget)")
+        # Calculate payment based on payment model
+        if payment_model == "DAILY":
+            # DAILY payment model: 100% escrow upfront + 10% platform fee
+            if not data.daily_rate or not data.duration_days:
+                return Response(
+                    {"error": "daily_rate and duration_days are required for DAILY payment model"},
+                    status=400
+                )
+            
+            total_budget = Decimal(str(data.daily_rate)) * Decimal(str(data.duration_days))
+            downpayment = total_budget  # 100% escrow for DAILY jobs
+            remaining_payment = Decimal('0.00')  # No remaining payment - paid daily as work is completed
+            platform_fee = total_budget * Decimal('0.10')  # 10% platform fee
+            total_to_charge = downpayment + platform_fee
+            
+            print(f"💰 DAILY Payment breakdown:")
+            print(f"   Daily Rate: ₱{data.daily_rate}/day")
+            print(f"   Duration: {data.duration_days} days")
+            print(f"   Total Budget: ₱{total_budget}")
+            print(f"   Escrow (100%): ₱{downpayment}")
+            print(f"   Platform Fee (10%): ₱{platform_fee}")
+            print(f"   Total to Charge: ₱{total_to_charge}")
+            print(f"   Worker Receives: ₱{total_budget} (released daily as attendance confirmed)")
+        else:
+            # PROJECT payment model: 50% escrow + 5% platform fee
+            if not data.budget:
+                return Response(
+                    {"error": "budget is required for PROJECT payment model"},
+                    status=400
+                )
+            
+            total_budget = Decimal(str(data.budget))
+            downpayment = total_budget * Decimal('0.5')  # 50% escrow
+            remaining_payment = total_budget * Decimal('0.5')  # 50% at completion
+            platform_fee = total_budget * Decimal('0.05')  # 5% platform fee
+            total_to_charge = downpayment + platform_fee
+            
+            print(f"💰 PROJECT Payment breakdown:")
+            print(f"   Total Budget: ₱{total_budget}")
+            print(f"   Downpayment (50%): ₱{downpayment}")
+            print(f"   Platform Fee (5%): ₱{platform_fee}")
+            print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
+            print(f"   Remaining (50%): ₱{remaining_payment}")
+            print(f"   Total Client Pays: ₱{total_budget + platform_fee}")
+            print(f"   Worker Receives: ₱{total_budget} (full budget)")
         
         # Get or create client's wallet
         wallet, created = Wallet.objects.get_or_create(
