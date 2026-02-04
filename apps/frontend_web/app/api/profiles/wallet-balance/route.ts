@@ -27,7 +27,7 @@ export async function GET() {
     }
 
     const response = await fetch(
-      `${API_BASE_URL}/api/accounts/wallet/balance`,
+      `${API_BASE_URL}/accounts/wallet/balance`,
       {
         method: "GET",
         headers,

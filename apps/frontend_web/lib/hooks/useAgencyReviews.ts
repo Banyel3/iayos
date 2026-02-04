@@ -61,7 +61,7 @@ async function fetchAgencyReviews(
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/api/agency/reviews?${params.toString()}`,
+    `${API_BASE_URL}/agency/reviews?${params.toString()}`,
     {
       method: "GET",
       credentials: "include",

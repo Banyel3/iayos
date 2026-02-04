@@ -54,7 +54,7 @@ export function useConversations(
   return useQuery({
     queryKey: ["conversations", filter],
     queryFn: async (): Promise<ConversationsResponse> => {
-      const url = `${API_BASE_URL}/api/profiles/conversations?filter=${filter}`;
+      const url = `${API_BASE_URL}/profiles/conversations?filter=${filter}`;
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -128,7 +128,7 @@ export function useArchiveConversation() {
 
       // Call backend toggle archive endpoint
       const response = await fetch(
-        `${API_BASE_URL}/api/profiles/conversations/${conversationId}/toggle-archive`,
+        `${API_BASE_URL}/profiles/conversations/${conversationId}/toggle-archive`,
         {
           method: "POST",
           credentials: "include",
