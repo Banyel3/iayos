@@ -799,9 +799,21 @@ def get_conversations(request, filter: str = "all"):
         print(f"📋 Profile Type: {user_profile.profileType}")
         print(f"🎫 JWT Profile Type: {profile_type}")
         
-        # Get 1:1 conversations where user is client or worker
+        # Check if user is an agency owner
+        from accounts.models import Agency
+        user_agency = Agency.objects.filter(accountFK=request.auth).first()
+        
+        # Get 1:1 conversations where user is client, worker, OR agency owner
+        one_on_one_filters = Q(client=user_profile) | Q(worker=user_profile)
+        
+        # CRITICAL: Add agency filter if user owns an agency
+        # This ensures agency users only see conversations for their agency, not personal conversations
+        if user_agency:
+            one_on_one_filters |= Q(agency=user_agency)
+            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyID})")
+        
         one_on_one_query = Conversation.objects.filter(
-            Q(client=user_profile) | Q(worker=user_profile),
+            one_on_one_filters,
             conversation_type='ONE_ON_ONE'
         )
         
