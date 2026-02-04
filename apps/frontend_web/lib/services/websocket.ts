@@ -82,7 +82,8 @@ class WebSocketService {
     try {
       // Get WebSocket URL from environment
       // NEXT_PUBLIC_WS_URL should be like "ws://localhost:8000" or "wss://api.example.com"
-      const wsBaseUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+      // Falls back to production DigitalOcean backend if env var not set
+      const wsBaseUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://api.iayos.online";
 
       // Get auth token from localStorage (stored during login)
       const token =

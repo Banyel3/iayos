@@ -21,7 +21,7 @@ export default function DownloadAppPage() {
     async function fetchLatestRelease() {
       try {
         // First try to fetch from backend /api/mobile/config
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://iayos.onrender.com';
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.iayos.online';
         try {
           const configResponse = await fetch(`${backendUrl}/api/mobile/config`, {
             method: 'GET',

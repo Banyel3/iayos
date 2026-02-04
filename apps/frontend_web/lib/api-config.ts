@@ -15,7 +15,8 @@ import { API_BASE } from "@/lib/api/config";
 export const API_URL = API_BASE;
 
 // WebSocket URL - for real-time features
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+// Falls back to production DigitalOcean backend if env var not set
+export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "wss://api.iayos.online";
 
 // Server-side API URL - for Next.js SSR/API routes (uses Docker service name)
 export const SERVER_API_URL = process.env.SERVER_API_URL || API_URL;
