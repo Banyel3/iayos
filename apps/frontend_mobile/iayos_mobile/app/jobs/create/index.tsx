@@ -172,7 +172,7 @@ export default function CreateJobScreen() {
 
   // Calculate required downpayment based on payment model
   // PROJECT: 50% of budget + 5% platform fee
-  // DAILY: 100% of (daily_rate * duration_days) + 5% platform fee
+  // DAILY: 100% of (daily_rate * duration_days) + 10% platform fee
   const requiredDownpayment = React.useMemo(() => {
     if (paymentModel === "PROJECT") {
       return budget ? parseFloat(budget) * 0.5 * 1.05 : 0;
@@ -182,7 +182,7 @@ export default function CreateJobScreen() {
       const days = parseInt(durationDays) || 0;
       if (rate > 0 && days > 0) {
         const totalEscrow = rate * days;
-        return totalEscrow * 1.05; // 100% escrow + 5% platform fee
+        return totalEscrow * 1.10; // 100% escrow + 10% platform fee (DAILY uses higher fee)
       }
       return 0;
     }
