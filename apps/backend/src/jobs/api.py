@@ -665,11 +665,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     if is_team_job and data.skill_slots:
                         num_workers = sum(slot.workers_needed for slot in data.skill_slots)
                     
-                    DailyPaymentService.setup_daily_job(
+                    DailyPaymentService.create_daily_job(
                         job=job_posting,
                         daily_rate=Decimal(str(data.daily_rate)),
-                        num_workers=num_workers,
-                        duration_days=data.duration_days
+                        duration_days=data.duration_days,
+                        num_workers=num_workers
                     )
                     print(f"✅ Daily payment schedule created: {num_workers} worker(s) × ₱{data.daily_rate}/day × {data.duration_days} days")
                 
@@ -854,11 +854,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     from jobs.daily_payment_service import DailyPaymentService
                     num_workers = 1  # Default to 1 worker for single hire (agencies not supported via GCASH yet)
                     
-                    DailyPaymentService.setup_daily_job(
+                    DailyPaymentService.create_daily_job(
                         job=job_posting,
                         daily_rate=Decimal(str(data.daily_rate)),
-                        num_workers=num_workers,
-                        duration_days=data.duration_days
+                        duration_days=data.duration_days,
+                        num_workers=num_workers
                     )
                     print(f"✅ Daily payment schedule created: {num_workers} worker(s) × ₱{data.daily_rate}/day × {data.duration_days} days")
                 

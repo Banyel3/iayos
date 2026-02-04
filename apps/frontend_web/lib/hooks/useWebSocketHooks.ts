@@ -101,7 +101,7 @@ export function useSendMessage() {
       );
       try {
         const response = await fetch(
-          `${API_BASE_URL}/api/profiles/send-message`,
+          `${API_BASE_URL}/profiles/send-message`,
           {
             method: "POST",
             credentials: "include",

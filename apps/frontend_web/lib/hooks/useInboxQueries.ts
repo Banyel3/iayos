@@ -72,7 +72,7 @@ export function useMarkJobComplete() {
   return useMutation({
     mutationFn: async (jobId: number) => {
       const response = await fetch(
-        `${API_BASE_URL}/api/jobs/${jobId}/mark-complete`,
+        `${API_BASE_URL}/jobs/${jobId}/mark-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -116,7 +116,7 @@ export function useApproveJobCompletion() {
       paymentMethod?: "WALLET" | "GCASH" | "CASH";
     }) => {
       const response = await fetch(
-        `${API_BASE_URL}/api/jobs/${jobId}/approve-completion`,
+        `${API_BASE_URL}/jobs/${jobId}/approve-completion`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -174,7 +174,7 @@ export function useSubmitReview() {
       review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs
       employee_id?: number; // For multi-employee agency jobs
     }) => {
-      const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/review`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

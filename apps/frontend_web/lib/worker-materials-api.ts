@@ -5,7 +5,7 @@ const API_BASE_URL = API_BASE;
 
 export async function fetchWorkerMaterials() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/profiles/profile/products/`, {
+    const res = await fetch(`${API_BASE_URL}/profiles/profile/products/`, {
       method: "GET",
       credentials: "include",
       headers: {
@@ -36,7 +36,7 @@ export async function addWorkerMaterial(data: {
   unit?: string;
   price?: number;
 }) {
-  const res = await fetch(`${API_BASE_URL}/api/profiles/profile/products/add`, {
+  const res = await fetch(`${API_BASE_URL}/profiles/profile/products/add`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -48,7 +48,7 @@ export async function addWorkerMaterial(data: {
 
 export async function deleteWorkerMaterial(productID: number) {
   const res = await fetch(
-    `${API_BASE_URL}/api/profiles/profile/products/${productID}`,
+    `${API_BASE_URL}/profiles/profile/products/${productID}`,
     {
       method: "DELETE",
       credentials: "include",

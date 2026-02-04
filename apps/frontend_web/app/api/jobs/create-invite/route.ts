@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       headers["Cookie"] = `session=${sessionCookie.value}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/jobs/create-invite`, {
+    const response = await fetch(`${API_BASE_URL}/jobs/create-invite`, {
       method: "POST",
       headers,
       credentials: "include",
