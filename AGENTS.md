@@ -1,10 +1,95 @@
-# iAyos Platform Memory File - Worker Multi-Job Blocker Fix ✅ (January 2026)
+# iAyos Platform Memory File - Mobile Backjob & Review UX Bugs Fix ✅ (February 2026)
 
 ## System Overview
 
 iAyos is a comprehensive marketplace platform for blue-collar services connecting clients with skilled workers through a secure, feature-rich ecosystem.
 
-## 🆕 LATEST UPDATE - Worker Multi-Job Application Blocker ✅ (January 2026)
+## 🆕 LATEST UPDATE - Mobile Backjob & Review UX Bugs ✅ (February 2026)
+
+**Status**: ✅ IMPLEMENTATION COMPLETE  
+**PR**: #290 (MERGED)  
+**Type**: Critical Bug Fixes - Mobile UX  
+**Time**: ~45 minutes  
+**Priority**: CRITICAL - User Experience & Cross-Platform Compatibility
+
+### What Was Fixed
+
+**Problem 1 - Backjob Banner Text Invisible**:
+- "Confirm Worker Arrival" banner text was white on light background (impossible to read)
+
+**Problem 2 - Mark Complete Button Unresponsive on Android**:
+- Used `Alert.prompt` (iOS-only API) which fails silently on Android
+- Workers on Android couldn't mark jobs/assignments as complete
+- 2 instances: team assignment completion + backjob completion
+
+**Problem 3 - Review Criteria Backwards**:
+- WORKER reviewing CLIENT saw wrong criteria (Quality, Communication, Punctuality, Professionalism)
+- CLIENT reviewing WORKER saw single star rating instead of multi-criteria
+- Expected: WORKER→CLIENT (Professionalism, Communication, Quality, Value), CLIENT→WORKER (Punctuality, Reliability, Skill, Workmanship)
+
+**Solution**:
+
+1. **Banner Visibility**: Changed `waitingButtonText.color` from `Colors.textSecondary` to `Colors.textPrimary`
+2. **Alert.prompt Fix**: Replaced 2 instances with `Alert.alert` (cross-platform)
+3. **Review Criteria**: Complete UI rewrite with correct role-based criteria mapping
+
+### Implementation Details
+
+**File Modified**: `apps/frontend_mobile/iayos_mobile/app/messages/[conversationId].tsx` (+167/-77 lines)
+
+#### Bug 1: Banner Visibility (Line 3611)
+```typescript
+// BEFORE (invisible)
+waitingButtonText: {
+  color: Colors.textSecondary, // Light gray on light background!
+}
+
+// AFTER (visible)
+waitingButtonText: {
+  color: Colors.textPrimary, // Dark color ✅
+}
+```
+
+#### Bug 2: Alert.prompt → Alert.alert (Lines 274, 494)
+```typescript
+// BEFORE (iOS-only, broken on Android)
+Alert.prompt("Mark Assignment Complete", "Add notes:", [...], "", "default");
+
+// AFTER (cross-platform)
+Alert.alert("Mark Assignment Complete", "Are you sure?", [...]);
+```
+
+#### Bug 3: Review Criteria UI (Lines 2551-2720)
+**State Variable Mapping**:
+- **WORKER → CLIENT**: ratingProfessionalism (👔 Professionalism), ratingCommunication (💬), ratingQuality (🏆), ratingPunctuality (💰 Value)
+- **CLIENT → WORKER**: ratingPunctuality (⏰), ratingProfessionalism (✅ Reliability), ratingQuality (🔧 Skill), ratingCommunication (🛠️ Workmanship)
+
+### Files Modified
+
+**Frontend** (1 file, ~244 lines changed):
+- `apps/frontend_mobile/iayos_mobile/app/messages/[conversationId].tsx`
+  - Line 3611: Banner text color fix
+  - Lines 274-291: Alert.alert conversion (team assignment)
+  - Lines 494-508: Alert.alert conversion (backjob)
+  - Lines 546-549: Validation logic updated
+  - Lines 2551-2720: Complete review UI rewrite
+
+**Documentation** (1 file):
+- `docs/bug-fixes/MOBILE_BACKJOB_REVIEW_BUGS_FIX.md` (comprehensive guide)
+
+### Testing
+
+- ✅ 0 TypeScript compilation errors
+- ✅ Banner text now visible (dark color)
+- ✅ Alert dialogs work on iOS + Android
+- ✅ All 8 review criteria correctly mapped to state handlers
+- ✅ Validation requires 4 ratings for both roles
+
+**Status**: ✅ COMPLETE - PR #290 merged to main
+
+---
+
+## 📋 PREVIOUS UPDATE - Worker Multi-Job Application Blocker ✅ (January 2026)
 
 **Status**: ✅ IMPLEMENTATION COMPLETE  
 **Type**: Critical Bug Fix - Worker Job Validation  
