@@ -1,0 +1,101 @@
+### Agency Jobs Tab Filtering Fix - Test File
+### Issue: IN_PROGRESS jobs appearing in "Accepted Jobs" tab instead of "In Progress" tab
+### User Report: "Renovate Window for restaurant" (IN_PROGRESS) appears in Accepted tab,
+### clicking "Assign Employees" causes HTTP 500 error
+
+@baseUrl = http://localhost:8000
+
+### =====================================================
+### SETUP: Login as downtown@gmail.com agency
+### =====================================================
+
+# @name loginAgency
+POST {{baseUrl}}/api/agency/auth/login
+Content-Type: application/json
+
+{
+  "email": "downtown@gmail.com",
+  "password": "password123"
+}
+
+### =====================================================
+### TEST 1: Run backfill script (dry-run first)
+### =====================================================
+
+### Manual command in backend container:
+### docker exec iayos-backend-dev python manage.py backfill_job_assignments --dry-run
+### Expected: Shows any IN_PROGRESS jobs without assigned employees
+
+### Then run without dry-run:
+### docker exec iayos-backend-dev python manage.py backfill_job_assignments
+### Expected: Reverts orphaned IN_PROGRESS jobs back to ACTIVE
+
+### =====================================================
+### TEST 2: Verify Accepted Jobs endpoint only returns ACTIVE jobs
+### =====================================================
+
+# @name getAcceptedJobs
+GET {{baseUrl}}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE
+Cookie: sessionid={{loginAgency.response.headers.Set-Cookie}}
+
+### EXPECTED:
+### - Should return ONLY jobs with status=ACTIVE AND invite_status=ACCEPTED
+### - Should NOT include "Renovate Window for restaurant" if it has status=IN_PROGRESS
+### - All returned jobs should be ready for employee assignment
+
+### =====================================================
+### TEST 3: Verify In Progress Jobs endpoint
+### =====================================================
+
+# @name getInProgressJobs
+GET {{baseUrl}}/api/agency/jobs?status=IN_PROGRESS
+Cookie: sessionid={{loginAgency.response.headers.Set-Cookie}}
+
+### EXPECTED:
+### - "Renovate Window for restaurant" should appear HERE (if it has employees assigned)
+### - All jobs should have assignedEmployeeID set OR JobWorkerAssignment records
+
+### =====================================================
+### TEST 4: Try to assign employees to IN_PROGRESS job (should fail with 400)
+### =====================================================
+
+# @name assignToInProgressJob
+POST {{baseUrl}}/api/agency/jobs/123/assign-employees
+Cookie: sessionid={{loginAgency.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{
+  "employee_ids": [1],
+  "assignment_notes": "Test assignment"
+}
+
+### EXPECTED:
+### - HTTP 400 Bad Request (NOT 500 Internal Server Error)
+### - Error message: "Cannot assign employees to job with status: IN_PROGRESS"
+
+### =====================================================
+### TEST 5: Frontend Tab Verification (Manual Browser Test)
+### =====================================================
+
+### Steps:
+### 1. Open http://localhost:3000/agency/jobs
+### 2. Click "Accepted Jobs" tab
+###    ✅ Should see ONLY ACTIVE jobs with ACCEPTED invite status
+###    ❌ Should NOT see "Renovate Window for restaurant" (if IN_PROGRESS)
+### 3. Click "In Progress" tab
+###    ✅ Should see "Renovate Window for restaurant" HERE
+###    ✅ Should NOT show "Assign Employees" button (shows warning instead)
+### 4. Try clicking "Assign Employees" on an ACTIVE job in Accepted tab
+###    ✅ Modal should open successfully
+###    ✅ No 400 error when job is ACTIVE
+
+### =====================================================
+### VALIDATION CHECKLIST
+### =====================================================
+### ✅ Backfill script runs without errors
+### ✅ Orphaned IN_PROGRESS jobs reverted to ACTIVE
+### ✅ Accepted tab only shows ACTIVE jobs
+### ✅ In Progress tab only shows IN_PROGRESS jobs with employees
+### ✅ Assign button only appears for ACTIVE jobs
+### ✅ Warning message shows for IN_PROGRESS jobs in Accepted tab (if any)
+### ✅ Backend returns 400 (not 500) when trying to assign to IN_PROGRESS job

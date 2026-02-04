@@ -79,7 +79,7 @@ interface Job {
     name: string;
   } | null;
   budget: number;
-  payment_model?: 'PROJECT' | 'DAILY';
+  payment_model?: "PROJECT" | "DAILY";
   daily_rate_agreed?: number;
   duration_days?: number;
   actual_start_date?: string;
@@ -217,52 +217,24 @@ export default function AgencyJobsPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch both ACTIVE and IN_PROGRESS jobs - we'll filter by employee assignment
-      const [activeResponse, inProgressResponse] = await Promise.all([
-        fetch(
-          `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
-          {
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
-        fetch(`${API_BASE}/api/agency/jobs?status=IN_PROGRESS`, {
+      // Fetch only ACTIVE jobs with ACCEPTED invite status
+      // Once employees are assigned, job status changes to IN_PROGRESS and moves to "In Progress" tab
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
+        {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-        }),
-      ]);
+        },
+      );
 
-      if (!activeResponse.ok) {
+      if (!response.ok) {
         throw new Error(
-          `Failed to fetch accepted jobs: ${activeResponse.statusText}`,
+          `Failed to fetch accepted jobs: ${response.statusText}`,
         );
       }
 
-      const activeData = await activeResponse.json();
-      const inProgressData = inProgressResponse.ok
-        ? await inProgressResponse.json()
-        : { jobs: [] };
-
-      // Accepted = ACTIVE jobs without employees + IN_PROGRESS jobs without employees
-      // (IN_PROGRESS without employees is a data inconsistency we need to handle)
-      const unassignedActiveJobs = (activeData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID,
-      );
-      const unassignedInProgressJobs = (inProgressData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID,
-      );
-
-      // Combine and deduplicate by jobID
-      const allUnassigned = [
-        ...unassignedActiveJobs,
-        ...unassignedInProgressJobs,
-      ];
-      const uniqueJobs = allUnassigned.filter(
-        (job, index, self) =>
-          index === self.findIndex((j) => j.jobID === job.jobID),
-      );
-
-      setAcceptedJobs(uniqueJobs);
+      const data = await response.json();
+      setAcceptedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
       setError(
@@ -419,7 +391,7 @@ export default function AgencyJobsPage() {
     try {
       setError(null);
       setSuccessMessage(null);
-      
+
       const response = await fetch(
         `${API_BASE}/api/agency/jobs/${jobId}/accept`,
         {
@@ -457,15 +429,17 @@ export default function AgencyJobsPage() {
 
       // Remove from pending invites
       setPendingInvites((prev) => prev.filter((j) => j.jobID !== jobId));
-      
+
       // Refresh accepted jobs list
       await fetchAcceptedJobs();
-      
+
       // Switch to Accepted tab so user can assign employees
       setActiveTab("accepted");
     } catch (err) {
       console.error("Error accepting invitation:", err);
-      setError(err instanceof Error ? err.message : "Failed to accept invitation");
+      setError(
+        err instanceof Error ? err.message : "Failed to accept invitation",
+      );
     }
   };
 
@@ -1011,7 +985,10 @@ export default function AgencyJobsPage() {
                             />
                           </p>
                           {job.payment_model && (
-                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
                           )}
                         </div>
                         <div>
@@ -1094,7 +1071,7 @@ export default function AgencyJobsPage() {
                             </button>
                           )}
                         </div>
-                      ) : (
+                      ) : job.status === "ACTIVE" ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1120,6 +1097,10 @@ export default function AgencyJobsPage() {
                               : "Assign Employee"}
                           </span>
                         </button>
+                      ) : (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm">
+                          ⚠️ Job is already in progress. Check the &quot;In Progress&quot; tab.
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -1181,7 +1162,10 @@ export default function AgencyJobsPage() {
                             />
                           </p>
                           {job.payment_model && (
-                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
                           )}
                         </div>
                         <div>
@@ -1277,7 +1261,10 @@ export default function AgencyJobsPage() {
                             />
                           </p>
                           {job.payment_model && (
-                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
                           )}
                         </div>
                         <div>
@@ -1370,7 +1357,10 @@ export default function AgencyJobsPage() {
                             />
                           </p>
                           {job.payment_model && (
-                            <PaymentModelBadge paymentModel={job.payment_model} className="mt-1" />
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
                           )}
                         </div>
                         <div>
