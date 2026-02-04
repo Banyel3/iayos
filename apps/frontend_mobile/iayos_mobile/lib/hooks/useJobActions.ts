@@ -62,7 +62,7 @@ export function useConfirmTeamWorkerArrival() {
       jobId: number;
       assignmentId: number;
     }) => {
-      const url = `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/team/confirm-arrival/${assignmentId}`;
+      const url = `${API_BASE_URL}/jobs/${jobId}/team/confirm-arrival/${assignmentId}`;
       const response = await apiRequest(url, {
         method: "POST",
       });
@@ -111,7 +111,7 @@ export function useMarkTeamAssignmentComplete() {
       assignmentId: number;
       notes?: string;
     }) => {
-      const url = `${API_BASE_URL.replace("/api", "")}/api/jobs/team/assignments/${assignmentId}/complete`;
+      const url = `${API_BASE_URL}/jobs/team/assignments/${assignmentId}/complete`;
       const response = await apiRequest(url, {
         method: "POST",
         body: JSON.stringify({ notes: notes || "" }),
@@ -162,7 +162,7 @@ export function useApproveTeamJobCompletion() {
       paymentMethod: "WALLET" | "CASH";
       cashProofImage?: string;
     }) => {
-      const url = `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/team/approve-completion`;
+      const url = `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`;
 
       let body: any;
       let headers: Record<string, string> | undefined;
