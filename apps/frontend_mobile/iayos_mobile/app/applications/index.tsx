@@ -388,6 +388,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  listContainer: {
+    padding: 16,
+  },
   header: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
