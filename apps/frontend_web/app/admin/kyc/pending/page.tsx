@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "../../components";
 import { useToast } from "@/components/ui/toast";
-import KYCExtractedDataComparison from "@/components/admin/KYCExtractedDataComparison";
+import UserSubmittedDataSection from "@/components/admin/UserSubmittedDataSection";
 
 // Preset rejection reasons for quick selection
 const REJECTION_PRESETS = [
@@ -1211,18 +1211,16 @@ export default function PendingKYCPage() {
                             )}
                           </div>
                           
-                          {/* Right Column: OCR Extracted Data */}
-                          {record.userType !== "agency" && (
-                            <div>
-                              <div className="flex items-center justify-between mb-6">
-                                <h4 className="text-lg font-bold text-gray-800 flex items-center">
-                                  <Brain className="w-6 h-6 mr-2 text-blue-600" />
-                                  OCR Extracted Data
-                                </h4>
-                              </div>
-                              <KYCExtractedDataComparison kycId={parseInt(record.id)} />
+                          {/* Right Column: User Submitted Data */}
+                          <div>
+                            <div className="flex items-center justify-between mb-6">
+                              <h4 className="text-lg font-bold text-gray-800 flex items-center">
+                                <FileText className="w-6 h-6 mr-2 text-blue-600" />
+                                User Submitted Data
+                              </h4>
                             </div>
-                          )}
+                            <UserSubmittedDataSection kycId={parseInt(record.id)} isAgency={record.userType === "agency"} />
+                          </div>
                         </div>
                       </div>
                     )}
