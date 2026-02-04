@@ -329,24 +329,22 @@ export default function ChatScreen() {
       return;
     }
 
-    Alert.prompt(
+    // Simple confirmation without notes (cross-platform compatible)
+    Alert.alert(
       "Mark Job Complete",
-      "Add optional completion notes:",
+      "Are you sure you want to mark this job as complete? The client will review your work.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Submit",
-          onPress: (notes?: string) => {
+          text: "Mark Complete",
+          style: "default",
+          onPress: () => {
             markCompleteMutation.mutate({
               jobId: conversation.job.id,
-              notes: notes || undefined,
             });
           },
         },
       ],
-      "plain-text",
-      "",
-      "default",
     );
   };
 
@@ -1452,25 +1450,43 @@ export default function ChatScreen() {
                       <View style={styles.dailyWorkerActions}>
                         {(() => {
                           // Find today's attendance for this worker
-                          const todayAttendance = conversation.attendance_today?.find(
-                            (a) =>
-                              a.worker_id === user?.profile_data?.workerProfileId
-                          );
+                          const todayAttendance =
+                            conversation.attendance_today?.find(
+                              (a) =>
+                                a.worker_id ===
+                                user?.profile_data?.workerProfileId,
+                            );
 
                           // No attendance yet - show check-in button
                           if (!todayAttendance || !todayAttendance.time_in) {
                             return (
                               <TouchableOpacity
-                                style={[styles.actionButton, styles.checkInButton]}
-                                onPress={() => workerCheckInMutation.mutate(conversation.job.id)}
+                                style={[
+                                  styles.actionButton,
+                                  styles.checkInButton,
+                                ]}
+                                onPress={() =>
+                                  workerCheckInMutation.mutate(
+                                    conversation.job.id,
+                                  )
+                                }
                                 disabled={workerCheckInMutation.isPending}
                               >
                                 {workerCheckInMutation.isPending ? (
-                                  <ActivityIndicator size="small" color={Colors.white} />
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
                                 ) : (
                                   <>
-                                    <Ionicons name="log-in-outline" size={20} color={Colors.white} />
-                                    <Text style={styles.actionButtonText}>Check In</Text>
+                                    <Ionicons
+                                      name="log-in-outline"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.actionButtonText}>
+                                      Check In
+                                    </Text>
                                   </>
                                 )}
                               </TouchableOpacity>
@@ -1478,26 +1494,53 @@ export default function ChatScreen() {
                           }
 
                           // Checked in but not out - show check-out button
-                          if (todayAttendance.time_in && !todayAttendance.time_out) {
+                          if (
+                            todayAttendance.time_in &&
+                            !todayAttendance.time_out
+                          ) {
                             return (
                               <View style={styles.dailyStatusContainer}>
                                 <View style={styles.checkedInBadge}>
-                                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                                  <Ionicons
+                                    name="checkmark-circle"
+                                    size={16}
+                                    color={Colors.success}
+                                  />
                                   <Text style={styles.checkedInText}>
-                                    Checked in at {format(new Date(todayAttendance.time_in), "h:mm a")}
+                                    Checked in at{" "}
+                                    {format(
+                                      new Date(todayAttendance.time_in),
+                                      "h:mm a",
+                                    )}
                                   </Text>
                                 </View>
                                 <TouchableOpacity
-                                  style={[styles.actionButton, styles.checkOutButton]}
-                                  onPress={() => workerCheckOutMutation.mutate(conversation.job.id)}
+                                  style={[
+                                    styles.actionButton,
+                                    styles.checkOutButton,
+                                  ]}
+                                  onPress={() =>
+                                    workerCheckOutMutation.mutate(
+                                      conversation.job.id,
+                                    )
+                                  }
                                   disabled={workerCheckOutMutation.isPending}
                                 >
                                   {workerCheckOutMutation.isPending ? (
-                                    <ActivityIndicator size="small" color={Colors.white} />
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
                                   ) : (
                                     <>
-                                      <Ionicons name="log-out-outline" size={20} color={Colors.white} />
-                                      <Text style={styles.actionButtonText}>Check Out</Text>
+                                      <Ionicons
+                                        name="log-out-outline"
+                                        size={20}
+                                        color={Colors.white}
+                                      />
+                                      <Text style={styles.actionButtonText}>
+                                        Check Out
+                                      </Text>
                                     </>
                                   )}
                                 </TouchableOpacity>
@@ -1510,16 +1553,36 @@ export default function ChatScreen() {
                             return (
                               <View style={styles.dailyStatusContainer}>
                                 <View style={styles.checkedInBadge}>
-                                  <Ionicons name="checkmark-done-circle" size={16} color={Colors.success} />
+                                  <Ionicons
+                                    name="checkmark-done-circle"
+                                    size={16}
+                                    color={Colors.success}
+                                  />
                                   <Text style={styles.checkedInText}>
-                                    {format(new Date(todayAttendance.time_in), "h:mm a")} - {format(new Date(todayAttendance.time_out), "h:mm a")}
+                                    {format(
+                                      new Date(todayAttendance.time_in),
+                                      "h:mm a",
+                                    )}{" "}
+                                    -{" "}
+                                    {format(
+                                      new Date(todayAttendance.time_out),
+                                      "h:mm a",
+                                    )}
                                   </Text>
                                 </View>
                                 {todayAttendance.client_confirmed ? (
                                   <View style={styles.paymentProcessedBadge}>
-                                    <Ionicons name="wallet" size={14} color={Colors.success} />
+                                    <Ionicons
+                                      name="wallet"
+                                      size={14}
+                                      color={Colors.success}
+                                    />
                                     <Text style={styles.paymentProcessedText}>
-                                      ₱{Number(todayAttendance.amount_earned).toLocaleString()} paid
+                                      ₱
+                                      {Number(
+                                        todayAttendance.amount_earned,
+                                      ).toLocaleString()}{" "}
+                                      paid
                                     </Text>
                                   </View>
                                 ) : (
@@ -1544,84 +1607,138 @@ export default function ChatScreen() {
                         style={styles.teamWorkersScrollView}
                         contentContainerStyle={styles.teamWorkersScrollContent}
                       >
-                        {conversation.attendance_today && conversation.attendance_today.length > 0 ? (
-                          conversation.attendance_today.map((attendance: any) => (
-                            <View
-                              key={attendance.attendance_id}
-                              style={[
-                                styles.teamWorkerCardCompact,
-                                attendance.client_confirmed && styles.teamWorkerCardConfirmed,
-                              ]}
-                            >
-                              <View style={styles.teamWorkerInfoCompact}>
-                                {attendance.worker_avatar ? (
-                                  <Image
-                                    source={{ uri: attendance.worker_avatar }}
-                                    style={styles.teamWorkerAvatarCompact}
-                                  />
+                        {conversation.attendance_today &&
+                        conversation.attendance_today.length > 0 ? (
+                          conversation.attendance_today.map(
+                            (attendance: any) => (
+                              <View
+                                key={attendance.attendance_id}
+                                style={[
+                                  styles.teamWorkerCardCompact,
+                                  attendance.client_confirmed &&
+                                    styles.teamWorkerCardConfirmed,
+                                ]}
+                              >
+                                <View style={styles.teamWorkerInfoCompact}>
+                                  {attendance.worker_avatar ? (
+                                    <Image
+                                      source={{ uri: attendance.worker_avatar }}
+                                      style={styles.teamWorkerAvatarCompact}
+                                    />
+                                  ) : (
+                                    <View
+                                      style={[
+                                        styles.teamWorkerAvatarCompact,
+                                        styles.teamWorkerAvatarPlaceholder,
+                                      ]}
+                                    >
+                                      <Ionicons
+                                        name="person"
+                                        size={16}
+                                        color={Colors.textSecondary}
+                                      />
+                                    </View>
+                                  )}
+                                  <View style={styles.teamWorkerDetailsCompact}>
+                                    <Text
+                                      style={styles.teamWorkerNameCompact}
+                                      numberOfLines={1}
+                                    >
+                                      {attendance.worker_name?.split(" ")[0] ||
+                                        "Worker"}
+                                    </Text>
+                                    {attendance.time_in && (
+                                      <Text
+                                        style={styles.teamWorkerSkillCompact}
+                                      >
+                                        {format(
+                                          new Date(attendance.time_in),
+                                          "h:mm a",
+                                        )}
+                                        {attendance.time_out &&
+                                          ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
+                                      </Text>
+                                    )}
+                                  </View>
+                                </View>
+
+                                {attendance.client_confirmed ? (
+                                  <View style={styles.arrivedBadgeCompact}>
+                                    <Ionicons
+                                      name="wallet"
+                                      size={14}
+                                      color={Colors.success}
+                                    />
+                                    <Text style={styles.arrivedTextCompact}>
+                                      ₱
+                                      {Number(
+                                        attendance.amount_earned,
+                                      ).toLocaleString()}
+                                    </Text>
+                                  </View>
+                                ) : attendance.time_out ? (
+                                  <TouchableOpacity
+                                    style={styles.confirmArrivalButtonCompact}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Confirm Attendance",
+                                        `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          {
+                                            text: "Confirm & Pay",
+                                            onPress: () =>
+                                              clientConfirmAttendanceMutation.mutate(
+                                                {
+                                                  attendanceId:
+                                                    attendance.attendance_id,
+                                                },
+                                              ),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientConfirmAttendanceMutation.isPending
+                                    }
+                                  >
+                                    {clientConfirmAttendanceMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Text
+                                        style={
+                                          styles.confirmArrivalButtonTextCompact
+                                        }
+                                      >
+                                        Pay
+                                      </Text>
+                                    )}
+                                  </TouchableOpacity>
                                 ) : (
-                                  <View style={[styles.teamWorkerAvatarCompact, styles.teamWorkerAvatarPlaceholder]}>
-                                    <Ionicons name="person" size={16} color={Colors.textSecondary} />
+                                  <View style={styles.pendingBadge}>
+                                    <Ionicons
+                                      name="time-outline"
+                                      size={14}
+                                      color={Colors.warning}
+                                    />
+                                    <Text style={styles.pendingText}>
+                                      Working
+                                    </Text>
                                   </View>
                                 )}
-                                <View style={styles.teamWorkerDetailsCompact}>
-                                  <Text style={styles.teamWorkerNameCompact} numberOfLines={1}>
-                                    {attendance.worker_name?.split(" ")[0] || "Worker"}
-                                  </Text>
-                                  {attendance.time_in && (
-                                    <Text style={styles.teamWorkerSkillCompact}>
-                                      {format(new Date(attendance.time_in), "h:mm a")}
-                                      {attendance.time_out && ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
-                                    </Text>
-                                  )}
-                                </View>
                               </View>
-
-                              {attendance.client_confirmed ? (
-                                <View style={styles.arrivedBadgeCompact}>
-                                  <Ionicons name="wallet" size={14} color={Colors.success} />
-                                  <Text style={styles.arrivedTextCompact}>
-                                    ₱{Number(attendance.amount_earned).toLocaleString()}
-                                  </Text>
-                                </View>
-                              ) : attendance.time_out ? (
-                                <TouchableOpacity
-                                  style={styles.confirmArrivalButtonCompact}
-                                  onPress={() =>
-                                    Alert.alert(
-                                      "Confirm Attendance",
-                                      `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
-                                      [
-                                        { text: "Cancel", style: "cancel" },
-                                        {
-                                          text: "Confirm & Pay",
-                                          onPress: () =>
-                                            clientConfirmAttendanceMutation.mutate({
-                                              attendanceId: attendance.attendance_id,
-                                            }),
-                                        },
-                                      ]
-                                    )
-                                  }
-                                  disabled={clientConfirmAttendanceMutation.isPending}
-                                >
-                                  {clientConfirmAttendanceMutation.isPending ? (
-                                    <ActivityIndicator size="small" color={Colors.white} />
-                                  ) : (
-                                    <Text style={styles.confirmArrivalButtonTextCompact}>Pay</Text>
-                                  )}
-                                </TouchableOpacity>
-                              ) : (
-                                <View style={styles.pendingBadge}>
-                                  <Ionicons name="time-outline" size={14} color={Colors.warning} />
-                                  <Text style={styles.pendingText}>Working</Text>
-                                </View>
-                              )}
-                            </View>
-                          ))
+                            ),
+                          )
                         ) : (
                           <View style={styles.noAttendanceContainer}>
-                            <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
+                            <Ionicons
+                              name="calendar-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
                             <Text style={styles.noAttendanceText}>
                               No attendance logged for today
                             </Text>

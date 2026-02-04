@@ -1,0 +1,263 @@
+### Worker Multi-Job Application Blocker Tests
+### Tests the validation that prevents workers from applying to or being assigned to multiple jobs
+
+@baseUrl = http://localhost:8000
+@workerEmail = worker@test.com
+@workerPassword = password123
+@clientEmail = client@test.com
+@clientPassword = password123
+
+### SETUP: Login as worker to get JWT token
+# @name workerLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{workerEmail}}",
+  "password": "{{workerPassword}}"
+}
+
+### SETUP: Extract worker token
+@workerToken = {{workerLogin.response.body.access}}
+
+### SETUP: Login as client to get JWT token
+# @name clientLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{clientEmail}}",
+  "password": "{{clientPassword}}"
+}
+
+### SETUP: Extract client token
+@clientToken = {{clientLogin.response.body.access}}
+
+### ============================================================================
+### TEST 1: Worker can apply to job when they have NO active jobs
+### ============================================================================
+# @name applyFirstJob
+POST {{baseUrl}}/api/jobs/1/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "I'm interested in this job and available to start immediately.",
+  "proposed_budget": 1000,
+  "estimated_duration": "2 days",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 200 OK with success message
+### ✅ PASS if: {"success": true, "application_id": ...}
+
+### ============================================================================
+### TEST 2: Accept the application to assign worker to job (sets IN_PROGRESS)
+### ============================================================================
+# @name acceptApplication
+POST {{baseUrl}}/api/jobs/1/applications/1/accept
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 200 OK, job status becomes IN_PROGRESS, worker assigned
+### ✅ PASS if: Success response, conversation created
+
+### ============================================================================
+### TEST 3: Worker CANNOT apply to second job while first job is IN_PROGRESS
+### ============================================================================
+# @name applySecondJobBlocked
+POST {{baseUrl}}/api/jobs/2/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "I want to work on this job too!",
+  "proposed_budget": 500,
+  "estimated_duration": "1 day",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 400 Bad Request
+### ✅ PASS if: {"error": "You already have an active job: '...'. Complete it before applying to new jobs.", "active_job_id": 1}
+
+### ============================================================================
+### TEST 4: Client CANNOT accept another worker's application for second job if worker has active job
+### ============================================================================
+# Setup: Create another application from worker to job 3
+# Then try to accept it
+
+# @name applyThirdJob
+POST {{baseUrl}}/api/jobs/3/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "Attempting to apply to third job",
+  "proposed_budget": 750,
+  "estimated_duration": "1 day",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 400 Bad Request (worker has active job)
+### ✅ PASS if: Error message about active job
+
+### ============================================================================
+### TEST 5: Mark first job as complete to free up worker
+### ============================================================================
+# @name markComplete
+POST {{baseUrl}}/api/jobs/1/mark-complete
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "notes": "Job completed successfully"
+}
+
+### Expected: 200 OK
+### ✅ PASS if: {"success": true, "message": "Job marked as complete"}
+
+### ============================================================================
+### TEST 6: Approve completion to change job status to COMPLETED
+### ============================================================================
+# @name approveCompletion
+POST {{baseUrl}}/api/jobs/1/approve-completion
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "payment_method": "WALLET"
+}
+
+### Expected: 200 OK, job status becomes COMPLETED
+### ✅ PASS if: Success response, payment processed
+
+### ============================================================================
+### TEST 7: Worker CAN NOW apply to new job after completing previous one
+### ============================================================================
+# @name applyAfterCompletion
+POST {{baseUrl}}/api/jobs/4/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "Now I'm available for a new job!",
+  "proposed_budget": 800,
+  "estimated_duration": "1 day",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 200 OK with success message
+### ✅ PASS if: {"success": true, "application_id": ...}
+
+### ============================================================================
+### TEAM JOB TESTS
+### ============================================================================
+
+### TEST 8: Worker assigned to team job CANNOT apply to regular job
+### ============================================================================
+# Prerequisites:
+# 1. Worker is assigned to a team job with assignment_status='ACTIVE'
+# 2. Then try to apply to a regular job
+
+# This test requires:
+# - A team job (jobID=10) with the worker assigned
+# - JobWorkerAssignment record with assignment_status='ACTIVE'
+
+# @name applyWhileInTeamJob
+POST {{baseUrl}}/api/jobs/5/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "Trying to apply while in a team job",
+  "proposed_budget": 600,
+  "estimated_duration": "1 day",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 400 Bad Request
+### ✅ PASS if: {"error": "You are currently assigned to a team job: '...'. Complete it before applying to new jobs.", "active_job_id": 10}
+
+### ============================================================================
+### RACE CONDITION TEST
+### ============================================================================
+
+### TEST 9: Worker applies to 2 jobs simultaneously
+### Client tries to accept both applications
+### Second acceptance should fail
+### ============================================================================
+
+# Step 1: Worker applies to job 6
+# @name applyJob6
+POST {{baseUrl}}/api/jobs/6/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "Application to job 6",
+  "proposed_budget": 1000,
+  "estimated_duration": "2 days",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 200 OK
+
+# Step 2: Worker applies to job 7 (should succeed if job 6 not accepted yet)
+# @name applyJob7
+POST {{baseUrl}}/api/jobs/7/apply
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+  "proposal_message": "Application to job 7",
+  "proposed_budget": 1200,
+  "estimated_duration": "3 days",
+  "budget_option": "ACCEPT"
+}
+
+### Expected: 200 OK (worker can apply to multiple jobs, just can't work on multiple)
+
+# Step 3: Client accepts job 6 application
+# @name acceptJob6
+POST {{baseUrl}}/api/jobs/6/applications/{{applyJob6.response.body.application_id}}/accept
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 200 OK, worker assigned to job 6
+
+# Step 4: Client tries to accept job 7 application (should FAIL)
+# @name acceptJob7Blocked
+POST {{baseUrl}}/api/jobs/7/applications/{{applyJob7.response.body.application_id}}/accept
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 400 Bad Request
+### ✅ PASS if: {"error": "[Worker Name] is already assigned to another job: 'Job 6 Title'. They must complete it before starting a new job.", "worker_active_job_id": 6}
+
+### ============================================================================
+### VERIFICATION QUERIES
+### ============================================================================
+
+### Check worker's current job status
+GET {{baseUrl}}/api/mobile/jobs/my-jobs?status=IN_PROGRESS
+Authorization: Bearer {{workerToken}}
+
+### Should show only ONE job if validation is working
+
+### ============================================================================
+### CLEANUP (Run manually if needed)
+### ============================================================================
+
+### Delete test applications
+# DELETE {{baseUrl}}/api/jobs/applications/1
+# Authorization: Bearer {{clientToken}}
+
+### Mark test jobs as completed
+# POST {{baseUrl}}/api/jobs/1/admin-complete
+# Authorization: Bearer [ADMIN_TOKEN]

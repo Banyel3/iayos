@@ -2019,6 +2019,42 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=403
             )
         
+        # CRITICAL: Prevent workers from applying if they have an active job
+        # Check both regular jobs (assignedWorkerID) and team jobs (JobWorkerAssignment)
+        from accounts.models import JobWorkerAssignment
+        
+        # Check for active regular job
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS
+        ).first()
+        
+        if active_regular_job:
+            return Response(
+                {
+                    "error": f"You already have an active job: '{active_regular_job.title}'. Complete it before applying to new jobs.",
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title
+                },
+                status=400
+            )
+        
+        # Check for active team job assignment
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE'
+        ).select_related('jobID').first()
+        
+        if active_team_assignment:
+            return Response(
+                {
+                    "error": f"You are currently assigned to a team job: '{active_team_assignment.jobID.title}'. Complete it before applying to new jobs.",
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title
+                },
+                status=400
+            )
+        
         # Get the job posting
         try:
             job = JobPosting.objects.get(jobID=job_id)
@@ -2173,6 +2209,46 @@ def accept_application(request, job_id: int, application_id: int):
         if application.status != JobApplication.ApplicationStatus.PENDING:
             return Response(
                 {"error": f"Application is already {application.status.lower()}"},
+                status=400
+            )
+        
+        # CRITICAL: Prevent accepting application if worker already has an active job
+        # This prevents race condition where worker applies to multiple jobs
+        from accounts.models import JobWorkerAssignment
+        
+        worker = application.workerID
+        
+        # Check for active regular job
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker,
+            status=JobPosting.JobStatus.IN_PROGRESS
+        ).first()
+        
+        if active_regular_job:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_regular_job.jobID,
+                    "worker_active_job_title": active_regular_job.title
+                },
+                status=400
+            )
+        
+        # Check for active team job assignment
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker,
+            assignment_status='ACTIVE'
+        ).select_related('jobID').first()
+        
+        if active_team_assignment:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_team_assignment.jobID.jobID,
+                    "worker_active_job_title": active_team_assignment.jobID.title
+                },
                 status=400
             )
         
