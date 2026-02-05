@@ -35,12 +35,12 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-type FilterType = "all" | "unread" | "archived";
+type FilterType = "active" | "unread" | "archived";
 
 export default function AgencyMessagesPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterType>("active");
 
   // WebSocket connection for real-time updates
   const { isConnected, connectionState, reconnect } = useWebSocketConnection();
@@ -427,8 +427,8 @@ export default function AgencyMessagesPage() {
         {/* Filter buttons */}
         <div className="flex gap-3 flex-wrap">
           {renderFilterButton(
-            "all",
-            "All",
+            "active",
+            "Active",
             <Inbox className="h-4 w-4" />,
             conversationsData?.total
           )}

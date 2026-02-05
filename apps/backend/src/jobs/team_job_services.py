@@ -930,6 +930,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             conversation.status = Conversation.ConversationStatus.COMPLETED
             conversation.save()
             print(f"✅ Team conversation {conversation.conversationID} closed for completed team job {job_id}")
+            
+            # Auto-archive if both parties have reviewed
+            from profiles.conversation_service import archive_conversation, should_auto_archive
+            if should_auto_archive(conversation):
+                archive_result = archive_conversation(conversation)
+                print(f"📦 {archive_result.get('message', 'Team conversation auto-archived')}")
     except Exception as e:
         print(f"⚠️ Failed to close team conversation: {str(e)}")
     

@@ -55,7 +55,6 @@ export default function BackjobDetailScreen() {
   const [backjob, setBackjob] = useState<BackjobDetail | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCompleting, setIsCompleting] = useState(false);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
@@ -101,54 +100,6 @@ export default function BackjobDetailScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleCompleteBackjob = () => {
-    Alert.alert(
-      "Complete Backjob",
-      "Are you sure you have completed the backjob work? The client will be notified.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark Complete",
-          onPress: async () => {
-            setIsCompleting(true);
-            try {
-              const formData = new FormData();
-              formData.append("notes", "Backjob work completed");
-
-              const response = await apiRequest(
-                ENDPOINTS.COMPLETE_BACKJOB(parseInt(jobId)),
-                {
-                  method: "POST",
-                  body: formData,
-                }
-              );
-
-              if (response.ok) {
-                const data = await response.json();
-                Alert.alert(
-                  "Success",
-                  data.message || "Backjob marked as completed!",
-                  [{ text: "OK", onPress: () => router.back() }]
-                );
-              } else {
-                const error = await response.json();
-                Alert.alert(
-                  "Error",
-                  error.error || "Failed to complete backjob"
-                );
-              }
-            } catch (error) {
-              console.error("Error completing backjob:", error);
-              Alert.alert("Error", "Failed to complete backjob");
-            } finally {
-              setIsCompleting(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleContactClient = async () => {
@@ -495,26 +446,7 @@ export default function BackjobDetailScreen() {
           </View>
         )}
 
-        {/* Action Button */}
-        {dispute.status === "UNDER_REVIEW" && (
-          <TouchableOpacity
-            style={[
-              styles.completeButton,
-              isCompleting && styles.buttonDisabled,
-            ]}
-            onPress={handleCompleteBackjob}
-            disabled={isCompleting}
-          >
-            {isCompleting ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                <Text style={styles.completeButtonText}>Mark as Completed</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
+        {/* Contact Client Button - Completion happens in conversation */}
 
         <View style={{ height: 40 }} />
       </ScrollView>

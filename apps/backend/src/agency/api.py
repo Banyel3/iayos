@@ -1785,6 +1785,12 @@ def get_agency_conversations(request, filter: str = "all"):
         if filter == "archived":
             # For agencies, use worker archived status
             conversations_query = conversations_query.filter(archivedByWorker=True)
+        elif filter == "active":
+            # Show only IN_PROGRESS jobs that are not archived
+            conversations_query = conversations_query.filter(
+                archivedByWorker=False,
+                relatedJobPosting__status='IN_PROGRESS'
+            )
         else:
             conversations_query = conversations_query.filter(archivedByWorker=False)
             

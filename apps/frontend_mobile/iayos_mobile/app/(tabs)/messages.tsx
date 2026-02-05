@@ -29,11 +29,11 @@ import {
   processOfflineQueue,
 } from "../../lib/services/offline-queue";
 
-type FilterType = "all" | "unread" | "archived";
+type FilterType = "active" | "unread" | "archived";
 
 export default function MessagesTabScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterType>("active");
 
   // WebSocket connection
   const { isConnected, connectionState } = useWebSocketConnection();

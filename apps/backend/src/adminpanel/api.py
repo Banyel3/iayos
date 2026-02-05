@@ -882,6 +882,11 @@ def approve_backjob(request, dispute_id: int):
         )
         print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
         
+        # Unarchive conversation so it appears in Active tab
+        from profiles.conversation_service import unarchive_conversation
+        unarchive_result = unarchive_conversation(conversation)
+        print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+        
         return {
             "success": True,
             "message": "Backjob approved and assigned to worker/agency",
@@ -1001,6 +1006,11 @@ def reject_backjob(request, dispute_id: int):
                 messageType=Message.MessageType.SYSTEM
             )
             print(f"📝 Added backjob rejection message to conversation {conversation.conversationID}")
+            
+            # Auto-archive conversation since backjob was denied
+            from profiles.conversation_service import archive_conversation
+            archive_result = archive_conversation(conversation)
+            print(f"📦 {archive_result.get('message', 'Conversation archived after backjob denial')}")
         
         return {
             "success": True,

@@ -34,8 +34,6 @@ import JobReceiptModal from "@/components/JobReceiptModal";
 import {
   useTeamJobDetail,
   useApplyToSkillSlot,
-  useWorkerCompleteAssignment,
-  useClientApproveTeamJob,
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,

@@ -3567,6 +3567,12 @@ def client_approve_job_completion(
                 conversation.status = Conversation.ConversationStatus.COMPLETED
                 conversation.save()
                 print(f"✅ Conversation {conversation.conversationID} closed for completed job {job_id}")
+                
+                # Auto-archive if both parties have reviewed
+                from profiles.conversation_service import archive_conversation, should_auto_archive
+                if should_auto_archive(conversation):
+                    archive_result = archive_conversation(conversation)
+                    print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
         except Exception as e:
             print(f"⚠️ Failed to close conversation: {str(e)}")
             # Don't fail job completion if conversation closing fails
@@ -5653,6 +5659,11 @@ def approve_backjob_completion(request, job_id: int):
                     messageText="✅ Backjob completed and confirmed! This conversation is now closed. Thank you for using iAyos!",
                     messageType="SYSTEM"
                 )
+                
+                # Auto-archive conversation after backjob completion
+                from profiles.conversation_service import archive_conversation
+                archive_result = archive_conversation(conversation)
+                print(f"📦 {archive_result.get('message', 'Conversation archived after backjob completion')}")
             
             # Create job log with distinct backjob status
             JobLog.objects.create(

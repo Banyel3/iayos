@@ -121,10 +121,10 @@ export type AgencyConversationDetail = {
 
 /**
  * Fetch all agency conversations
- * @param filter - 'all', 'unread', or 'archived' (default: 'all')
+ * @param filter - 'active', 'unread', or 'archived' (default: 'active')
  */
 export function useAgencyConversations(
-  filter: "all" | "unread" | "archived" = "all",
+  filter: "active" | "unread" | "archived" = "active",
 ) {
   return useQuery({
     queryKey: ["agency-conversations", filter],
@@ -153,7 +153,7 @@ export function useAgencyConversations(
  * Search agency conversations by client name or job title
  */
 export function useAgencyConversationSearch(searchQuery: string) {
-  const { data: conversationsData, isLoading } = useAgencyConversations("all");
+  const { data: conversationsData, isLoading } = useAgencyConversations("active");
 
   const filteredConversations =
     conversationsData?.conversations.filter((conv) => {
@@ -417,7 +417,7 @@ export function useAgencySubmitReview() {
  * Get unread count across all agency conversations
  */
 export function useAgencyUnreadCount() {
-  const { data } = useAgencyConversations("all");
+  const { data } = useAgencyConversations("active");
 
   const unreadCount =
     data?.conversations.reduce((acc, conv) => acc + conv.unread_count, 0) || 0;
