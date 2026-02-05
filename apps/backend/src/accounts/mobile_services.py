@@ -236,6 +236,13 @@ def get_mobile_job_list(
                 'total_workers_needed': team_workers_needed if job.is_team_job else None,
                 'total_workers_assigned': team_workers_assigned if job.is_team_job else None,
                 'team_fill_percentage': team_fill_percentage if job.is_team_job else None,
+                # Daily payment model fields
+                'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+                'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+                'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+                'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
                 # Sorting helpers
                 '_distance_sort': distance if distance is not None else 999999,
                 '_urgency_sort': urgency_value,
@@ -558,6 +565,13 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'job_scope': job.job_scope,
             'skill_level_required': job.skill_level_required,
             'work_environment': job.work_environment,
+            # Daily payment model fields
+            'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+            'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+            'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+            'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+            'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+            'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
         }
 
         # Add team job data if this is a team job
