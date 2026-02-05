@@ -707,7 +707,7 @@ export default function AgencyChatScreen() {
                       {assigned_employees && assigned_employees.length > 0 ? (
                         assigned_employees.map((emp: any) => {
                           const attendance = attendanceData?.records.find(
-                            (r: any) => r.employee_id === emp.employeeID
+                            (r: any) => r.employee_id === emp.employeeId
                           );
                           const hasArrived = !!attendance?.time_in;
                           const hasCheckedOut = !!attendance?.time_out;
@@ -715,7 +715,7 @@ export default function AgencyChatScreen() {
 
                           return (
                             <div
-                              key={emp.employeeID}
+                              key={emp.employeeId}
                               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
                             >
                               {/* Left: Employee info and checkbox */}
@@ -758,7 +758,7 @@ export default function AgencyChatScreen() {
                                     onClick={() => {
                                       markArrivalMutation.mutate({
                                         jobId: job.id,
-                                        employeeId: emp.employeeID,
+                                        employeeId: emp.employeeId,
                                       });
                                     }}
                                     disabled={markArrivalMutation.isPending}
@@ -782,7 +782,7 @@ export default function AgencyChatScreen() {
                                       onClick={() => {
                                         markCheckoutMutation.mutate({
                                           jobId: job.id,
-                                          employeeId: emp.employeeID,
+                                          employeeId: emp.employeeId,
                                         });
                                       }}
                                       disabled={markCheckoutMutation.isPending}
