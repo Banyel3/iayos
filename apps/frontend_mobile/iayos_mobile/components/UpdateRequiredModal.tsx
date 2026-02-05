@@ -10,7 +10,7 @@
  * - Automatic APK installer launch
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Modal,
   View,
@@ -38,6 +38,7 @@ interface UpdateRequiredModalProps {
   download: DownloadProgress;
   onApplyOTA: () => Promise<void>;
   onDownloadAPK: () => Promise<void>;
+  onInstallAPK?: () => Promise<void>;
 }
 
 /**
@@ -62,16 +63,10 @@ export function UpdateRequiredModal({
   download,
   onApplyOTA,
   onDownloadAPK,
+  onInstallAPK,
 }: UpdateRequiredModalProps) {
   
-  const [downloadComplete, setDownloadComplete] = useState(false);
-  
-  // Track when download completes
-  useEffect(() => {
-    if (download.progress === 100 && !download.isDownloading) {
-      setDownloadComplete(true);
-    }
-  }, [download.progress, download.isDownloading]);
+  const downloadComplete = !!download.localUri;
   
   // Block Android back button when force update is required
   useEffect(() => {
@@ -86,6 +81,10 @@ export function UpdateRequiredModal({
   }, [visible, forceUpdate]);
 
   const handleUpdate = async () => {
+    if (download.localUri) {
+      await (onInstallAPK ? onInstallAPK() : onDownloadAPK());
+      return;
+    }
     // Prefer OTA update if available (faster, no APK download)
     if (ota.isAvailable) {
       await onApplyOTA();
@@ -95,7 +94,11 @@ export function UpdateRequiredModal({
     }
   };
 
-  const isProcessing = ota.isDownloading || download.isDownloading || ota.isChecking;
+  const isProcessing =
+    ota.isDownloading ||
+    download.isDownloading ||
+    ota.isChecking ||
+    download.isInstalling;
   
   // Determine button text based on state
   const getButtonContent = () => {
@@ -130,7 +133,9 @@ export function UpdateRequiredModal({
       return (
         <>
           <Ionicons name="checkmark-circle-outline" size={24} color="#fff" />
-          <Text style={styles.downloadButtonText}>Installing...</Text>
+          <Text style={styles.downloadButtonText}>
+            {download.isInstalling ? 'Installing...' : 'Install Update'}
+          </Text>
         </>
       );
     }
@@ -234,7 +239,7 @@ export function UpdateRequiredModal({
         {(download.error || ota.error) && (
           <View style={styles.errorContainer}>
             <Ionicons name="warning-outline" size={20} color="#ef4444" />
-            <Text style={styles.errorText}>{download.error || ota.error}</Text>
+            <Text style={styles.errorText}>{download.error || download.installError || ota.error}</Text>
           </View>
         )}
 
@@ -242,7 +247,7 @@ export function UpdateRequiredModal({
         <TouchableOpacity 
           style={[styles.downloadButton, isProcessing && styles.downloadButtonDisabled]} 
           onPress={handleUpdate}
-          disabled={isProcessing || downloadComplete}
+          disabled={isProcessing}
         >
           {getButtonContent()}
         </TouchableOpacity>

@@ -167,6 +167,7 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
         download={appUpdate.download}
         onApplyOTA={appUpdate.applyOTAUpdate}
         onDownloadAPK={appUpdate.downloadAndInstallAPK}
+        onInstallAPK={appUpdate.installDownloadedAPK}
       />
     </>
   );
