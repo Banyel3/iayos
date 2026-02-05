@@ -853,6 +853,24 @@ def get_conversations(request, filter: str = "all"):
                 )) |
                 (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=archived_team_ids))
             )
+        elif filter == "active":
+            # Show only IN_PROGRESS jobs that are not archived
+            archived_team_ids = ConversationParticipant.objects.filter(
+                profile=user_profile,
+                is_archived=True
+            ).values_list('conversation_id', flat=True)
+            
+            conversations_query = conversations_query.filter(
+                # Exclude archived conversations
+                (Q(conversation_type='ONE_ON_ONE') & (
+                    (Q(client=user_profile) & Q(archivedByClient=False)) |
+                    (Q(worker=user_profile) & Q(archivedByWorker=False))
+                )) |
+                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
+            ).filter(
+                # Only show IN_PROGRESS jobs
+                relatedJobPosting__status='IN_PROGRESS'
+            )
         else:
             # For 'all' and 'unread', exclude archived conversations
             archived_team_ids = ConversationParticipant.objects.filter(
