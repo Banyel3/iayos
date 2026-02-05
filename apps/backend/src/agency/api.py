@@ -2100,6 +2100,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "status": job.status,
                 "budget": float(job.budget),
                 "location": job.location,
+                # Daily payment model fields (PR #294 fix - also needed for conversation endpoint)
+                "payment_model": getattr(job, 'payment_model', 'PROJECT'),
+                "daily_rate_agreed": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
+                "actual_start_date": job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+                "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                "daily_escrow_total": float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
