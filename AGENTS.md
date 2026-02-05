@@ -1,10 +1,71 @@
-# iAyos Platform Memory File - Mobile Backjob & Review UX Bugs Fix ✅ (February 2026)
+# iAyos Platform Memory File - Agency Daily Payment Fields Fix ✅ (February 2026)
 
 ## System Overview
 
 iAyos is a comprehensive marketplace platform for blue-collar services connecting clients with skilled workers through a secure, feature-rich ecosystem.
 
-## 🆕 LATEST UPDATE - Mobile Backjob & Review UX Bugs ✅ (February 2026)
+## 🆕 LATEST UPDATE - Agency Daily Payment Fields Fix ✅ (February 2026)
+
+**Status**: ✅ IMPLEMENTATION COMPLETE  
+**PR**: #294 (MERGED)  
+**Type**: Bug Fix - Missing API Response Fields  
+**Time**: ~30 minutes  
+**Priority**: HIGH - Agency Daily Job Display
+
+### What Was Fixed
+
+**Problem**:
+- Agency backend services `get_agency_jobs` and `get_agency_job_detail` were NOT returning daily payment fields
+- Frontend TypeScript interfaces expected these fields but received `undefined`
+- DailyJobScheduleCard and PaymentModelBadge components would render with default/empty values instead of actual job data
+
+**Missing Fields**:
+- `payment_model` (PROJECT or DAILY)
+- `daily_rate_agreed` (daily rate in PHP)
+- `duration_days` (expected job duration)
+- `actual_start_date` (when job started)
+- `total_days_worked` (days completed)
+- `daily_escrow_total` (total escrowed for daily payment)
+
+**Solution**:
+Added all 6 daily payment fields to both agency service functions using safe attribute access:
+
+```python
+# Daily payment model fields
+'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
+```
+
+### Files Modified
+
+**Backend** (1 file, ~18 lines added):
+- `apps/backend/src/agency/services.py`
+  - Line ~970: Added 6 fields to `get_agency_jobs()` function
+  - Line ~1127: Added 6 fields to `get_agency_job_detail()` function
+
+### Frontend Verification
+
+**Already Handles Defaults** (no changes needed):
+- `apps/frontend_web/components/agency/DailyJobScheduleCard.tsx` - Has default props (`dailyRate = 0`, etc.)
+- `apps/frontend_web/app/agency/jobs/[id]/page.tsx` - TypeScript interface already expects fields
+- `apps/frontend_web/app/agency/jobs/page.tsx` - Conditional rendering for payment_model badge
+
+### Testing
+
+- ✅ Backend fix verified with grep search
+- ✅ Frontend components verified to handle undefined gracefully
+- ✅ TypeScript errors: 0
+- ✅ PR #294 merged to main
+
+**Status**: ✅ COMPLETE - Ready for deployment
+
+---
+
+## 📋 PREVIOUS UPDATE - Mobile Backjob & Review UX Bugs ✅ (February 2026)
 
 **Status**: ✅ IMPLEMENTATION COMPLETE  
 **PR**: #290 (MERGED)  
