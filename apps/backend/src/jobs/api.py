@@ -6642,7 +6642,11 @@ def get_daily_attendance(request, job_id: int, start_date: str = None, end_date:
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
     
-    queryset = DailyAttendance.objects.filter(jobID=job).order_by('-date')
+    queryset = DailyAttendance.objects.filter(jobID=job).select_related(
+        'workerID__profileID__accountFK',
+        'employeeID',
+        'assignmentID__workerID__profileID__accountFK'
+    ).order_by('-date')
     
     # Apply date filters
     if start_date:
@@ -6659,13 +6663,24 @@ def get_daily_attendance(request, job_id: int, start_date: str = None, end_date:
     records = []
     for attendance in queryset:
         worker_name = None
+        worker_id = None
+        employee_id = None
+        
         if attendance.workerID:
+            worker_id = attendance.workerID_id
             worker_name = f"{attendance.workerID.profileID.accountFK.firstName} {attendance.workerID.profileID.accountFK.lastName}"
         elif attendance.employeeID:
+            employee_id = attendance.employeeID.employeeID
             worker_name = f"{attendance.employeeID.first_name} {attendance.employeeID.last_name}"
+        elif attendance.assignmentID:
+            worker_id = attendance.assignmentID.workerID_id
+            if attendance.assignmentID.workerID and attendance.assignmentID.workerID.profileID:
+                worker_name = f"{attendance.assignmentID.workerID.profileID.accountFK.firstName} {attendance.assignmentID.workerID.profileID.accountFK.lastName}"
         
         records.append({
             'attendance_id': attendance.attendanceID,
+            'worker_id': worker_id,
+            'employee_id': employee_id,
             'date': str(attendance.date),
             'worker_name': worker_name,
             'status': attendance.status,
