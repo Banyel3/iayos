@@ -965,6 +965,13 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                 'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
                 'assignedEmployee': assigned_employee,
                 'inviteStatus': job.inviteStatus,
+                # Daily payment model fields
+                'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+                'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+                'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+                'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
                 # Team job fields
                 'is_team_job': job.is_team_job,
                 'total_workers_needed': job.total_workers_needed,
@@ -1116,6 +1123,13 @@ def get_agency_job_detail(account_id, job_id):
             'expectedDuration': job.expectedDuration,
             'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
             'materialsNeeded': materials_needed,
+            # Daily payment model fields
+            'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+            'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+            'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+            'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+            'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+            'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
             'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
             'assignedEmployee': assigned_employee,  # Legacy single employee
             'assignedEmployees': assigned_employees,  # NEW: All assigned employees
