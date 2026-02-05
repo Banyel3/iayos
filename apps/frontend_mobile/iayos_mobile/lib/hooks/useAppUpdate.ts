@@ -31,6 +31,9 @@ export interface DownloadProgress {
   bytesDownloaded: number;
   totalBytes: number;
   error: string | null;
+  isInstalling: boolean;
+  installError: string | null;
+  localUri: string | null;
 }
 
 export interface OTAUpdateState {
@@ -145,6 +148,9 @@ export function useAppUpdate() {
       bytesDownloaded: 0,
       totalBytes: 0,
       error: null,
+      isInstalling: false,
+      installError: null,
+      localUri: null,
     },
   });
 
@@ -259,6 +265,9 @@ export function useAppUpdate() {
           bytesDownloaded: 0,
           totalBytes: 0,
           error: null,
+          isInstalling: false,
+          installError: null,
+          localUri: null,
         }
       }));
       
@@ -296,7 +305,7 @@ export function useAppUpdate() {
         console.log('[APK DOWNLOAD] Download complete:', result.uri);
         setState(prev => ({
           ...prev,
-          download: { ...prev.download, isDownloading: false, progress: 100 }
+          download: { ...prev.download, isDownloading: false, progress: 100, localUri: result.uri }
         }));
         return result.uri;
       } else {
@@ -311,6 +320,7 @@ export function useAppUpdate() {
           ...prev.download,
           isDownloading: false,
           error: error instanceof Error ? error.message : 'Download failed',
+          localUri: null,
         }
       }));
       return null;
@@ -326,6 +336,10 @@ export function useAppUpdate() {
     }
     
     try {
+      setState(prev => ({
+        ...prev,
+        download: { ...prev.download, isInstalling: true, installError: null }
+      }));
       console.log('[APK INSTALL] Launching installer for:', fileUri);
       
       // Get content URI for the file
@@ -334,14 +348,25 @@ export function useAppUpdate() {
       // Launch Android's package installer
       await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
         data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        flags: 1 | 268435456, // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
         type: 'application/vnd.android.package-archive',
       });
       
       console.log('[APK INSTALL] Installer launched successfully');
-      
+      setState(prev => ({
+        ...prev,
+        download: { ...prev.download, isInstalling: false }
+      }));
     } catch (error) {
       console.error('[APK INSTALL] Failed to launch installer:', error);
+      setState(prev => ({
+        ...prev,
+        download: {
+          ...prev.download,
+          isInstalling: false,
+          installError: error instanceof Error ? error.message : 'Installation failed',
+        }
+      }));
       Alert.alert(
         'Installation Failed',
         'Could not open the APK installer. Please enable "Install from unknown sources" in your device settings and try again.',
@@ -354,11 +379,17 @@ export function useAppUpdate() {
    * Download and install APK in one step
    */
   const downloadAndInstallAPK = useCallback(async (): Promise<void> => {
-    const fileUri = await downloadAPK(state.downloadUrl);
+    const fileUri = state.download.localUri || await downloadAPK(state.downloadUrl);
     if (fileUri) {
       await installAPK(fileUri);
     }
-  }, [state.downloadUrl, downloadAPK, installAPK]);
+  }, [state.download.localUri, state.downloadUrl, downloadAPK, installAPK]);
+
+  const installDownloadedAPK = useCallback(async (): Promise<void> => {
+    if (state.download.localUri) {
+      await installAPK(state.download.localUri);
+    }
+  }, [state.download.localUri, installAPK]);
 
   /**
    * Check for version updates from backend
@@ -441,6 +472,7 @@ export function useAppUpdate() {
     downloadAPK,
     installAPK,
     downloadAndInstallAPK,
+    installDownloadedAPK,
   };
 }
 
