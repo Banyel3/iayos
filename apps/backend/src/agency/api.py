@@ -3515,3 +3515,281 @@ def agency_respond_to_review(request, review_id: int):
         import traceback
         traceback.print_exc()
         return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ============================================================================
+# DAILY ATTENDANCE ENDPOINTS
+# ============================================================================
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/mark-arrival",
+    auth=cookie_auth,
+    response=schemas.MarkEmployeeAttendanceResponse
+)
+def mark_employee_arrival(request, job_id: int, employee_id: int):
+    """
+    Mark an agency employee as arrived for a daily-rate job.
+    Agency representative uses this to check in employees.
+    """
+    try:
+        from accounts.models import Job
+        from agency.models import AgencyEmployee
+        from jobs.daily_payment_service import DailyPaymentService
+        from django.utils import timezone
+        
+        # Get authenticated agency user
+        user = request.auth
+        
+        # Verify job exists and belongs to this agency
+        try:
+            job = Job.objects.select_related('clientID__profileID').get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify the employee belongs to this agency
+        try:
+            employee = AgencyEmployee.objects.select_related(
+                'accountFK__profileID',
+                'agencyID__accountFK'
+            ).get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Verify job was assigned to this agency
+        if job.assignedAgencyID != employee.agencyID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Verify job is a daily-rate job
+        if job.payment_model != 'DAILY':
+            return Response({
+                'success': False,
+                'error': 'This job is not a daily-rate job'
+            }, status=400)
+        
+        # Check for duplicate check-in today
+        from accounts.models import DailyAttendance
+        today = timezone.now().date()
+        
+        existing_attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            employeeID=employee,
+            date=today
+        ).first()
+        
+        if existing_attendance and existing_attendance.time_in:
+            return Response({
+                'success': False,
+                'error': f'{employee.accountFK.profileID.firstName} has already been marked as arrived today',
+                'attendance_id': existing_attendance.attendanceID
+            }, status=400)
+        
+        # Mark arrival using DailyPaymentService
+        result = DailyPaymentService.log_attendance(
+            job=job,
+            employee_id=employee_id,
+            work_date=today,
+            time_in=timezone.now(),
+            status='PENDING',  # Will be confirmed by client
+            notes=f'Marked by agency representative'
+        )
+        
+        if not result.get('success'):
+            return Response({
+                'success': False,
+                'error': result.get('error', 'Failed to log attendance')
+            }, status=400)
+        
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.accountFK.profileID.firstName}) arrival for job #{job_id}")
+        
+        return {
+            'success': True,
+            'message': f'{employee.accountFK.profileID.firstName} marked as arrived',
+            'attendance_id': result['attendance_id'],
+            'employee_id': employee_id,
+            'employee_name': f"{employee.accountFK.profileID.firstName} {employee.accountFK.profileID.lastName}",
+            'date': str(today),
+            'time_in': timezone.now().isoformat(),
+            'time_out': None,
+            'status': 'PENDING'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error marking employee arrival: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/mark-checkout",
+    auth=cookie_auth,
+    response=schemas.MarkEmployeeAttendanceResponse
+)
+def mark_employee_checkout(request, job_id: int, employee_id: int):
+    """
+    Mark an agency employee as checked out for a daily-rate job.
+    Agency representative uses this to check out employees at end of day.
+    """
+    try:
+        from accounts.models import Job, DailyAttendance
+        from agency.models import AgencyEmployee
+        from django.utils import timezone
+        
+        # Get authenticated agency user
+        user = request.auth
+        
+        # Verify job exists and belongs to this agency
+        try:
+            job = Job.objects.select_related('clientID__profileID').get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify the employee belongs to this agency
+        try:
+            employee = AgencyEmployee.objects.select_related(
+                'accountFK__profileID',
+                'agencyID__accountFK'
+            ).get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Verify job was assigned to this agency
+        if job.assignedAgencyID != employee.agencyID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Find today's attendance record
+        today = timezone.now().date()
+        
+        try:
+            attendance = DailyAttendance.objects.get(
+                jobID=job,
+                employeeID=employee,
+                date=today
+            )
+        except DailyAttendance.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'{employee.accountFK.profileID.firstName} has not been marked as arrived today'
+            }, status=400)
+        
+        # Check if already checked out
+        if attendance.time_out:
+            return Response({
+                'success': False,
+                'error': f'{employee.accountFK.profileID.firstName} has already been checked out today',
+                'attendance_id': attendance.attendanceID
+            }, status=400)
+        
+        # Mark checkout
+        attendance.time_out = timezone.now()
+        attendance.worker_confirmed = True  # Agency rep confirms work done
+        attendance.save()
+        
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.accountFK.profileID.firstName}) checkout for job #{job_id}")
+        
+        return {
+            'success': True,
+            'message': f'{employee.accountFK.profileID.firstName} marked as checked out',
+            'attendance_id': attendance.attendanceID,
+            'employee_id': employee_id,
+            'employee_name': f"{employee.accountFK.profileID.firstName} {employee.accountFK.profileID.lastName}",
+            'date': str(today),
+            'time_in': attendance.time_in.isoformat() if attendance.time_in else None,
+            'time_out': timezone.now().isoformat(),
+            'status': attendance.status
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error marking employee checkout: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.get(
+    "/jobs/{job_id}/daily-attendance",
+    auth=cookie_auth,
+    response=schemas.DailyAttendanceListResponse
+)
+def get_daily_attendance(request, job_id: int, date: str = None):
+    """
+    Get daily attendance records for a job.
+    If date is not provided, returns today's attendance.
+    """
+    try:
+        from accounts.models import Job, DailyAttendance
+        from django.utils import timezone
+        from datetime import datetime
+        
+        # Get authenticated agency user
+        user = request.auth
+        
+        # Verify job exists
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID',
+                'assignedAgencyID__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify job belongs to this agency
+        if not job.assignedAgencyID:
+            return Response({
+                'success': False,
+                'error': 'Job is not assigned to any agency'
+            }, status=403)
+        
+        # Parse date
+        if date:
+            try:
+                query_date = datetime.strptime(date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'error': 'Invalid date format. Use YYYY-MM-DD'
+                }, status=400)
+        else:
+            query_date = timezone.now().date()
+        
+        # Get attendance records for this date
+        attendances = DailyAttendance.objects.filter(
+            jobID=job,
+            date=query_date
+        ).select_related('employeeID__accountFK__profileID').order_by('employeeID__accountFK__profileID__firstName')
+        
+        records = []
+        for att in attendances:
+            if att.employeeID:  # Only include agency employee records
+                records.append({
+                    'attendance_id': att.attendanceID,
+                    'employee_id': att.employeeID.employeeID,
+                    'employee_name': f"{att.employeeID.accountFK.profileID.firstName} {att.employeeID.accountFK.profileID.lastName}",
+                    'date': str(att.date),
+                    'time_in': att.time_in.isoformat() if att.time_in else None,
+                    'time_out': att.time_out.isoformat() if att.time_out else None,
+                    'status': att.status,
+                    'worker_confirmed': att.worker_confirmed,
+                    'client_confirmed': att.client_confirmed,
+                    'amount_earned': float(att.amount_earned)
+                })
+        
+        return {
+            'success': True,
+            'job_id': job_id,
+            'date': str(query_date),
+            'records': records,
+            'total_count': len(records)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching daily attendance: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)

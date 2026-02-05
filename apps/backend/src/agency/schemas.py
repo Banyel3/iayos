@@ -211,3 +211,41 @@ class AgencyReviewsListResponse(Schema):
     limit: int
     total_pages: int
 
+
+# Agency Daily Attendance Schemas
+
+class MarkEmployeeAttendanceResponse(Schema):
+    """Response for marking employee arrival/checkout"""
+    success: bool
+    message: str
+    attendance_id: int
+    employee_id: int
+    employee_name: str
+    date: str
+    time_in: Optional[str]
+    time_out: Optional[str]
+    status: str
+
+
+class DailyAttendanceRecordSchema(Schema):
+    """Single attendance record"""
+    attendance_id: int
+    employee_id: int
+    employee_name: str
+    date: str
+    time_in: Optional[str]
+    time_out: Optional[str]
+    status: str
+    worker_confirmed: bool
+    client_confirmed: bool
+    amount_earned: float
+
+
+class DailyAttendanceListResponse(Schema):
+    """Response for daily attendance list"""
+    success: bool
+    job_id: int
+    date: str
+    records: List[DailyAttendanceRecordSchema]
+    total_count: int
+
