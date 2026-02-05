@@ -20,6 +20,9 @@ export type AgencyConversationJob = {
   clientReviewed: boolean;
   assignedEmployeeId: number | null;
   assignedEmployeeName: string | null;
+  payment_model?: 'PROJECT' | 'DAILY'; // Daily payment vs project payment
+  daily_rate_agreed?: number; // Per worker per day rate
+  duration_days?: number; // Expected duration
 };
 
 export type AgencyConversationParticipant = {
