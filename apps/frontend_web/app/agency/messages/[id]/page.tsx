@@ -16,6 +16,11 @@ import {
   useUploadCompletionPhoto,
 } from "@/lib/hooks/useAgencyConversations";
 import {
+  useAgencyDailyAttendance,
+  useMarkEmployeeArrival,
+  useMarkEmployeeCheckout,
+} from "@/lib/hooks/useAgencyDailyAttendance";
+import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
@@ -84,6 +89,9 @@ export default function AgencyChatScreen() {
   const [showBackjobApproveModal, setShowBackjobApproveModal] = useState(false);
   const [backjobNotes, setBackjobNotes] = useState("");
 
+  // Daily attendance state
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<number>>(new Set());
+
   // Fetch conversation and messages using agency hooks
   const {
     data: conversation,
@@ -103,6 +111,13 @@ export default function AgencyChatScreen() {
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
+
+  // Daily attendance queries and mutations
+  const { data: attendanceData } = useAgencyDailyAttendance(
+    conversation?.job?.id || 0
+  );
+  const markArrivalMutation = useMarkEmployeeArrival();
+  const markCheckoutMutation = useMarkEmployeeCheckout();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -663,17 +678,144 @@ export default function AgencyChatScreen() {
             {/* Status: Daily attendance tracking active (DAILY jobs) */}
             {job.payment_model === 'DAILY' &&
               job.status === "IN_PROGRESS" && (
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-800 font-medium">
-                      Daily attendance tracking active
-                    </span>
+                <>
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm text-blue-800 font-medium">
+                        Daily attendance tracking active
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Mark which employees are working today. Client will verify attendance.
+                    </p>
                   </div>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Workers check in/out daily. Client approves and pays for each day worked.
-                  </p>
-                </div>
+
+                  {/* Daily Attendance Section */}
+                  <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        📋 Daily Attendance - {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </h3>
+                      <Badge variant="outline" className="text-xs">
+                        {attendanceData?.records.length || 0} employees
+                      </Badge>
+                    </div>
+
+                    {/* Employee List with Checkboxes */}
+                    <div className="space-y-2">
+                      {assigned_employees && assigned_employees.length > 0 ? (
+                        assigned_employees.map((emp: any) => {
+                          const attendance = attendanceData?.records.find(
+                            (r: any) => r.employee_id === emp.employeeID
+                          );
+                          const hasArrived = !!attendance?.time_in;
+                          const hasCheckedOut = !!attendance?.time_out;
+                          const isClientConfirmed = !!attendance?.client_confirmed;
+
+                          return (
+                            <div
+                              key={emp.employeeID}
+                              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
+                            >
+                              {/* Left: Employee info and checkbox */}
+                              <div className="flex items-center gap-3">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm text-gray-900">
+                                      {emp.name}
+                                    </span>
+                                    {emp.isPrimaryContact && (
+                                      <Badge variant="default" className="text-xs bg-blue-600">
+                                        ⭐ Primary
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    {hasArrived && attendance.time_in && (
+                                      <span className="flex items-center gap-1">
+                                        <CheckCircle className="h-3 w-3 text-green-600" />
+                                        Arrived: {new Date(attendance.time_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    )}
+                                    {hasCheckedOut && attendance.time_out && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-gray-600" />
+                                        Left: {new Date(attendance.time_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Right: Action buttons and status */}
+                              <div className="flex items-center gap-2">
+                                {!hasArrived ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs border-green-500 text-green-700 hover:bg-green-50"
+                                    onClick={() => {
+                                      markArrivalMutation.mutate({
+                                        jobId: job.id,
+                                        employeeId: emp.employeeID,
+                                      });
+                                    }}
+                                    disabled={markArrivalMutation.isPending}
+                                  >
+                                    {markArrivalMutation.isPending ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                    )}
+                                    Mark Arrived
+                                  </Button>
+                                ) : !hasCheckedOut ? (
+                                  <>
+                                    <Badge variant="default" className="text-xs bg-green-600">
+                                      ✓ Working
+                                    </Badge>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs border-blue-500 text-blue-700 hover:bg-blue-50"
+                                      onClick={() => {
+                                        markCheckoutMutation.mutate({
+                                          jobId: job.id,
+                                          employeeId: emp.employeeID,
+                                        });
+                                      }}
+                                      disabled={markCheckoutMutation.isPending}
+                                    >
+                                      {markCheckoutMutation.isPending ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Clock className="h-3 w-3 mr-1" />
+                                      )}
+                                      Mark Checkout
+                                    </Button>
+                                  </>
+                                ) : isClientConfirmed ? (
+                                  <Badge variant="default" className="text-xs bg-blue-600">
+                                    ✓ Client Verified
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs border-amber-500 text-amber-700">
+                                    ⏳ Awaiting Client
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-sm text-gray-500">
+                          No employees assigned to this job
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
             {/* Status: Ready to mark complete */}
