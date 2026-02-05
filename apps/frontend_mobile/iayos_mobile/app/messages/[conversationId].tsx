@@ -286,7 +286,7 @@ export default function ChatScreen() {
             });
           },
         },
-      ]
+      ],
     );
   };
 
@@ -502,7 +502,7 @@ export default function ChatScreen() {
             });
           },
         },
-      ]
+      ],
     );
   };
 
@@ -1839,8 +1839,11 @@ export default function ChatScreen() {
                   })()}
 
                 {/* TEAM JOB PHASE 3: Client Approves All Workers */}
+                {/* NOTE: DAILY jobs use Daily Attendance section above for per-day payment */}
+                {/* This section is for PROJECT jobs only (one-time lump-sum payment) */}
                 {conversation.is_team_job &&
                   conversation.my_role === "CLIENT" &&
+                  conversation.job.payment_model !== "DAILY" &&
                   conversation.team_worker_assignments &&
                   (() => {
                     const allWorkersComplete =
@@ -1873,7 +1876,8 @@ export default function ChatScreen() {
                           />
                           <Text style={styles.waitingButtonText}>
                             Confirm all worker arrivals first ({arrivedCount} of{" "}
-                            {conversation.team_worker_assignments.length} arrived)
+                            {conversation.team_worker_assignments.length}{" "}
+                            arrived)
                           </Text>
                         </View>
                       );
@@ -2554,7 +2558,9 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>👔</Text>
-                              <Text style={styles.criteriaLabel}>Professionalism</Text>
+                              <Text style={styles.criteriaLabel}>
+                                Professionalism
+                              </Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -2618,9 +2624,7 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>🏆</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Quality
-                              </Text>
+                              <Text style={styles.criteriaLabel}>Quality</Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -2651,9 +2655,7 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>💰</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Value
-                              </Text>
+                              <Text style={styles.criteriaLabel}>Value</Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -2687,7 +2689,9 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>⏰</Text>
-                              <Text style={styles.criteriaLabel}>Punctuality</Text>
+                              <Text style={styles.criteriaLabel}>
+                                Punctuality
+                              </Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -2751,9 +2755,7 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>🔧</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Skill
-                              </Text>
+                              <Text style={styles.criteriaLabel}>Skill</Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (

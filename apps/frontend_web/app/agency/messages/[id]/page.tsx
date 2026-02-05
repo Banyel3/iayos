@@ -642,8 +642,9 @@ export default function AgencyChatScreen() {
 
           {/* Job Status & Actions Section */}
           <div className="mt-3">
-            {/* Status: Waiting for client to confirm work started */}
-            {job.status === "IN_PROGRESS" &&
+            {/* Status: Waiting for client to confirm work started (PROJECT jobs) */}
+            {job.payment_model === 'PROJECT' &&
+              job.status === "IN_PROGRESS" &&
               !job.clientConfirmedWorkStarted && (
                 <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                   <div className="flex items-center gap-2">
@@ -655,6 +656,22 @@ export default function AgencyChatScreen() {
                   <p className="text-xs text-yellow-600 mt-1">
                     The client needs to confirm that your employee has arrived
                     and started working
+                  </p>
+                </div>
+              )}
+
+            {/* Status: Daily attendance tracking active (DAILY jobs) */}
+            {job.payment_model === 'DAILY' &&
+              job.status === "IN_PROGRESS" && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-800 font-medium">
+                      Daily attendance tracking active
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Workers check in/out daily. Client approves and pays for each day worked.
                   </p>
                 </div>
               )}
