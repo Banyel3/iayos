@@ -484,6 +484,11 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/daily-attendance/${jobId}/worker-check-out`,
   CLIENT_CONFIRM_ATTENDANCE: (attendanceId: number) =>
     `${API_URL}/api/mobile/daily-attendance/${attendanceId}/client-confirm`,
+  // New flow: Client verifies arrival and marks checkout
+  CLIENT_VERIFY_ARRIVAL: (jobId: number, attendanceId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/verify-arrival`,
+  CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-checkout`,
 
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,

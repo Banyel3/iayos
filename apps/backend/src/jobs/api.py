@@ -6622,6 +6622,113 @@ def confirm_attendance_client(request, job_id: int, attendance_id: int, data: di
     return result
 
 
+@router.post("/{job_id}/daily/attendance/{attendance_id}/verify-arrival", auth=dual_auth)
+def verify_employee_arrival(request, job_id: int, attendance_id: int):
+    """
+    Client verifies that a dispatched employee has arrived.
+    This sets time_in and starts the work timer.
+    Only works for DISPATCHED status (employee was sent by agency).
+    """
+    from accounts.models import DailyAttendance
+    from django.utils import timezone
+    
+    try:
+        attendance = DailyAttendance.objects.select_related(
+            'jobID__clientID__profileID__accountFK',
+            'employeeID'
+        ).get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    # Verify client ownership
+    if attendance.jobID.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can verify employee arrival"}, status=403)
+    
+    # Verify employee is in DISPATCHED status
+    if attendance.status != 'DISPATCHED':
+        if attendance.time_in:
+            return Response({
+                "error": "Employee arrival has already been verified",
+                "time_in": attendance.time_in.isoformat()
+            }, status=400)
+        return Response({"error": f"Cannot verify arrival - current status is {attendance.status}"}, status=400)
+    
+    # Set time_in (work starts now) and change status to PENDING
+    attendance.time_in = timezone.now()
+    attendance.status = 'PENDING'
+    attendance.save()
+    
+    # Get employee name for response
+    employee_name = attendance.employeeID.fullName if attendance.employeeID else 'Worker'
+    
+    return {
+        "success": True,
+        "message": f"{employee_name} arrival verified - work started",
+        "attendance_id": attendance.attendanceID,
+        "employee_name": employee_name,
+        "time_in": attendance.time_in.isoformat(),
+        "status": "PENDING"
+    }
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/mark-checkout", auth=dual_auth)
+def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
+    """
+    Client marks an employee as checked out for the day.
+    This sets time_out, signaling end of work for this day.
+    Employee must have been verified as arrived (time_in set).
+    """
+    from accounts.models import DailyAttendance
+    from django.utils import timezone
+    
+    try:
+        attendance = DailyAttendance.objects.select_related(
+            'jobID__clientID__profileID__accountFK',
+            'employeeID'
+        ).get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    # Verify client ownership
+    if attendance.jobID.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can mark checkout"}, status=403)
+    
+    # Verify employee has been verified as arrived
+    if not attendance.time_in:
+        return Response({"error": "Cannot checkout - employee arrival has not been verified yet"}, status=400)
+    
+    # Check if already checked out
+    if attendance.time_out:
+        return Response({
+            "error": "Employee has already been checked out",
+            "time_out": attendance.time_out.isoformat()
+        }, status=400)
+    
+    # Set time_out (work ends now)
+    attendance.time_out = timezone.now()
+    attendance.worker_confirmed = True  # Auto-confirm on checkout
+    attendance.save()
+    
+    # Get employee name for response
+    employee_name = attendance.employeeID.fullName if attendance.employeeID else 'Worker'
+    
+    return {
+        "success": True,
+        "message": f"{employee_name} checked out - ready for payment confirmation",
+        "attendance_id": attendance.attendanceID,
+        "employee_name": employee_name,
+        "time_in": attendance.time_in.isoformat(),
+        "time_out": attendance.time_out.isoformat(),
+        "status": attendance.status
+    }
+
+
 @router.get("/{job_id}/daily/attendance", auth=dual_auth)
 def get_daily_attendance(request, job_id: int, start_date: str = None, end_date: str = None):
     """

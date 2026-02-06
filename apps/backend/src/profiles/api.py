@@ -1737,6 +1737,7 @@ def get_conversation_messages(request, conversation_id: int):
                     "time_in": record.time_in.isoformat() if record.time_in else None,
                     "time_out": record.time_out.isoformat() if record.time_out else None,
                     "status": record.status,
+                    "is_dispatched": record.status == "DISPATCHED",  # True if employee is on the way (not yet arrived)
                     "worker_confirmed": record.worker_confirmed,
                     "worker_confirmed_at": record.worker_confirmed_at.isoformat() if record.worker_confirmed_at else None,
                     "client_confirmed": record.client_confirmed,

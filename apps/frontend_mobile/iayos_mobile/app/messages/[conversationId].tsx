@@ -54,6 +54,8 @@ import {
   useWorkerCheckIn,
   useWorkerCheckOut,
   useClientConfirmAttendance,
+  useClientVerifyArrival,
+  useClientMarkCheckout,
 } from "../../lib/hooks/useDailyPayment";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
@@ -170,6 +172,8 @@ export default function ChatScreen() {
   const workerCheckInMutation = useWorkerCheckIn();
   const workerCheckOutMutation = useWorkerCheckOut();
   const clientConfirmAttendanceMutation = useClientConfirmAttendance();
+  const clientVerifyArrivalMutation = useClientVerifyArrival();
+  const clientMarkCheckoutMutation = useClientMarkCheckout();
 
   // Get current user for team job assignment identification
   const { user } = useAuth();
@@ -1674,6 +1678,7 @@ export default function ChatScreen() {
                                     </Text>
                                   </View>
                                 ) : attendance.time_out ? (
+                                  // Employee has checked out - show Pay button
                                   <TouchableOpacity
                                     style={styles.confirmArrivalButtonCompact}
                                     onPress={() =>
@@ -1714,6 +1719,72 @@ export default function ChatScreen() {
                                       </Text>
                                     )}
                                   </TouchableOpacity>
+                                ) : attendance.time_in ? (
+                                  // Employee is working - show Mark Checkout button
+                                  <TouchableOpacity
+                                    style={[styles.confirmArrivalButtonCompact, { backgroundColor: Colors.warning }]}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Mark Checkout",
+                                        `Mark ${attendance.worker_name || "worker"} as done for today?`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          {
+                                            text: "Mark Checkout",
+                                            onPress: () =>
+                                              clientMarkCheckoutMutation.mutate({
+                                                jobId: conversation.job.id,
+                                                attendanceId: attendance.attendance_id,
+                                              }),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={clientMarkCheckoutMutation.isPending}
+                                  >
+                                    {clientMarkCheckoutMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Text style={styles.confirmArrivalButtonTextCompact}>
+                                        Out
+                                      </Text>
+                                    )}
+                                  </TouchableOpacity>
+                                ) : attendance.is_dispatched ? (
+                                  // Employee dispatched but not arrived - show Verify Arrival button
+                                  <TouchableOpacity
+                                    style={[styles.confirmArrivalButtonCompact, { backgroundColor: Colors.primary }]}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Verify Arrival",
+                                        `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          {
+                                            text: "Verify",
+                                            onPress: () =>
+                                              clientVerifyArrivalMutation.mutate({
+                                                jobId: conversation.job.id,
+                                                attendanceId: attendance.attendance_id,
+                                              }),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={clientVerifyArrivalMutation.isPending}
+                                  >
+                                    {clientVerifyArrivalMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Ionicons name="car" size={14} color={Colors.white} />
+                                    )}
+                                  </TouchableOpacity>
                                 ) : (
                                   <View style={styles.pendingBadge}>
                                     <Ionicons
@@ -1722,7 +1793,7 @@ export default function ChatScreen() {
                                       color={Colors.warning}
                                     />
                                     <Text style={styles.pendingText}>
-                                      Working
+                                      Pending
                                     </Text>
                                   </View>
                                 )}

@@ -11,7 +11,7 @@ import Toast from "react-native-toast-message";
 // Types
 // ============================================================================
 
-export type AttendanceStatus = "PENDING" | "PRESENT" | "HALF_DAY" | "ABSENT" | "DISPUTED";
+export type AttendanceStatus = "DISPATCHED" | "PENDING" | "PRESENT" | "HALF_DAY" | "ABSENT" | "DISPUTED";
 export type ExtensionStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 export type RateChangeStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 export type RequestedBy = "CLIENT" | "WORKER" | "AGENCY";
@@ -23,6 +23,7 @@ export interface DailyAttendance {
   worker_name: string;
   worker_id?: number;
   status: AttendanceStatus;
+  is_dispatched: boolean;  // True if employee is on the way but not yet arrived
   time_in?: string;
   time_out?: string;
   amount_earned: number;
@@ -771,6 +772,117 @@ export const useClientConfirmAttendance = () => {
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+// ============================================================================
+// Client Verify Arrival
+// Called when client confirms a dispatched employee has arrived on site
+// ============================================================================
+
+export interface VerifyArrivalResponse {
+  success: boolean;
+  message: string;
+  attendance_id: number;
+  employee_name: string;
+  time_in: string;
+  status: string;
+}
+
+export const useClientVerifyArrival = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    VerifyArrivalResponse,
+    Error,
+    { jobId: number; attendanceId: number }
+  >({
+    mutationFn: async ({ jobId, attendanceId }) => {
+      const response = await apiRequest(
+        ENDPOINTS.CLIENT_VERIFY_ARRIVAL(jobId, attendanceId),
+        { method: "POST" }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to verify arrival"));
+      }
+      return response.json() as Promise<VerifyArrivalResponse>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Arrival Verified ✅",
+        text2: `${data.employee_name} has started working`,
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Verification Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+// ============================================================================
+// Client Mark Checkout
+// Called when client marks an employee as done for the day
+// ============================================================================
+
+export interface MarkCheckoutResponse {
+  success: boolean;
+  message: string;
+  attendance_id: number;
+  employee_name: string;
+  time_in: string;
+  time_out: string;
+  status: string;
+}
+
+export const useClientMarkCheckout = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    MarkCheckoutResponse,
+    Error,
+    { jobId: number; attendanceId: number }
+  >({
+    mutationFn: async ({ jobId, attendanceId }) => {
+      const response = await apiRequest(
+        ENDPOINTS.CLIENT_MARK_CHECKOUT(jobId, attendanceId),
+        { method: "POST" }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to mark checkout"));
+      }
+      return response.json() as Promise<MarkCheckoutResponse>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Checkout Complete ✅",
+        text2: `${data.employee_name} has finished for the day`,
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Checkout Failed",
         text2: error.message,
         position: "top",
       });

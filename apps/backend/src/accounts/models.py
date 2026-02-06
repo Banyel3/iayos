@@ -2936,6 +2936,7 @@ class DailyAttendance(models.Model):
     
     # Status
     class AttendanceStatus(models.TextChoices):
+        DISPATCHED = "DISPATCHED", "Dispatched (on the way)"
         PENDING = "PENDING", "Pending confirmation"
         PRESENT = "PRESENT", "Present (full day)"
         HALF_DAY = "HALF_DAY", "Half day"
@@ -2985,7 +2986,13 @@ class DailyAttendance(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['jobID', 'workerID', 'date'],
+                condition=models.Q(workerID__isnull=False),
                 name='unique_worker_attendance_per_day'
+            ),
+            models.UniqueConstraint(
+                fields=['jobID', 'employeeID', 'date'],
+                condition=models.Q(employeeID__isnull=False),
+                name='unique_employee_attendance_per_day'
             ),
         ]
     
