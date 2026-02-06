@@ -3567,7 +3567,7 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
             }, status=403)
         
         # Verify job was assigned to this agency
-        if job.assignedAgencyFK_id != user.id:
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.id:
             return Response({
                 'success': False,
                 'error': 'This job is not assigned to your agency'
@@ -3672,7 +3672,7 @@ def mark_employee_checkout(request, job_id: int, employee_id: int):
             }, status=403)
         
         # Verify job was assigned to this agency
-        if job.assignedAgencyFK_id != user.id:
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.id:
             return Response({
                 'success': False,
                 'error': 'This job is not assigned to your agency'
