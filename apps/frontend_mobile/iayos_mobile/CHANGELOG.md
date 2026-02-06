@@ -1,0 +1,223 @@
+# Changelog
+
+All notable changes to the iAyos Mobile App will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- *Add new features here as you develop them*
+
+### Changed
+- *Add changes to existing features here*
+
+### Fixed
+- *Add bug fixes here*
+
+### Removed
+- *Add removed features here*
+
+---
+
+## [2.0.5] - 2026-02-06
+
+### Fixed
+- **Daily Attendance Flow Redesign** (PR #309)
+  - Fixed critical bug where marking one agency employee's arrival would overwrite another employee's attendance record
+  - Root cause: UniqueConstraint on `(jobID, workerID, date)` where `workerID=NULL` for all agency employees
+  - Solution: Added DISPATCHED status and conditional UniqueConstraint on employeeID
+  - New flow: Agency dispatches → Client verifies arrival → Client marks checkout → Client confirms payment
+  - **Impact**: Agency owners can now manage multiple employees on daily payment jobs without data loss
+
+## [2.0.4] - 2026-02-05
+
+### Fixed
+- **Agency Daily Payment Fields** (PR #294)
+  - Fixed missing daily payment fields in agency job endpoints (`get_agency_jobs`, `get_agency_job_detail`)
+  - Backend now returns: `payment_model`, `daily_rate_agreed`, `duration_days`, `actual_start_date`, `total_days_worked`, `daily_escrow_total`
+  - **Impact**: DailyJobScheduleCard and PaymentModelBadge now display correct job data instead of defaults
+
+## [2.0.3] - 2026-02-04
+
+### Fixed
+- **Mobile Backjob & Review UX Bugs** (PR #290)
+  - Fixed backjob banner text invisible on light background (changed from white to dark color)
+  - Fixed "Mark Complete" button unresponsive on Android (replaced iOS-only `Alert.prompt` with cross-platform `Alert.alert`)
+  - Fixed review criteria backwards - worker reviewing client saw wrong criteria and vice versa
+  - **Impact**: Android users can now mark jobs complete; review system shows correct criteria for both roles
+
+## [2.0.2] - 2026-01-26
+
+### Fixed
+- **Worker Multi-Job Application Blocker** (PR #287)
+  - Workers can no longer apply to multiple jobs simultaneously
+  - Added backend validation in `apply_to_job` and `accept_application` endpoints
+  - Prevents workers from having multiple active jobs (IN_PROGRESS status) or multiple ACTIVE team assignments
+  - **Impact**: Ensures workers focus on one job at a time; prevents scheduling conflicts
+
+## [2.0.1] - 2025-12-16
+
+### Added
+- **Team Worker Arrival Tracking** (PR #275)
+  - Per-worker arrival confirmation with timestamps for team jobs
+  - Client can confirm arrival for each worker individually
+  - Displays arrival progress: `arrived_count / total_count`
+  - **Impact**: Matches 3-phase workflow of regular jobs (Arrival → Complete → Approve)
+
+### Changed
+- **Team Job Auto-Start**
+  - Jobs automatically create group conversations when all slots filled
+  - Team jobs move from "Open Jobs" to "Pending" tab when fully staffed
+  - **Impact**: Smoother workflow for team job management
+
+## [2.0.0] - 2025-12-11
+
+### Added
+- **Price Budget LSTM Model**
+  - ML-powered price prediction for job postings
+  - Predicts min/suggested/max price ranges based on job details
+  - Real-time recommendations during job creation
+  - **Impact**: Helps clients set fair prices; reduces negotiation friction
+
+### Changed
+- **Universal Job Fields for ML Accuracy**
+  - Added `job_scope`: MINOR_REPAIR | MODERATE_PROJECT | MAJOR_RENOVATION
+  - Added `skill_level_required`: ENTRY | INTERMEDIATE | EXPERT
+  - Added `work_environment`: INDOOR | OUTDOOR | BOTH
+  - **Impact**: ML accuracy improved from ~24% to ~18-20% MAPE
+
+## [1.9.0] - 2025-11-26
+
+### Added
+- **Wallet Withdrawal Feature**
+  - Workers can withdraw earnings to GCash via Xendit disbursement
+  - Minimum withdrawal: ₱100
+  - Processing time: 1-3 business days
+  - Balance deducted immediately on successful request
+  - **Impact**: Workers can access their earnings directly to GCash
+
+### Changed
+- **Payment Method Enforcement**
+  - Users must add GCash account before depositing or withdrawing
+  - Deposit screen shows validation alert if no GCash method configured
+  - Auto-redirect to payment methods screen
+  - **Impact**: Ensures users set up payment methods before transacting
+
+## [1.8.0] - 2025-11-25
+
+### Fixed
+- **Instant Profile Switching**
+  - Workers/clients can now switch profiles without logout
+  - JWT tokens include `profile_type` field (WORKER or CLIENT)
+  - New `/api/mobile/profile/switch-profile` endpoint
+  - **Impact**: Profile switch completes in ~2 seconds (vs ~30 seconds before)
+
+### Fixed
+- **Dual Profile Bug Fixes**
+  - Fixed 14 endpoints failing with `MultipleObjectsReturned` exception
+  - Changed `.get()` to `.filter().first()` with profile_type from JWT
+  - **Impact**: Users with both worker and client profiles can now browse jobs/workers without errors
+
+## [1.7.0] - 2025-11-23
+
+### Added
+- **Custom Navigation Headers**
+  - Removed default Expo Router black header bar
+  - Created reusable `CustomBackButton` component matching app theme
+  - Custom headers on KYC upload and status screens
+  - **Impact**: Consistent visual design throughout app
+
+## [1.6.0] - 2025-11-14
+
+### Added
+- **Enhanced Profiles - Certifications & Materials**
+  - Professional certifications management with document upload
+  - Verification status badges (verified/pending)
+  - Expiry date tracking with warning badges (<30 days)
+  - Materials/products listing with PHP ₱ pricing
+  - Availability toggle with optimistic UI
+  - Full CRUD operations for both certifications and materials
+  - **Impact**: Workers can showcase credentials; clients can verify qualifications
+
+### Added
+- **Avatar & Portfolio Photo Upload**
+  - Avatar upload system (camera + gallery with square crop)
+  - Portfolio management (up to 10 images with captions)
+  - Multi-image upload (up to 5 at once, sequential)
+  - Smart image compression (<2MB skip, ≥2MB compress to 1200x1200)
+  - Full-screen lightbox viewer with swipe navigation
+  - Drag-drop reordering with long-press selection
+  - **Impact**: Workers can showcase their work; builds trust with clients
+
+### Added
+- **Worker Profile & Application Management**
+  - Worker profile view with completion tracking
+  - Profile editing with validation and preview
+  - Application detail screen with timeline visualization
+  - Application withdrawal functionality
+  - Profile completion widget (0-100%, 8 criteria)
+  - **Impact**: Workers can manage their profile and job applications efficiently
+
+### Added
+- **Job Browsing & Filtering System**
+  - Category browsing with 18 service categories
+  - Advanced search with budget, location, urgency filters
+  - Saved jobs functionality with heart icon toggle
+  - Sort options: Latest, Budget High/Low
+  - Infinite scroll pagination (20 jobs/page)
+  - **Impact**: Workers can find relevant jobs faster; clients reach qualified workers
+
+### Added
+- **Job Completion & Photo Upload**
+  - Two-phase completion: worker marks → client approves
+  - Active jobs listing and detail screens
+  - Photo upload (up to 10 photos) with compression
+  - Sequential upload with progress indicator (0-100%)
+  - Photo preview grid with remove functionality
+  - **Impact**: Visual proof of work completion; reduces disputes
+
+---
+
+## Version History
+
+- **2.0.x** - Bug fixes and payment system enhancements (Feb 2026)
+- **1.9.x** - Wallet withdrawal and payment features (Nov 2025)
+- **1.8.x** - Profile switching and dual profile support (Nov 2025)
+- **1.7.x** - UI improvements and custom components (Nov 2025)
+- **1.6.x** - Enhanced profiles, photo uploads, job management (Nov 2025)
+
+---
+
+## Guidelines for Updating This Changelog
+
+**When making mobile changes:**
+
+1. **Add to [Unreleased] section** under the appropriate category:
+   - `### Added` - New features
+   - `### Changed` - Changes to existing functionality
+   - `### Fixed` - Bug fixes
+   - `### Removed` - Removed features
+
+2. **Format each entry:**
+   ```markdown
+   - **Feature Name** (PR #XXX)
+     - Brief description of what changed
+     - Additional context if needed
+     - **Impact**: How users benefit
+   ```
+
+3. **Keep it user-facing**: Focus on what users will notice, not internal refactoring
+
+4. **On release**: The workflow will move [Unreleased] → [Version] with date automatically
+
+**Example:**
+```markdown
+## [Unreleased]
+### Fixed
+- **Payment Method Validation** (PR #123)
+  - Fixed wallet deposit validation to require GCash account
+  - Auto-redirect to payment methods if not configured
+  - **Impact**: Users can't start deposits without payment method set up
+```

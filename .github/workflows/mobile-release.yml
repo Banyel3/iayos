@@ -238,7 +238,7 @@ jobs:
           # Download the built APK
           echo "📥 Downloading built APK from EAS..."
           BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
-          
+
           if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
             echo "❌ Failed to get build URL from EAS"
             exit 1
@@ -399,6 +399,27 @@ jobs:
             fi
           fi
 
+      - name: Extract Changelog
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.local_build != 'true'
+        id: changelog
+        run: |
+          echo "Extracting changelog for version ${{ steps.commit_version.outputs.final_version }}"
+          
+          # Make script executable
+          chmod +x .github/scripts/extract-changelog.sh
+          
+          # Extract changelog content
+          CHANGELOG_OUTPUT=$(./.github/scripts/extract-changelog.sh "${{ steps.commit_version.outputs.final_version }}")
+          
+          # Output to GitHub Actions (multiline)
+          echo "changelog_notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Show extracted content in logs
+          echo "📝 Changelog content extracted:"
+          echo "$CHANGELOG_OUTPUT"
+
       - name: Create Release
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.local_build != 'true'
         uses: softprops/action-gh-release@v2
@@ -421,8 +442,11 @@ jobs:
             - ✅ Production deployment
             - ✅ End users
 
-            ### Changes
-            See commit history for detailed changes.
+            ### What's Changed
+            ${{ steps.changelog.outputs.changelog_notes }}
+
+            ---
+            📖 [View Full Changelog](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/apps/frontend_mobile/iayos_mobile/CHANGELOG.md)
 
             ### Installation
             Download the APK file below and install on your Android device.
@@ -444,13 +468,13 @@ jobs:
           NEW_VERSION: ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}
         run: |
           echo "📱 Updating DigitalOcean mobile version to $NEW_VERSION..."
-          
+
           # Get current app spec
           echo "📋 Fetching current app spec..."
           CURRENT_SPEC=$(curl -s -X GET "https://api.digitalocean.com/v2/apps/$DO_APP_ID" \
             -H "Authorization: Bearer $DO_API_TOKEN" \
             -H "Content-Type: application/json")
-          
+
           # Extract and update the spec with new mobile version env vars
           # Using jq to properly update the env vars
           UPDATED_SPEC=$(echo "$CURRENT_SPEC" | jq --arg version "$NEW_VERSION" '
@@ -460,17 +484,17 @@ jobs:
                {"key": "MOBILE_MIN_VERSION", "value": $version, "scope": "RUN_AND_BUILD_TIME", "type": "GENERAL"}]
             ) | .app.spec'
           )
-          
+
           # Update the app with new spec
           echo "🔄 Updating app with new mobile version env vars..."
           UPDATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.digitalocean.com/v2/apps/$DO_APP_ID" \
             -H "Authorization: Bearer $DO_API_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"spec\": $UPDATED_SPEC}")
-          
+
           UPDATE_HTTP_CODE=$(echo "$UPDATE_RESPONSE" | tail -n1)
           UPDATE_BODY=$(echo "$UPDATE_RESPONSE" | head -n-1)
-          
+
           if [ "$UPDATE_HTTP_CODE" -eq 200 ]; then
             echo "✅ MOBILE_CURRENT_VERSION updated to $NEW_VERSION"
             echo "✅ MOBILE_MIN_VERSION updated to $NEW_VERSION"
