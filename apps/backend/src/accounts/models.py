@@ -1797,6 +1797,34 @@ class JobEmployeeAssignment(models.Model):
     employeeMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     completionNotes = models.TextField(blank=True, default="")
     
+    # ========== PROJECT JOB WORKFLOW TRACKING ==========
+    # Mirrors the workflow pattern from DailyAttendance (for DAILY jobs)
+    # and JobWorkerAssignment (for team jobs)
+    #
+    # Workflow for agency PROJECT jobs:
+    # 1. Agency dispatches employee (dispatched=True)
+    # 2. Client confirms arrival (clientConfirmedArrival=True)
+    # 3. Worker tells agency rep job is done -> Agency marks complete (agencyMarkedComplete=True)
+    # 4. Client approves and pays
+    
+    dispatched = models.BooleanField(
+        default=False,
+        help_text="Agency has dispatched this employee (on the way to client)"
+    )
+    dispatchedAt = models.DateTimeField(null=True, blank=True)
+    
+    clientConfirmedArrival = models.BooleanField(
+        default=False,
+        help_text="Client has confirmed this employee arrived on site"
+    )
+    clientConfirmedArrivalAt = models.DateTimeField(null=True, blank=True)
+    
+    agencyMarkedComplete = models.BooleanField(
+        default=False,
+        help_text="Agency has marked this employee's work as complete"
+    )
+    agencyMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
+    
     # Skill slot assignment (for multi-employee INVITE jobs)
     skill_slot = models.ForeignKey(
         'JobSkillSlot',

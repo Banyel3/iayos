@@ -380,6 +380,17 @@ export const ENDPOINTS = {
   TEAM_START_AVAILABLE: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/start-available`,
 
+  // Agency PROJECT Job Workflow (mirrors DAILY job workflow)
+  // Flow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays
+  AGENCY_DISPATCH_PROJECT_EMPLOYEE: (jobId: number, employeeId: number) =>
+    `${API_URL}/api/agency/jobs/${jobId}/employees/${employeeId}/dispatch-project`,
+  AGENCY_CONFIRM_PROJECT_ARRIVAL: (jobId: number, employeeId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/employees/${employeeId}/confirm-arrival-project`,
+  AGENCY_MARK_PROJECT_COMPLETE: (jobId: number, employeeId: number) =>
+    `${API_URL}/api/agency/jobs/${jobId}/employees/${employeeId}/mark-complete-project`,
+  AGENCY_APPROVE_PROJECT_JOB: (jobId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/approve-agency-project`,
+
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_URL}/api/mobile/auth/profile`,
   UPDATE_PROFILE_MOBILE: `${API_URL}/api/mobile/profile/update`,

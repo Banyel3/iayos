@@ -7221,3 +7221,300 @@ def get_daily_escrow_estimate(request, job_id: int = None, daily_rate: float = N
     }
 
 # endregion
+
+
+# =============================================================================
+# AGENCY PROJECT JOB WORKFLOW - CLIENT ENDPOINTS
+# =============================================================================
+# Client-side endpoints for PROJECT payment model agency jobs:
+# 1. confirm-arrival-project: Client confirms dispatched employee has arrived
+# 2. approve-agency-project: Client approves all work and pays
+# Agency-side endpoints (dispatch, mark-complete) are in agency/api.py
+
+
+@router.post("/{job_id}/employees/{employee_id}/confirm-arrival-project", auth=dual_auth)
+def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
+    """
+    Client confirms that a dispatched agency employee has arrived.
+    This is for PROJECT payment model jobs (not DAILY).
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    
+    Requires:
+    - User must be the job client
+    - Employee must be dispatched first
+    """
+    from accounts.models import Job, JobEmployeeAssignment
+    from agency.models import AgencyEmployee
+    from django.utils import timezone
+    
+    try:
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedAgencyFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can confirm employee arrival"}, status=403)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({
+                "error": "This endpoint is for PROJECT jobs only. Use /daily/attendance/{id}/verify-arrival for daily-rate jobs."
+            }, status=400)
+        
+        # Verify it's an agency job
+        if not job.assignedAgencyFK:
+            return Response({"error": "This is not an agency job"}, status=400)
+        
+        # Get employee
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+        
+        # Get assignment
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({
+                "error": f"{employee.fullName} is not assigned to this job"
+            }, status=404)
+        
+        # Verify employee is dispatched
+        if not assignment.dispatched:
+            return Response({
+                "error": f"{employee.fullName} has not been dispatched yet. Wait for agency to dispatch."
+            }, status=400)
+        
+        # Check if already confirmed
+        if assignment.clientConfirmedArrival:
+            return Response({
+                "error": f"{employee.fullName}'s arrival has already been confirmed",
+                "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat() if assignment.clientConfirmedArrivalAt else None
+            }, status=400)
+        
+        # Confirm arrival
+        assignment.clientConfirmedArrival = True
+        assignment.clientConfirmedArrivalAt = timezone.now()
+        assignment.save()
+        
+        # Check how many employees have arrived vs total
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        )
+        arrived_count = sum(1 for a in all_assignments if a.clientConfirmedArrival)
+        total_count = all_assignments.count()
+        all_arrived = arrived_count == total_count
+        
+        return {
+            "success": True,
+            "message": f"{employee.fullName}'s arrival confirmed - work can begin",
+            "assignment_id": assignment.assignmentID,
+            "employee_id": employee_id,
+            "employee_name": employee.fullName,
+            "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat(),
+            "all_arrived": all_arrived,
+            "arrived_count": arrived_count,
+            "total_count": total_count,
+            "next_step": "All employees arrived" if all_arrived else f"{total_count - arrived_count} employee(s) still pending arrival"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/{job_id}/approve-agency-project", auth=dual_auth)
+def approve_agency_project_job(
+    request,
+    job_id: int,
+    payment_method: str = "WALLET",
+    cash_proof_image: str = None
+):
+    """
+    Client approves the completed PROJECT-based agency job and pays.
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    
+    Requires:
+    - All assigned employees must have completed the full workflow:
+      - dispatched = True
+      - clientConfirmedArrival = True
+      - agencyMarkedComplete = True
+    - Payment method must be WALLET, GCASH, or CASH
+    - CASH requires cash_proof_image
+    
+    payment_method: WALLET | GCASH | CASH
+    cash_proof_image: Required if payment_method is CASH
+    """
+    from accounts.models import Job, JobEmployeeAssignment, Transaction, Wallet
+    from django.utils import timezone
+    from django.db import transaction
+    from decimal import Decimal
+    
+    try:
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can approve completion"}, status=403)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({
+                "error": "This endpoint is for PROJECT jobs only. Use daily payment endpoints for daily-rate jobs."
+            }, status=400)
+        
+        # Verify it's an agency job
+        if not job.assignedAgencyFK:
+            return Response({"error": "This is not an agency job"}, status=400)
+        
+        # Verify job is not already completed
+        if job.status == 'COMPLETED':
+            return Response({"error": "This job has already been completed"}, status=400)
+        
+        # Validate payment method
+        payment_method = payment_method.upper()
+        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
+            return Response({"error": "Invalid payment method. Must be WALLET, GCASH, or CASH"}, status=400)
+        
+        # CASH requires proof
+        if payment_method == 'CASH' and not cash_proof_image:
+            return Response({
+                "error": "Cash payment requires proof of payment image",
+                "requires_proof": True
+            }, status=400)
+        
+        # Get all active assignments
+        assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        ).select_related('employee')
+        
+        if not assignments.exists():
+            return Response({"error": "No employees assigned to this job"}, status=400)
+        
+        # Verify ALL employees have completed the full workflow
+        workflow_errors = []
+        for assignment in assignments:
+            emp_name = assignment.employee.fullName
+            if not assignment.dispatched:
+                workflow_errors.append(f"{emp_name} has not been dispatched")
+            elif not assignment.clientConfirmedArrival:
+                workflow_errors.append(f"You haven't confirmed {emp_name}'s arrival")
+            elif not assignment.agencyMarkedComplete:
+                workflow_errors.append(f"Agency hasn't marked {emp_name}'s work as complete")
+        
+        if workflow_errors:
+            return Response({
+                "error": "Cannot approve - workflow incomplete",
+                "workflow_errors": workflow_errors,
+                "required_steps": [
+                    "1. Agency dispatches all employees",
+                    "2. Client confirms all arrivals",
+                    "3. Agency marks all employees complete",
+                    "4. Client approves and pays"
+                ]
+            }, status=400)
+        
+        # Calculate payment
+        remaining_balance = job.budget - (job.downpaymentAmount or Decimal('0.00'))
+        
+        with transaction.atomic():
+            # Handle payment
+            if payment_method == 'WALLET':
+                # Get client wallet
+                try:
+                    client_wallet = Wallet.objects.select_for_update().get(
+                        accountFK=request.auth
+                    )
+                except Wallet.DoesNotExist:
+                    return Response({"error": "Client wallet not found"}, status=404)
+                
+                # Check sufficient balance
+                if client_wallet.balance < remaining_balance:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(remaining_balance),
+                        "available": float(client_wallet.balance)
+                    }, status=400)
+                
+                # Deduct from client wallet
+                client_wallet.balance -= remaining_balance
+                client_wallet.save()
+                
+                # Create payment transaction
+                Transaction.objects.create(
+                    senderWallet=client_wallet,
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Final payment for job: {job.title}',
+                    jobID=job
+                )
+            
+            elif payment_method == 'GCASH':
+                # TODO: Integrate with Xendit GCash payment
+                # For now, mark as pending payment
+                pass
+            
+            elif payment_method == 'CASH':
+                # Store cash proof
+                job.cashProofImage = cash_proof_image
+                
+                # Create transaction record for cash payment
+                Transaction.objects.create(
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Cash payment for job: {job.title} (proof uploaded)',
+                    jobID=job
+                )
+            
+            # Mark all assignments as completed
+            assignments.update(status='COMPLETED')
+            
+            # Mark job as completed
+            job.status = 'COMPLETED'
+            job.clientMarkedComplete = True
+            job.workerMarkedComplete = True  # Agency job - worker side is agency completion
+            job.save()
+        
+        employee_names = [a.employee.fullName for a in assignments]
+        
+        return {
+            "success": True,
+            "message": "Job approved and payment processed successfully",
+            "job_id": job_id,
+            "job_title": job.title,
+            "payment_method": payment_method,
+            "amount_paid": float(remaining_balance),
+            "employees_completed": employee_names,
+            "job_status": "COMPLETED"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+# endregion

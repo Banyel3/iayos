@@ -42,6 +42,10 @@ import {
   useConfirmTeamWorkerArrival,
   useMarkTeamAssignmentComplete,
   useApproveTeamJobCompletion,
+  useDispatchProjectEmployee,
+  useConfirmProjectArrival,
+  useAgencyMarkProjectComplete,
+  useApproveAgencyProjectJob,
 } from "../../lib/hooks/useJobActions";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -169,6 +173,12 @@ export default function ChatScreen() {
   const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
+
+  // Agency PROJECT job mutations
+  const dispatchProjectEmployeeMutation = useDispatchProjectEmployee();
+  const confirmProjectArrivalMutation = useConfirmProjectArrival();
+  const agencyMarkProjectCompleteMutation = useAgencyMarkProjectComplete();
+  const approveAgencyProjectJobMutation = useApproveAgencyProjectJob();
 
   // Daily attendance mutations
   const workerCheckInMutation = useWorkerCheckIn();
@@ -2148,6 +2158,287 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
+                {/* ================================================================ */}
+                {/* AGENCY PROJECT JOB WORKFLOW (PROJECT payment_model only) */}
+                {/* ================================================================ */}
+                {/* Workflow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays */}
+
+                {/* AGENCY VIEW: Dispatch and Mark Complete buttons */}
+                {conversation.is_agency_job &&
+                  conversation.my_role === "AGENCY" &&
+                  conversation.job.payment_model !== "DAILY" &&
+                  conversation.assigned_employees &&
+                  conversation.assigned_employees.length > 0 &&
+                  (() => {
+                    const allDispatched = conversation.assigned_employees.every(
+                      (e) => e.dispatched
+                    );
+                    const allArrived = conversation.assigned_employees.every(
+                      (e) => e.clientConfirmedArrival
+                    );
+                    const allComplete = conversation.assigned_employees.every(
+                      (e) => e.agencyMarkedComplete
+                    );
+
+                    // Show dispatch buttons for employees not yet dispatched
+                    const pendingDispatch = conversation.assigned_employees.filter(
+                      (e) => !e.dispatched
+                    );
+                    
+                    // Show mark complete buttons for arrived employees not yet marked complete
+                    const pendingComplete = conversation.assigned_employees.filter(
+                      (e) => e.clientConfirmedArrival && !e.agencyMarkedComplete
+                    );
+
+                    return (
+                      <>
+                        {/* Dispatch section */}
+                        {pendingDispatch.length > 0 && (
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Dispatch Employees ({pendingDispatch.length} pending)
+                            </Text>
+                            {pendingDispatch.map((employee) => (
+                              <TouchableOpacity
+                                key={`dispatch-${employee.id}`}
+                                style={[styles.actionButton, styles.dispatchButton]}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Dispatch Employee",
+                                    `Mark ${employee.name} as on the way to the job site?`,
+                                    [
+                                      { text: "Cancel", style: "cancel" },
+                                      {
+                                        text: "Dispatch",
+                                        onPress: () =>
+                                          dispatchProjectEmployeeMutation.mutate({
+                                            jobId: conversation.job.id,
+                                            employeeId: employee.id,
+                                          }),
+                                      },
+                                    ]
+                                  )
+                                }
+                                disabled={dispatchProjectEmployeeMutation.isPending}
+                              >
+                                {dispatchProjectEmployeeMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.white} />
+                                ) : (
+                                  <>
+                                    <Ionicons name="car" size={20} color={Colors.white} />
+                                    <Text style={styles.actionButtonText}>
+                                      Dispatch {employee.name}
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Waiting for client to confirm arrivals */}
+                        {allDispatched && !allArrived && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                            <Text style={styles.waitingButtonText}>
+                              Waiting for client to confirm arrivals ({
+                                conversation.assigned_employees.filter((e) => e.clientConfirmedArrival).length
+                              } of {conversation.assigned_employees.length})
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Mark complete section */}
+                        {pendingComplete.length > 0 && (
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Mark Work Complete ({pendingComplete.length} on site)
+                            </Text>
+                            {pendingComplete.map((employee) => (
+                              <TouchableOpacity
+                                key={`complete-${employee.id}`}
+                                style={[styles.actionButton, styles.markCompleteButton]}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Mark Complete",
+                                    `Mark ${employee.name}'s work as complete?`,
+                                    [
+                                      { text: "Cancel", style: "cancel" },
+                                      {
+                                        text: "Mark Complete",
+                                        onPress: () =>
+                                          agencyMarkProjectCompleteMutation.mutate({
+                                            jobId: conversation.job.id,
+                                            employeeId: employee.id,
+                                          }),
+                                      },
+                                    ]
+                                  )
+                                }
+                                disabled={agencyMarkProjectCompleteMutation.isPending}
+                              >
+                                {agencyMarkProjectCompleteMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.white} />
+                                ) : (
+                                  <>
+                                    <Ionicons name="checkmark-done" size={20} color={Colors.white} />
+                                    <Text style={styles.actionButtonText}>
+                                      Complete: {employee.name}
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* All complete - waiting for client approval */}
+                        {allComplete && !conversation.job.clientMarkedComplete && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                            <Text style={styles.waitingButtonText}>
+                              ✓ All employees complete. Waiting for client to approve & pay
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                {/* CLIENT VIEW: Confirm arrivals and Approve & Pay */}
+                {conversation.is_agency_job &&
+                  conversation.my_role === "CLIENT" &&
+                  conversation.job.payment_model !== "DAILY" &&
+                  conversation.assigned_employees &&
+                  conversation.assigned_employees.length > 0 &&
+                  (() => {
+                    const allDispatched = conversation.assigned_employees.every(
+                      (e) => e.dispatched
+                    );
+                    const allArrived = conversation.assigned_employees.every(
+                      (e) => e.clientConfirmedArrival
+                    );
+                    const allComplete = conversation.assigned_employees.every(
+                      (e) => e.agencyMarkedComplete
+                    );
+                    
+                    // Employees dispatched but not arrived yet
+                    const pendingArrival = conversation.assigned_employees.filter(
+                      (e) => e.dispatched && !e.clientConfirmedArrival
+                    );
+
+                    // Employees arrived but not yet marked complete by agency
+                    const onSiteWorking = conversation.assigned_employees.filter(
+                      (e) => e.clientConfirmedArrival && !e.agencyMarkedComplete
+                    );
+
+                    return (
+                      <>
+                        {/* Waiting for agency to dispatch */}
+                        {!allDispatched && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                            <Text style={styles.waitingButtonText}>
+                              Waiting for agency to dispatch employees ({
+                                conversation.assigned_employees.filter((e) => e.dispatched).length
+                              } of {conversation.assigned_employees.length} dispatched)
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Confirm arrivals section */}
+                        {pendingArrival.length > 0 && (
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Confirm Arrivals ({pendingArrival.length} on the way)
+                            </Text>
+                            {pendingArrival.map((employee) => (
+                              <TouchableOpacity
+                                key={`arrival-${employee.id}`}
+                                style={[styles.actionButton, styles.confirmWorkStartedButton]}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Confirm Arrival",
+                                    `Has ${employee.name} arrived at the job site?`,
+                                    [
+                                      { text: "Cancel", style: "cancel" },
+                                      {
+                                        text: "Confirm",
+                                        onPress: () =>
+                                          confirmProjectArrivalMutation.mutate({
+                                            jobId: conversation.job.id,
+                                            employeeId: employee.id,
+                                          }),
+                                      },
+                                    ]
+                                  )
+                                }
+                                disabled={confirmProjectArrivalMutation.isPending}
+                              >
+                                {confirmProjectArrivalMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.white} />
+                                ) : (
+                                  <>
+                                    <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
+                                    <Text style={styles.actionButtonText}>
+                                      Confirm: {employee.name} Arrived
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Workers on site, working */}
+                        {onSiteWorking.length > 0 && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                            <Text style={styles.waitingButtonText}>
+                              {onSiteWorking.length} employee{onSiteWorking.length > 1 ? 's' : ''} working on site...
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* All complete - show approve & pay button */}
+                        {allComplete && !conversation.job.clientMarkedComplete && (
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.approveCompletionButton]}
+                            onPress={() =>
+                              Alert.alert(
+                                "Approve & Pay",
+                                `All ${conversation.assigned_employees?.length || 0} employees have completed their work. Approve and release payment of ₱${(conversation.job.budget * 0.5).toLocaleString()}?`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Approve & Pay",
+                                    onPress: () =>
+                                      approveAgencyProjectJobMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        paymentMethod: "WALLET", // Default to WALLET for now
+                                      }),
+                                  },
+                                ]
+                              )
+                            }
+                            disabled={approveAgencyProjectJobMutation.isPending}
+                          >
+                            {approveAgencyProjectJobMutation.isPending ? (
+                              <ActivityIndicator size="small" color={Colors.white} />
+                            ) : (
+                              <>
+                                <Ionicons name="wallet" size={20} color={Colors.white} />
+                                <Text style={styles.actionButtonText}>
+                                  Approve & Pay Agency (₱{(conversation.job.budget * 0.5).toLocaleString()})
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    );
+                  })()}
+
                 {/* Status Messages */}
                 {conversation.job.clientConfirmedWorkStarted &&
                   conversation.my_role === "WORKER" &&
@@ -3490,6 +3781,19 @@ const styles = StyleSheet.create({
   },
   approveCompletionButton: {
     backgroundColor: Colors.success,
+  },
+  dispatchButton: {
+    backgroundColor: Colors.warning,
+  },
+  employeeActionsSection: {
+    marginVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  actionSectionTitle: {
+    ...Typography.body.small,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
   actionButtonDisabled: {
     backgroundColor: Colors.textSecondary,

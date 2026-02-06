@@ -1554,6 +1554,13 @@ def get_conversation_messages(request, conversation_id: int):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": assignment.isPrimaryContact,
                     "status": assignment.status,
+                    # PROJECT job workflow tracking (mirrors DAILY job DailyAttendance workflow)
+                    "dispatched": getattr(assignment, 'dispatched', False),
+                    "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
+                    "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
+                    "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
+                    "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
+                    "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
                 })
             
             # Fallback to legacy if no M2M assignments
@@ -1566,6 +1573,13 @@ def get_conversation_messages(request, conversation_id: int):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": True,
                     "status": "ASSIGNED",
+                    # Legacy single-employee - no workflow tracking
+                    "dispatched": False,
+                    "dispatchedAt": None,
+                    "clientConfirmedArrival": False,
+                    "clientConfirmedArrivalAt": None,
+                    "agencyMarkedComplete": False,
+                    "agencyMarkedCompleteAt": None,
                 })
         
         # Get ML prediction for estimated completion time

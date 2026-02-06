@@ -3824,3 +3824,252 @@ def get_daily_attendance(request, job_id: int, date: str = None):
         import traceback
         traceback.print_exc()
         return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# =============================================================================
+# AGENCY PROJECT JOB WORKFLOW ENDPOINTS
+# =============================================================================
+# These endpoints mirror the DAILY job workflow but for PROJECT payment model:
+# 1. dispatch-project: Agency dispatches employee (marks as "on the way")
+# 2. mark-complete-project: Agency marks employee's work as complete
+# Client-side endpoints (confirm-arrival, approve-pay) are in jobs/api.py
+
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/dispatch-project",
+    auth=cookie_auth,
+    response={200: dict, 400: dict, 403: dict, 404: dict}
+)
+def dispatch_project_employee(request, job_id: int, employee_id: int):
+    """
+    Dispatch an agency employee for a PROJECT-based job.
+    Agency representative uses this to mark employee as 'on the way'.
+    Client will verify arrival before work can begin.
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    """
+    try:
+        from accounts.models import Job, JobEmployeeAssignment
+        from agency.models import AgencyEmployee
+        from django.utils import timezone
+        
+        user = request.auth
+        
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'assignedAgencyFK__accountFK',
+                'clientID__profileID'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify this is a PROJECT job (not DAILY - that uses DailyAttendance)
+        if job.payment_model == 'DAILY':
+            return Response({
+                'success': False,
+                'error': 'This endpoint is for PROJECT jobs only. Use /dispatch for daily-rate jobs.'
+            }, status=400)
+        
+        # Verify job belongs to this agency
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Verify job is in valid status
+        if job.status not in ['ASSIGNED', 'ACTIVE', 'IN_PROGRESS']:
+            return Response({
+                'success': False,
+                'error': f'Cannot dispatch employee for job in {job.status} status'
+            }, status=400)
+        
+        # Get employee
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Verify employee belongs to this agency
+        if employee.agency_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This employee does not belong to your agency'
+            }, status=403)
+        
+        # Get or verify assignment exists
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} is not assigned to this job'
+            }, status=404)
+        
+        # Check if already dispatched
+        if assignment.dispatched:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has already been dispatched',
+                'dispatched_at': assignment.dispatchedAt.isoformat() if assignment.dispatchedAt else None
+            }, status=400)
+        
+        # Mark as dispatched
+        assignment.dispatched = True
+        assignment.dispatchedAt = timezone.now()
+        assignment.status = 'IN_PROGRESS'
+        assignment.save()
+        
+        # Update job status if needed
+        if job.status == 'ASSIGNED':
+            job.status = 'IN_PROGRESS'
+            job.save()
+        
+        logger.info(f"✅ Agency dispatched employee #{employee_id} ({employee.fullName}) for PROJECT job #{job_id}")
+        
+        return {
+            'success': True,
+            'message': f'{employee.fullName} has been dispatched',
+            'assignment_id': assignment.assignmentID,
+            'employee_id': employee_id,
+            'employee_name': employee.fullName,
+            'dispatched_at': assignment.dispatchedAt.isoformat(),
+            'status': assignment.status,
+            'next_step': 'Wait for client to confirm employee arrival'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error dispatching project employee: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/mark-complete-project",
+    auth=cookie_auth,
+    response={200: dict, 400: dict, 403: dict, 404: dict}
+)
+def mark_project_employee_complete(request, job_id: int, employee_id: int, notes: str = ""):
+    """
+    Mark an agency employee's work as complete for a PROJECT-based job.
+    This is done by the agency after the employee reports job completion.
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    
+    Requires:
+    - Employee must be dispatched
+    - Client must have confirmed employee arrival
+    """
+    try:
+        from accounts.models import Job, JobEmployeeAssignment
+        from agency.models import AgencyEmployee
+        from django.utils import timezone
+        
+        user = request.auth
+        
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({
+                'success': False,
+                'error': 'This endpoint is for PROJECT jobs only. Use daily endpoints for daily-rate jobs.'
+            }, status=400)
+        
+        # Verify job belongs to this agency
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Get employee
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Get assignment
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} is not assigned to this job'
+            }, status=404)
+        
+        # Verify workflow order: must be dispatched first
+        if not assignment.dispatched:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has not been dispatched yet. Dispatch first.'
+            }, status=400)
+        
+        # Verify workflow order: client must have confirmed arrival
+        if not assignment.clientConfirmedArrival:
+            return Response({
+                'success': False,
+                'error': f'Client has not confirmed {employee.fullName}\'s arrival yet. Wait for client confirmation.'
+            }, status=400)
+        
+        # Check if already marked complete
+        if assignment.agencyMarkedComplete:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName}\'s work has already been marked complete',
+                'marked_complete_at': assignment.agencyMarkedCompleteAt.isoformat() if assignment.agencyMarkedCompleteAt else None
+            }, status=400)
+        
+        # Mark as complete
+        assignment.agencyMarkedComplete = True
+        assignment.agencyMarkedCompleteAt = timezone.now()
+        assignment.completionNotes = notes or ""
+        assignment.save()
+        
+        # Check if ALL employees are complete
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        )
+        all_complete = all(a.agencyMarkedComplete for a in all_assignments)
+        completed_count = sum(1 for a in all_assignments if a.agencyMarkedComplete)
+        total_count = all_assignments.count()
+        
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) complete for PROJECT job #{job_id} ({completed_count}/{total_count})")
+        
+        return {
+            'success': True,
+            'message': f'{employee.fullName}\'s work has been marked complete',
+            'assignment_id': assignment.assignmentID,
+            'employee_id': employee_id,
+            'employee_name': employee.fullName,
+            'marked_complete_at': assignment.agencyMarkedCompleteAt.isoformat(),
+            'notes': notes,
+            'all_complete': all_complete,
+            'completed_count': completed_count,
+            'total_count': total_count,
+            'next_step': 'Waiting for client to approve and pay' if all_complete else f'{total_count - completed_count} employee(s) remaining'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error marking project employee complete: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
