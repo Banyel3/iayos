@@ -37,6 +37,8 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
+  useWorkerCompleteAssignment,
+  useClientApproveTeamJob,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
