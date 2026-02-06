@@ -3559,8 +3559,15 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
         except AgencyEmployee.DoesNotExist:
             return Response({'success': False, 'error': 'Employee not found'}, status=404)
         
+        # Verify the employee belongs to the authenticated agency
+        if employee.agency_id != user.id:
+            return Response({
+                'success': False,
+                'error': 'This employee does not belong to your agency'
+            }, status=403)
+        
         # Verify job was assigned to this agency
-        if job.assignedAgencyFK_id != employee.agency_id:
+        if job.assignedAgencyFK_id != user.id:
             return Response({
                 'success': False,
                 'error': 'This job is not assigned to your agency'
@@ -3657,8 +3664,15 @@ def mark_employee_checkout(request, job_id: int, employee_id: int):
         except AgencyEmployee.DoesNotExist:
             return Response({'success': False, 'error': 'Employee not found'}, status=404)
         
+        # Verify the employee belongs to the authenticated agency
+        if employee.agency_id != user.id:
+            return Response({
+                'success': False,
+                'error': 'This employee does not belong to your agency'
+            }, status=403)
+        
         # Verify job was assigned to this agency
-        if job.assignedAgencyFK_id != employee.agency_id:
+        if job.assignedAgencyFK_id != user.id:
             return Response({
                 'success': False,
                 'error': 'This job is not assigned to your agency'
