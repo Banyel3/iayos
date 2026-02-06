@@ -3589,7 +3589,7 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
         if existing_attendance and existing_attendance.time_in:
             return Response({
                 'success': False,
-                'error': f'{employee.accountFK.profileID.firstName} has already been marked as arrived today',
+                'error': f'{employee.fullName} has already been marked as arrived today',
                 'attendance_id': existing_attendance.attendanceID
             }, status=400)
         
@@ -3609,14 +3609,14 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
                 'error': result.get('error', 'Failed to log attendance')
             }, status=400)
         
-        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.accountFK.profileID.firstName}) arrival for job #{job_id}")
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) arrival for job #{job_id}")
         
         return {
             'success': True,
-            'message': f'{employee.accountFK.profileID.firstName} marked as arrived',
+            'message': f'{employee.fullName} marked as arrived',
             'attendance_id': result['attendance_id'],
             'employee_id': employee_id,
-            'employee_name': f"{employee.accountFK.profileID.firstName} {employee.accountFK.profileID.lastName}",
+            'employee_name': employee.fullName,
             'date': str(today),
             'time_in': timezone.now().isoformat(),
             'time_out': None,
@@ -3769,7 +3769,7 @@ def get_daily_attendance(request, job_id: int, date: str = None):
         attendances = DailyAttendance.objects.filter(
             jobID=job,
             date=query_date
-        ).select_related('employeeID__accountFK__profileID').order_by('employeeID__accountFK__profileID__firstName')
+        ).select_related('employeeID').order_by('employeeID__firstName')
         
         records = []
         for att in attendances:
@@ -3777,7 +3777,7 @@ def get_daily_attendance(request, job_id: int, date: str = None):
                 records.append({
                     'attendance_id': att.attendanceID,
                     'employee_id': att.employeeID.employeeID,
-                    'employee_name': f"{att.employeeID.accountFK.profileID.firstName} {att.employeeID.accountFK.profileID.lastName}",
+                    'employee_name': att.employeeID.fullName,
                     'date': str(att.date),
                     'time_in': att.time_in.isoformat() if att.time_in else None,
                     'time_out': att.time_out.isoformat() if att.time_out else None,
