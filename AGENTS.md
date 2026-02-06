@@ -4,6 +4,57 @@
 
 iAyos is a comprehensive marketplace platform for blue-collar services connecting clients with skilled workers through a secure, feature-rich ecosystem.
 
+---
+
+## 📝 Development Workflow Reminder
+
+### Mobile Changelog Updates
+
+**⚠️ IMPORTANT**: When making changes to the mobile app (`apps/frontend_mobile/`), **ALWAYS update the CHANGELOG.md**:
+
+**File**: `apps/frontend_mobile/iayos_mobile/CHANGELOG.md`
+
+**Process**:
+1. Add your changes to the `[Unreleased]` section
+2. Use the appropriate category:
+   - `### Added` - New features
+   - `### Changed` - Changes to existing functionality  
+   - `### Fixed` - Bug fixes
+   - `### Removed` - Removed features
+
+**Format**:
+```markdown
+## [Unreleased]
+
+### Fixed
+- **Feature Name** (PR #XXX)
+  - Brief description of what changed
+  - Additional context if needed
+  - **Impact**: How users benefit from this change
+```
+
+**Example**:
+```markdown
+## [Unreleased]
+
+### Fixed
+- **Payment Method Validation** (PR #123)
+  - Fixed wallet deposit validation to require GCash account
+  - Auto-redirect to payment methods screen if not configured
+  - **Impact**: Users can't start deposits without payment method set up
+```
+
+**Why This Matters**:
+- Mobile release workflow (`mobile-release.yml`) automatically extracts changelog entries
+- GitHub Releases will show user-facing changes instead of generic "See commit history"
+- Users can see exactly what's new/fixed in each version
+
+**Validation**:
+- Optional pre-commit hook checks if mobile files changed but CHANGELOG not updated
+- Use `git commit --no-verify` to bypass if needed
+
+---
+
 ## 🆕 LATEST UPDATE - Agency Daily Payment Fields Fix ✅ (February 2026)
 
 **Status**: ✅ IMPLEMENTATION COMPLETE  
@@ -15,11 +66,13 @@ iAyos is a comprehensive marketplace platform for blue-collar services connectin
 ### What Was Fixed
 
 **Problem**:
+
 - Agency backend services `get_agency_jobs` and `get_agency_job_detail` were NOT returning daily payment fields
 - Frontend TypeScript interfaces expected these fields but received `undefined`
 - DailyJobScheduleCard and PaymentModelBadge components would render with default/empty values instead of actual job data
 
 **Missing Fields**:
+
 - `payment_model` (PROJECT or DAILY)
 - `daily_rate_agreed` (daily rate in PHP)
 - `duration_days` (expected job duration)
@@ -43,6 +96,7 @@ Added all 6 daily payment fields to both agency service functions using safe att
 ### Files Modified
 
 **Backend** (1 file, ~18 lines added):
+
 - `apps/backend/src/agency/services.py`
   - Line ~970: Added 6 fields to `get_agency_jobs()` function
   - Line ~1127: Added 6 fields to `get_agency_job_detail()` function
@@ -50,6 +104,7 @@ Added all 6 daily payment fields to both agency service functions using safe att
 ### Frontend Verification
 
 **Already Handles Defaults** (no changes needed):
+
 - `apps/frontend_web/components/agency/DailyJobScheduleCard.tsx` - Has default props (`dailyRate = 0`, etc.)
 - `apps/frontend_web/app/agency/jobs/[id]/page.tsx` - TypeScript interface already expects fields
 - `apps/frontend_web/app/agency/jobs/page.tsx` - Conditional rendering for payment_model badge
@@ -76,14 +131,17 @@ Added all 6 daily payment fields to both agency service functions using safe att
 ### What Was Fixed
 
 **Problem 1 - Backjob Banner Text Invisible**:
+
 - "Confirm Worker Arrival" banner text was white on light background (impossible to read)
 
 **Problem 2 - Mark Complete Button Unresponsive on Android**:
+
 - Used `Alert.prompt` (iOS-only API) which fails silently on Android
 - Workers on Android couldn't mark jobs/assignments as complete
 - 2 instances: team assignment completion + backjob completion
 
 **Problem 3 - Review Criteria Backwards**:
+
 - WORKER reviewing CLIENT saw wrong criteria (Quality, Communication, Punctuality, Professionalism)
 - CLIENT reviewing WORKER saw single star rating instead of multi-criteria
 - Expected: WORKER→CLIENT (Professionalism, Communication, Quality, Value), CLIENT→WORKER (Punctuality, Reliability, Skill, Workmanship)
@@ -99,6 +157,7 @@ Added all 6 daily payment fields to both agency service functions using safe att
 **File Modified**: `apps/frontend_mobile/iayos_mobile/app/messages/[conversationId].tsx` (+167/-77 lines)
 
 #### Bug 1: Banner Visibility (Line 3611)
+
 ```typescript
 // BEFORE (invisible)
 waitingButtonText: {
@@ -112,6 +171,7 @@ waitingButtonText: {
 ```
 
 #### Bug 2: Alert.prompt → Alert.alert (Lines 274, 494)
+
 ```typescript
 // BEFORE (iOS-only, broken on Android)
 Alert.prompt("Mark Assignment Complete", "Add notes:", [...], "", "default");
@@ -121,13 +181,16 @@ Alert.alert("Mark Assignment Complete", "Are you sure?", [...]);
 ```
 
 #### Bug 3: Review Criteria UI (Lines 2551-2720)
+
 **State Variable Mapping**:
+
 - **WORKER → CLIENT**: ratingProfessionalism (👔 Professionalism), ratingCommunication (💬), ratingQuality (🏆), ratingPunctuality (💰 Value)
 - **CLIENT → WORKER**: ratingPunctuality (⏰), ratingProfessionalism (✅ Reliability), ratingQuality (🔧 Skill), ratingCommunication (🛠️ Workmanship)
 
 ### Files Modified
 
 **Frontend** (1 file, ~244 lines changed):
+
 - `apps/frontend_mobile/iayos_mobile/app/messages/[conversationId].tsx`
   - Line 3611: Banner text color fix
   - Lines 274-291: Alert.alert conversion (team assignment)
@@ -136,6 +199,7 @@ Alert.alert("Mark Assignment Complete", "Are you sure?", [...]);
   - Lines 2551-2720: Complete review UI rewrite
 
 **Documentation** (1 file):
+
 - `docs/bug-fixes/MOBILE_BACKJOB_REVIEW_BUGS_FIX.md` (comprehensive guide)
 
 ### Testing
