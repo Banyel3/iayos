@@ -3555,15 +3555,12 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
         
         # Verify the employee belongs to this agency
         try:
-            employee = AgencyEmployee.objects.select_related(
-                'accountFK__profileID',
-                'agencyID__accountFK'
-            ).get(employeeID=employee_id)
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
         except AgencyEmployee.DoesNotExist:
             return Response({'success': False, 'error': 'Employee not found'}, status=404)
         
         # Verify job was assigned to this agency
-        if job.assignedAgencyID != employee.agencyID:
+        if job.assignedAgencyFK_id != employee.agency_id:
             return Response({
                 'success': False,
                 'error': 'This job is not assigned to your agency'
@@ -3656,15 +3653,12 @@ def mark_employee_checkout(request, job_id: int, employee_id: int):
         
         # Verify the employee belongs to this agency
         try:
-            employee = AgencyEmployee.objects.select_related(
-                'accountFK__profileID',
-                'agencyID__accountFK'
-            ).get(employeeID=employee_id)
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
         except AgencyEmployee.DoesNotExist:
             return Response({'success': False, 'error': 'Employee not found'}, status=404)
         
         # Verify job was assigned to this agency
-        if job.assignedAgencyID != employee.agencyID:
+        if job.assignedAgencyFK_id != employee.agency_id:
             return Response({
                 'success': False,
                 'error': 'This job is not assigned to your agency'
@@ -3682,14 +3676,14 @@ def mark_employee_checkout(request, job_id: int, employee_id: int):
         except DailyAttendance.DoesNotExist:
             return Response({
                 'success': False,
-                'error': f'{employee.accountFK.profileID.firstName} has not been marked as arrived today'
+                'error': f'{employee.fullName} has not been marked as arrived today'
             }, status=400)
         
         # Check if already checked out
         if attendance.time_out:
             return Response({
                 'success': False,
-                'error': f'{employee.accountFK.profileID.firstName} has already been checked out today',
+                'error': f'{employee.fullName} has already been checked out today',
                 'attendance_id': attendance.attendanceID
             }, status=400)
         
@@ -3698,14 +3692,14 @@ def mark_employee_checkout(request, job_id: int, employee_id: int):
         attendance.worker_confirmed = True  # Agency rep confirms work done
         attendance.save()
         
-        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.accountFK.profileID.firstName}) checkout for job #{job_id}")
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) checkout for job #{job_id}")
         
         return {
             'success': True,
-            'message': f'{employee.accountFK.profileID.firstName} marked as checked out',
+            'message': f'{employee.fullName} marked as checked out',
             'attendance_id': attendance.attendanceID,
             'employee_id': employee_id,
-            'employee_name': f"{employee.accountFK.profileID.firstName} {employee.accountFK.profileID.lastName}",
+            'employee_name': employee.fullName,
             'date': str(today),
             'time_in': attendance.time_in.isoformat() if attendance.time_in else None,
             'time_out': timezone.now().isoformat(),
@@ -3741,13 +3735,13 @@ def get_daily_attendance(request, job_id: int, date: str = None):
         try:
             job = Job.objects.select_related(
                 'clientID__profileID',
-                'assignedAgencyID__accountFK'
+                'assignedAgencyFK'
             ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({'success': False, 'error': 'Job not found'}, status=404)
         
         # Verify job belongs to this agency
-        if not job.assignedAgencyID:
+        if not job.assignedAgencyFK:
             return Response({
                 'success': False,
                 'error': 'Job is not assigned to any agency'
