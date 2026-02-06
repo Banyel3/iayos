@@ -22,8 +22,9 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router, Stack } from "expo-router";
+import { useLocalSearchParams, router, Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { safeGoBack } from "../../lib/hooks/useSafeBack";
 import {
   useMessages,
   useSendMessageMutation,
@@ -80,6 +81,7 @@ import * as ImagePicker from "expo-image-picker";
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const conversationId = parseInt(params.conversationId as string);
+  const routerHook = useRouter(); // For safe back navigation
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
@@ -1153,7 +1155,7 @@ export default function ChatScreen() {
           <Text style={styles.errorText}>Conversation not found</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(routerHook, "/(tabs)/messages")}
           >
             <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
@@ -1167,7 +1169,7 @@ export default function ChatScreen() {
       {/* Custom Header */}
       <View style={styles.customHeader}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(routerHook, "/(tabs)/messages")}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

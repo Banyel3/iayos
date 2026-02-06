@@ -5,6 +5,16 @@ All notable changes to the iAyos Mobile App will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Back Button Closes App Issue**
+  - Fixed critical bug where tapping the back button (top-left) would close the app instead of navigating back
+  - Root cause: 100+ screens used `router.back()` without checking if navigation history exists
+  - Solution: Created `useSafeBack` hook that checks `router.canGoBack()` and falls back to home tabs if no history
+  - Fixed critical deep-linkable screens: jobs/[id], workers/[id], messages/[conversationId], notifications, wallet
+  - **Impact**: Users can now navigate back safely from any screen, even when opened via deep links or notifications
+
 ## [2.0.5] - 2026-02-06
 
 ### Fixed
