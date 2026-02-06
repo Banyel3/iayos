@@ -21,11 +21,12 @@ import {
   Button,
   ActivityIndicator,
 } from "react-native-paper";
-import { router, Stack } from "expo-router";
+import { router, Stack, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
 import { Colors, Typography, Spacing } from "@/constants/theme";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 
 import NotificationCard from "@/components/Notifications/NotificationCard";
 import {
@@ -39,6 +40,7 @@ import {
 export default function NotificationsScreen() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const routerHook = useRouter(); // For safe back navigation
 
   // Fetch notifications based on filter
   const {
@@ -171,7 +173,7 @@ export default function NotificationsScreen() {
         <SafeAreaView style={styles.container} edges={["top"]}>
           <View style={styles.header}>
             <Appbar.BackAction
-              onPress={() => router.back()}
+              onPress={() => safeGoBack(routerHook, "/(tabs)")}
               color={Colors.textPrimary}
             />
             <Text style={styles.headerTitle}>Notifications</Text>
@@ -202,7 +204,7 @@ export default function NotificationsScreen() {
         {/* Custom Header */}
         <View style={styles.header}>
           <Appbar.BackAction
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(routerHook, "/(tabs)")}
             color={Colors.textPrimary}
           />
           <Text style={styles.headerTitle}>Notifications</Text>

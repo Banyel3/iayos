@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
+import { useSafeBack, safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
   Colors,
   Typography,
@@ -402,7 +403,7 @@ export default function JobDetailScreen() {
       setBudgetOption("ACCEPT");
       queryClient.invalidateQueries({ queryKey: ["jobs", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
-      router.back();
+      safeGoBack(router, "/(tabs)/jobs");
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -455,7 +456,7 @@ export default function JobDetailScreen() {
             onPress: () => {
               queryClient.invalidateQueries({ queryKey: ["jobs"] });
               queryClient.invalidateQueries({ queryKey: ["jobs", id] });
-              router.back();
+              safeGoBack(router, "/(tabs)/jobs");
             },
           },
         ],
@@ -490,7 +491,7 @@ export default function JobDetailScreen() {
             text: "OK",
             onPress: () => {
               queryClient.invalidateQueries({ queryKey: ["jobs"] });
-              router.back();
+              safeGoBack(router, "/(tabs)/jobs");
             },
           },
         ],
@@ -947,7 +948,7 @@ export default function JobDetailScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
             style={styles.backIconButton}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -1002,7 +1003,7 @@ export default function JobDetailScreen() {
           <Text style={styles.errorText}>Failed to load job details</Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
@@ -1059,7 +1060,7 @@ export default function JobDetailScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           style={styles.backIconButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
