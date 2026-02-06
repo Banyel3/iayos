@@ -148,20 +148,55 @@ class DailyPaymentService:
             amount = Decimal('0.00')
         
         # Create or update attendance record
-        attendance, created = DailyAttendance.objects.update_or_create(
-            jobID=job,
-            workerID=worker,
-            date=work_date,
-            defaults={
-                'assignmentID': assignment,
-                'employeeID_id': employee_id,
-                'time_in': time_in,
-                'time_out': time_out,
-                'status': status,
-                'amount_earned': amount,
-                'notes': notes,
-            }
-        )
+        # Use different lookup fields based on worker type to ensure unique records
+        if employee_id:
+            # Agency employee - use employeeID in lookup
+            attendance, created = DailyAttendance.objects.update_or_create(
+                jobID=job,
+                employeeID_id=employee_id,
+                date=work_date,
+                defaults={
+                    'workerID': None,
+                    'assignmentID': None,
+                    'time_in': time_in,
+                    'time_out': time_out,
+                    'status': status,
+                    'amount_earned': amount,
+                    'notes': notes,
+                }
+            )
+        elif assignment:
+            # Team job assignment - use assignmentID in lookup
+            attendance, created = DailyAttendance.objects.update_or_create(
+                jobID=job,
+                assignmentID=assignment,
+                date=work_date,
+                defaults={
+                    'workerID': worker,
+                    'employeeID': None,
+                    'time_in': time_in,
+                    'time_out': time_out,
+                    'status': status,
+                    'amount_earned': amount,
+                    'notes': notes,
+                }
+            )
+        else:
+            # Individual worker - use workerID in lookup
+            attendance, created = DailyAttendance.objects.update_or_create(
+                jobID=job,
+                workerID=worker,
+                date=work_date,
+                defaults={
+                    'assignmentID': None,
+                    'employeeID': None,
+                    'time_in': time_in,
+                    'time_out': time_out,
+                    'status': status,
+                    'amount_earned': amount,
+                    'notes': notes,
+                }
+            )
         
         return {
             'success': True,

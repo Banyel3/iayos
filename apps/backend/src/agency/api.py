@@ -3529,14 +3529,15 @@ def agency_respond_to_review(request, review_id: int):
 # ============================================================================
 
 @router.post(
-    "/jobs/{job_id}/employees/{employee_id}/mark-arrival",
+    "/jobs/{job_id}/employees/{employee_id}/dispatch",
     auth=cookie_auth,
     response=schemas.MarkEmployeeAttendanceResponse
 )
-def mark_employee_arrival(request, job_id: int, employee_id: int):
+def dispatch_employee(request, job_id: int, employee_id: int):
     """
-    Mark an agency employee as arrived for a daily-rate job.
-    Agency representative uses this to check in employees.
+    Dispatch an agency employee for a daily-rate job.
+    Agency representative uses this to mark employee as 'on the way'.
+    Client will verify arrival (which starts the work timer).
     """
     try:
         from accounts.models import Job
@@ -3590,21 +3591,21 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
             date=today
         ).first()
         
-        if existing_attendance and existing_attendance.time_in:
+        if existing_attendance:
             return Response({
                 'success': False,
-                'error': f'{employee.fullName} has already been marked as arrived today',
+                'error': f'{employee.fullName} has already been dispatched today',
                 'attendance_id': existing_attendance.attendanceID
             }, status=400)
         
-        # Mark arrival using DailyPaymentService
+        # Mark as dispatched (on the way) - client will verify arrival
         result = DailyPaymentService.log_attendance(
             job=job,
             employee_id=employee_id,
             work_date=today,
-            time_in=timezone.now(),
-            status='PENDING',  # Will be confirmed by client
-            notes=f'Marked by agency representative'
+            time_in=None,  # time_in is set when client verifies arrival
+            status='DISPATCHED',  # On the way - client verifies arrival
+            notes=f'Dispatched by agency representative'
         )
         
         if not result.get('success'):
@@ -3613,18 +3614,18 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
                 'error': result.get('error', 'Failed to log attendance')
             }, status=400)
         
-        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) arrival for job #{job_id}")
+        logger.info(f"✅ Agency dispatched employee #{employee_id} ({employee.fullName}) for job #{job_id}")
         
         return {
             'success': True,
-            'message': f'{employee.fullName} marked as arrived',
+            'message': f'{employee.fullName} dispatched (on the way)',
             'attendance_id': result['attendance_id'],
             'employee_id': employee_id,
             'employee_name': employee.fullName,
             'date': str(today),
-            'time_in': timezone.now().isoformat(),
+            'time_in': None,
             'time_out': None,
-            'status': 'PENDING'
+            'status': 'DISPATCHED'
         }
         
     except Exception as e:
@@ -3641,8 +3642,23 @@ def mark_employee_arrival(request, job_id: int, employee_id: int):
 )
 def mark_employee_checkout(request, job_id: int, employee_id: int):
     """
+    DEPRECATED: Client now marks checkout instead of agency.
+    This endpoint returns an error directing users to the new flow.
+    """
+    return Response({
+        'success': False,
+        'error': 'This endpoint is deprecated. Client must mark checkout using verify-arrival and mark-checkout endpoints.'
+    }, status=400)
+
+
+# ============================================================================
+# LEGACY mark_employee_checkout BELOW (kept for reference, not used)
+# ============================================================================
+def _mark_employee_checkout_legacy(request, job_id: int, employee_id: int):
+    """
     Mark an agency employee as checked out for a daily-rate job.
     Agency representative uses this to check out employees at end of day.
+    DEPRECATED - Client now handles checkout.
     """
     try:
         from accounts.models import Job, DailyAttendance

@@ -63,9 +63,10 @@ export function useAgencyDailyAttendance(jobId: number, date?: string) {
 }
 
 /**
- * Mark employee arrival
+ * Dispatch employee (mark as "on the way")
+ * Client will verify arrival to start work timer
  */
-export function useMarkEmployeeArrival() {
+export function useDispatchEmployee() {
   const queryClient = useQueryClient();
 
   return useMutation<
@@ -75,7 +76,7 @@ export function useMarkEmployeeArrival() {
   >({
     mutationFn: async ({ jobId, employeeId }) => {
       const response = await fetch(
-        `${API_BASE}/api/agency/jobs/${jobId}/employees/${employeeId}/mark-arrival`,
+        `${API_BASE}/api/agency/jobs/${jobId}/employees/${employeeId}/dispatch`,
         {
           method: "POST",
           credentials: "include",
@@ -84,7 +85,7 @@ export function useMarkEmployeeArrival() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to mark arrival");
+        throw new Error(error.error || "Failed to dispatch employee");
       }
 
       return response.json();
@@ -103,7 +104,8 @@ export function useMarkEmployeeArrival() {
 }
 
 /**
- * Mark employee checkout
+ * @deprecated Client now marks checkout instead of agency
+ * Kept for backward compatibility - will return error from backend
  */
 export function useMarkEmployeeCheckout() {
   const queryClient = useQueryClient();
