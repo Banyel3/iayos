@@ -6659,6 +6659,18 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
     # Set time_in (work starts now) and change status to PENDING
     attendance.time_in = timezone.now()
     attendance.status = 'PENDING'
+    
+    # FIX: Recalculate amount_earned from ₱0 (DISPATCHED initial state)
+    # When agency dispatches employee, amount starts at ₱0. Now that work begins,
+    # set the actual daily rate so workers see correct payment amount in UI.
+    from decimal import Decimal
+    daily_rate = Decimal('0.00')
+    if attendance.employeeID and attendance.employeeID.daily_rate:
+        daily_rate = attendance.employeeID.daily_rate
+    elif attendance.jobID and attendance.jobID.daily_rate_agreed:
+        daily_rate = attendance.jobID.daily_rate_agreed
+    attendance.amount_earned = daily_rate
+    
     attendance.save()
     
     # Get employee name for response
