@@ -92,6 +92,13 @@ export type ConversationDetail = {
     rating?: number | null;
     isPrimaryContact?: boolean;
     reviewSubmitted?: boolean;
+    // PROJECT job workflow tracking (mirrors DAILY job DailyAttendance)
+    dispatched?: boolean;
+    dispatchedAt?: string | null;
+    clientConfirmedArrival?: boolean;
+    clientConfirmedArrivalAt?: string | null;
+    agencyMarkedComplete?: boolean;
+    agencyMarkedCompleteAt?: string | null;
   }>;
   pending_employee_reviews?: number[]; // Employee IDs not yet reviewed
   all_employees_reviewed?: boolean;
