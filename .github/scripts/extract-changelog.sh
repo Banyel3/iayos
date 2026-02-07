@@ -31,6 +31,20 @@ CHANGELOG_CONTENT=$(awk "/^## \[$VERSION\]/,/^## \[/ {
   print 
 }" "$CHANGELOG_FILE" | sed '/^$/d' | sed 's/^[ \t]*//')
 
+# If no content found for specific version, try extracting [Unreleased] section
+if [ -z "$CHANGELOG_CONTENT" ]; then
+  echo "No entry for [$VERSION], extracting [Unreleased] section..." >&2
+  CHANGELOG_CONTENT=$(awk '/^## \[Unreleased\]/,/^## \[/ { 
+    if (/^## \[Unreleased\]/) { 
+      next 
+    } 
+    if (/^## \[/ && !/^## \[Unreleased\]/) { 
+      exit 
+    } 
+    print 
+  }' "$CHANGELOG_FILE" | sed '/^$/d' | sed 's/^[ \t]*//')
+fi
+
 # Check if we found content
 if [ -z "$CHANGELOG_CONTENT" ]; then
   echo "No changelog entry found for version $VERSION. See commit history for detailed changes."
