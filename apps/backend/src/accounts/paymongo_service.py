@@ -260,14 +260,14 @@ class PayMongoService(PaymentProviderInterface):
         return self.create_checkout_session(
             amount=amount,
             currency="PHP",
-            description=description or f"Wallet Deposit (GCash) - ₱{amount}",
+            description=description or f"Wallet Deposit (Card) - ₱{amount}",
             user_email=user_email,
             user_name=user_name,
             transaction_id=transaction_id,
-            payment_methods=["gcash"],  # Direct GCash - redirects to GCash app
+            payment_methods=["card"],  # Card payment - works in PayMongo test mode
             success_url=success_url or f"{frontend_url}/dashboard/profile?payment=success",
             failure_url=failure_url or f"{frontend_url}/dashboard/profile?payment=failed",
-            metadata={"payment_type": "wallet_deposit", "method": "gcash_direct"}
+            metadata={"payment_type": "wallet_deposit", "method": "card"}
         )
     
     def create_escrow_payment(

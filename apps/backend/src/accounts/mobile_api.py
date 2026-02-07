@@ -3752,9 +3752,9 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
         from decimal import Decimal
         
         amount = payload.amount
-        payment_method = "GCASH"
+        payment_method = "CARD"
 
-        print(f"📥 [Mobile] GCash Direct Deposit request (TESTING): ₱{amount} from {request.auth.email}")
+        print(f"📥 [Mobile] Card Deposit request (TESTING): ₱{amount} from {request.auth.email}")
         
         if amount <= 0:
             return Response(
@@ -3797,10 +3797,10 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             paymentMethod=payment_method,
         )
         
-        # Create GCash direct payment
+        # Create Card payment (works in PayMongo test mode)
         payment_provider = get_payment_provider()
         
-        # Use the direct GCash method instead of QR PH
+        # Use Card payment method for testing
         payment_result = payment_provider.create_gcash_direct_payment(
             amount=amount,
             user_email=request.auth.email,
@@ -3822,10 +3822,10 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
         transaction.xenditExternalID = payment_result.get('external_id')
         transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         transaction.xenditPaymentChannel = payment_method
-        transaction.xenditPaymentMethod = "PAYMONGO_GCASH"
+        transaction.xenditPaymentMethod = "PAYMONGO_CARD"
         transaction.save()
         
-        print(f"📄 GCash Direct payment created (TESTING): {transaction.xenditInvoiceID}")
+        print(f"📄 Card payment created (TESTING): {transaction.xenditInvoiceID}")
         
         return {
             "success": True,
@@ -3836,9 +3836,9 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             "current_balance": float(wallet.balance),
             "expiry_date": payment_result.get('expiry_date'),
             "provider": "paymongo",
-            "method": "gcash_direct",
+            "method": "card",
             "status": "pending",
-            "message": "GCash payment link created (Testing mode). Complete payment to add funds."
+            "message": "Card payment link created (Testing mode). Complete payment to add funds."
         }
         
     except Exception as e:
