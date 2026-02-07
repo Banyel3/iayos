@@ -337,6 +337,66 @@ export default function CreateJobScreen() {
 
   const categories = categoriesData || [];
 
+  // Fetch worker details (including skills) when hiring a specific worker
+  interface WorkerSkill {
+    id: number;
+    name: string;
+    experience_years: number;
+    certification_count: number;
+  }
+  
+  interface WorkerDetailResponse {
+    success: boolean;
+    data?: {
+      id: number;
+      name: string;
+      skills?: WorkerSkill[];
+    };
+  }
+
+  const { data: workerDetailsData, isLoading: workerDetailsLoading } = useQuery({
+    queryKey: ["workerDetails", workerId],
+    queryFn: async () => {
+      if (!workerId) return null;
+      const response = await fetchJson<WorkerDetailResponse>(
+        ENDPOINTS.WORKER_DETAIL(parseInt(workerId)),
+      );
+      return response?.data || null;
+    },
+    enabled: !!workerId, // Only fetch when workerId is provided
+  });
+
+  // Filter categories to only show worker's skills when hiring specific worker
+  const filteredCategories = React.useMemo(() => {
+    if (!workerId || !workerDetailsData?.skills) {
+      return categories; // Show all categories for LISTING jobs
+    }
+    // For INVITE jobs, only show worker's skills
+    const workerSkillIds = workerDetailsData.skills.map((s) => s.id);
+    return categories.filter((cat) => workerSkillIds.includes(cat.id));
+  }, [workerId, workerDetailsData, categories]);
+
+  // Auto-select category when worker has exactly 1 skill
+  useEffect(() => {
+    if (workerId && workerDetailsData?.skills && !categoryId) {
+      const skills = workerDetailsData.skills;
+      if (skills.length === 1) {
+        // Auto-select the single skill
+        const singleSkill = skills[0];
+        setCategoryId(singleSkill.id);
+        // Find matching category for minimum_rate
+        const matchingCat = categories.find((c) => c.id === singleSkill.id);
+        if (matchingCat) {
+          setSelectedCategory(matchingCat);
+          if (matchingCat.minimum_rate > 0) {
+            setBudget(matchingCat.minimum_rate.toFixed(2));
+          }
+        }
+        console.log(`[CreateJob] Auto-selected worker's single skill: ${singleSkill.name}`);
+      }
+    }
+  }, [workerId, workerDetailsData, categories, categoryId]);
+
   const getSpecializationName = useCallback(
     (specId: number) => {
       if (!categories || !Array.isArray(categories)) {
@@ -661,14 +721,22 @@ export default function CreateJobScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Category *</Text>
-                {categoriesLoading ? (
+                {/* Show hint when hiring specific worker */}
+                {workerId && workerDetailsData?.skills && (
+                  <Text style={[styles.sectionHint, { marginBottom: 8 }]}>
+                    {workerDetailsData.skills.length === 1
+                      ? `Auto-selected based on ${workerDetailsData?.name || 'worker'}'s skill`
+                      : `Showing only ${workerDetailsData?.name || 'worker'}'s skills (${workerDetailsData.skills.length} available)`}
+                  </Text>
+                )}
+                {categoriesLoading || workerDetailsLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.loadingText}>
-                      Loading categories...
+                      {workerDetailsLoading ? "Loading worker skills..." : "Loading categories..."}
                     </Text>
                   </View>
-                ) : !Array.isArray(categories) || categories.length === 0 ? (
+                ) : !Array.isArray(filteredCategories) || filteredCategories.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
                     <Ionicons
                       name="alert-circle-outline"
@@ -676,8 +744,9 @@ export default function CreateJobScreen() {
                       color={Colors.warning}
                     />
                     <Text style={styles.emptyStateText}>
-                      No specializations available in database. Please contact
-                      support.
+                      {workerId 
+                        ? "Worker has no skills registered. They need to add skills to their profile."
+                        : "No specializations available in database. Please contact support."}
                     </Text>
                   </View>
                 ) : (
@@ -686,7 +755,7 @@ export default function CreateJobScreen() {
                     showsHorizontalScrollIndicator={false}
                     style={styles.categoryScroll}
                   >
-                    {categories.map((category) => (
+                    {filteredCategories.map((category) => (
                       <TouchableOpacity
                         key={category.id}
                         style={[
