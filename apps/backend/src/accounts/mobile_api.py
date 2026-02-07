@@ -3729,12 +3729,13 @@ def get_mobile_config(request):
     }
 
 
-# TODO: REMOVE FOR PROD - Testing only GCash direct deposit
+# TODO: REMOVE FOR PROD - Testing only direct deposit (bypasses PayMongo)
 @mobile_router.post("/wallet/deposit-gcash", auth=jwt_auth)
 def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     """
     TODO: REMOVE FOR PROD - Testing only
-    Mobile wallet deposit via direct GCash (for testing when QR PH doesn't work)
+    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely)
+    Directly credits wallet balance without any payment gateway validation.
     Only available when TESTING=true in environment.
     """
     from django.conf import settings
@@ -3742,19 +3743,19 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     # Check if testing mode is enabled
     if not getattr(settings, 'TESTING', False):
         return Response(
-            {"error": "GCash direct deposit is only available in testing mode"},
+            {"error": "Direct deposit is only available in testing mode"},
             status=404
         )
     
     try:
         from .models import Wallet, Transaction, Profile
-        from .payment_provider import get_payment_provider
         from decimal import Decimal
+        from django.utils import timezone
         
         amount = payload.amount
-        payment_method = "CARD"
+        payment_method = "DIRECT_TEST"
 
-        print(f"📥 [Mobile] Card Deposit request (TESTING): ₱{amount} from {request.auth.email}")
+        print(f"📥 [Mobile] Direct Deposit request (TESTING): ₱{amount} from {request.auth.email}")
         
         if amount <= 0:
             return Response(
@@ -3762,91 +3763,57 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
                 status=400
             )
         
+        if amount > 100000:
+            return Response(
+                {"error": "Maximum deposit is ₱100,000"},
+                status=400
+            )
+        
         # Get or create wallet
-        wallet, _ = Wallet.objects.get_or_create(
+        wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': 0.00}
+            defaults={'balance': Decimal('0.00')}
         )
         
-        # Get user's profile for name
-        try:
-            profile_type = getattr(request.auth, 'profile_type', None)
-            if profile_type:
-                profile = Profile.objects.filter(
-                    accountFK=request.auth,
-                    profileType=profile_type
-                ).first()
-            else:
-                profile = Profile.objects.filter(accountFK=request.auth).first()
-            
-            if profile:
-                user_name = f"{profile.firstName} {profile.lastName}"
-            else:
-                user_name = request.auth.email.split('@')[0]
-        except Exception:
-            user_name = request.auth.email.split('@')[0]
+        # Calculate new balance
+        old_balance = wallet.balance
+        new_balance = old_balance + Decimal(str(amount))
         
-        # Create PENDING transaction
+        # Update wallet balance immediately
+        wallet.balance = new_balance
+        wallet.save()
+        
+        # Create COMPLETED transaction (no pending state needed)
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.DEPOSIT,
             amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status=Transaction.TransactionStatus.PENDING,
-            description=f"TOP UP via {payment_method} (Testing) - ₱{amount}",
+            balanceAfter=new_balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f"Direct Test Deposit - ₱{amount}",
             paymentMethod=payment_method,
+            completedAt=timezone.now(),
         )
         
-        # Create Card payment (works in PayMongo test mode)
-        payment_provider = get_payment_provider()
-        
-        # Use Card payment method for testing
-        payment_result = payment_provider.create_gcash_direct_payment(
-            amount=amount,
-            user_email=request.auth.email,
-            user_name=user_name,
-            transaction_id=transaction.transactionID
-        )
-        
-        if not payment_result.get("success"):
-            transaction.status = Transaction.TransactionStatus.FAILED
-            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
-            transaction.save()
-            return Response(
-                {"error": "Failed to create payment invoice"},
-                status=500
-            )
-        
-        # Update transaction with payment provider details
-        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
-        transaction.xenditExternalID = payment_result.get('external_id')
-        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
-        transaction.xenditPaymentChannel = payment_method
-        transaction.xenditPaymentMethod = "PAYMONGO_CARD"
-        transaction.save()
-        
-        print(f"📄 Card payment created (TESTING): {transaction.xenditInvoiceID}")
+        print(f"✅ [Mobile] Direct deposit completed (TESTING): ₱{amount} → New balance: ₱{new_balance}")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
-            "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "current_balance": float(wallet.balance),
-            "expiry_date": payment_result.get('expiry_date'),
-            "provider": "paymongo",
-            "method": "card",
-            "status": "pending",
-            "message": "Card payment link created (Testing mode). Complete payment to add funds."
+            "new_balance": float(new_balance),
+            "provider": "direct_test",
+            "method": "direct_test",
+            "status": "completed",
+            "message": f"Test deposit of ₱{amount} added to your wallet instantly!"
         }
         
     except Exception as e:
-        print(f"❌ [Mobile] Error with GCash direct deposit: {str(e)}")
+        print(f"❌ [Mobile] Error with direct deposit: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
-            {"error": "Failed to create GCash deposit"},
+            {"error": "Failed to process direct deposit"},
             status=500
         )
 

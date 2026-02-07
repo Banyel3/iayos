@@ -605,7 +605,7 @@ export default function WalletDepositScreen() {
                       styles.paymentMethodTextActive,
                   ]}
                 >
-                  GCash Direct
+                  Direct Deposit
                 </Text>
                 <Text
                   style={[
@@ -614,7 +614,7 @@ export default function WalletDepositScreen() {
                       styles.paymentMethodSubtextActive,
                   ]}
                 >
-                  Opens GCash app
+                  Test Only - Instant
                 </Text>
               </TouchableOpacity>
             </View>
@@ -631,7 +631,7 @@ export default function WalletDepositScreen() {
             />
             <Text style={styles.infoTitle}>
               {selectedPaymentMethod === "gcash"
-                ? "GCash Direct Payment"
+                ? "Direct Test Deposit"
                 : "QR PH Payment"}
             </Text>
           </View>
@@ -639,8 +639,8 @@ export default function WalletDepositScreen() {
             <>
               <Text style={styles.infoText}>
                 🧪 <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
-                You'll be redirected to GCash to complete your payment directly
-                in the GCash app.
+                Funds will be added to your wallet instantly without any payment
+                gateway. No real money is involved.
               </Text>
               <Text
                 style={[

@@ -288,8 +288,8 @@ export const useWalletDeposit = () => {
   });
 };
 
-// TODO: REMOVE FOR PROD - GCash direct deposit for testing
-// Hook: Wallet deposit via GCash Direct (testing only)
+// TODO: REMOVE FOR PROD - Direct deposit for testing (bypasses PayMongo)
+// Hook: Wallet deposit via Direct Test (testing only - instant balance update)
 export const useWalletDepositGCash = () => {
   const queryClient = useQueryClient();
 
@@ -303,7 +303,7 @@ export const useWalletDepositGCash = () => {
         },
         body: JSON.stringify({
           amount,
-          payment_method: "GCASH",
+          payment_method: "DIRECT_TEST",
         }),
       });
     },
@@ -313,17 +313,15 @@ export const useWalletDepositGCash = () => {
 
       Toast.show({
         type: "success",
-        text1: "GCash Deposit Initiated (Testing)",
-        text2: data.payment_url
-          ? "Redirecting to GCash..."
-          : "Wallet balance updated",
+        text1: "Direct Deposit Complete (Testing)",
+        text2: `₱${data.amount} added to wallet instantly`,
         position: "top",
       });
     },
     onError: (error: Error) => {
       Toast.show({
         type: "error",
-        text1: "GCash Deposit Failed",
+        text1: "Direct Deposit Failed",
         text2: error.message,
         position: "top",
       });
