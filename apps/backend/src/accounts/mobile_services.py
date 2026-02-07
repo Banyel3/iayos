@@ -945,13 +945,55 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             category = Specializations.objects.get(specializationID=skill_slots_data[0]['specialization_id'])
             print(f"📋 Multi-employee mode: {len(skill_slots_data)} skill slots, {total_workers} total workers")
         else:
-            # Single-category mode (backwards compatibility)
-            if not category_id:
-                return {'success': False, 'error': 'category_id is required for single-employee mode'}
-            try:
-                category = Specializations.objects.get(specializationID=category_id)
-            except Specializations.DoesNotExist:
-                return {'success': False, 'error': 'Invalid category'}
+            # Single-employee mode: Auto-derive or validate category from worker's skills
+            # Import workerSpecialization for skill lookup
+            from .models import workerSpecialization
+            
+            if assigned_worker:
+                # Get worker's skills (specializations)
+                worker_skills = workerSpecialization.objects.filter(
+                    workerID=assigned_worker
+                ).select_related('specializationID')
+                worker_skill_ids = [ws.specializationID.specializationID for ws in worker_skills]
+                
+                if len(worker_skill_ids) == 0:
+                    return {'success': False, 'error': 'Worker has no skills registered. They must add at least one skill to receive job invites.'}
+                
+                if not category_id:
+                    # Auto-select if worker has exactly 1 skill
+                    if len(worker_skill_ids) == 1:
+                        category = worker_skills.first().specializationID
+                        print(f"📋 Auto-selected category '{category.specializationName}' from worker's single skill")
+                    else:
+                        # Worker has multiple skills - frontend should show picker
+                        skill_names = [ws.specializationID.specializationName for ws in worker_skills]
+                        return {
+                            'success': False,
+                            'error': 'Worker has multiple skills. Please select which skill this job requires.',
+                            'worker_skills': worker_skill_ids,
+                            'skill_names': skill_names
+                        }
+                else:
+                    # Validate category matches one of worker's skills
+                    if category_id not in worker_skill_ids:
+                        skill_names = [ws.specializationID.specializationName for ws in worker_skills]
+                        return {
+                            'success': False,
+                            'error': f"Selected category doesn't match worker's skills. Worker's skills: {', '.join(skill_names)}",
+                            'worker_skills': worker_skill_ids
+                        }
+                    try:
+                        category = Specializations.objects.get(specializationID=category_id)
+                    except Specializations.DoesNotExist:
+                        return {'success': False, 'error': 'Invalid category'}
+            else:
+                # Agency job without skill_slots - require category_id (backwards compatibility)
+                if not category_id:
+                    return {'success': False, 'error': 'category_id is required for single-employee mode'}
+                try:
+                    category = Specializations.objects.get(specializationID=category_id)
+                except Specializations.DoesNotExist:
+                    return {'success': False, 'error': 'Invalid category'}
         
         # Validate budget
         budget = Decimal(str(job_data.get('budget', 0)))

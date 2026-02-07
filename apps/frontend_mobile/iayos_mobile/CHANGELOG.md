@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Job Creation Category Auto-Derive from Worker Skills**
+  - When hiring a specific worker (INVITE job), category picker now only shows the worker's registered skills
+  - If worker has exactly 1 skill, category is auto-selected
+  - If worker has multiple skills, picker is filtered to only show their skills
+  - Backend validates that selected category matches one of the worker's skills
+  - Removes redundancy of picking arbitrary categories that may not match worker expertise
+  - **Impact**: Clients hiring specific workers now see only relevant categories, improving UX and preventing skill mismatches
+
 ### Added
 - **Instant Direct Deposit (Testing Mode)**
   - Added instant test deposit feature that bypasses PayMongo entirely
