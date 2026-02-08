@@ -105,10 +105,10 @@ interface JobDetail {
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
   budget_allocation_type?:
-    | "EQUAL_PER_SKILL"
-    | "EQUAL_PER_WORKER"
-    | "MANUAL"
-    | "SKILL_WEIGHTED";
+  | "EQUAL_PER_SKILL"
+  | "EQUAL_PER_WORKER"
+  | "MANUAL"
+  | "SKILL_WEIGHTED";
   team_fill_percentage?: number;
   total_workers_needed?: number;
   total_workers_assigned?: number;
@@ -278,17 +278,17 @@ export default function JobDetailScreen() {
         status: jobData.status,
         postedBy: jobData.client
           ? {
-              id: jobData.client.id,
-              name: jobData.client.name,
-              avatar: jobData.client.avatar,
-              rating: jobData.client.rating,
-            }
+            id: jobData.client.id,
+            name: jobData.client.name,
+            avatar: jobData.client.avatar,
+            rating: jobData.client.rating,
+          }
           : {
-              id: 0,
-              name: "Unknown Client",
-              avatar: null,
-              rating: 0,
-            },
+            id: 0,
+            name: "Unknown Client",
+            avatar: null,
+            rating: 0,
+          },
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
@@ -306,13 +306,13 @@ export default function JobDetailScreen() {
         assignedWorker: jobData.assigned_worker,
         reviews: jobData.reviews
           ? {
-              clientToWorker: jobData.reviews.client_to_worker
-                ? mapReview(jobData.reviews.client_to_worker)
-                : undefined,
-              workerToClient: jobData.reviews.worker_to_client
-                ? mapReview(jobData.reviews.worker_to_client)
-                : undefined,
-            }
+            clientToWorker: jobData.reviews.client_to_worker
+              ? mapReview(jobData.reviews.client_to_worker)
+              : undefined,
+            workerToClient: jobData.reviews.worker_to_client
+              ? mapReview(jobData.reviews.worker_to_client)
+              : undefined,
+          }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
         // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
@@ -1288,13 +1288,13 @@ export default function JobDetailScreen() {
         {/* ML Estimated Completion Time */}
         {(isLoading ||
           (job.estimatedCompletion && job.status !== "COMPLETED")) && (
-          <View style={styles.section}>
-            <EstimatedTimeCard
-              prediction={job?.estimatedCompletion || null}
-              isLoading={isLoading}
-            />
-          </View>
-        )}
+            <View style={styles.section}>
+              <EstimatedTimeCard
+                prediction={job?.estimatedCompletion || null}
+                isLoading={isLoading}
+              />
+            </View>
+          )}
 
         {/* Description */}
         <View style={styles.section}>
@@ -1952,11 +1952,11 @@ export default function JobDetailScreen() {
                           style={[
                             styles.applicationStatusBadge,
                             application.status === "PENDING" &&
-                              styles.statusPending,
+                            styles.statusPending,
                             application.status === "ACCEPTED" &&
-                              styles.statusAccepted,
+                            styles.statusAccepted,
                             application.status === "REJECTED" &&
-                              styles.statusRejected,
+                            styles.statusRejected,
                           ]}
                         >
                           <Text style={styles.applicationStatusText}>
@@ -2115,8 +2115,8 @@ export default function JobDetailScreen() {
 
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
-        job.status === "IN_PROGRESS" ||
-        job.status === "COMPLETED" ? (
+          job.status === "IN_PROGRESS" ||
+          job.status === "COMPLETED" ? (
           <>
             {/* Client Section - clickable for workers */}
             <View style={styles.section}>
@@ -2355,7 +2355,7 @@ export default function JobDetailScreen() {
               style={[
                 styles.applyButton,
                 (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonDisabled,
+                styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
@@ -2365,7 +2365,7 @@ export default function JobDetailScreen() {
                 style={[
                   styles.applyButtonText,
                   (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonTextDisabled,
+                  styles.applyButtonTextDisabled,
                 ]}
               >
                 {!user?.kycVerified

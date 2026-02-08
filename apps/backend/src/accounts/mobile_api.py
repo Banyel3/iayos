@@ -1189,10 +1189,25 @@ def mobile_my_skills(request):
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
+            # Auto-heal
+            try: 
+                from .models import Profile
+                base_profile = Profile.objects.filter(accountFK=user).order_by('-profileID').first()
+                if not base_profile:
+                     return Response({"error": "Profile not found"}, status=404)
+                
+                worker_profile = WorkerProfile.objects.create(
+                    profileID=base_profile,
+                    description='',
+                    workerRating=0,
+                    totalEarningGross=0.00,
+                    availability_status='OFFLINE'
+                )
+            except Exception:
+                return Response(
+                    {"error": "Worker profile not found"},
+                    status=404
+                )
         
         # Get worker's specializations
         worker_skills = workerSpecialization.objects.filter(
@@ -1295,10 +1310,25 @@ def mobile_add_skill(request, payload: AddSkillSchema):
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
+            # Auto-heal
+            try: 
+                from .models import Profile
+                base_profile = Profile.objects.filter(accountFK=user).order_by('-profileID').first()
+                if not base_profile:
+                     return Response({"error": "Profile not found"}, status=404)
+                
+                worker_profile = WorkerProfile.objects.create(
+                    profileID=base_profile,
+                    description='',
+                    workerRating=0,
+                    totalEarningGross=0.00,
+                    availability_status='OFFLINE'
+                )
+            except Exception:
+                return Response(
+                    {"error": "Worker profile not found"},
+                    status=404
+                )
         
         # Check specialization exists
         try:
@@ -1378,10 +1408,25 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
+            # Auto-heal
+            try: 
+                from .models import Profile
+                base_profile = Profile.objects.filter(accountFK=user).order_by('-profileID').first()
+                if not base_profile:
+                     return Response({"error": "Profile not found"}, status=404)
+                
+                worker_profile = WorkerProfile.objects.create(
+                    profileID=base_profile,
+                    description='',
+                    workerRating=0,
+                    totalEarningGross=0.00,
+                    availability_status='OFFLINE'
+                )
+            except Exception:
+                return Response(
+                    {"error": "Worker profile not found"},
+                    status=404
+                )
         
         # Get worker's skill
         try:
@@ -2308,10 +2353,22 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
+            print(f"   ⚠️  Worker profile not found for profile {profile.profileID} during apply. Auto-healing...")
+            try:
+                worker_profile = WorkerProfile.objects.create(
+                    profileID=profile,
+                    description='',
+                    workerRating=0,
+                    totalEarningGross=0.00,
+                    availability_status='OFFLINE'
+                )
+                print(f"   ✅ Auto-healing successful: Created WorkerProfile {worker_profile.id}")
+            except Exception as e:
+                print(f"   ❌ Auto-healing failed: {str(e)}")
+                return Response(
+                    {"error": "Worker profile not found and could not be created"},
+                    status=403
+                )
         
         # Get the job posting
         try:

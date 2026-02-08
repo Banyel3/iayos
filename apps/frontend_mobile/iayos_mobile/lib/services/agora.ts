@@ -4,19 +4,24 @@
  * Manages the Agora RTC engine for voice calls.
  * Provides singleton access to the engine instance and
  * handles initialization, joining/leaving channels, and audio controls.
+ * 
+ * NOTE: react-native-agora requires a development build and won't work in Expo Go.
+ * When running in Expo Go, stub functionality is provided and calls are disabled.
  */
 
-import {
-  createAgoraRtcEngine,
-  ChannelProfileType,
-  ClientRoleType,
-  IRtcEngine,
-  IRtcEngineEventHandler,
-  RtcConnection,
-  ConnectionStateType,
-  ConnectionChangedReasonType,
-} from "react-native-agora";
 import { Platform, PermissionsAndroid, Alert } from "react-native";
+import Constants from "expo-constants";
+
+// Check if running in Expo Go (native modules won't work)
+const isExpoGo = Constants.appOwnership === "expo";
+
+// Agora module - only loaded in dev builds, not Expo Go
+let AgoraModule: any = null;
+
+// Type definitions (for TypeScript)
+type IRtcEngine = any;
+type IRtcEngineEventHandler = any;
+type RtcConnection = any;
 
 export interface CallState {
   isInitialized: boolean;
@@ -35,8 +40,8 @@ export type CallEventHandler = {
   onLeaveChannel?: () => void;
   onError?: (errorCode: number, message: string) => void;
   onConnectionStateChanged?: (
-    state: ConnectionStateType,
-    reason: ConnectionChangedReasonType
+    state: any,
+    reason: any
   ) => void;
 };
 
@@ -111,6 +116,27 @@ class AgoraService {
    * Initialize the Agora engine with App ID
    */
   async initialize(appId: string): Promise<boolean> {
+    // Check if running in Expo Go - show warning and return false
+    if (isExpoGo) {
+      console.warn("[Agora] ⚠️ Running in Expo Go - voice calls are disabled. Use a development build for full functionality.");
+      Alert.alert(
+        "Voice Calls Unavailable",
+        "Voice calling requires a development build and is not available in Expo Go. The app will continue without calling features.",
+        [{ text: "OK" }]
+      );
+      return false;
+    }
+
+    // Dynamically load react-native-agora only when NOT in Expo Go
+    if (!AgoraModule) {
+      try {
+        AgoraModule = require("react-native-agora");
+      } catch (e) {
+        console.error("[Agora] ❌ Failed to load react-native-agora:", e);
+        return false;
+      }
+    }
+
     if (this._state.isInitialized && this.engine) {
       console.log("[Agora] Already initialized");
       return true;
@@ -130,8 +156,8 @@ class AgoraService {
 
       console.log("[Agora] Initializing engine with App ID:", appId.slice(0, 8) + "...");
 
-      // Create engine
-      this.engine = createAgoraRtcEngine();
+      // Create engine using dynamically loaded module
+      this.engine = AgoraModule.createAgoraRtcEngine();
 
       // Initialize with app ID
       await this.engine.initialize({
@@ -143,9 +169,9 @@ class AgoraService {
 
       // Configure for voice calling
       this.engine.setChannelProfile(
-        ChannelProfileType.ChannelProfileCommunication
+        AgoraModule.ChannelProfileType.ChannelProfileCommunication
       );
-      this.engine.setClientRole(ClientRoleType.ClientRoleBroadcaster);
+      this.engine.setClientRole(AgoraModule.ClientRoleType.ClientRoleBroadcaster);
 
       // Enable audio
       this.engine.enableAudio();
@@ -217,24 +243,27 @@ class AgoraService {
 
       onConnectionStateChanged: (
         connection: RtcConnection,
-        state: ConnectionStateType,
-        reason: ConnectionChangedReasonType
+        state: any,
+        reason: any
       ) => {
         console.log(`[Agora] Connection state: ${state}, reason: ${reason}`);
 
         let connState: CallState["connectionState"] = "disconnected";
-        switch (state) {
-          case ConnectionStateType.ConnectionStateConnecting:
-            connState = "connecting";
-            break;
-          case ConnectionStateType.ConnectionStateConnected:
-            connState = "connected";
-            break;
-          case ConnectionStateType.ConnectionStateFailed:
-            connState = "failed";
-            break;
-          default:
-            connState = "disconnected";
+        // Use AgoraModule for enum values (only available when initialized)
+        if (AgoraModule) {
+          switch (state) {
+            case AgoraModule.ConnectionStateType?.ConnectionStateConnecting:
+              connState = "connecting";
+              break;
+            case AgoraModule.ConnectionStateType?.ConnectionStateConnected:
+              connState = "connected";
+              break;
+            case AgoraModule.ConnectionStateType?.ConnectionStateFailed:
+              connState = "failed";
+              break;
+            default:
+              connState = "disconnected";
+          }
         }
 
         this.updateState({ connectionState: connState });

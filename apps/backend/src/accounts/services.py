@@ -554,6 +554,26 @@ def fetch_currentUser(accountID, profile_type=None):
                     
                 except WorkerProfile.DoesNotExist:
                     print(f"   ⚠️  Worker profile not found for profile {profile.profileID}")
+                    # Auto-heal: Create missing WorkerProfile
+                    try:
+                        print(f"   🔧 Auto-healing: Creating missing WorkerProfile for {profile.profileID}")
+                        worker_profile = WorkerProfile.objects.create(
+                            profileID=profile,
+                            description='',
+                            workerRating=0,
+                            totalEarningGross=0.00,
+                            availability_status='OFFLINE'
+                        )
+                        # Add the new ID to profile_data
+                        profile_data["workerProfileId"] = worker_profile.id
+                        # Defaults for new profile
+                        profile_data["bio"] = ""
+                        profile_data["hourlyRate"] = None
+                        profile_data["softSkills"] = ""
+                        profile_data["skills"] = []
+                        print(f"   ✅ Auto-healing successful: Created WorkerProfile {worker_profile.id}")
+                    except Exception as e:
+                        print(f"   ❌ Auto-healing failed: {str(e)}")
                     
             print(f"   👤 Profile Data for {account.email}: Type={profile.profileType} (Raw: {repr(profile.profileType)})")
 

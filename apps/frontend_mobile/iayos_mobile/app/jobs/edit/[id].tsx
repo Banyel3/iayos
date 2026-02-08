@@ -218,7 +218,8 @@ export default function EditJobScreen() {
     },
   });
 
-  const categories = categoriesData || [];
+  // Ensure categories is always an array
+  const categories = Array.isArray(categoriesData) ? categoriesData : [];
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
   // Fetch barangays for Zamboanga City (cityID = 1)
@@ -608,8 +609,8 @@ export default function EditJobScreen() {
                   style={[
                     styles.input,
                     hasPendingApplications &&
-                      budgetChanged &&
-                      styles.inputDisabled,
+                    budgetChanged &&
+                    styles.inputDisabled,
                   ]}
                   placeholder="Enter budget"
                   value={budget}
@@ -809,14 +810,14 @@ export default function EditJobScreen() {
                         level === "MEDIUM" && styles.urgencyMedium,
                         level === "HIGH" && styles.urgencyHigh,
                         urgency === level &&
-                          level === "LOW" &&
-                          styles.urgencyLowActive,
+                        level === "LOW" &&
+                        styles.urgencyLowActive,
                         urgency === level &&
-                          level === "MEDIUM" &&
-                          styles.urgencyMediumActive,
+                        level === "MEDIUM" &&
+                        styles.urgencyMediumActive,
                         urgency === level &&
-                          level === "HIGH" &&
-                          styles.urgencyHighActive,
+                        level === "HIGH" &&
+                        styles.urgencyHighActive,
                       ]}
                       onPress={() => {
                         setUrgency(level);
@@ -1007,7 +1008,7 @@ export default function EditJobScreen() {
               style={[
                 styles.submitButton,
                 (updateJobMutation.isPending || hasInsufficientBalance) &&
-                  styles.submitButtonDisabled,
+                styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}
               disabled={updateJobMutation.isPending || hasInsufficientBalance}
@@ -1098,7 +1099,7 @@ export default function EditJobScreen() {
             </View>
             <FlatList
               data={barangays}
-              keyExtractor={(item) => item.id.toString()}
+              keyExtractor={(item) => item.barangayID.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
