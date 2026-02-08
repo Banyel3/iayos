@@ -4191,7 +4191,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     employee.rating = avg_rating
                     employee.save(update_fields=['rating'])
                 
-                print(f"✅ Employee review submitted: {employee.name} got {data.rating} stars")
+                print(f"✅ Employee review submitted: {employee.name} got {overall_rating} stars")
                 
                 # Check which employees still need reviews
                 all_assigned_employee_ids = list(assigned_employees.values_list('employee_id', flat=True))
@@ -4304,7 +4304,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     status="ACTIVE"
                 )
                 
-                print(f"✅ Agency review submitted: {agency.businessName} got {data.rating} stars")
+                print(f"✅ Agency review submitted: {agency.businessName} got {overall_rating} stars")
                 
                 # Check if ALL employees have been reviewed (multi-employee support)
                 assigned_employees = JobEmployeeAssignment.objects.filter(
