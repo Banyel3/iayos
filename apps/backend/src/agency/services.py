@@ -978,6 +978,10 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                 'total_workers_assigned': job.total_workers_assigned,
                 'team_fill_percentage': job.team_fill_percentage,
                 'skill_slots': skill_slots_data,
+                # Workflow tracking fields
+                'clientConfirmedWorkStarted': job.clientConfirmedWorkStarted,
+                'workerMarkedComplete': job.workerMarkedComplete,
+                'clientMarkedComplete': job.clientMarkedComplete,
                 'client': {
                     'id': client_profile.accountFK.accountID,
                     'name': f"{client_profile.firstName} {client_profile.lastName}",
@@ -1136,6 +1140,13 @@ def get_agency_job_detail(account_id, job_id):
             'employeeAssignedAt': job.employeeAssignedAt.isoformat() if job.employeeAssignedAt else None,
             'assignmentNotes': job.assignmentNotes,
             'inviteStatus': job.inviteStatus,
+            # Workflow tracking fields
+            'clientConfirmedWorkStarted': job.clientConfirmedWorkStarted,
+            'workerMarkedComplete': job.workerMarkedComplete,
+            'clientMarkedComplete': job.clientMarkedComplete,
+            # Completion data
+            'completionNotes': job.completionNotes if hasattr(job, 'completionNotes') else '',
+            'photos': [photo.photoURL for photo in job.photos.all()] if hasattr(job, 'photos') else [],
             'client': {
                 'id': client_profile.accountFK.accountID,
                 'name': f"{client_profile.firstName} {client_profile.lastName}",
