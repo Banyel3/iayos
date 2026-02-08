@@ -101,7 +101,6 @@ export default function ChatScreen() {
   const [ratingCommunication, setRatingCommunication] = useState(0);
   const [ratingPunctuality, setRatingPunctuality] = useState(0);
   const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
-  const [singleRating, setSingleRating] = useState(0); // For worker reviewing client
   const [reviewComment, setReviewComment] = useState("");
   // For agency jobs: track if we're reviewing employee or agency
   const [reviewStep, setReviewStep] = useState<"EMPLOYEE" | "AGENCY">(
@@ -416,10 +415,16 @@ export default function ChatScreen() {
         ],
       );
     } else if (conversation.is_team_job) {
-      // Team job approval (wallet only)
+      // Team job approval
       approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
-        paymentMethod: "WALLET",
+        paymentMethod: method,
+      });
+    } else if (conversation.is_agency_job) {
+      // Agency PROJECT job approval
+      approveAgencyProjectJobMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: method,
       });
     } else {
       // Regular job approval
@@ -450,6 +455,13 @@ export default function ChatScreen() {
     if (conversation.is_team_job) {
       // Team job cash proof
       approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+    } else if (conversation.is_agency_job) {
+      // Agency PROJECT job cash proof
+      approveAgencyProjectJobMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "CASH",
         cashProofImage: selectedImage,
@@ -557,15 +569,11 @@ export default function ChatScreen() {
     // WORKER reviewing CLIENT: Professionalism, Communication, Quality, Value
     const isClientReviewing = conversation.my_role === "CLIENT";
 
-    const isRatingComplete = isClientReviewing
-      ? ratingPunctuality > 0 &&
-        ratingProfessionalism > 0 &&
-        ratingQuality > 0 &&
-        ratingCommunication > 0
-      : ratingPunctuality > 0 &&
-        ratingProfessionalism > 0 &&
-        ratingQuality > 0 &&
-        ratingCommunication > 0;
+    const isRatingComplete =
+      ratingPunctuality > 0 &&
+      ratingProfessionalism > 0 &&
+      ratingQuality > 0 &&
+      ratingCommunication > 0;
 
     if (!isRatingComplete) {
       Alert.alert(
@@ -828,24 +836,15 @@ export default function ChatScreen() {
         return;
       }
 
-      // For WORKER reviewing CLIENT: use single rating for all categories
-      // For CLIENT reviewing WORKER: use multi-criteria ratings
-      const isClientReviewing = conversation.my_role === "CLIENT";
-
+      // Both roles use multi-criteria ratings
       submitReviewMutation.mutate(
         {
           job_id: conversation.job.id,
           reviewee_id: revieweeId,
-          rating_quality: isClientReviewing ? ratingQuality : singleRating,
-          rating_communication: isClientReviewing
-            ? ratingCommunication
-            : singleRating,
-          rating_punctuality: isClientReviewing
-            ? ratingPunctuality
-            : singleRating,
-          rating_professionalism: isClientReviewing
-            ? ratingProfessionalism
-            : singleRating,
+          rating_quality: ratingQuality,
+          rating_communication: ratingCommunication,
+          rating_punctuality: ratingPunctuality,
+          rating_professionalism: ratingProfessionalism,
           comment: reviewComment,
           reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
         },
@@ -855,7 +854,6 @@ export default function ChatScreen() {
             setRatingCommunication(0);
             setRatingPunctuality(0);
             setRatingProfessionalism(0);
-            setSingleRating(0);
             setReviewComment("");
             setShowReviewModal(false);
             // Refresh conversation to update review status
@@ -2421,23 +2419,7 @@ export default function ChatScreen() {
                         {allComplete && !conversation.job.clientMarkedComplete && (
                           <TouchableOpacity
                             style={[styles.actionButton, styles.approveCompletionButton]}
-                            onPress={() =>
-                              Alert.alert(
-                                "Approve & Pay",
-                                `All ${conversation.assigned_employees?.length || 0} employees have completed their work. Approve and release payment of ₱${(conversation.job.budget * 0.5).toLocaleString()}?`,
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Approve & Pay",
-                                    onPress: () =>
-                                      approveAgencyProjectJobMutation.mutate({
-                                        jobId: conversation.job.id,
-                                        paymentMethod: "WALLET", // Default to WALLET for now
-                                      }),
-                                  },
-                                ]
-                              )
-                            }
+                            onPress={() => handleApproveCompletion()}
                             disabled={approveAgencyProjectJobMutation.isPending}
                           >
                             {approveAgencyProjectJobMutation.isPending ? (
@@ -3221,12 +3203,10 @@ export default function ChatScreen() {
                       <TouchableOpacity
                         style={[
                           styles.submitReviewButton,
-                          ((conversation.my_role === "CLIENT"
-                            ? ratingQuality === 0 ||
-                              ratingCommunication === 0 ||
-                              ratingPunctuality === 0 ||
-                              ratingProfessionalism === 0
-                            : singleRating === 0) ||
+                          (ratingQuality === 0 ||
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0 ||
                             !reviewComment.trim() ||
                             submitReviewMutation.isPending) &&
                             styles.submitReviewButtonDisabled,
@@ -3236,12 +3216,10 @@ export default function ChatScreen() {
                           handleSubmitReview();
                         }}
                         disabled={
-                          (conversation.my_role === "CLIENT"
-                            ? ratingQuality === 0 ||
-                              ratingCommunication === 0 ||
-                              ratingPunctuality === 0 ||
-                              ratingProfessionalism === 0
-                            : singleRating === 0) ||
+                          ratingQuality === 0 ||
+                          ratingCommunication === 0 ||
+                          ratingPunctuality === 0 ||
+                          ratingProfessionalism === 0 ||
                           !reviewComment.trim() ||
                           submitReviewMutation.isPending
                         }
@@ -3449,7 +3427,7 @@ export default function ChatScreen() {
         <FlatList
           ref={flatListRef}
           data={conversation.messages}
-          keyExtractor={(item, index) => `${item.created_at}-${index}`}
+          keyExtractor={(item) => String(item.id)}
           renderItem={renderMessage}
           ListFooterComponent={renderTypingIndicator}
           contentContainerStyle={styles.messagesContent}
