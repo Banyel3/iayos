@@ -1445,6 +1445,11 @@ def assign_job_to_employee(
     if not employee.isActive:
         raise ValueError(f"Employee {employee.name} is not active")
 
+    # Check if employee is already working on another job
+    conflicting_job = validate_employee_not_working(employee, exclude_job=job)
+    if conflicting_job:
+        raise ValueError(f"Employee {employee.name} is already working on '{conflicting_job}'. They must complete it before being assigned to a new job.")
+
     # Assign job to employee (atomic transaction)
     with transaction.atomic():
         previous_status = job.status
@@ -1580,6 +1585,47 @@ def unassign_job_from_employee(
     }
 
 
+def validate_employee_not_working(employee, exclude_job=None):
+    """
+    Check if an employee is already working on an active job.
+    Returns the conflicting job title if busy, or None if available.
+    
+    Checks both legacy (Job.assignedEmployeeID) and M2M (JobEmployeeAssignment) paths.
+    
+    Args:
+        employee: AgencyEmployee instance
+        exclude_job: Optional Job instance to exclude (for re-checking within same job)
+    
+    Returns:
+        str (conflicting job title) if employee is busy, None if available
+    """
+    from accounts.models import Job, JobEmployeeAssignment
+    
+    # Check legacy path: Job.assignedEmployeeID
+    legacy_query = Job.objects.filter(
+        assignedEmployeeID=employee,
+        status__in=['ASSIGNED', 'IN_PROGRESS']
+    )
+    if exclude_job:
+        legacy_query = legacy_query.exclude(jobID=exclude_job.jobID)
+    legacy_job = legacy_query.first()
+    if legacy_job:
+        return legacy_job.title
+    
+    # Check M2M path: JobEmployeeAssignment
+    m2m_query = JobEmployeeAssignment.objects.filter(
+        employee=employee,
+        status__in=['ASSIGNED', 'IN_PROGRESS']
+    ).select_related('job')
+    if exclude_job:
+        m2m_query = m2m_query.exclude(job_id=exclude_job.jobID)
+    m2m_assignment = m2m_query.first()
+    if m2m_assignment:
+        return m2m_assignment.job.title
+    
+    return None
+
+
 def get_employee_workload(agency_account, employee_id: int) -> dict:
     """
     Get current workload for an employee (for assignment decisions)
@@ -1587,7 +1633,7 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
     Returns:
         dict with active jobs count, in-progress count, availability status
     """
-    from accounts.models import Job
+    from accounts.models import Job, JobEmployeeAssignment
 
     try:
         agency = AgencyProfile.objects.get(accountFK=agency_account)
@@ -1602,20 +1648,38 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
     except AgencyEmployee.DoesNotExist:
         raise ValueError(f"Employee {employee_id} not found")
 
-    # Count active and in-progress jobs
-    active_jobs = Job.objects.filter(
+    # Count legacy path (Job.assignedEmployeeID)
+    legacy_assigned = Job.objects.filter(
         assignedEmployeeID=employee,
         status='ASSIGNED'
     ).count()
 
-    in_progress_jobs = Job.objects.filter(
+    legacy_in_progress = Job.objects.filter(
         assignedEmployeeID=employee,
         status='IN_PROGRESS'
     ).count()
 
+    # Count M2M path (JobEmployeeAssignment) - exclude jobs already counted via legacy FK
+    legacy_job_ids = Job.objects.filter(
+        assignedEmployeeID=employee,
+        status__in=['ASSIGNED', 'IN_PROGRESS']
+    ).values_list('jobID', flat=True)
+
+    m2m_assigned = JobEmployeeAssignment.objects.filter(
+        employee=employee,
+        status='ASSIGNED'
+    ).exclude(job_id__in=legacy_job_ids).count()
+
+    m2m_in_progress = JobEmployeeAssignment.objects.filter(
+        employee=employee,
+        status='IN_PROGRESS'
+    ).exclude(job_id__in=legacy_job_ids).count()
+
+    active_jobs = legacy_assigned + m2m_assigned
+    in_progress_jobs = legacy_in_progress + m2m_in_progress
     total_active = active_jobs + in_progress_jobs
 
-    # Determine availability (simple logic for now)
+    # Determine availability
     if not employee.isActive:
         availability = 'INACTIVE'
     elif total_active >= 3:
@@ -1718,6 +1782,12 @@ def assign_employees_to_job(
     if inactive_employees:
         names = ', '.join(emp.name for emp in inactive_employees)
         raise ValueError(f"The following employees are not active: {names}")
+    
+    # Check if any employees are already working on OTHER jobs
+    for emp in employees:
+        conflicting_job = validate_employee_not_working(emp, exclude_job=job)
+        if conflicting_job:
+            raise ValueError(f"Employee {emp.name} is already working on '{conflicting_job}'. They must complete it before being assigned to a new job.")
     
     # Check for already assigned employees
     existing_assignments = JobEmployeeAssignment.objects.filter(
@@ -2333,6 +2403,11 @@ def assign_employees_to_slots(
             
             if not employee.isActive:
                 return {'success': False, 'error': f'Employee {employee.fullName} is not active'}
+            
+            # Check if employee is already working on another job
+            conflicting_job = validate_employee_not_working(employee, exclude_job=job)
+            if conflicting_job:
+                return {'success': False, 'error': f'Employee {employee.fullName} is already working on "{conflicting_job}". They must complete it before being assigned to a new job.'}
             
             # Strict specialization matching
             employee_specs = employee.get_specializations_list()
