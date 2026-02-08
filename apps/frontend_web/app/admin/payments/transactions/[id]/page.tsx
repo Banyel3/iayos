@@ -391,7 +391,7 @@ export default function TransactionDetailPage() {
                       {detail.payer?.profile_type ?? "Unknown"}
                     </Badge>
                     {detail.payer?.id && (
-                      <Link href={`/admin/users/${detail.payer.id}`}>
+                      <Link href={`/admin/users/${detail.payer.profile_type?.toLowerCase()}s/${detail.payer.id}`}>
                         <Button
                           variant="outline"
                           className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
@@ -425,7 +425,7 @@ export default function TransactionDetailPage() {
                       {detail.payee?.profile_type ?? "Unknown"}
                     </Badge>
                     {detail.payee?.id && (
-                      <Link href={`/admin/users/${detail.payee.id}`}>
+                      <Link href={`/admin/users/${detail.payee.profile_type?.toLowerCase()}s/${detail.payee.id}`}>
                         <Button
                           variant="outline"
                           className="w-full border-green-600 text-green-600 hover:bg-green-50"
