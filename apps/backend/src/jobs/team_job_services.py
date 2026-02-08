@@ -194,12 +194,9 @@ def create_team_job(
             description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
         )
     
-    # Create team group conversation immediately for early communication
-    # Workers will be added as participants when their applications are accepted
-    conversation, created = Conversation.create_team_conversation(
-        job_posting=job,
-        client_profile=client_profile
-    )
+    # NOTE: Conversation is NOT created here. It will be created automatically
+    # when all skill slots are filled (in accept_team_application) or when the
+    # client force-starts the job (in start_team_job).
     
     return {
         'success': True,
