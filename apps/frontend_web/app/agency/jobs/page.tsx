@@ -128,6 +128,7 @@ export default function AgencyJobsPage() {
   const [cancelledJobs, setCancelledJobs] = useState<Job[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -154,12 +155,19 @@ export default function AgencyJobsPage() {
     if (hasFetched.current) return;
     hasFetched.current = true;
 
-    fetchPendingInvites();
-    fetchAcceptedJobs();
-    fetchInProgressJobs();
-    fetchCompletedJobs();
-    fetchCancelledJobs();
-    fetchEmployees();
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchPendingInvites(false),
+        fetchAcceptedJobs(false),
+        fetchInProgressJobs(false),
+        fetchCompletedJobs(false),
+        fetchCancelledJobs(false),
+        fetchEmployees(),
+      ]);
+      setLoading(false);
+    };
+    loadAll();
   }, []);
 
   // Refetch when tab changes
@@ -167,21 +175,21 @@ export default function AgencyJobsPage() {
     if (!hasFetched.current) return; // Don't fetch on initial mount
 
     if (activeTab === "invites") {
-      fetchPendingInvites();
+      fetchPendingInvites(true);
     } else if (activeTab === "accepted") {
-      fetchAcceptedJobs();
+      fetchAcceptedJobs(true);
     } else if (activeTab === "inProgress") {
-      fetchInProgressJobs();
+      fetchInProgressJobs(true);
     } else if (activeTab === "completed") {
-      fetchCompletedJobs();
+      fetchCompletedJobs(true);
     } else if (activeTab === "cancelled") {
-      fetchCancelledJobs();
+      fetchCancelledJobs(true);
     }
   }, [activeTab]);
 
-  const fetchPendingInvites = async () => {
+  const fetchPendingInvites = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       setError(null);
 
       const response = await fetch(
@@ -208,13 +216,13 @@ export default function AgencyJobsPage() {
         err instanceof Error ? err.message : "Failed to load pending invites",
       );
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchAcceptedJobs = async () => {
+  const fetchAcceptedJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       setError(null);
 
       // Fetch only ACTIVE jobs with ACCEPTED invite status
@@ -241,13 +249,13 @@ export default function AgencyJobsPage() {
         err instanceof Error ? err.message : "Failed to load accepted jobs",
       );
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchInProgressJobs = async () => {
+  const fetchInProgressJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       const response = await fetch(
         `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
@@ -270,13 +278,13 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchCompletedJobs = async () => {
+  const fetchCompletedJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       const response = await fetch(
         `${API_BASE}/api/agency/jobs?status=COMPLETED`,
         {
@@ -298,13 +306,13 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching completed jobs:", err);
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchCancelledJobs = async () => {
+  const fetchCancelledJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       const response = await fetch(
         `${API_BASE}/api/agency/jobs?status=CANCELLED`,
         {
@@ -326,7 +334,7 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching cancelled jobs:", err);
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
@@ -880,8 +888,16 @@ export default function AgencyJobsPage() {
           </Alert>
         )}
 
+        {/* Tab Loading Indicator */}
+        {tabLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            <span className="ml-2 text-sm text-gray-500">Refreshing...</span>
+          </div>
+        )}
+
         {/* Tab Content */}
-        {activeTab === "invites" && (
+        {!tabLoading && activeTab === "invites" && (
           <>
             {pendingInvites.length === 0 ? (
               <Card>
@@ -919,7 +935,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "accepted" && (
+        {!tabLoading && activeTab === "accepted" && (
           <>
             {acceptedJobs.length === 0 ? (
               <Card>
@@ -1106,7 +1122,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "inProgress" && (
+        {!tabLoading && activeTab === "inProgress" && (
           <>
             {inProgressJobs.length === 0 ? (
               <Card>
@@ -1205,7 +1221,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "completed" && (
+        {!tabLoading && activeTab === "completed" && (
           <>
             {completedJobs.length === 0 ? (
               <Card>
@@ -1301,7 +1317,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "cancelled" && (
+        {!tabLoading && activeTab === "cancelled" && (
           <>
             {cancelledJobs.length === 0 ? (
               <Card>
