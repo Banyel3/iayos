@@ -3301,11 +3301,25 @@ def worker_mark_job_complete(request, job_id: int):
             )
         
         # CRITICAL: Check if client has confirmed work started
-        if not job.clientConfirmedWorkStarted:
-            return Response(
-                {"error": "Client must confirm that work has started before you can mark it as complete"},
-                status=400
-            )
+        if is_agency_job:
+            # Agency jobs use per-employee arrival confirmation (JobEmployeeAssignment.clientConfirmedArrival)
+            # set by the confirm-arrival-project endpoint, NOT Job.clientConfirmedWorkStarted
+            from accounts.models import JobEmployeeAssignment
+            has_confirmed_arrival = JobEmployeeAssignment.objects.filter(
+                job=job, clientConfirmedArrival=True
+            ).exists()
+            if not has_confirmed_arrival:
+                return Response(
+                    {"error": "Client must confirm employee arrival before you can mark this job as complete. Ask the client to confirm arrival on their app."},
+                    status=400
+                )
+        else:
+            # Regular worker jobs use Job.clientConfirmedWorkStarted
+            if not job.clientConfirmedWorkStarted:
+                return Response(
+                    {"error": "Client must confirm that work has started before you can mark it as complete"},
+                    status=400
+                )
         
         # Check if already marked complete by worker
         if job.workerMarkedComplete:
