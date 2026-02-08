@@ -104,6 +104,50 @@ export function useDispatchEmployee() {
 }
 
 /**
+ * Dispatch employee for a PROJECT job (mark as "on the way")
+ * Uses the /dispatch-project endpoint instead of the DAILY /dispatch endpoint
+ */
+export function useDispatchProjectEmployee() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { success: boolean; message: string; employee_name: string },
+    Error,
+    { jobId: number; employeeId: number; conversationId?: number }
+  >({
+    mutationFn: async ({ jobId, employeeId }) => {
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${jobId}/employees/${employeeId}/dispatch-project`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to dispatch employee");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate conversation messages to refresh employee dispatch status
+      if (variables.conversationId) {
+        queryClient.invalidateQueries({
+          queryKey: ["agency-messages", variables.conversationId],
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+      toast.success(data.message || "Employee dispatched successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+/**
  * @deprecated Client now marks checkout instead of agency
  * Kept for backward compatibility - will return error from backend
  */

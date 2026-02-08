@@ -18,6 +18,7 @@ import {
 import {
   useAgencyDailyAttendance,
   useDispatchEmployee,
+  useDispatchProjectEmployee,
 } from "@/lib/hooks/useAgencyDailyAttendance";
 import {
   useConfirmBackjobStarted,
@@ -53,6 +54,7 @@ import {
   Camera,
   X,
   Upload,
+  Send,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
@@ -118,6 +120,7 @@ export default function AgencyChatScreen() {
     conversation?.job?.id || 0,
   );
   const dispatchEmployeeMutation = useDispatchEmployee();
+  const dispatchProjectMutation = useDispatchProjectEmployee();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -666,22 +669,22 @@ export default function AgencyChatScreen() {
               assigned_employees.length > 0 &&
               (() => {
                 const allDispatched = assigned_employees.every(
-                  (e: any) => e.dispatched,
+                  (e) => e.dispatched,
                 );
                 const allArrived = assigned_employees.every(
-                  (e: any) => e.clientConfirmedArrival,
+                  (e) => e.clientConfirmedArrival,
                 );
                 const allComplete = assigned_employees.every(
-                  (e: any) => e.agencyMarkedComplete,
+                  (e) => e.agencyMarkedComplete,
                 );
                 const dispatchedCount = assigned_employees.filter(
-                  (e: any) => e.dispatched,
+                  (e) => e.dispatched,
                 ).length;
                 const arrivedCount = assigned_employees.filter(
-                  (e: any) => e.clientConfirmedArrival,
+                  (e) => e.clientConfirmedArrival,
                 ).length;
                 const completeCount = assigned_employees.filter(
-                  (e: any) => e.agencyMarkedComplete,
+                  (e) => e.agencyMarkedComplete,
                 ).length;
                 const totalCount = assigned_employees.length;
 
@@ -689,16 +692,66 @@ export default function AgencyChatScreen() {
                 if (!allDispatched) {
                   return (
                     <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mb-2">
                         <Clock className="h-4 w-4 text-blue-600" />
                         <span className="text-sm text-blue-800 font-medium">
                           Dispatch your employees to begin work
                         </span>
+                        <span className="text-xs text-blue-600 ml-auto">
+                          {dispatchedCount}/{totalCount} dispatched
+                        </span>
                       </div>
-                      <p className="text-xs text-blue-600 mt-1">
-                        {dispatchedCount}/{totalCount} employees dispatched.
-                        Dispatch remaining employees to the work site.
-                      </p>
+                      <div className="space-y-2">
+                        {assigned_employees.map((emp) => (
+                          <div
+                            key={emp.employeeId}
+                            className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-blue-100"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700">
+                                {emp.name?.charAt(0) || "?"}
+                              </div>
+                              <span className="text-sm text-gray-800">
+                                {emp.name}
+                              </span>
+                              {emp.role && (
+                                <span className="text-xs text-gray-500">
+                                  ({emp.role})
+                                </span>
+                              )}
+                            </div>
+                            {emp.dispatched ? (
+                              <Badge
+                                variant="outline"
+                                className="text-xs border-blue-500 text-blue-700"
+                              >
+                                🚗 Dispatched
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs border-blue-500 text-blue-700 hover:bg-blue-50"
+                                onClick={() => {
+                                  dispatchProjectMutation.mutate({
+                                    jobId: job.id,
+                                    employeeId: emp.employeeId,
+                                    conversationId,
+                                  });
+                                }}
+                                disabled={dispatchProjectMutation.isPending}
+                              >
+                                {dispatchProjectMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Send className="h-3 w-3 mr-1" />
+                                )}
+                                Dispatch
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 }
