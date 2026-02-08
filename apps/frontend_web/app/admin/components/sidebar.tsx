@@ -651,7 +651,9 @@ export default function Sidebar({ className }: SidebarProps) {
               {item.children && isExpanded && !collapsed && (
                 <div className="mt-1 ml-6 space-y-1">
                   {item.children.map((child) => {
-                    const isChildActiveItem = pathname.startsWith(child.href);
+                    const isChildActiveItem = child.href === item.children![0]?.href && item.children!.length > 1
+                      ? pathname === child.href
+                      : pathname.startsWith(child.href);
                     const ChildIcon = child.icon;
 
                     return (
