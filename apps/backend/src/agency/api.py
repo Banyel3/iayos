@@ -1786,10 +1786,23 @@ def get_agency_conversations(request, filter: str = "all"):
             # For agencies, use worker archived status
             conversations_query = conversations_query.filter(archivedByWorker=True)
         elif filter == "active":
-            # Show only IN_PROGRESS jobs that are not archived
+            # Show conversations where work has been agreed upon:
+            # 1. Jobs IN_PROGRESS (work started)
+            # 2. Jobs ACTIVE with employee assigned (agreed but not started)
+            # 3. Jobs with active backjob (UNDER_REVIEW dispute - conversation reopened)
             conversations_query = conversations_query.filter(
-                archivedByWorker=False,
-                relatedJobPosting__status='IN_PROGRESS'
+                archivedByWorker=False
+            ).filter(
+                Q(relatedJobPosting__status='IN_PROGRESS') |  # Work in progress
+                Q(  # Agreed but not started (employee assigned)
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__assignedEmployeeID__isnull=False
+                ) |
+                Q(  # Backjob approved - conversation reopened
+                    status='ACTIVE',
+                    relatedJobPosting__status='COMPLETED',
+                    relatedJobPosting__disputes__status='UNDER_REVIEW'
+                )
             )
         else:
             conversations_query = conversations_query.filter(archivedByWorker=False)

@@ -854,7 +854,10 @@ def get_conversations(request, filter: str = "all"):
                 (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=archived_team_ids))
             )
         elif filter == "active":
-            # Show only IN_PROGRESS jobs that are not archived
+            # Show conversations where work has been agreed upon:
+            # 1. Jobs IN_PROGRESS (work started)
+            # 2. Jobs ACTIVE with worker/agency assigned (agreed but not started)
+            # 3. Jobs with active backjob (UNDER_REVIEW dispute - conversation reopened)
             archived_team_ids = ConversationParticipant.objects.filter(
                 profile=user_profile,
                 is_archived=True
@@ -868,8 +871,26 @@ def get_conversations(request, filter: str = "all"):
                 )) |
                 (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
             ).filter(
-                # Only show IN_PROGRESS jobs
-                relatedJobPosting__status='IN_PROGRESS'
+                # Active = agreed to work OR in progress OR backjob
+                Q(relatedJobPosting__status='IN_PROGRESS') |  # Work in progress
+                Q(  # Agreed but not started (regular job with worker assigned)
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__assignedWorkerID__isnull=False
+                ) |
+                Q(  # Agreed but not started (agency job with employee assigned)
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__assignedEmployeeID__isnull=False
+                ) |
+                Q(  # Team job with at least one worker assigned
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__skill_slots__workers_assigned__gt=0
+                ) |
+                Q(  # Backjob approved - conversation reopened
+                    status='ACTIVE',
+                    relatedJobPosting__status='COMPLETED',
+                    relatedJobPosting__disputes__status='UNDER_REVIEW'
+                )
             )
         else:
             # For 'all' and 'unread', exclude archived conversations
