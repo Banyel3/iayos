@@ -3950,13 +3950,12 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
 @mobile_router.post("/wallet/withdraw", auth=jwt_auth)
 def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
     """
-    Withdraw funds from wallet to GCash via PayMongo/Xendit Disbursement.
-    Uses configured payment provider (PayMongo by default, Xendit for legacy).
-    Deducts balance immediately and creates disbursement request.
+    Withdraw funds from wallet - Manual Processing.
+    Creates a PENDING withdrawal transaction for admin to process manually.
+    Deducts balance immediately; admin sends payment via selected method.
     """
     try:
         from .models import Wallet, Transaction, Profile, UserPaymentMethod
-        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         from django.db import transaction as db_transaction
@@ -4009,8 +4008,8 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 status=404
             )
         
-        # Validate payment method type
-        supported_types = ['GCASH', 'BANK', 'PAYPAL']
+        # Validate payment method type - all verified payment methods are supported for manual withdrawal
+        supported_types = ['GCASH', 'BANK', 'PAYPAL', 'VISA', 'GRABPAY', 'MAYA']
         if payment_method.methodType not in supported_types:
             return Response(
                 {"error": f"Unsupported payment method type: {payment_method.methodType}"},
@@ -4067,89 +4066,46 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             
             print(f"✅ New balance: ₱{wallet.balance}")
             
-            # Map payment method type to channel code for PayMongo
-            channel_mapping = {
-                'GCASH': 'GCASH',
-                'BANK': 'BANK_TRANSFER',  # PayMongo InstaPay/PESONet
-                'PAYPAL': 'PAYPAL',  # For manual processing
-                'VISA': 'CARD',  # Credit/Debit card
-                'GRABPAY': 'GRABPAY',  # GrabPay e-wallet
-                'MAYA': 'PAYMAYA'  # Maya/PayMaya e-wallet
-            }
-            channel_code = channel_mapping.get(payment_method.methodType, 'GCASH')
+            # Generate a unique withdrawal request ID for admin tracking
+            import uuid
+            withdrawal_request_id = f"WD-{transaction.transactionID}-{uuid.uuid4().hex[:8].upper()}"
             
-            # Create disbursement using configured payment provider
-            payment_provider = get_payment_provider()
-            provider_name = payment_provider.provider_name
-            print(f"📤 Creating {provider_name.upper()} disbursement for {payment_method.methodType}...")
-            
-            # For BANK type, include bank name in metadata
-            metadata = {
-                "user_email": request.auth.email,
-                "user_name": user_name,
-                "payment_method_type": payment_method.methodType
-            }
-            if payment_method.methodType == 'BANK' and payment_method.bankName:
-                metadata["bank_name"] = payment_method.bankName
-            
-            disbursement_result = payment_provider.create_disbursement(
-                amount=amount,
-                currency="PHP",
-                recipient_name=payment_method.accountName,
-                account_number=payment_method.accountNumber,
-                channel_code=channel_code,
-                transaction_id=transaction.transactionID,
-                description=notes or f"Withdrawal from iAyos Wallet - ₱{amount}",
-                metadata=metadata
-            )
-            
-            if not disbursement_result.get("success"):
-                # Rollback balance deduction
-                wallet.balance = old_balance
-                wallet.save()
-                transaction.delete()
-                
-                return Response(
-                    {"error": f"Failed to create disbursement: {disbursement_result.get('error', 'Unknown error')}"},
-                    status=500
-                )
-            
-            # Update transaction with provider details
-            transaction.xenditInvoiceID = disbursement_result.get('disbursement_id')
-            transaction.xenditExternalID = disbursement_result.get('external_id')
-            transaction.xenditPaymentChannel = channel_code
-            transaction.xenditPaymentMethod = provider_name.upper()
-            
-            # Withdrawals always stay PENDING until manually processed
-            # This is production-ready: admin must manually send payment and mark complete
+            # Store withdrawal request ID in transaction for admin reference
+            transaction.xenditExternalID = withdrawal_request_id
+            transaction.xenditPaymentChannel = payment_method.methodType
+            transaction.xenditPaymentMethod = 'MANUAL'
             transaction.status = Transaction.TransactionStatus.PENDING
             transaction.save()
             
-            print(f"📄 {provider_name.upper()} withdrawal request created: {disbursement_result.get('disbursement_id')}")
+            print(f"📄 Manual withdrawal request created: {withdrawal_request_id}")
             print(f"📊 Status: PENDING (requires admin approval)")
             print(f"   Recipient: {payment_method.accountName} ({payment_method.accountNumber})")
             print(f"   Method: {payment_method.methodType}")
+            if payment_method.methodType == 'BANK' and payment_method.bankName:
+                print(f"   Bank: {payment_method.bankName}")
         
         # Customize message based on payment method type
         method_messages = {
             'GCASH': "Your funds will be transferred to your GCash within 1-3 business days after verification.",
             'BANK': f"Your funds will be transferred to your {payment_method.bankName or 'bank'} account within 1-3 business days after verification.",
-            'PAYPAL': "Your funds will be transferred to your PayPal account within 1-3 business days after verification."
+            'PAYPAL': "Your funds will be transferred to your PayPal account within 1-3 business days after verification.",
+            'VISA': "Your funds will be transferred to your card within 1-3 business days after verification.",
+            'GRABPAY': "Your funds will be transferred to your GrabPay within 1-3 business days after verification.",
+            'MAYA': "Your funds will be transferred to your Maya account within 1-3 business days after verification."
         }
         success_message = method_messages.get(payment_method.methodType, "Your funds will be transferred within 1-3 business days after verification.")
         
-        # Build response
+        # Build response (no receipt_url for manual processing)
         response_data = {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "disbursement_id": disbursement_result.get('disbursement_id'),
+            "withdrawal_request_id": withdrawal_request_id,
             "amount": amount,
             "new_balance": float(wallet.balance),
             "status": "PENDING",
             "recipient": payment_method.accountNumber,
             "recipient_name": payment_method.accountName,
             "payment_method_type": payment_method.methodType,
-            "provider": provider_name,
             "message": f"Withdrawal request submitted successfully. {success_message}",
             "estimated_arrival": "1-3 business days"
         }
