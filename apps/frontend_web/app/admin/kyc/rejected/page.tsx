@@ -15,13 +15,13 @@ import {
   XCircle,
   FileText,
   Search,
-  Download,
   Eye,
   AlertTriangle,
-  RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 import { useToast } from "@/components/ui/toast";
+import KYCDetailModal from "@/components/admin/KYCDetailModal";
 
 interface RejectedKYC {
   id: string;
@@ -36,6 +36,7 @@ interface RejectedKYC {
   rejectionReason: string;
   resubmissionAllowed: boolean;
   hasResubmitted: boolean;
+  kycType: "USER" | "AGENCY";
 }
 
 export default function RejectedKYCPage() {
@@ -49,6 +50,8 @@ export default function RejectedKYCPage() {
   >("all");
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedKYC, setSelectedKYC] = useState<{ id: number; type: "USER" | "AGENCY" } | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Fetch rejected KYC logs on component mount
   useEffect(() => {
@@ -99,8 +102,12 @@ export default function RejectedKYCPage() {
 
       // Transform backend data to match frontend interface
       const transformedData: RejectedKYC[] = logs.map((log: any) => {
+        // Extract kycType from log data (check if it's agency or user KYC)
+        const kycType = log.agencyKycID ? "AGENCY" : "USER";
+        const kycId = log.agencyKycID || log.kycID || log.kycLogID;
+        
         return {
-          id: log.kycLogID?.toString() || "0",
+          id: kycId?.toString() || "0",
           userId: log.userAccountID?.toString() || "0",
           userName: log.userEmail?.split("@")[0] || "Unknown", // Extract name from email
           userEmail: log.userEmail || "unknown@email.com",
@@ -112,6 +119,7 @@ export default function RejectedKYCPage() {
           rejectionReason: log.reason || "No reason provided",
           resubmissionAllowed: true, // Default to true
           hasResubmitted: false, // Would need additional logic to determine
+          kycType: kycType,
         };
       });
 
@@ -130,6 +138,70 @@ export default function RejectedKYCPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleViewDetails = (record: RejectedKYC) => {
+    const kycId = parseInt(record.id);
+    if (isNaN(kycId)) {
+      showToast({
+        type: "error",
+        title: "Invalid KYC ID",
+        message: "Unable to view details for this record",
+        duration: 3000,
+      });
+      return;
+    }
+    setSelectedKYC({ id: kycId, type: record.kycType });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (record: RejectedKYC) => {
+    if (!confirm(`Are you sure you want to permanently delete this KYC submission?\n\nUser: ${record.userEmail}\nRejected: ${new Date(record.rejectionDate).toLocaleDateString()}\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const kycId = parseInt(record.id);
+      if (isNaN(kycId)) {
+        throw new Error("Invalid KYC ID");
+      }
+
+      const response = await fetch(
+        `${API_BASE}/api/adminpanel/kyc/${kycId}?kyc_type=${record.kycType}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete KYC record");
+      }
+
+      const data = await response.json();
+      
+      showToast({
+        type: "success",
+        title: "KYC Deleted",
+        message: `Successfully deleted KYC submission (${data.filesDeleted} files removed)`,
+        duration: 5000,
+      });
+
+      // Refresh the list
+      fetchRejectedKYC();
+    } catch (error) {
+      console.error("Error deleting KYC:", error);
+      showToast({
+        type: "error",
+        title: "Delete Failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to delete KYC record",
+        duration: 5000,
+      });
     }
   };
 
@@ -164,7 +236,7 @@ export default function RejectedKYCPage() {
               </p>
             </div>
             <Button>
-              <Download className="mr-2 h-4 w-4" />
+              <FileText className="mr-2 h-4 w-4" />
               Export Rejected Records
             </Button>
           </div>
@@ -188,7 +260,7 @@ export default function RejectedKYCPage() {
                 <CardTitle className="text-sm font-medium">
                   Can Resubmit
                 </CardTitle>
-                <RefreshCw className="h-4 w-4 text-yellow-600" />
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -375,22 +447,22 @@ export default function RejectedKYCPage() {
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleViewDetails(record)}
+                      >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
                       </Button>
-                      {record.resubmissionAllowed && !record.hasResubmitted && (
-                        <Button
-                          size="sm"
-                          className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Allow Resubmit
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm">
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDelete(record)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
                       </Button>
                     </div>
                   </div>
@@ -418,6 +490,19 @@ export default function RejectedKYCPage() {
           )}
         </div>
       </main>
+
+      {/* KYC Detail Modal */}
+      {selectedKYC && (
+        <KYCDetailModal
+          kycId={selectedKYC.id}
+          kycType={selectedKYC.type}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedKYC(null);
+          }}
+        />
+      )}
     </div>
   );
 }
