@@ -606,9 +606,24 @@ export default function AuditLogsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Details
                   </label>
-                  <pre className="text-xs text-gray-900 bg-gray-50 p-4 rounded border border-gray-200 overflow-x-auto">
-                    {JSON.stringify(selectedLog.details, null, 2)}
-                  </pre>
+                  {selectedLog.details && typeof selectedLog.details === "object" && !Array.isArray(selectedLog.details) ? (
+                    <div className="bg-gray-50 rounded border border-gray-200 divide-y divide-gray-200">
+                      {Object.entries(selectedLog.details).map(([key, value]) => (
+                        <div key={key} className="flex items-start px-4 py-2.5">
+                          <span className="text-xs font-medium text-gray-500 w-40 shrink-0 capitalize">
+                            {key.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-xs text-gray-900 break-all">
+                            {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <pre className="text-xs text-gray-900 bg-gray-50 p-4 rounded border border-gray-200 overflow-x-auto">
+                      {JSON.stringify(selectedLog.details, null, 2)}
+                    </pre>
+                  )}
                 </div>
 
                 {(selectedLog.before_value || selectedLog.after_value) && (
@@ -618,9 +633,24 @@ export default function AuditLogsPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Before
                         </label>
-                        <pre className="text-xs text-gray-900 bg-red-50 p-3 rounded border border-red-200 overflow-x-auto">
-                          {JSON.stringify(selectedLog.before_value, null, 2)}
-                        </pre>
+                        {typeof selectedLog.before_value === "object" && !Array.isArray(selectedLog.before_value) ? (
+                          <div className="bg-red-50 rounded border border-red-200 divide-y divide-red-100">
+                            {Object.entries(selectedLog.before_value).map(([key, value]) => (
+                              <div key={key} className="flex items-start px-3 py-2">
+                                <span className="text-xs font-medium text-red-400 w-32 shrink-0 capitalize">
+                                  {key.replace(/_/g, " ")}
+                                </span>
+                                <span className="text-xs text-gray-900 break-all">
+                                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <pre className="text-xs text-gray-900 bg-red-50 p-3 rounded border border-red-200 overflow-x-auto">
+                            {JSON.stringify(selectedLog.before_value, null, 2)}
+                          </pre>
+                        )}
                       </div>
                     )}
                     {selectedLog.after_value && (
@@ -628,9 +658,24 @@ export default function AuditLogsPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           After
                         </label>
-                        <pre className="text-xs text-gray-900 bg-green-50 p-3 rounded border border-green-200 overflow-x-auto">
-                          {JSON.stringify(selectedLog.after_value, null, 2)}
-                        </pre>
+                        {typeof selectedLog.after_value === "object" && !Array.isArray(selectedLog.after_value) ? (
+                          <div className="bg-green-50 rounded border border-green-200 divide-y divide-green-100">
+                            {Object.entries(selectedLog.after_value).map(([key, value]) => (
+                              <div key={key} className="flex items-start px-3 py-2">
+                                <span className="text-xs font-medium text-green-500 w-32 shrink-0 capitalize">
+                                  {key.replace(/_/g, " ")}
+                                </span>
+                                <span className="text-xs text-gray-900 break-all">
+                                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <pre className="text-xs text-gray-900 bg-green-50 p-3 rounded border border-green-200 overflow-x-auto">
+                            {JSON.stringify(selectedLog.after_value, null, 2)}
+                          </pre>
+                        )}
                       </div>
                     )}
                   </div>
