@@ -2402,6 +2402,15 @@ def assign_employees_to_slots(
         old_status = job.status
         job.status = 'IN_PROGRESS'
         job.employeeAssignedAt = timezone.now()
+        
+        # Also set legacy assignedEmployeeID to primary contact for backward compatibility
+        # (matches pattern from assign_employees_to_job)
+        try:
+            primary_employee = AgencyEmployee.objects.get(employeeID=primary_contact_employee_id, agency=agency_account)
+            job.assignedEmployeeID = primary_employee
+        except AgencyEmployee.DoesNotExist:
+            pass  # Shouldn't happen - already validated above
+        
         job.save()
         
         # Create group conversation if not exists

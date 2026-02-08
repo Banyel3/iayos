@@ -2941,7 +2941,8 @@ def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...
             job = JobPosting.objects.select_related(
                 'clientID__profileID__accountFK',
                 'assignedWorkerID__profileID__accountFK',
-                'assignedEmployeeID__agency'
+                'assignedEmployeeID__agency',
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -2953,13 +2954,18 @@ def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...
         is_authorized = False
         uploader_name = "Unknown"
         
-        # Check if this is an agency job
+        # Check if this is an agency job (check both legacy single-employee FK and agency FK)
         if job.assignedEmployeeID is not None:
-            # Agency job - verify requesting user is the agency owner
+            # Agency job (legacy single employee) - verify requesting user is the agency owner
             agency_owner_account = job.assignedEmployeeID.agency
             if agency_owner_account.accountID == request.auth.accountID:
                 is_authorized = True
                 uploader_name = f"Agency ({job.assignedEmployeeID.name})"
+        elif job.assignedAgencyFK is not None:
+            # Agency job (slot-based multi-employee) - assignedEmployeeID may be NULL
+            if job.assignedAgencyFK.accountFK.accountID == request.auth.accountID:
+                is_authorized = True
+                uploader_name = f"Agency ({job.assignedAgencyFK.businessName})"
         
         # Check if user is the assigned worker
         if not is_authorized and job.assignedWorkerID:
@@ -3194,7 +3200,8 @@ def worker_mark_job_complete(request, job_id: int):
             job = JobPosting.objects.select_related(
                 'clientID__profileID__accountFK',
                 'assignedWorkerID__profileID__accountFK',
-                'assignedEmployeeID__agency'
+                'assignedEmployeeID__agency',
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -3202,22 +3209,41 @@ def worker_mark_job_complete(request, job_id: int):
                 status=404
             )
         
-        # Check if this is an agency job (has assignedEmployeeID)
-        is_agency_job = job.assignedEmployeeID is not None
+        # Check if this is an agency job (check both legacy single-employee FK and agency FK)
+        is_agency_job = job.assignedEmployeeID is not None or job.assignedAgencyFK is not None
         worker_name = None
         is_authorized = False
         
         if is_agency_job:
             # Agency job - verify the requesting user is the agency owner
-            # Note: AgencyEmployee.agency is a FK to Accounts (the agency owner), not to Agency model
-            print(f"📋 This is an agency job. Assigned employee: {job.assignedEmployeeID.name}")
-            agency_owner_account = job.assignedEmployeeID.agency  # This IS the Accounts object
+            agency_owner_account = None
+            
+            if job.assignedEmployeeID is not None:
+                # Legacy path: agency detected via assignedEmployeeID
+                agency_owner_account = job.assignedEmployeeID.agency  # This IS the Accounts object
+                worker_name = job.assignedEmployeeID.name
+            elif job.assignedAgencyFK is not None:
+                # Slot-based assignment: assignedEmployeeID may be NULL, use assignedAgencyFK
+                agency_owner_account = job.assignedAgencyFK.accountFK
+                # Get primary contact name from JobEmployeeAssignment
+                from accounts.models import JobEmployeeAssignment
+                primary_assignment = JobEmployeeAssignment.objects.filter(
+                    job=job, isPrimaryContact=True
+                ).select_related('employee').first()
+                worker_name = primary_assignment.employee.name if primary_assignment else job.assignedAgencyFK.businessName
+            
+            print(f"📋 This is an agency job. Worker/Employee: {worker_name}")
+            
+            if agency_owner_account is None:
+                return Response(
+                    {"error": "Agency information not found for this job"},
+                    status=400
+                )
             
             print(f"📋 Agency owner account ID: {agency_owner_account.accountID}, Request auth ID: {request.auth.accountID}")
             
             if agency_owner_account.accountID == request.auth.accountID:
                 is_authorized = True
-                worker_name = job.assignedEmployeeID.name
                 print(f"✅ Agency owner {request.auth.email} authorized to mark complete")
             else:
                 return Response(
@@ -4007,7 +4033,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             job = JobPosting.objects.select_related(
                 'clientID__profileID',
                 'assignedWorkerID__profileID',
-                'assignedEmployeeID__agency'
+                'assignedEmployeeID__agency',
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -4022,14 +4049,17 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Check if this is an agency job
-        is_agency_job = job.assignedEmployeeID is not None
+        # Check if this is an agency job (check both legacy single-employee FK and agency FK)
+        is_agency_job = job.assignedEmployeeID is not None or job.assignedAgencyFK is not None
         
         # Determine reviewer type first to check payment requirement
         # Agency owners may not have a Profile, so check for None
         is_client = profile is not None and job.clientID.profileID.profileID == profile.profileID
         is_worker = profile is not None and job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
-        is_agency_owner = is_agency_job and job.assignedEmployeeID.agency == request.auth
+        is_agency_owner = is_agency_job and (
+            (job.assignedEmployeeID is not None and job.assignedEmployeeID.agency == request.auth) or
+            (job.assignedAgencyFK is not None and job.assignedAgencyFK.accountFK == request.auth)
+        )
         
         # For team jobs, check if worker is part of the team via JobWorkerAssignment
         is_team_worker = False
@@ -4089,13 +4119,20 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             status=400
                         )
                 else:
-                    # Fallback to legacy single employee
+                    # Fallback to legacy single employee or primary contact from assignments
                     employee = job.assignedEmployeeID
                     if not employee:
-                        return Response(
-                            {"error": "No employee assigned to this job"},
-                            status=400
-                        )
+                        # For slot-based assignments, get primary contact
+                        primary = assigned_employees.filter(isPrimaryContact=True).first()
+                        if primary:
+                            employee = primary.employee
+                        elif assigned_employees.exists():
+                            employee = assigned_employees.first().employee
+                        else:
+                            return Response(
+                                {"error": "No employee assigned to this job"},
+                                status=400
+                            )
                 
                 # Check if this specific employee review already exists
                 existing_employee_review = JobReview.objects.filter(
@@ -4201,7 +4238,20 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 # Review the agency
                 from accounts.models import Agency
                 try:
-                    agency = Agency.objects.get(accountFK=job.assignedEmployeeID.agency)
+                    # Get agency account - use assignedEmployeeID.agency if available, fallback to assignedAgencyFK
+                    agency_account_fk = None
+                    if job.assignedEmployeeID is not None:
+                        agency_account_fk = job.assignedEmployeeID.agency
+                    elif job.assignedAgencyFK is not None:
+                        agency_account_fk = job.assignedAgencyFK.accountFK
+                    
+                    if agency_account_fk is None:
+                        return Response(
+                            {"error": "Agency information not found for this job"},
+                            status=400
+                        )
+                    
+                    agency = Agency.objects.get(accountFK=agency_account_fk)
                 except Agency.DoesNotExist:
                     return Response(
                         {"error": "Agency not found"},
