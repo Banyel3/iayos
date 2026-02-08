@@ -114,7 +114,12 @@ export default function TicketDetailPage() {
       const data = await response.json();
 
       if (data.success) {
-        setTicket(data.ticket);
+        // Merge messages from root level into ticket object
+        const ticketWithMessages = {
+          ...data.ticket,
+          messages: data.messages || [],
+        };
+        setTicket(ticketWithMessages);
         setNewSubject(data.ticket.subject);
       }
     } catch (error) {
