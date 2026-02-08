@@ -14,7 +14,6 @@ import {
   Loader2,
   ExternalLink,
   AlertCircle,
-  Mail,
   Phone,
   MapPin,
   Star,
@@ -278,14 +277,6 @@ export default function ClientDetailPage() {
                 >
                   <Clock className="h-3 w-3 mr-1" />
                   Suspend
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => router.push(`/admin/messages?userId=${id}`)}
-                >
-                  <Mail className="h-3 w-3 mr-1" />
-                  Message
                 </Button>
                 <Button 
                   variant="destructive" 
