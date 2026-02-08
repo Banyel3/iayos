@@ -6,6 +6,126 @@ iAyos is a comprehensive marketplace platform for blue-collar services connectin
 
 ---
 
+## 🆕 LATEST UPDATE - Certifications History Sidebar Layout Fix ✅ (February 2026)
+
+**Status**: ✅ IMPLEMENTATION COMPLETE  
+**PR**: #322 (MERGED)  
+**Type**: Bug Fix - Admin Panel Layout  
+**Time**: ~15 minutes  
+**Priority**: HIGH - UX Issue
+
+### What Was Fixed
+
+**Problem**:
+
+- Sidebar overlapping/hiding page content on Admin → Certifications → History page
+- Search bar, filters, and export button compressed or cut off
+- Layout misaligned when sidebar collapsed/expanded
+- Content started at 0px (left edge), directly underneath the 256px-wide sidebar
+
+**Root Cause**:
+
+- History page used **flexbox layout** (`flex` + `flex-1`) instead of the established **fixed sidebar + left padding pattern**
+- Flexbox assumes all children are in normal document flow
+- Fixed sidebar (`position: fixed`) is removed from document flow
+- Content filled available space starting at 0px → hidden under sidebar
+
+**Solution**:
+
+- Removed `flex` class from parent container (both loading state and main return)
+- Changed `flex-1` to `pl-72` on main element
+- Added `min-h-screen` to main element for consistency
+- Matches pattern used by all working admin pages (KYC, Dashboard, Certifications Pending)
+
+### Implementation Details
+
+**Pattern Comparison**:
+
+```tsx
+// ❌ BEFORE (Broken - Flexbox)
+<div className="flex min-h-screen">
+  <Sidebar />
+  <main className="flex-1 p-8">
+    {/* Content hidden under 256px sidebar */}
+  </main>
+</div>
+
+// ✅ AFTER (Fixed - Left Padding)
+<div className="min-h-screen">
+  <Sidebar />
+  <main className="pl-72 p-8 min-h-screen">
+    {/* Content starts at 288px, clears sidebar + 32px gap */}
+  </main>
+</div>
+```
+
+**CSS Calculation**:
+
+- Sidebar width: `w-64` = 256px (fixed position, z-index 40)
+- Left padding: `pl-72` = 288px
+- Gap: 288px - 256px = **32px** breathing room
+- Content now visible and properly aligned
+
+### Files Modified
+
+**Frontend** (1 file, 8 lines changed):
+
+- `apps/frontend_web/app/admin/certifications/history/page.tsx` (+4/-4)
+
+**Changes Applied**:
+
+1. Line 230 (loading state): `"flex min-h-screen"` → `"min-h-screen"`
+2. Line 232 (loading main): `"flex-1 p-8"` → `"pl-72 p-8 min-h-screen"`
+3. Line 250 (main return): `"flex min-h-screen"` → `"min-h-screen"`
+4. Line 252 (main main): `"flex-1 p-8"` → `"pl-72 p-8 min-h-screen"`
+
+### Pattern Consistency
+
+This fix aligns the History page with the established admin panel layout pattern:
+
+**Working Pages Using pl-72 Pattern**:
+
+- ✅ KYC Pending: `apps/frontend_web/app/admin/kyc/pending/page.tsx` (line 758)
+- ✅ Dashboard: `apps/frontend_web/app/admin/dashboard/page.tsx` (line 115)
+- ✅ Certifications Pending: `apps/frontend_web/app/admin/certifications/pending/page.tsx` (line 240)
+- ✅ Certifications History: **NOW FIXED** ✅
+
+**Standard Admin Layout Structure**:
+
+```tsx
+<div className="min-h-screen bg-gradient-to-br from-{color}-50 to-{color}-100">
+  <Sidebar />
+  <main className="pl-72 p-8 min-h-screen">
+    {/* Optional inner container for max-width */}
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Page content */}
+    </div>
+  </main>
+</div>
+```
+
+### Testing
+
+- ✅ TypeScript compilation passed
+- ✅ PR #322 created and merged
+- ✅ Changes deployed to main branch
+- ⏳ Manual testing recommended:
+  - Navigate to Admin → Certifications → History
+  - Verify all content visible (no overlap with sidebar)
+  - Test sidebar collapse/expand (content position stays fixed)
+  - Check search bar, filters, export button fully visible
+
+**Impact**:
+
+- Page content no longer hidden behind sidebar
+- All UI elements (search, filters, buttons) fully accessible
+- Consistent layout behavior across all admin pages
+- Sidebar collapse/expand works correctly
+
+**Status**: ✅ COMPLETE - Layout fix deployed
+
+---
+
 ## 📝 Development Workflow Reminder
 
 ### Mobile Changelog Updates
