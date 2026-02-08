@@ -313,6 +313,255 @@ def reject_agency_kyc_verification(request):
         return {"success": False, "error": str(e)}
 
 
+@router.get("/kyc/{kyc_id}", auth=cookie_auth)
+def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
+    """
+    Get detailed information for a single KYC record with signed file URLs.
+    
+    Args:
+        kyc_id: KYC record ID (kycID for USER, agencyKycID for AGENCY)
+        kyc_type: "USER" or "AGENCY" (default: "USER")
+    
+    Returns:
+        KYC record with user/agency info, files with signed URLs, and verification history
+    """
+    from accounts.models import kyc, kycFiles, Accounts, Profile, AgencyProfile
+    from agency.models import AgencyKYC, AgencyKycFile
+    from adminpanel.models import KYCLogs
+    from iayos_project.utils import get_signed_url
+    import re
+    
+    try:
+        print(f"[ADMIN] Fetching KYC detail: ID={kyc_id}, Type={kyc_type}")
+        
+        if kyc_type.upper() == "AGENCY":
+            # Fetch agency KYC
+            agency_kyc = AgencyKYC.objects.select_related(
+                'agencyID__profileID__accountFK'
+            ).filter(agencyKycID=kyc_id).first()
+            
+            if not agency_kyc:
+                return Response({"error": "Agency KYC not found"}, status=404)
+            
+            # Get agency files
+            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values(
+                'agencyKycFileID', 'fileURL', 'idType', 'uploadedAt'
+            )
+            
+            # Generate signed URLs for each file
+            files_with_urls = []
+            for file in files:
+                file_url = file['fileURL']
+                # Extract path from URL for Supabase
+                path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                if path_match:
+                    path = path_match.group(1)
+                    signed_url = get_signed_url('agency', path, expires_in=3600)
+                    files_with_urls.append({
+                        'id': file['agencyKycFileID'],
+                        'url': signed_url or file_url,
+                        'type': file['idType'],
+                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
+                    })
+            
+            # Get verification history from logs
+            logs = KYCLogs.objects.filter(
+                kycID=kyc_id,
+                action__in=['APPROVED', 'REJECTED']
+            ).order_by('-reviewedAt').values(
+                'action', 'reason', 'reviewedBy', 'reviewedAt'
+            )
+            
+            return {
+                "success": True,
+                "kycType": "AGENCY",
+                "kyc": {
+                    "id": agency_kyc.agencyKycID,
+                    "status": agency_kyc.status,
+                    "businessName": agency_kyc.businessName or "N/A",
+                    "businessDescription": agency_kyc.businessDesc or "N/A",
+                    "submittedAt": agency_kyc.submittedAt.isoformat() if agency_kyc.submittedAt else None,
+                    "reviewedAt": agency_kyc.reviewedAt.isoformat() if agency_kyc.reviewedAt else None,
+                },
+                "user": {
+                    "id": agency_kyc.agencyID.profileID.accountFK.accountID,
+                    "email": agency_kyc.agencyID.profileID.accountFK.email,
+                    "name": agency_kyc.businessName or "N/A",
+                    "type": "AGENCY"
+                },
+                "files": files_with_urls,
+                "history": list(logs)
+            }
+        
+        else:
+            # Fetch user KYC
+            user_kyc = kyc.objects.select_related(
+                'accountFK'
+            ).filter(kycID=kyc_id).first()
+            
+            if not user_kyc:
+                return Response({"error": "KYC not found"}, status=404)
+            
+            # Get KYC files
+            files = kycFiles.objects.filter(kycID=user_kyc).values(
+                'kycFileID', 'fileURL', 'idType', 'uploadedAt'
+            )
+            
+            # Generate signed URLs for each file
+            files_with_urls = []
+            for file in files:
+                file_url = file['fileURL']
+                # Extract path from URL for Supabase
+                path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                if path_match:
+                    path = path_match.group(1)
+                    signed_url = get_signed_url('kyc-docs', path, expires_in=3600)
+                    files_with_urls.append({
+                        'id': file['kycFileID'],
+                        'url': signed_url or file_url,
+                        'type': file['idType'],
+                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
+                    })
+            
+            # Get verification history from logs
+            logs = KYCLogs.objects.filter(
+                kycID=kyc_id,
+                action__in=['APPROVED', 'REJECTED']
+            ).order_by('-reviewedAt').values(
+                'action', 'reason', 'reviewedBy', 'reviewedAt'
+            )
+            
+            # Get user profile info
+            profile = Profile.objects.filter(accountFK=user_kyc.accountFK).first()
+            
+            return {
+                "success": True,
+                "kycType": "USER",
+                "kyc": {
+                    "id": user_kyc.kycID,
+                    "status": user_kyc.kyc_status,
+                    "submittedAt": user_kyc.createdAt.isoformat() if user_kyc.createdAt else None,
+                    "reviewedAt": None,  # User KYC model doesn't have reviewedAt
+                },
+                "user": {
+                    "id": user_kyc.accountFK.accountID,
+                    "email": user_kyc.accountFK.email,
+                    "name": f"{profile.firstName or ''} {profile.lastName or ''}" if profile else "N/A",
+                    "type": profile.profileType if profile else "WORKER"
+                },
+                "files": files_with_urls,
+                "history": list(logs)
+            }
+    
+    except Exception as e:
+        print(f"❌ Error fetching KYC detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.delete("/kyc/{kyc_id}", auth=cookie_auth)
+def delete_kyc_record(request, kyc_id: int, kyc_type: str = "USER"):
+    """
+    Delete a rejected KYC record and its associated files.
+    Only allows deletion if status is 'Rejected'.
+    Preserves KYCLogs for audit trail.
+    
+    Args:
+        kyc_id: KYC record ID
+        kyc_type: "USER" or "AGENCY" (default: "USER")
+    
+    Returns:
+        Success status and deletion details
+    """
+    from accounts.models import kyc, kycFiles
+    from agency.models import AgencyKYC, AgencyKycFile
+    from iayos_project.utils import delete_storage_file
+    from django.db import transaction
+    import re
+    
+    try:
+        print(f"[ADMIN] Deleting KYC: ID={kyc_id}, Type={kyc_type}")
+        
+        if kyc_type.upper() == "AGENCY":
+            # Delete agency KYC
+            agency_kyc = AgencyKYC.objects.filter(agencyKycID=kyc_id).first()
+            
+            if not agency_kyc:
+                return Response({"error": "Agency KYC not found"}, status=404)
+            
+            # Safety check: only delete if rejected
+            if agency_kyc.status != "Rejected":
+                return Response({
+                    "error": f"Cannot delete KYC with status '{agency_kyc.status}'. Only 'Rejected' KYC can be deleted."
+                }, status=400)
+            
+            # Get files before deletion
+            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values_list('fileURL', flat=True)
+            
+            with transaction.atomic():
+                # Delete files from Supabase storage
+                for file_url in files:
+                    path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                    if path_match:
+                        path = path_match.group(1)
+                        delete_storage_file('agency', path)
+                        print(f"✅ Deleted file: {path}")
+                
+                # Delete database records (files will cascade)
+                deleted_count = agency_kyc.delete()[0]
+                print(f"✅ Deleted {deleted_count} database records")
+            
+            return {
+                "success": True,
+                "message": f"Successfully deleted agency KYC {kyc_id}",
+                "filesDeleted": len(files),
+                "kycType": "AGENCY"
+            }
+        
+        else:
+            # Delete user KYC
+            user_kyc = kyc.objects.filter(kycID=kyc_id).first()
+            
+            if not user_kyc:
+                return Response({"error": "KYC not found"}, status=404)
+            
+            # Safety check: only delete if rejected
+            if user_kyc.kyc_status != "Rejected":
+                return Response({
+                    "error": f"Cannot delete KYC with status '{user_kyc.kyc_status}'. Only 'Rejected' KYC can be deleted."
+                }, status=400)
+            
+            # Get files before deletion
+            files = kycFiles.objects.filter(kycID=user_kyc).values_list('fileURL', flat=True)
+            
+            with transaction.atomic():
+                # Delete files from Supabase storage
+                for file_url in files:
+                    path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                    if path_match:
+                        path = path_match.group(1)
+                        delete_storage_file('kyc-docs', path)
+                        print(f"✅ Deleted file: {path}")
+                
+                # Delete database records (files will cascade)
+                deleted_count = user_kyc.delete()[0]
+                print(f"✅ Deleted {deleted_count} database records")
+            
+            return {
+                "success": True,
+                "message": f"Successfully deleted user KYC {kyc_id}",
+                "filesDeleted": len(files),
+                "kycType": "USER"
+            }
+    
+    except Exception as e:
+        print(f"❌ Error deleting KYC: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
 @router.post("/kyc/create-agency", auth=cookie_auth)
 def create_agency_kyc_from_paths(request):
     """Admin helper: create AgencyKYC and file records from already-uploaded Supabase paths.

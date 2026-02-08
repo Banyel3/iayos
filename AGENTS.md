@@ -5240,6 +5240,318 @@ When encountering API errors:
 
 ---
 
-**Last Updated**: December 2025
+## 📊 MODEL ARCHITECTURE
+
+### KYC System - Complete Schema Documentation
+
+**Overview**: The iAyos KYC (Know Your Customer) system manages identity verification for both individual users and agencies. The system uses separate models for user KYC and agency KYC, with a unified audit trail through KYCLogs.
+
+#### Core Models
+
+**1. kyc (User KYC)**
+```python
+Model: accounts.models.kyc
+Table: kyc
+Purpose: Identity verification for individual users (workers/clients)
+
+Fields:
+  kycID: BigAutoField (primary key, integer)
+  accountFK: ForeignKey(Accounts, on_delete=CASCADE)
+  kyc_status: CharField(choices=["PENDING", "APPROVED", "Rejected"])
+  createdAt: DateTimeField(auto_now_add=True)
+  updatedAt: DateTimeField(auto_now=True)
+
+Indexes:
+  - accountFK, kyc_status (performance optimization)
+
+Relationships:
+  - One-to-Many: kyc → kycFiles (CASCADE delete)
+  - One-to-Many: kyc → KYCExtractedData (CASCADE delete - OCR data)
+  - One-to-Many: kyc → KYCLogs (NOT CASCADE - persists after deletion)
+```
+
+**2. kycFiles (User KYC Documents)**
+```python
+Model: accounts.models.kycFiles
+Table: kycFiles
+Purpose: Store document file paths for user KYC submissions
+
+Fields:
+  kycFileID: BigAutoField (primary key, integer)
+  kycID: ForeignKey(kyc, on_delete=CASCADE)
+  fileURL: CharField(max_length=500)
+  idType: CharField (FRONTID, BACKID, SELFIE, CLEARANCE)
+  uploadedAt: DateTimeField(auto_now_add=True)
+
+Storage Pattern:
+  - Bucket: "kyc-docs" (Supabase)
+  - Path: user_{accountID}/kyc/{filename}
+  - Signed URLs: 1-hour expiry via get_signed_url()
+
+Cascade Behavior:
+  - When kyc deleted → kycFiles auto-deleted (CASCADE)
+```
+
+**3. AgencyKYC (Agency KYC)**
+```python
+Model: agency.models.AgencyKYC
+Table: agency_kyc
+Purpose: Identity verification for agency profiles
+
+Fields:
+  agencyKycID: BigAutoField (primary key, integer)
+  agencyID: ForeignKey(AgencyProfile, on_delete=CASCADE)
+  status: CharField (PENDING, APPROVED, Rejected)
+  businessName: CharField(max_length=200, blank=True, null=True)
+  businessDesc: TextField(blank=True, null=True)
+  submittedAt: DateTimeField(auto_now_add=True)
+  reviewedAt: DateTimeField(null=True, blank=True)
+
+Relationships:
+  - One-to-Many: AgencyKYC → AgencyKycFile (CASCADE delete)
+  - One-to-Many: AgencyKYC → KYCLogs (NOT CASCADE)
+```
+
+**4. AgencyKycFile (Agency Documents)**
+```python
+Model: agency.models.AgencyKycFile
+Table: agency_kycfile
+Purpose: Store document file paths for agency KYC submissions
+
+Fields:
+  agencyKycFileID: BigAutoField (primary key, integer)
+  agencyKycID: ForeignKey(AgencyKYC, on_delete=CASCADE)
+  fileURL: CharField(max_length=500)
+  idType: CharField (BUSINESS_PERMIT, REP_ID_FRONT, REP_ID_BACK, ADDRESS_PROOF, AUTH_LETTER)
+  uploadedAt: DateTimeField(auto_now_add=True)
+
+Storage Pattern:
+  - Bucket: "agency" (Supabase)
+  - Path: agency_{agencyID}/kyc/{filename}
+  - Signed URLs: 1-hour expiry via get_signed_url()
+
+Cascade Behavior:
+  - When AgencyKYC deleted → AgencyKycFile auto-deleted (CASCADE)
+```
+
+**5. KYCLogs (Audit Trail)**
+```python
+Model: adminpanel.models.KYCLogs
+Table: certification_logs (shared with certifications)
+Purpose: Permanent audit trail for ALL KYC actions (approve/reject)
+
+Fields:
+  kycLogID: BigAutoField (primary key, integer)
+  kycID: BigIntegerField (NOT ForeignKey - persists after KYC deletion)
+  agencyKycID: BigIntegerField (null=True, for agency KYC logs)
+  userAccountID: IntegerField (user account ID)
+  userEmail: CharField (user email at time of action)
+  action: CharField (APPROVED, REJECTED)
+  reason: TextField (rejection reason or approval notes)
+  reviewedBy: CharField (admin email who performed action)
+  reviewedAt: DateTimeField (timestamp of action)
+  createdAt: DateTimeField(auto_now_add=True)
+
+Indexes:
+  - kycID, action (query optimization)
+  - userAccountID, action
+  - reviewedAt
+
+Critical Behavior:
+  - Uses BigIntegerField (NOT ForeignKey) for kycID/agencyKycID
+  - Logs persist FOREVER even when KYC record deleted
+  - Provides complete audit trail for compliance
+```
+
+#### Data Flow Diagrams
+
+**User KYC Approval Flow**:
+```
+1. User submits documents → kyc (status=PENDING) + kycFiles created
+2. Admin reviews → POST /api/adminpanel/kyc/approve
+3. Service updates kyc.kyc_status = "APPROVED"
+4. KYCLogs entry created (action=APPROVED, reason=notes)
+5. User receives notification
+```
+
+**User KYC Rejection Flow**:
+```
+1. Admin reviews → POST /api/adminpanel/kyc/reject
+2. Service updates kyc.kyc_status = "Rejected"
+3. KYCLogs entry created (action=REJECTED, reason=required)
+4. User receives notification with reason
+5. kyc record remains in database (can be deleted later)
+```
+
+**KYC Deletion Flow** (Rejected Only):
+```
+1. Admin views rejected KYC → GET /api/adminpanel/kyc/{kyc_id}
+2. Admin clicks Delete → DELETE /api/adminpanel/kyc/{kyc_id}
+3. Backend validates status == "Rejected" (safety check)
+4. Extract file paths from kycFiles/AgencyKycFile
+5. Delete files from Supabase (delete_storage_file)
+6. Delete kyc/AgencyKYC record (CASCADE deletes files)
+7. KYCLogs persist for audit compliance
+```
+
+#### API Endpoints Summary
+
+**User KYC Endpoints** (adminpanel/api.py):
+```python
+# Listing & Stats
+GET  /api/adminpanel/kyc/all           - Fetch all KYC with files
+GET  /api/adminpanel/kyc/pending       - Paginated pending KYC (optimized)
+GET  /api/adminpanel/kyc/logs          - Fetch KYCLogs with filters
+
+# Single Record Operations
+GET    /api/adminpanel/kyc/{kyc_id}             - Detail with signed URLs
+DELETE /api/adminpanel/kyc/{kyc_id}             - Delete rejected KYC
+POST   /api/adminpanel/kyc/approve              - Approve KYC
+POST   /api/adminpanel/kyc/reject               - Reject KYC with reason
+
+# Query Parameters
+?kyc_type=USER|AGENCY   - Specify KYC type
+?action=APPROVED|REJECTED - Filter logs by action
+?limit=N                 - Pagination limit
+```
+
+**Agency KYC Endpoints** (agency/api.py):
+```python
+GET    /api/agency/kyc                     - List agency KYC
+GET    /api/agency/kyc/{id}                - Agency KYC detail
+DELETE /api/agency/kyc/files               - Delete agency KYC files
+POST   /api/adminpanel/kyc/approve-agency  - Approve agency KYC
+POST   /api/adminpanel/kyc/reject-agency   - Reject agency KYC
+```
+
+#### File Storage Patterns
+
+**Supabase Buckets**:
+- `kyc-docs`: User KYC documents (FRONTID, BACKID, SELFIE, CLEARANCE)
+- `agency`: Agency KYC documents (BUSINESS_PERMIT, REP_ID_FRONT, etc.)
+
+**Path Extraction Regex** (for deletion):
+```python
+# User KYC
+path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+
+# Agency KYC
+path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+```
+
+**Signed URL Generation**:
+```python
+from iayos_project.utils import get_signed_url
+
+# Generate 1-hour signed URL for viewing
+signed_url = get_signed_url('kyc-docs', 'user_123/kyc/frontid.jpg', expires_in=3600)
+```
+
+**File Deletion**:
+```python
+from iayos_project.utils import delete_storage_file
+
+# Delete from Supabase
+delete_storage_file('kyc-docs', 'user_123/kyc/frontid.jpg')
+```
+
+#### Business Rules
+
+**KYC Status Transitions**:
+- PENDING → APPROVED (admin approves)
+- PENDING → Rejected (admin rejects with reason)
+- ❌ Rejected → PENDING (no resubmission - must create new KYC)
+
+**Deletion Policy**:
+- ✅ Can delete: status == "Rejected"
+- ❌ Cannot delete: status == "PENDING" or "APPROVED"
+- ✅ KYCLogs always preserved (audit compliance)
+- ✅ Files deleted from Supabase storage
+- ✅ Database records CASCADE deleted
+
+**Approval Requirements**:
+- User KYC: Admin must be authenticated (cookie_auth)
+- Rejection: Reason field REQUIRED (min 10 chars recommended)
+- Logs: Admin email + timestamp recorded forever
+
+#### Frontend Implementation
+
+**Admin Pages**:
+- `/admin/kyc/pending` - Pending KYC list
+- `/admin/kyc/rejected` - Rejected KYC list with delete
+- `/admin/kyc/[id]` - KYC detail view (if exists)
+
+**Components**:
+- `KYCDetailModal.tsx` - Read-only modal for viewing KYC details
+  - Props: kycId (number), kycType ("USER"|"AGENCY"), isOpen, onClose
+  - Features: Document viewer with lightbox, verification history timeline
+
+**API Integration**:
+```typescript
+// Fetch KYC detail
+GET /api/adminpanel/kyc/{kycId}?kyc_type=USER
+
+// Delete KYC
+DELETE /api/adminpanel/kyc/{kycId}?kyc_type=USER
+
+// Response
+{
+  success: true,
+  kycType: "USER",
+  kyc: { id, status, submittedAt, reviewedAt },
+  user: { id, email, name, type },
+  files: [{ id, url, type, uploadedAt }],
+  history: [{ action, reason, reviewedBy, reviewedAt }]
+}
+```
+
+#### Migration History
+
+**Latest Migration**: `0038_job_assigned_employee_tracking.py` (Agency employee assignment)
+**KYC Migrations**: Check `accounts/migrations/` for kyc field additions
+
+**Key Migrations**:
+- Initial kyc model creation
+- Added kyc_status field with choices
+- Created kycFiles with CASCADE
+- Added KYCLogs for audit trail
+
+#### Service Layer
+
+**Key Service Functions** (adminpanel/service.py):
+```python
+approve_kyc(kyc_id, admin_email, notes=None)
+  - Updates kyc.kyc_status = "APPROVED"
+  - Creates KYCLogs entry
+  - Sends notification to user
+
+reject_kyc(kyc_id, admin_email, reason)
+  - Updates kyc.kyc_status = "Rejected"
+  - Creates KYCLogs entry with reason
+  - Sends notification to user
+
+fetchAll_kyc(request)
+  - Returns all KYC with related files
+  - Used by admin dashboard
+
+fetch_kyc_logs(action=None, limit=100)
+  - Query KYCLogs with filters
+  - Returns audit trail for rejected/approved
+```
+
+**Utility Functions** (iayos_project/utils.py):
+```python
+get_signed_url(bucket, path, expires_in=3600)
+  - Generates Supabase signed URL for viewing
+  - Default 1-hour expiry
+
+delete_storage_file(bucket, path)
+  - Deletes file from Supabase storage
+  - Used during KYC deletion
+```
+
+---
+
+**Last Updated**: February 2026
 **Status**: All builds operational and cached in cloud ✅
 **Cloud Builder**: banyel/iayo-docker (14.5GB cache)
