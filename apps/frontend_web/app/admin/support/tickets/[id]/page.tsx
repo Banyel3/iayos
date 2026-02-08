@@ -453,7 +453,7 @@ export default function TicketDetailPage() {
                       size="sm"
                       className="w-full"
                       onClick={() =>
-                        router.push(`/admin/users/${ticket.user_id}`)
+                        router.push(`/admin/users/${ticket.user_profile_type?.toLowerCase()}s/${ticket.user_id}`)
                       }
                     >
                       View Profile
