@@ -56,6 +56,13 @@ export type AssignedEmployee = {
   rating: number | null;
   isPrimaryContact: boolean;
   status: string;
+  // PROJECT job workflow tracking
+  dispatched?: boolean;
+  dispatchedAt?: string | null;
+  clientConfirmedArrival?: boolean;
+  clientConfirmedArrivalAt?: string | null;
+  agencyMarkedComplete?: boolean;
+  agencyMarkedCompleteAt?: string | null;
 };
 
 // Backjob info returned from conversations API

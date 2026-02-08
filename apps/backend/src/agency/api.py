@@ -1855,6 +1855,13 @@ def get_agency_conversations(request, filter: str = "all"):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": assignment.isPrimaryContact,
                     "status": assignment.status,
+                    # PROJECT job workflow tracking
+                    "dispatched": getattr(assignment, 'dispatched', False),
+                    "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
+                    "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
+                    "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
+                    "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
+                    "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
                 })
             
             # Fallback: if no M2M assignments but legacy field is set
@@ -1869,6 +1876,12 @@ def get_agency_conversations(request, filter: str = "all"):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": True,
                     "status": "ASSIGNED",
+                    "dispatched": False,
+                    "dispatchedAt": None,
+                    "clientConfirmedArrival": False,
+                    "clientConfirmedArrivalAt": None,
+                    "agencyMarkedComplete": False,
+                    "agencyMarkedCompleteAt": None,
                 })
             
             # Get client info
@@ -2035,6 +2048,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "rating": float(emp.rating) if emp.rating else None,
                 "isPrimaryContact": assignment.isPrimaryContact,
                 "status": assignment.status,
+                # PROJECT job workflow tracking
+                "dispatched": getattr(assignment, 'dispatched', False),
+                "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
+                "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
+                "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
+                "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
+                "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
             })
         
         # Fallback: if no M2M assignments but legacy field is set
@@ -2049,6 +2069,12 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "rating": float(emp.rating) if emp.rating else None,
                 "isPrimaryContact": True,
                 "status": "ASSIGNED",
+                "dispatched": False,
+                "dispatchedAt": None,
+                "clientConfirmedArrival": False,
+                "clientConfirmedArrivalAt": None,
+                "agencyMarkedComplete": False,
+                "agencyMarkedCompleteAt": None,
             })
         
         # Check review status
