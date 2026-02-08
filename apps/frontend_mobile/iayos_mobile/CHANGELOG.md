@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Agency Job Workflow UI Bug Fixes** (12 fixes)
+  - Fixed "Approve & Pay Team" button incorrectly showing for agency jobs due to vacuous truth on empty `team_worker_assignments` array
+  - Fixed "Confirm Worker Has Arrived" button showing for agency jobs where arrival is tracked per-employee
+  - Fixed "Approve & Pay Final Amount" duplicate payment button appearing alongside agency-specific approve button
+  - Fixed "Mark Job Complete" and "Waiting for Client Approval" sections leaking into agency/team job views
+  - Fixed regular job status messages ("Client confirmed work started", etc.) showing alongside agency workflow sections
+  - Added `!is_agency_job` guard to Team Phase 2 (worker marks complete) and Team Phase 3 (client approves)
+  - Added `length > 0` check on `team_worker_assignments` to prevent `.every()` vacuous truth
+  - Fixed `isConversationClosed` not handling DAILY jobs (uses `job.status === "COMPLETED"` fallback)
+  - **Impact**: Agency jobs now show only their own workflow sections; no duplicate buttons or conflicting UI
+
 ### Changed
 - **Job Creation Category Auto-Derive from Worker Skills**
   - When hiring a specific worker (INVITE job), category picker now only shows the worker's registered skills

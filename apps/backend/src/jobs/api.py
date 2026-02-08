@@ -7499,6 +7499,49 @@ def approve_agency_project_job(
             job.workerMarkedComplete = True  # Agency job - worker side is agency completion
             job.save()
         
+        # Close the conversation for this job
+        from profiles.models import Conversation
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                conv.status = Conversation.ConversationStatus.COMPLETED
+                conv.save()
+                print(f"✅ Conversation {conv.conversationID} closed for completed agency job {job_id}")
+                
+                # Auto-archive if both parties have reviewed
+                from profiles.conversation_service import archive_conversation, should_auto_archive
+                if should_auto_archive(conv):
+                    archive_result = archive_conversation(conv)
+                    print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
+        except Exception as e:
+            print(f"⚠️ Failed to close conversation for agency job: {str(e)}")
+            # Don't fail job completion if conversation closing fails
+        
+        # Send notifications
+        from accounts.models import Notification
+        try:
+            # Notify agency owner
+            if job.agencyID and job.agencyID.owner:
+                client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
+                Notification.objects.create(
+                    accountFK=job.agencyID.owner,
+                    notificationType="JOB_COMPLETED_CLIENT",
+                    title="Job Completion Approved! 🎉",
+                    message=f"{client_name} has approved the completion of '{job.title}'. Payment of ₱{float(remaining_balance):,.2f} processed.",
+                    relatedJobID=job.jobID
+                )
+            
+            # Notify client
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_COMPLETED_CLIENT",
+                title="Job Completed ✅",
+                message=f"You approved '{job.title}' as complete. Payment of ₱{float(remaining_balance):,.2f} has been processed.",
+                relatedJobID=job.jobID
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to send notifications for agency job: {str(e)}")
+        
         employee_names = [a.employee.fullName for a in assignments]
         
         return {

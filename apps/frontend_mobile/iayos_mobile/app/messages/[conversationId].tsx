@@ -157,10 +157,15 @@ export default function ChatScreen() {
     conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "UNDER_REVIEW";
   const isConversationClosed =
-    conversation?.job?.clientMarkedComplete &&
+    (conversation?.job?.clientMarkedComplete &&
     conversation?.job?.clientReviewed &&
     conversation?.job?.workerReviewed &&
-    !hasApprovedBackjob; // Don't close if there's an APPROVED backjob
+    !hasApprovedBackjob) || // Don't close if there's an APPROVED backjob
+    // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
+    (conversation?.job?.status === "COMPLETED" &&
+    conversation?.job?.clientReviewed &&
+    conversation?.job?.workerReviewed &&
+    !hasApprovedBackjob);
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -1839,6 +1844,7 @@ export default function ChatScreen() {
 
                 {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
                 {conversation.is_team_job &&
+                  !conversation.is_agency_job &&
                   conversation.my_role === "WORKER" &&
                   user &&
                   (() => {
@@ -1925,9 +1931,11 @@ export default function ChatScreen() {
                 {/* NOTE: DAILY jobs use Daily Attendance section above for per-day payment */}
                 {/* This section is for PROJECT jobs only (one-time lump-sum payment) */}
                 {conversation.is_team_job &&
+                  !conversation.is_agency_job &&
                   conversation.my_role === "CLIENT" &&
                   conversation.job.payment_model !== "DAILY" &&
                   conversation.team_worker_assignments &&
+                  conversation.team_worker_assignments.length > 0 &&
                   (() => {
                     const allWorkersComplete =
                       conversation.team_worker_assignments.every(
@@ -2027,6 +2035,7 @@ export default function ChatScreen() {
 
                 {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
                   conversation.my_role === "CLIENT" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <TouchableOpacity
@@ -2056,6 +2065,7 @@ export default function ChatScreen() {
 
                 {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
                   conversation.my_role === "CLIENT" &&
                   conversation.job.clientConfirmedWorkStarted &&
                   !conversation.job.workerMarkedComplete && (
@@ -2073,6 +2083,7 @@ export default function ChatScreen() {
 
                 {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
                   conversation.my_role === "WORKER" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
@@ -2087,8 +2098,10 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                {/* WORKER: Mark Complete Button */}
-                {conversation.my_role === "WORKER" &&
+                {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.my_role === "WORKER" &&
                   conversation.job.clientConfirmedWorkStarted &&
                   !conversation.job.workerMarkedComplete && (
                     <TouchableOpacity
@@ -2113,8 +2126,10 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
-                {/* WORKER: Waiting for Client Approval */}
-                {conversation.my_role === "WORKER" &&
+                {/* WORKER: Waiting for Client Approval (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.my_role === "WORKER" &&
                   conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
@@ -2129,8 +2144,10 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                {/* CLIENT: Approve Completion Button */}
-                {conversation.my_role === "CLIENT" &&
+                {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.my_role === "CLIENT" &&
                   conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (
                     <TouchableOpacity
@@ -2439,8 +2456,10 @@ export default function ChatScreen() {
                     );
                   })()}
 
-                {/* Status Messages */}
-                {conversation.job.clientConfirmedWorkStarted &&
+                {/* Status Messages (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.job.clientConfirmedWorkStarted &&
                   conversation.my_role === "WORKER" &&
                   !conversation.job.workerMarkedComplete && (
                     <Text style={styles.statusMessage}>
@@ -2448,7 +2467,9 @@ export default function ChatScreen() {
                     </Text>
                   )}
 
-                {conversation.job.workerMarkedComplete &&
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (
                     <Text style={styles.statusMessage}>
                       {conversation.my_role === "CLIENT"
