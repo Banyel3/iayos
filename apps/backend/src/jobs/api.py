@@ -6115,7 +6115,7 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
 
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
-def approve_team_job_completion(request, job_id: int, payment_method: str = 'WALLET'):
+def approve_team_job_completion(request, job_id: int, payment_method: str = Form('WALLET')):
     """
     Client approves team job completion after all workers have marked complete.
     This closes the job and team conversation.
@@ -7404,8 +7404,8 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
 def approve_agency_project_job(
     request,
     job_id: int,
-    payment_method: str = "WALLET",
-    cash_proof_image: str = None
+    payment_method: str = Form("WALLET"),
+    cash_proof_image: UploadedFile = File(None)
 ):
     """
     Client approves the completed PROJECT-based agency job and pays.

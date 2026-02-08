@@ -164,30 +164,20 @@ export function useApproveTeamJobCompletion() {
     }) => {
       const url = `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`;
 
-      let body: any;
-      let headers: Record<string, string> | undefined;
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod);
 
       if (paymentMethod === "CASH" && cashProofImage) {
-        // Use FormData for cash proof image upload
-        const formData = new FormData();
-        formData.append("payment_method", paymentMethod);
         formData.append("cash_proof_image", {
           uri: cashProofImage,
           type: "image/jpeg",
           name: "cash_proof.jpg",
         } as any);
-        body = formData;
-        headers = undefined; // Let browser set multipart boundary
-      } else {
-        // JSON for wallet payment
-        body = JSON.stringify({ payment_method: paymentMethod });
-        headers = { "Content-Type": "application/json" };
       }
 
       const response = await apiRequest(url, {
         method: "POST",
-        body,
-        ...(headers && { headers }),
+        body: formData as any,
       });
 
       if (!response.ok) {
@@ -287,33 +277,21 @@ export function useApproveCompletion() {
     }) => {
       const url = ENDPOINTS.APPROVE_COMPLETION(jobId);
 
-      // For cash payment with proof, use FormData
+      // Always use FormData to match backend Form() annotation
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod);
+
       if (paymentMethod === "CASH" && cashProofImage) {
-        const formData = new FormData();
-        formData.append("payment_method", paymentMethod);
         formData.append("cash_proof_image", {
           uri: cashProofImage,
           type: "image/jpeg",
           name: `cash_proof_${jobId}_${Date.now()}.jpg`,
         } as any);
-
-        const response = await apiRequest(url, {
-          method: "POST",
-          body: formData as any,
-        });
-
-        if (!response.ok) {
-          const error = (await response.json()) as { error?: string };
-          throw new Error(getErrorMessage(error, "Failed to approve completion"));
-        }
-
-        return response.json();
       }
 
-      // For wallet/gcash, use JSON
       const response = await apiRequest(url, {
         method: "POST",
-        body: JSON.stringify({ payment_method: paymentMethod }),
+        body: formData as any,
       });
 
       if (!response.ok) {
@@ -493,33 +471,20 @@ export function useApproveAgencyProjectJob() {
     }) => {
       const url = ENDPOINTS.AGENCY_APPROVE_PROJECT_JOB(jobId);
 
-      // For cash payment with proof, use FormData
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod);
+
       if (paymentMethod === "CASH" && cashProofImage) {
-        const formData = new FormData();
-        formData.append("payment_method", paymentMethod);
         formData.append("cash_proof_image", {
           uri: cashProofImage,
           type: "image/jpeg",
           name: `cash_proof_${jobId}_${Date.now()}.jpg`,
         } as any);
-
-        const response = await apiRequest(url, {
-          method: "POST",
-          body: formData as any,
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(getErrorMessage(error, "Failed to approve agency job"));
-        }
-
-        return response.json();
       }
 
-      // For wallet/gcash, use JSON
       const response = await apiRequest(url, {
         method: "POST",
-        body: JSON.stringify({ payment_method: paymentMethod }),
+        body: formData as any,
       });
 
       if (!response.ok) {
