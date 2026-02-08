@@ -2071,13 +2071,16 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 status=404
             )
         
-        # Accept this application
-        application.status = "ACCEPTED"
-        application.save()
         
         # Use database transaction for atomicity
+        # CRITICAL: All state changes must be inside transaction to ensure consistency
         from django.db import transaction as db_transaction
         with db_transaction.atomic():
+            # Accept this application (MOVED INSIDE TRANSACTION)
+            # This ensures if payment fails, application status also rolls back
+            application.status = "ACCEPTED"
+            application.save()
+            
             # Update job status to IN_PROGRESS and assign the worker
             job.status = JobPosting.JobStatus.IN_PROGRESS
             job.assignedWorkerID = application.workerID
@@ -2112,28 +2115,35 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 original_fee = Decimal(str(original_budget)) * Decimal('0.10')
                 original_reserved = original_escrow + original_fee
                 
+                
                 print(f"💳 [MOBILE] Processing payment for accepted application:")
                 print(f"   Original budget: ₱{original_budget}, reserved: ₱{original_reserved}")
                 print(f"   Final budget: ₱{job.budget}, to charge: ₱{total_to_charge}")
+                print(f"   Current wallet balance: ₱{wallet.balance}, reserved: ₱{wallet.reservedBalance}")
                 
-                # Release the original reservation
-                wallet.reservedBalance -= original_reserved
+                # FIXED: Check if funds were actually reserved before subtracting
+                # Mobile LISTING jobs may not have reserved funds upfront
+                if wallet.reservedBalance >= original_reserved:
+                    # Funds were reserved - release the reservation
+                    wallet.reservedBalance -= original_reserved
+                    print(f"   ✅ Released ₱{original_reserved} from reserved balance")
+                else:
+                    # Funds weren't reserved (mobile LISTING job posted without reservation)
+                    print(f"   ⚠️ No reserved balance found (mobile LISTING job)")
                 
-                # If negotiated price is different, check if we have enough balance
-                if total_to_charge > original_reserved:
-                    additional_needed = total_to_charge - original_reserved
-                    if wallet.balance - wallet.reservedBalance < additional_needed:
-                        # Restore the reservation and abort
-                        wallet.reservedBalance += original_reserved
-                        return Response(
-                            {
-                                "error": "Insufficient balance for negotiated price",
-                                "required": float(total_to_charge),
-                                "available": float(wallet.balance - wallet.reservedBalance),
-                                "message": f"The negotiated price requires ₱{total_to_charge} but you only have ₱{wallet.balance - wallet.reservedBalance} available."
-                            },
-                            status=400
-                        )
+                # Check if we have enough balance for the total charge
+                available_balance = wallet.balance - wallet.reservedBalance
+                if available_balance < total_to_charge:
+                    # Insufficient funds - restore any released reservation and abort
+                    return Response(
+                        {
+                            "error": "Insufficient balance",
+                            "required": float(total_to_charge),
+                            "available": float(available_balance),
+                            "message": f"You need ₱{total_to_charge} but only have ₱{available_balance} available. Please top up your wallet."
+                        },
+                        status=400
+                    )
                 
                 # Deduct the actual amount from balance
                 wallet.balance -= total_to_charge
