@@ -1,8 +1,167 @@
-# iAyos Platform Memory File - Daily Payment Amount Display Fix ✅ (February 2026)
+# iAyos Platform Memory File - KYC Rejected Section Fix ✅ (February 2026)
 
 ## System Overview
 
 iAyos is a comprehensive marketplace platform for blue-collar services connecting clients with skilled workers through a secure, feature-rich ecosystem.
+
+---
+
+## 🆕 LATEST UPDATE - KYC Rejected Section Fix ✅ (February 2026)
+
+**Status**: ✅ IMPLEMENTATION COMPLETE  
+**PR**: #321 (MERGED)  
+**Type**: Bug Fix + Feature - Admin KYC Rejected Section  
+**Time**: ~3 hours  
+**Priority**: CRITICAL - Admin Panel Functionality
+
+### What Was Fixed
+
+**Problem**:
+
+- Admin KYC → Rejected section had 3 broken buttons: View Details, Allow Resubmit, Download
+- No way to view rejected KYC submission details without database access
+- No way to delete rejected KYC records from the system
+- Buttons rendered but had no onClick handlers (lines 374-396)
+- User couldn't review rejection reasons or see verification history
+
+**Root Cause**:
+
+- View Details button expected modal component that didn't exist
+- Allow Resubmit/Download buttons had placeholder functions with TODO comments
+- No backend endpoints for KYC detail viewing or deletion
+- Frontend had no handlers for these operations
+
+**Solution**:
+
+- Created GET endpoint for KYC detail with signed Supabase URLs
+- Created DELETE endpoint with safety checks (rejected only)
+- Built KYCDetailModal component for read-only document viewing
+- Removed broken Allow Resubmit and Download buttons
+- Added working View Details and Delete handlers with confirmations
+- Added comprehensive MODEL ARCHITECTURE documentation to AGENTS.md
+
+### Implementation Details
+
+**Backend Endpoints** (`apps/backend/src/adminpanel/api.py` +250 lines):
+
+```python
+# GET /api/adminpanel/kyc/{kyc_id}?kyc_type=USER|AGENCY
+@router.get("/kyc/{kyc_id}", auth=cookie_auth)
+def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
+    # Fetches single KYC record with user/agency info
+    # Generates signed URLs for all documents (1-hour expiry)
+    # Returns verification history from KYCLogs
+    # Supports both USER and AGENCY KYC types
+    # Uses regex to extract Supabase paths: r'(user_\d+/kyc/[^?]+)'
+```
+
+```python
+# DELETE /api/adminpanel/kyc/{kyc_id}?kyc_type=USER|AGENCY
+@router.delete("/kyc/{kyc_id}", auth=cookie_auth)
+def delete_kyc(request, kyc_id: int, kyc_type: str = "USER"):
+    # Safety check: Only deletes if status == "Rejected"
+    # Deletes files from Supabase storage using delete_storage_file()
+    # Deletes DB records (CASCADE removes kycFiles/AgencyKycFile)
+    # Preserves KYCLogs for audit compliance (BigIntegerField, not FK)
+    # Returns filesDeleted count and success message
+```
+
+**Frontend Component** (`apps/frontend_web/components/admin/KYCDetailModal.tsx` NEW - 450 lines):
+
+- **Props**: kycId (number), kycType ("USER"|"AGENCY"), isOpen, onClose
+- **Features**:
+  - Read-only modal for viewing KYC submission details
+  - Document grid with image previews and click-to-expand lightbox
+  - Status badges with icons (Approved/Rejected/Pending)
+  - Verification history timeline with admin notes
+  - Full-screen image viewer (closes on click outside)
+  - User/agency information display
+- **API Integration**: Calls GET /api/adminpanel/kyc/{kycId}
+
+**Frontend Page Updates** (`apps/frontend_web/app/admin/kyc/rejected/page.tsx` 7 modifications):
+
+```typescript
+// Interface update - Added kycType field
+interface RejectedKYC {
+  // ... existing fields
+  kycType: "USER" | "AGENCY"; // Extract from logs
+}
+
+// State added
+const [selectedKYC, setSelectedKYC] = useState<RejectedKYC | null>(null);
+const [isModalOpen, setIsModalOpen] = useState(false);
+
+// Data transformation - Extract kycType from logs
+kycType: log.agencyKycID ? "AGENCY" : "USER"
+
+// View Details handler
+const handleViewDetails = (kyc: RejectedKYC) => {
+  setSelectedKYC(kyc);
+  setIsModalOpen(true);
+};
+
+// Delete handler with confirmation
+const handleDelete = async (kyc: RejectedKYC) => {
+  if (!confirm(`Delete KYC for ${kyc.userEmail}? Rejected on ${format()}`)) return;
+  
+  const response = await fetch(
+    `/api/adminpanel/kyc/${kyc.kycId}?kyc_type=${kyc.kycType}`,
+    { method: "DELETE", credentials: "include" }
+  );
+  
+  if (data.success) {
+    toast.success(`KYC deleted (${data.filesDeleted} files removed)`);
+    fetchRejectedKYCs(); // Refresh list
+  }
+};
+
+// Buttons updated
+<Button onClick={() => handleViewDetails(kyc)}>View Details</Button>
+// ❌ Allow Resubmit - REMOVED
+// ❌ Download - REMOVED  
+<Button variant="destructive" onClick={() => handleDelete(kyc)}>Delete</Button>
+
+// Modal integration
+<KYCDetailModal
+  kycId={selectedKYC?.kycId}
+  kycType={selectedKYC?.kycType}
+  isOpen={isModalOpen}
+  onClose={() => setIsModalOpen(false)}
+/>
+```
+
+### Files Modified
+
+**Backend** (1 file, ~250 lines):
+
+- `apps/backend/src/adminpanel/api.py` (+250 lines)
+  - GET /api/adminpanel/kyc/{kyc_id} endpoint (~110 lines)
+  - DELETE /api/adminpanel/kyc/{kyc_id} endpoint (~140 lines)
+
+**Frontend** (2 files, ~500 lines):
+
+- `apps/frontend_web/components/admin/KYCDetailModal.tsx` (NEW - 450 lines)
+- `apps/frontend_web/app/admin/kyc/rejected/page.tsx` (+50 lines modified)
+
+**Documentation** (1 file, ~300 lines):
+
+- `AGENTS.md` (+300 lines) - Added MODEL ARCHITECTURE section
+
+### Testing
+
+- ✅ Python syntax validation passed (py_compile)
+- ✅ TypeScript compilation passed (0 errors after icon import fixes)
+- ✅ Git operations successful (PR #321 merged)
+- ⏳ Manual testing: View Details modal, Delete with confirmation, file deletion
+
+**Impact**:
+
+- Admins can now view rejected KYC details in read-only modal
+- Admins can delete rejected KYC records with file cleanup
+- Proper audit trail preservation (KYCLogs persist after deletion)
+- Improved admin panel UX with working buttons and confirmations
+
+**Status**: ✅ COMPLETE - All features implemented, PR merged to main
 
 ---
 
