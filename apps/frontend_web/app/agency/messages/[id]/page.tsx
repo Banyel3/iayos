@@ -657,9 +657,120 @@ export default function AgencyChatScreen() {
 
           {/* Job Status & Actions Section */}
           <div className="mt-3">
-            {/* Status: Waiting for client to confirm work started (PROJECT jobs) */}
+            {/* Agency PROJECT job workflow status (dispatch → arrival → complete → client pays) */}
             {job.payment_model === "PROJECT" &&
               job.status === "IN_PROGRESS" &&
+              !job.workerMarkedComplete &&
+              !job.clientMarkedComplete &&
+              assigned_employees &&
+              assigned_employees.length > 0 &&
+              (() => {
+                const allDispatched = assigned_employees.every(
+                  (e: any) => e.dispatched,
+                );
+                const allArrived = assigned_employees.every(
+                  (e: any) => e.clientConfirmedArrival,
+                );
+                const allComplete = assigned_employees.every(
+                  (e: any) => e.agencyMarkedComplete,
+                );
+                const dispatchedCount = assigned_employees.filter(
+                  (e: any) => e.dispatched,
+                ).length;
+                const arrivedCount = assigned_employees.filter(
+                  (e: any) => e.clientConfirmedArrival,
+                ).length;
+                const completeCount = assigned_employees.filter(
+                  (e: any) => e.agencyMarkedComplete,
+                ).length;
+                const totalCount = assigned_employees.length;
+
+                // State 1: Not all employees dispatched yet
+                if (!allDispatched) {
+                  return (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm text-blue-800 font-medium">
+                          Dispatch your employees to begin work
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {dispatchedCount}/{totalCount} employees dispatched.
+                        Dispatch remaining employees to the work site.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // State 2: All dispatched, waiting for client to confirm arrivals
+                if (!allArrived) {
+                  return (
+                    <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-yellow-600" />
+                        <span className="text-sm text-yellow-800 font-medium">
+                          Waiting for client to confirm employee arrivals
+                        </span>
+                      </div>
+                      <p className="text-xs text-yellow-600 mt-1">
+                        {arrivedCount}/{totalCount} arrivals confirmed by
+                        client. The client needs to verify each employee has
+                        arrived at the work site.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // State 3: All arrived, agency can mark work complete
+                if (!allComplete) {
+                  return (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm text-blue-800 font-medium">
+                            All employees arrived — ready to mark complete
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => setShowMarkCompleteModal(true)}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Mark Complete
+                        </Button>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {completeCount}/{totalCount} employees marked complete.
+                        Once all work is finished, mark the job as complete.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // State 4: All complete, waiting for client to approve & pay
+                return (
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
+                      <span className="text-sm text-amber-800 font-medium">
+                        ⏳ Waiting for client to approve and pay
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-600 mt-1">
+                      All {totalCount} employees have completed their work. The
+                      client will review and approve the job.
+                    </p>
+                  </div>
+                );
+              })()}
+
+            {/* Fallback: Waiting for client to confirm work started (non-agency PROJECT jobs) */}
+            {job.payment_model === "PROJECT" &&
+              job.status === "IN_PROGRESS" &&
+              (!assigned_employees || assigned_employees.length === 0) &&
               !job.clientConfirmedWorkStarted && (
                 <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                   <div className="flex items-center gap-2">
@@ -839,8 +950,9 @@ export default function AgencyChatScreen() {
               </>
             )}
 
-            {/* Status: Ready to mark complete */}
+            {/* Status: Ready to mark complete (non-agency-workflow fallback) */}
             {job.status === "IN_PROGRESS" &&
+              (!assigned_employees || assigned_employees.length === 0) &&
               job.clientConfirmedWorkStarted &&
               !job.workerMarkedComplete && (
                 <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
