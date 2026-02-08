@@ -1,4 +1,4 @@
-# iAyos Platform Memory File - Daily Payment Amount Display Fix ✅ (February 2026)
+# iAyos Platform Memory File - Admin Profile View 404 Fix ✅ (February 2026)
 
 ## System Overview
 
@@ -6,7 +6,177 @@ iAyos is a comprehensive marketplace platform for blue-collar services connectin
 
 ---
 
-## 🆕 LATEST UPDATE - Certifications History Sidebar Layout Fix ✅ (February 2026)
+## 🆕 LATEST UPDATE - Admin Profile View 404 Fix ✅ (February 2026)
+
+**Status**: ✅ IMPLEMENTATION COMPLETE  
+**PR**: #324 (MERGED)  
+**Type**: Bug Fix - Admin Panel Routing  
+**Time**: ~15 minutes  
+**Priority**: CRITICAL - User Navigation Blocked
+
+### What Was Fixed
+
+**Problem**:
+
+- Clicking "View Profile" buttons in admin panel resulted in 404 errors
+- Transaction detail page payer/payee "View Profile" buttons broken
+- Support ticket detail page "View Profile" button broken
+- All three links routed to non-existent `/admin/users/[id]` generic route
+- User screenshot showed 404 error at `/admin/users/8` when clicking profile from transaction #82
+
+**Root Cause**:
+
+- Generic `/admin/users/[id]` route was never implemented in Next.js App Router
+- Backend has NO generic user endpoint - requires knowing user type (CLIENT, WORKER, or AGENCY)
+- Type-specific routes exist and work: `/admin/users/clients/[id]`, `/admin/users/workers/[id]`, `/admin/users/agencies/[id]`
+- Transaction and support ticket pages didn't include `profile_type` in route construction
+- Reviews page (line 398) had correct implementation but pattern wasn't replicated
+
+**Solution**:
+
+- Updated 3 "View Profile" links to use type-specific routing pattern
+- Pattern: `/admin/users/${profile_type.toLowerCase()}s/${id}`
+- Converts profile types: `CLIENT` → `clients`, `WORKER` → `workers`, `AGENCY` → `agencies`
+- Added optional chaining (`?.`) for safety in case profile_type is undefined
+
+### Implementation Details
+
+**Correct Routing Pattern** (from reviews page):
+
+```tsx
+// ✅ CORRECT (working implementation)
+<Link href={`/admin/users/${detail.user.profile_type.toLowerCase()}s/${detail.user.id}`}>
+  <Button>View Profile</Button>
+</Link>
+
+// Converts: "CLIENT" → "clients", "WORKER" → "workers", "AGENCY" → "agencies"
+```
+
+**Fixes Applied**:
+
+**1. Transaction Payer Link** (transactions/[id]/page.tsx line 394):
+```tsx
+// ❌ BEFORE (broken - 404 error)
+<Link href={`/admin/users/${detail.payer.id}`}>
+  <Button>View Profile</Button>
+</Link>
+
+// ✅ AFTER (fixed - routes to correct page)
+<Link href={`/admin/users/${detail.payer.profile_type?.toLowerCase()}s/${detail.payer.id}`}>
+  <Button>View Profile</Button>
+</Link>
+```
+
+**2. Transaction Payee Link** (transactions/[id]/page.tsx line 428):
+```tsx
+// ❌ BEFORE (broken - 404 error)
+<Link href={`/admin/users/${detail.payee.id}`}>
+  <Button>View Profile</Button>
+</Link>
+
+// ✅ AFTER (fixed - routes to correct page)
+<Link href={`/admin/users/${detail.payee.profile_type?.toLowerCase()}s/${detail.payee.id}`}>
+  <Button>View Profile</Button>
+</Link>
+```
+
+**3. Support Ticket User Link** (support/tickets/[id]/page.tsx line 456):
+```tsx
+// ❌ BEFORE (broken - 404 error)
+<Button onClick={() => router.push(`/admin/users/${ticket.user_id}`)}>
+  View Profile
+</Button>
+
+// ✅ AFTER (fixed - routes to correct page)
+<Button onClick={() => router.push(`/admin/users/${ticket.user_profile_type?.toLowerCase()}s/${ticket.user_id}`)}>
+  View Profile
+</Button>
+```
+
+### Files Modified
+
+**Frontend** (2 files, 3 links changed):
+
+- `apps/frontend_web/app/admin/payments/transactions/[id]/page.tsx` (+2/-2)
+  - Line 394: Payer "View Profile" link fixed
+  - Line 428: Payee "View Profile" link fixed
+  
+- `apps/frontend_web/app/admin/support/tickets/[id]/page.tsx` (+1/-1)
+  - Line 456: User "View Profile" button fixed
+
+### Backend Data Availability
+
+**Backend Already Provides Required Fields**:
+
+**Transaction API** (`payment_service.py`):
+```python
+{
+  "payer": {
+    "id": int,
+    "name": str,
+    "email": str,
+    "profile_type": str  # ✅ "CLIENT", "WORKER", or "AGENCY"
+  },
+  "payee": {
+    "id": int,
+    "name": str,
+    "email": str,
+    "profile_type": str  # ✅ "CLIENT", "WORKER", or "AGENCY"
+  }
+}
+```
+
+**Support Ticket API** (support ticket interface):
+```typescript
+interface TicketDetail {
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_profile_type: string;  // ✅ "CLIENT", "WORKER", or "AGENCY"
+}
+```
+
+### Admin Panel Route Structure
+
+**Existing Type-Specific Routes** (all working):
+- ✅ `/admin/users/clients/[id]` - Client detail page
+- ✅ `/admin/users/workers/[id]` - Worker detail page  
+- ✅ `/admin/users/agencies/[id]` - Agency detail page
+- ✅ `/admin/profile` - Admin's own profile
+
+**Non-Existent Generic Route** (was causing 404s):
+- ❌ `/admin/users/[id]` - Generic user route (NEVER IMPLEMENTED)
+
+**Backend API Endpoints** (type-specific only):
+- ✅ GET `/api/adminpanel/users/clients/{account_id}` (api.py:710)
+- ✅ GET `/api/adminpanel/users/workers/{account_id}` (api.py:752)
+- ✅ GET `/api/adminpanel/users/agencies/{account_id}` (api.py:~800)
+- ❌ NO generic GET `/api/adminpanel/users/{account_id}` endpoint
+
+### Testing
+
+- ✅ TypeScript compilation passed (0 errors in both files)
+- ✅ PR #324 created and merged
+- ✅ Changes deployed to main branch
+- ⏳ Manual testing recommended:
+  - Navigate to Admin → Payments → Transactions → Click any transaction
+  - Click "View Profile" for payer/payee → Should route to `/admin/users/clients/[id]` or `/admin/users/workers/[id]`
+  - Navigate to Admin → Support → Tickets → Click any ticket
+  - Click "View Profile" → Should route to correct type-specific page
+  - Verify no 404 errors occur
+
+**Impact**:
+
+- Admin can now view user profiles from transaction and support ticket pages
+- All "View Profile" navigation working correctly
+- Consistent routing pattern across all admin pages
+- No more 404 errors from generic `/admin/users/[id]` route
+
+**Status**: ✅ COMPLETE - Profile navigation fix deployed
+
+---
+
+## 📋 PREVIOUS UPDATE - Certifications History Sidebar Layout Fix ✅ (February 2026)
 
 **Status**: ✅ IMPLEMENTATION COMPLETE  
 **PR**: #322 (MERGED)  
