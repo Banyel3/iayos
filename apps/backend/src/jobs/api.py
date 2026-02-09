@@ -2377,6 +2377,12 @@ def accept_application(request, job_id: int, application_id: int):
             }
         )
         
+        # If conversation already existed, ensure worker FK is up to date
+        if not created and conversation.worker != application.workerID.profileID:
+            conversation.worker = application.workerID.profileID
+            conversation.save(update_fields=['worker'])
+            print(f"✅ Updated conversation {conversation.conversationID} worker to {application.workerID.profileID.profileID}")
+        
         if created:
             print(f"✅ Created conversation {conversation.conversationID} for job {job_id}")
             
