@@ -241,13 +241,18 @@ class InboxConsumer(AsyncWebsocketConsumer):
             
             # Check for Profile-based conversations (client or worker)
             try:
-                profile = Profile.objects.get(accountFK=self.user)
-                conversations = Conversation.objects.filter(
-                    client=profile
-                ) | Conversation.objects.filter(
-                    worker=profile
-                )
-            except Profile.DoesNotExist:
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if profile:
+                    conversations = Conversation.objects.filter(
+                        client=profile
+                    ) | Conversation.objects.filter(
+                        worker=profile
+                    )
+            except Exception:
                 pass
             
             # Check for Agency-based conversations (directly via agency field)
@@ -276,14 +281,19 @@ class InboxConsumer(AsyncWebsocketConsumer):
             
             # Check Profile-based access (client or worker)
             try:
-                profile = Profile.objects.get(accountFK=self.user)
-                if conversation.client.profileID == profile.profileID:
-                    print(f"[InboxWS] Client access granted for conv {conversation_id}")
-                    return True
-                if conversation.worker and conversation.worker.profileID == profile.profileID:
-                    print(f"[InboxWS] Worker access granted for conv {conversation_id}")
-                    return True
-            except Profile.DoesNotExist:
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if profile:
+                    if conversation.client.profileID == profile.profileID:
+                        print(f"[InboxWS] Client access granted for conv {conversation_id}")
+                        return True
+                    if conversation.worker and conversation.worker.profileID == profile.profileID:
+                        print(f"[InboxWS] Worker access granted for conv {conversation_id}")
+                        return True
+            except Exception:
                 pass
             
             # Check Agency-based access (directly via agency field)
@@ -311,8 +321,15 @@ class InboxConsumer(AsyncWebsocketConsumer):
             profile = None
             agency = None
             try:
-                profile = Profile.objects.get(accountFK=self.user)
-                print(f"[InboxWS] ✅ Sender profile: {profile.profileID}")
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if profile:
+                    print(f"[InboxWS] ✅ Sender profile: {profile.profileID}")
+                else:
+                    raise Profile.DoesNotExist
             except Profile.DoesNotExist:
                 # For agency users without profile, get their agency
                 print(f"[InboxWS] ⚠️ No profile for user {self.user.email}, checking if agency...")
@@ -391,7 +408,13 @@ class InboxConsumer(AsyncWebsocketConsumer):
             my_role = 'UNKNOWN'
             
             try:
-                profile = Profile.objects.get(accountFK=self.user)
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if not profile:
+                    raise Profile.DoesNotExist
                 if conversation.client == profile:
                     conversation.unreadCountClient = 0
                     is_client = True
@@ -563,20 +586,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def verify_conversation_access(self):
         try:
             print(f"[WebSocket] Checking access for user: {self.user}")
-            profile = Profile.objects.get(accountFK=self.user)
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            if not profile:
+                print(f"[WebSocket] ERROR: Profile not found for user {self.user}")
+                return False
             print(f"[WebSocket] Found profile: {profile.profileID}")
             
             conversation = Conversation.objects.get(conversationID=self.conversation_id)
             print(f"[WebSocket] Found conversation: {conversation.conversationID}")
-            print(f"[WebSocket] Client: {conversation.client.profileID}, Worker: {conversation.worker.profileID}")
+            print(f"[WebSocket] Client: {conversation.client.profileID}, Worker: {conversation.worker.profileID if conversation.worker else 'None'}")
             
             has_access = (conversation.client.profileID == profile.profileID or 
-                         conversation.worker.profileID == profile.profileID)
+                         (conversation.worker and conversation.worker.profileID == profile.profileID))
             print(f"[WebSocket] Access result: {has_access}")
             return has_access
-        except Profile.DoesNotExist:
-            print(f"[WebSocket] ERROR: Profile not found for user {self.user}")
-            return False
         except Conversation.DoesNotExist:
             print(f"[WebSocket] ERROR: Conversation {self.conversation_id} not found")
             return False
@@ -588,7 +615,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def save_message(self, message_text, message_type):
         try:
             print(f"[WebSocket] 🔍 Looking up profile for user: {self.user.email}")
-            profile = Profile.objects.get(accountFK=self.user)
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            if not profile:
+                raise Profile.DoesNotExist(f"No profile found for user {self.user.email}")
             print(f"[WebSocket] ✅ Found profile: {profile.profileID}")
             
             print(f"[WebSocket] 🔍 Looking up conversation: {self.conversation_id}")
@@ -672,7 +705,13 @@ class JobStatusConsumer(AsyncWebsocketConsumer):
             from accounts.models import Job
             from profiles.models import ClientProfile, WorkerProfile
             
-            profile = Profile.objects.get(accountFK=self.user)
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            if not profile:
+                raise Profile.DoesNotExist(f"No profile found for user {self.user}")
             job = Job.objects.select_related('clientID__profileID', 'assignedWorkerID__profileID').get(jobID=self.job_id)
             
             # Check if user is the client or assigned worker
