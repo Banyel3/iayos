@@ -1326,7 +1326,9 @@ export default function ChatScreen() {
             !conversation.job.clientMarkedComplete && (
               <View style={styles.actionButtonsContainer}>
                 {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
+                {/* NOTE: DAILY jobs use Daily Attendance section for per-day arrival tracking */}
                 {conversation.is_team_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
                   conversation.team_worker_assignments &&
                   conversation.team_worker_assignments.length > 0 && (
@@ -1841,7 +1843,9 @@ export default function ChatScreen() {
                 )}
 
                 {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
+                {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
                 {conversation.is_team_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   !conversation.is_agency_job &&
                   conversation.my_role === "WORKER" &&
                   user &&
@@ -2632,7 +2636,10 @@ export default function ChatScreen() {
             )}
 
           {/* Review Section - Compact Banner that opens modal */}
-          {conversation.job.clientMarkedComplete && !isConversationClosed && (
+          {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
+          {(conversation.job.clientMarkedComplete ||
+            conversation.job.status === "COMPLETED") &&
+            !isConversationClosed && (
             <>
               {/* Check if current user already reviewed */}
               {(conversation.my_role === "CLIENT" &&

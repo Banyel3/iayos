@@ -1,0 +1,18 @@
+Add PayMongo test mode check to Card payment endpoint
+
+The endpoint should only work when BOTH conditions are true:
+1. TESTING=true (environment flag)
+2. PayMongo is using TEST keys (sk_test_...)
+
+This prevents trying to use Card payment with LIVE PayMongo keys,
+which requires business verification and will fail.
+
+Production config:
+- TESTING=true 
+- PAYMONGO_SECRET_KEY=sk_live_... (LIVE keys)
+- Result: Card payment should return 404
+
+Local dev config:
+- TESTING=true
+- PAYMONGO_SECRET_KEY=sk_test_... (TEST keys)  
+- Result: Card payment works with test card 4343434343434345

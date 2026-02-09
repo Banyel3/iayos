@@ -1,0 +1,162 @@
+###############################################################################
+# Daily Attendance Tracking - Live API Testing
+# Backend: https://api.iayos.online
+# Created: 2026-02-04
+# PR #263: DAILY payment model + MVP Daily Attendance Tracking
+###############################################################################
+
+### Variables
+@baseUrl = https://api.iayos.online
+@workerEmail = worker@test.com
+@workerPassword = testpass123
+@clientEmail = client@test.com
+@clientPassword = testpass123
+
+###############################################################################
+# PHASE 1: Authentication
+###############################################################################
+
+### 1.1 Login as Worker (to test check-in/check-out)
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{workerEmail}}",
+  "password": "{{workerPassword}}"
+}
+
+### 1.2 Login as Client (to test attendance confirmation)
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{clientEmail}}",
+  "password": "{{clientPassword}}"
+}
+
+###############################################################################
+# PHASE 2: Get Active Jobs & Conversation Details
+###############################################################################
+
+### 2.1 Get Worker's Active Jobs (to find job_id)
+# Replace {token} with JWT from 1.1
+GET {{baseUrl}}/api/mobile/jobs/my-jobs?status=IN_PROGRESS
+Authorization: Bearer {worker_jwt_token}
+
+### 2.2 Get Conversation Details (includes attendance_today array)
+# Replace {conversationId} with actual ID from active jobs
+GET {{baseUrl}}/api/profiles/conversations/{conversationId}/messages
+Authorization: Bearer {worker_jwt_token}
+
+###############################################################################
+# PHASE 3: Worker Check-In/Check-Out Flow
+###############################################################################
+
+### 3.1 Worker Check-In
+# Replace {job_id} with actual job ID
+# Time constraint: 6 AM - 8 PM only
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-in
+Authorization: Bearer {worker_jwt_token}
+Content-Type: application/json
+
+{}
+
+### 3.2 Worker Check-Out
+# Replace {job_id} with actual job ID
+# Can only check out after checking in
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-out
+Authorization: Bearer {worker_jwt_token}
+Content-Type: application/json
+
+{}
+
+###############################################################################
+# PHASE 4: Client Attendance Confirmation
+###############################################################################
+
+### 4.1 Client Confirm Attendance - PRESENT (triggers payment)
+# Replace {attendance_id} with ID from attendance_today array
+# Default: PRESENT status (full day pay)
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm
+Authorization: Bearer {client_jwt_token}
+Content-Type: application/json
+
+{}
+
+### 4.2 Client Confirm Attendance - HALF_DAY (50% payment)
+# Replace {attendance_id} with ID
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm?approved_status=HALF_DAY
+Authorization: Bearer {client_jwt_token}
+Content-Type: application/json
+
+{}
+
+### 4.3 Client Confirm Attendance - ABSENT (no payment)
+# Replace {attendance_id} with ID
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm?approved_status=ABSENT
+Authorization: Bearer {client_jwt_token}
+Content-Type: application/json
+
+{}
+
+###############################################################################
+# PHASE 5: Error Testing
+###############################################################################
+
+### 5.1 Check-In Outside Allowed Hours (before 6 AM or after 8 PM)
+# Should fail with 400 error
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-in
+Authorization: Bearer {worker_jwt_token}
+Content-Type: application/json
+
+{}
+
+### 5.2 Check-Out Without Check-In
+# Should fail with 400 error
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-out
+Authorization: Bearer {worker_jwt_token}
+Content-Type: application/json
+
+{}
+
+### 5.3 Duplicate Check-In Same Day
+# Should fail with 400 error
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-in
+Authorization: Bearer {worker_jwt_token}
+Content-Type: application/json
+
+{}
+
+### 5.4 Client Confirm Without Worker Check-Out
+# Should work but show "Working" badge in UI
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm
+Authorization: Bearer {client_jwt_token}
+Content-Type: application/json
+
+{}
+
+###############################################################################
+# TESTING CHECKLIST
+###############################################################################
+# [ ] 1.1 Worker login successful (save JWT token)
+# [ ] 1.2 Client login successful (save JWT token)
+# [ ] 2.1 Find job_id for DAILY payment model job IN_PROGRESS
+# [ ] 2.2 Conversation returns attendance_today array
+# [ ] 3.1 Worker check-in creates attendance record (6AM-8PM only)
+# [ ] 3.2 Worker check-out updates time_out, calculates hours
+# [ ] 4.1 Client confirm PRESENT triggers payment to worker
+# [ ] 4.2 Client confirm HALF_DAY pays 50%
+# [ ] 4.3 Client confirm ABSENT pays 0%
+# [ ] 5.1 Check-in fails outside 6AM-8PM
+# [ ] 5.2 Check-out fails if not checked in
+# [ ] 5.3 Duplicate check-in fails
+# [ ] 5.4 Client can confirm before checkout (shows "Working")
+#
+# EXPECTED RESPONSES:
+# - Check-in success: {success: true, attendance_id, time_in, status: "PENDING"}
+# - Check-out success: {success: true, attendance_id, time_out, hours_worked}
+# - Client confirm: {success: true, payment_processed: true, amount_earned}
+# - Time constraint error: {error: "Check-in/out only allowed between 6 AM and 8 PM"}
+# - Duplicate error: {error: "Already checked in today"}
+# - No check-in error: {error: "No active check-in found"}
+###############################################################################

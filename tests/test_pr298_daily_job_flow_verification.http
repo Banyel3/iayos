@@ -1,0 +1,362 @@
+###############################################################################
+# PR #298 Verification - Daily Payment Job Flow UI Fix
+# Testing: Agency UI + Mobile UI for DAILY jobs
+# Backend: https://api.iayos.online
+# Created: February 6, 2026
+###############################################################################
+
+### Variables
+@baseUrl = https://api.iayos.online
+
+# Agency Account (for creating jobs and checking agency UI)
+@agencyEmail = gamerofgames76@gmail.com
+@agencyPassword = VanielCornelio_123
+
+# Mobile Client/Worker Account (for mobile conversation UI)
+@mobileEmail = john@gmail.com
+@mobilePassword = VanielCornelio_123
+
+###############################################################################
+# PHASE 1: AUTHENTICATION
+###############################################################################
+
+### 1.1 Login as Agency (cookie-based for web)
+# @name agencyLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{agencyEmail}}",
+  "password": "{{agencyPassword}}"
+}
+
+###
+@agencyToken = {{agencyLogin.response.body.access}}
+
+### 1.2 Login as Mobile User (JWT for mobile)
+# @name mobileLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{mobileEmail}}",
+  "password": "{{mobilePassword}}"
+}
+
+###
+@mobileToken = {{mobileLogin.response.body.access}}
+
+###############################################################################
+# PHASE 2: VERIFY AGENCY JOBS RETURN DAILY PAYMENT FIELDS (PR #294)
+###############################################################################
+
+### 2.1 Get Agency Jobs List (should include 6 daily fields)
+# @name agencyJobs
+GET {{baseUrl}}/api/agency/jobs?status=ACTIVE
+Authorization: Bearer {{agencyToken}}
+
+### Expected fields in response:
+# - payment_model: "DAILY" or "PROJECT"
+# - daily_rate_agreed: number | null
+# - duration_days: number | null
+# - actual_start_date: string | null
+# - total_days_worked: number | null
+# - daily_escrow_total: number | null
+
+### 2.2 Get Specific Job Detail (verify fields)
+# Replace {job_id} with actual DAILY job ID from 2.1
+# @name agencyJobDetail
+GET {{baseUrl}}/api/agency/jobs/{job_id}
+Authorization: Bearer {{agencyToken}}
+
+###############################################################################
+# PHASE 3: VERIFY AGENCY CONVERSATION UI (PR #298)
+###############################################################################
+
+### 3.1 Get Agency Conversations
+# @name agencyConversations
+GET {{baseUrl}}/api/agency/conversations
+Authorization: Bearer {{agencyToken}}
+
+### Find a DAILY job conversation and note its ID
+
+### 3.2 Get Specific Conversation Messages (DAILY job)
+# Replace {conversation_id} with actual ID
+# @name agencyConversationMessages
+GET {{baseUrl}}/api/agency/conversations/{conversation_id}
+Authorization: Bearer {{agencyToken}}
+
+### VERIFY PR #298: Agency UI should show:
+# - If payment_model === "DAILY": Blue banner "Daily attendance tracking active"
+# - If payment_model === "PROJECT": Yellow banner "Waiting for client to confirm work has started"
+
+###############################################################################
+# PHASE 4: VERIFY MOBILE CLIENT CONVERSATION UI (PR #298)
+###############################################################################
+
+### 4.1 Get Mobile User's Active Jobs
+# @name mobileJobs
+GET {{baseUrl}}/api/mobile/jobs/my-jobs?status=IN_PROGRESS
+Authorization: Bearer {{mobileToken}}
+
+### 4.2 Get Conversation Details for Mobile User
+# Replace {conversationId} with actual ID from 4.1
+# @name mobileConversation
+GET {{baseUrl}}/api/profiles/conversations/{conversationId}/messages
+Authorization: Bearer {{mobileToken}}
+
+### VERIFY PR #298: Mobile UI should:
+# - If payment_model === "DAILY" && is_team_job: NO "Approve & Pay Team" button
+# - If payment_model === "PROJECT" && is_team_job: Show "Approve & Pay Team" button
+# - Daily Attendance section should be visible for DAILY jobs (lines 1433-1751)
+
+###############################################################################
+# PHASE 5: TEST DAILY ATTENDANCE FLOW (LEGACY ENDPOINTS)
+###############################################################################
+
+### 5.1 Worker Check-In (Team/Freelance DAILY job)
+# Replace {job_id} with actual DAILY job ID
+# Time constraint: 6 AM - 8 PM only
+# @name workerCheckIn
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-in
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 201 Created with attendance record
+### Error cases:
+# - 400: Job is not DAILY payment model
+# - 400: Already checked in today
+# - 400: Outside 6 AM - 8 PM time window
+
+### 5.2 Worker Check-Out
+# @name workerCheckOut
+POST {{baseUrl}}/api/mobile/daily-attendance/{job_id}/worker-check-out
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 200 OK with updated attendance
+### Error cases:
+# - 400: Not checked in yet
+# - 400: Already checked out
+
+### 5.3 Client Confirm Attendance - PRESENT (Full Pay)
+# Replace {attendance_id} with ID from check-in response
+# @name clientConfirmPresent
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 200 OK, triggers payment processing
+### Payment: 100% of daily_rate
+
+### 5.4 Client Confirm Attendance - HALF_DAY (50% Pay)
+# @name clientConfirmHalfDay
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm?approved_status=HALF_DAY
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 200 OK, triggers 50% payment
+
+### 5.5 Client Confirm Attendance - ABSENT (No Pay)
+# @name clientConfirmAbsent
+POST {{baseUrl}}/api/mobile/daily-attendance/{attendance_id}/client-confirm?approved_status=ABSENT
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### Expected: 200 OK, no payment processed
+
+###############################################################################
+# PHASE 6: TEST NEW DAILY JOB ENDPOINTS (12 ENDPOINTS)
+###############################################################################
+
+### 6.1 Calculate Escrow Estimate
+# @name escrowEstimate
+GET {{baseUrl}}/api/jobs/0/daily/escrow-estimate?daily_rate=1500&num_workers=2&num_days=5
+Authorization: Bearer {{mobileToken}}
+
+### Expected: 
+# {
+#   "success": true,
+#   "daily_rate": 1500,
+#   "num_workers": 2,
+#   "num_days": 5,
+#   "escrow_amount": 15000,  // 1500 * 2 * 5
+#   "platform_fee": 1500,    // 10% of escrow
+#   "total_required": 16500
+# }
+
+### 6.2 Log Attendance
+# Replace {job_id} with actual DAILY job ID
+# @name logAttendance
+POST {{baseUrl}}/api/jobs/{job_id}/daily/attendance
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{
+  "work_date": "2026-02-06",
+  "status": "PRESENT",
+  "time_in": "2026-02-06T08:00:00Z",
+  "time_out": "2026-02-06T17:00:00Z",
+  "notes": "Full day completed"
+}
+
+### 6.3 Get Attendance Records
+# @name getAttendance
+GET {{baseUrl}}/api/jobs/{job_id}/daily/attendance
+Authorization: Bearer {{mobileToken}}
+
+### 6.4 Confirm Attendance (Client)
+# Replace {attendance_id} with actual ID
+# @name confirmAttendance
+POST {{baseUrl}}/api/jobs/{job_id}/daily/attendance/{attendance_id}/confirm-client
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{
+  "approved_status": "PRESENT",
+  "notes": "Good work today"
+}
+
+### 6.5 Get Daily Job Summary
+# @name dailySummary
+GET {{baseUrl}}/api/jobs/{job_id}/daily/summary
+Authorization: Bearer {{mobileToken}}
+
+### Expected:
+# {
+#   "job_id": X,
+#   "payment_model": "DAILY",
+#   "daily_rate_agreed": 1500,
+#   "duration_days": 5,
+#   "days_remaining": X,
+#   "actual_start_date": "...",
+#   "expected_end_date": "...",
+#   "total_escrow": 16500,
+#   "total_paid_so_far": X,
+#   "total_days_worked": X,
+#   "pending_confirmations": X
+# }
+
+### 6.6 Request Extension
+# @name requestExtension
+POST {{baseUrl}}/api/jobs/{job_id}/daily/extension
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{
+  "additional_days": 3,
+  "reason": "Client requested additional work",
+  "additional_escrow": 4950
+}
+
+### 6.7 Get Extensions
+# @name getExtensions
+GET {{baseUrl}}/api/jobs/{job_id}/daily/extensions
+Authorization: Bearer {{mobileToken}}
+
+### 6.8 Approve Extension (Client)
+# Replace {extension_id} with actual ID
+# @name approveExtension
+POST {{baseUrl}}/api/jobs/{job_id}/daily/extension/{extension_id}/approve
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### 6.9 Request Rate Change
+# @name requestRateChange
+POST {{baseUrl}}/api/jobs/{job_id}/daily/rate-change
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{
+  "new_rate": 2000,
+  "reason": "Increased complexity requiring additional skills",
+  "effective_date": "2026-02-10"
+}
+
+### 6.10 Get Rate Changes
+# @name getRateChanges
+GET {{baseUrl}}/api/jobs/{job_id}/daily/rate-changes
+Authorization: Bearer {{mobileToken}}
+
+### 6.11 Approve Rate Change (Client)
+# Replace {rate_change_id} with actual ID
+# @name approveRateChange
+POST {{baseUrl}}/api/jobs/{job_id}/daily/rate-change/{rate_change_id}/approve
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{}
+
+### 6.12 Cancel Job and Refund
+# @name cancelDaily
+POST {{baseUrl}}/api/jobs/{job_id}/daily/cancel
+Authorization: Bearer {{mobileToken}}
+Content-Type: application/json
+
+{
+  "reason": "Project cancelled by client"
+}
+
+###############################################################################
+# PHASE 7: VERIFICATION CHECKLIST
+###############################################################################
+
+# ✅ 1. Agency jobs API returns 6 daily payment fields (PR #294)
+# ✅ 2. Agency conversation shows correct banner based on payment_model (PR #298)
+# ✅ 3. Mobile conversation hides "Approve & Pay Team" for DAILY jobs (PR #298)
+# ✅ 4. Daily Attendance section visible for DAILY jobs
+# ✅ 5. Worker check-in/check-out works (6 AM - 8 PM constraint)
+# ✅ 6. Client confirm attendance triggers payment (PRESENT/HALF_DAY/ABSENT)
+# ✅ 7. All 12 new daily endpoints return correct responses
+# ✅ 8. Escrow calculation: (rate × workers × days) + 10% fee
+# ✅ 9. Extension and rate change workflows functional
+# ✅ 10. Job cancellation and refund works
+
+###############################################################################
+# TEST RESULTS (Fill in after running)
+###############################################################################
+
+# Phase 1 - Authentication:
+# [ ] Agency login successful
+# [ ] Mobile login successful
+
+# Phase 2 - Agency Jobs API (PR #294):
+# [ ] GET /api/agency/jobs returns daily fields
+# [ ] payment_model field present
+# [ ] daily_rate_agreed field present
+# [ ] duration_days field present
+
+# Phase 3 - Agency Conversation UI (PR #298):
+# [ ] DAILY jobs show blue "attendance tracking" banner
+# [ ] PROJECT jobs show yellow "waiting" banner
+
+# Phase 4 - Mobile Conversation UI (PR #298):
+# [ ] DAILY team jobs hide "Approve & Pay Team" button
+# [ ] Daily Attendance section displays correctly
+# [ ] Per-worker pay buttons visible for DAILY jobs
+
+# Phase 5 - Legacy Daily Attendance:
+# [ ] Check-in endpoint works (201 Created)
+# [ ] Check-out endpoint works (200 OK)
+# [ ] Client confirm triggers payment
+
+# Phase 6 - New Daily Endpoints:
+# [ ] Escrow estimate calculates correctly
+# [ ] Log attendance works
+# [ ] Get attendance returns records
+# [ ] Daily summary shows progress
+# [ ] Extension workflow complete
+# [ ] Rate change workflow complete
+# [ ] Cancellation and refund works
