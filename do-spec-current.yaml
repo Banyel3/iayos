@@ -1,0 +1,134 @@
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+domains:
+  - domain: api.iayos.online
+    type: PRIMARY
+ingress:
+  rules:
+    - component:
+        name: backend
+      match:
+        path:
+          prefix: /
+name: iayos-backend
+region: sgp
+services:
+  - envs:
+      - key: DATABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:tKSQcH+04jjbAhH2svbGEd7XmE6+7PhV:zorAfd08x50cmRK/IEoCOwfGCERJGSCAOxX2yrKYEPpy48MjJBF8eJ92ZsTKvGe0ifrWpDmmTAyL04RBOG+rzeMa3LiYE2RZXTkgSrKcR2/4CiSYHUtBiu3xiyIVBGLy4y/oSV/uR0obNw4UOq0RxbLJJBnJFBmAqt5yQz/JKU1KtNSJKPwM62HNss7FJKcAXNG/qa5/3FHX]
+      - key: DJANGO_SECRET_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:FPjo5tkgProk9B7yamlzwKpnSJfMrJ7T:1zgRuxHdIQsOxVbPF5VGbeVG87O6WJcfjme9Mtw/EVMkQdhleGyS]
+      - key: DEBUG
+        scope: RUN_AND_BUILD_TIME
+        value: "false"
+      - key: ENVIRONMENT
+        scope: RUN_AND_BUILD_TIME
+        value: production
+      - key: ALLOWED_HOSTS
+        scope: RUN_AND_BUILD_TIME
+        value: ${APP_DOMAIN},api.iayos.online,iayos.online,www.iayos.online
+      - key: FRONTEND_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://iayos.online
+      - key: BACKEND_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://${APP_DOMAIN}
+      - key: EXPO_PUBLIC_API_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://api.iayos.online
+      - key: SUPABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:kY5bRPVrYtN+2dIRqVfLNDXDJpRbDjOo:wjc5AeK0oPk1pQeexBLXx+q8+85coQN+YWsMijk3LaWmvrVLg5lAKmpwuAY/p1fBVLhoHVz0lXo=]
+      - key: SUPABASE_SECRET_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:Vu+RrDorEA0IHfh4zAPtbuUdnBvMt1IL:63I7gHwsZyhO+verHxk/Vql83l7MZbn9lnFUkKts9aW3NgCuW4RXxSTk4fZ+MIgC7xyf2Rw20SdC]
+      - key: SUPABASE_ANON_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:2Q3rnzUvc/WZ/KTh5AbrY++RK1Uw+jT6:6fsQGUXLqyE3RfdKbYNFU5lcSncSoQbsFDV2vUhsRmA/rHOxkUxBBOLM4LqqsQfZaBrupqOQvclIKEBHYrlrbtF7dfdmSZ5YdMvTndTKP8cmgsGf6RT6h5NCMw0P2Cy/zOrI5G7Mg+AxZCHYvL/Av84V+1h2Jr4tBCOWenqa1lldtkfN9rID/uc34rx+rsvrbvsoANr5NLbiCQ4E36z0JgmCx2N4X3Ewc9lJkPD3wWzIEcS354GL42lZ0a13iapMSFRZef1CDYlNwIwCLr0XEqFJeLLtRal+0YYBNBEGL/w=]
+      - key: PAYMENT_PROVIDER
+        scope: RUN_AND_BUILD_TIME
+        value: paymongo
+      - key: PAYMONGO_SECRET_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:hjHAj5UFabPik9DPljOqrljIr87lKWRP:gO8I4a5FSsKOEF0HVHeJ5RQVhQ6onDHjaBeTmRYqo8hAaBBv91ycre4hgjLuLecT]
+      - key: PAYMONGO_PUBLIC_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:tZQpkpHyP1lOkKLlZoRxwAKg2lg3LISo:ot7JCq7rcAcZTwvQh9SKiiSw949saY2kqWDKVArV3oZJIzuUMTtrg6j2rA8W22Fv]
+      - key: PAYMONGO_WEBHOOK_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:Z5w1I9+CNeXQkbOLVtIoAooMMADSOl1g:jyVP4nPexJTBUV8QzsTMzOBUzBWq68mOf9vjWxTw7EhKuHy4Lat5dFWpUm22]
+      - key: XENDIT_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:iEM4orINP7fyZO5IBaCTGQXnl4YT0Kn4:FQ8JCYCAxoxknw5+YGJ9O2pNWS4cUaItqnrecAlT1rijINtPhMIqze4mRgiplRkS83eRqpSa4na7uu6wbfY6+jyFGm1Fu89z52bzGoNUhz43fik8zPZ9nqRHloUD]
+      - key: XENDIT_WEBHOOK_TOKEN
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:AOcHo1JlAhAPsxLGcv8+C2ej5ghrqRdp:JOSkUbEdScy/iw84UbWQSOGDF3dfIWpmg8/g0F15tTfonTewNlxE]
+      - key: RESEND_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:OB6JvhGrqqQ7Yt7yo0rT2EylhRTK2It7:L5lN6F1kwb5c2xkwgLMEFE8m53flh2nXMNBz6lwvWv4njpDdLuCmlRl6K8NamanaxbYRzQ==]
+      - key: AUTH_GOOGLE_ID
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:OT/PGprZggkvSsdP7Q7KqYC9VO6BnbQA:FWRSAIWma/WUbiNuzfVl/qqlv+QT2Cfwo7bonZOn9G63lFQcM+hfmuw101cZPtQOODiCGuYxZ9UO69bMFnMGDgZcwVO4+eALwLGkcDG+Q/ZlQnvuNtLvsmE=]
+      - key: AUTH_GOOGLE_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:D58jWV6gmRSTO76c4RwOL+z9tkUb7teb:lrPUwiwhyN5mI2YRHp9c0yQYhwr5i8pSMFuQXzpVZe9nMy2DN2Vrb+RNDXdM/1at1ttv]
+      - key: FACE_API_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://iayos-face-api.onrender.com
+      - key: REDIS_URL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: rediss://default:AWnhAAIncDE1MjE4MWE0M2U5OGM0YzdjOGE5M2RhNDA0OTM2NTczMXAxMjcxMDU@exotic-leopard-27105.upstash.io:6379
+      - key: ADMIN_EMAIL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:mugcqQ3BzQUl6bvG39Qrm0QS8TFnyhLS:jQBeCXxZSwQt42cbkcTCKlKiR48uGGqFuA5ZVAT8WHVNIIYs]
+      - key: ADMIN_PASSWORD
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:AOm3ESXqw4tfDzVDAkrhy8E95pOi+6q/:z9l0AKhSvM6ic7qmCaXYl8D9EEx2eGIWAkFevaNkCTZBtQ==]
+      - key: SENTRY_DSN
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: EV[1:a4zKtYEwA2Qj2mw/p4N9UZVtGc0J7yjJ:42YfybhwbkrOULcvbR0maFkLEuoUy/O1hTtyC3k=]
+      - key: LOG_LEVEL
+        scope: RUN_AND_BUILD_TIME
+        value: INFO
+      - key: TESTING
+        scope: RUN_AND_BUILD_TIME
+        value: "false"
+      - key: RATE_LIMIT_DISABLED
+        scope: RUN_AND_BUILD_TIME
+        value: "false"
+    health_check:
+      failure_threshold: 5
+      http_path: /health/status
+      initial_delay_seconds: 60
+      period_seconds: 30
+      success_threshold: 1
+      timeout_seconds: 10
+    http_port: 8000
+    image:
+      registry: iayos-registry
+      registry_type: DOCR
+      repository: iayos-backend
+      tag: latest
+    instance_count: 1
+    instance_size_slug: professional-xs
+    name: backend

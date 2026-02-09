@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **DAILY Team Job Button Guard Fixes** (PR #344)
+  - Fixed Team Arrival section ("Worker Arrivals" per-worker Confirm buttons) showing for DAILY team jobs alongside Daily Attendance section — now only shows for PROJECT team jobs
+  - Fixed Team Phase 2 "Mark My Assignment Complete" button showing for DAILY team jobs alongside daily Check In/Out — now only shows for PROJECT team jobs
+  - Fixed Review section never appearing for completed DAILY jobs because `clientMarkedComplete` is never set — added `status === "COMPLETED"` fallback matching `isConversationClosed` pattern
+  - **Impact**: DAILY team jobs now show only the Daily Attendance workflow; PROJECT team jobs show the milestone-based arrival/completion workflow; reviews work for all payment models
+
 - **Agency Job Workflow UI Bug Fixes** (12 fixes)
   - Fixed "Approve & Pay Team" button incorrectly showing for agency jobs due to vacuous truth on empty `team_worker_assignments` array
   - Fixed "Confirm Worker Has Arrived" button showing for agency jobs where arrival is tracked per-employee
