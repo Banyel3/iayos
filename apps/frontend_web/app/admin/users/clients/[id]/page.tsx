@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Phone,
   MapPin,
+  Mail,
   Star,
   Briefcase,
   CheckCircle,

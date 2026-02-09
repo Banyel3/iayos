@@ -65,6 +65,7 @@ interface KYCFiles {
 export default function PendingKYCPage() {
   const [pendingKYC, setPendingKYC] = useState<PendingKYC[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<
     "all" | "high" | "medium" | "low"
@@ -165,13 +166,30 @@ export default function PendingKYCPage() {
       </div>
     );
   };
-  const fetchPendingKYC = async () => {
+  const fetchPendingKYC = async (retryAttempt = 0) => {
+    const MAX_RETRIES = 2;
     setIsLoading(true);
+    setFetchError(null);
     try {
+      // Add timeout to prevent hanging on slow responses
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      if (retryAttempt > 0) {
+        showToast({
+          type: "info",
+          title: "Retrying...",
+          message: `Attempt ${retryAttempt + 1} of ${MAX_RETRIES + 1}`,
+          duration: 2000,
+        });
+      }
+
       const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
         method: "GET",
         credentials: "include",
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         // Handle specific HTTP errors
@@ -309,8 +327,35 @@ export default function PendingKYCPage() {
     } catch (error) {
       console.error("❌ Error fetching pending KYC:", error);
 
-      // Handle network errors
-      if (error instanceof TypeError && error.message.includes("fetch")) {
+      // Auto-retry on timeout or network errors
+      const isAbortError = error instanceof DOMException && error.name === "AbortError";
+      const isNetworkError = error instanceof TypeError && error.message.includes("fetch");
+
+      if ((isAbortError || isNetworkError) && retryAttempt < MAX_RETRIES) {
+        // Wait 2 seconds then retry
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return fetchPendingKYC(retryAttempt + 1);
+      }
+
+      // Set error state for retry button
+      const errorMsg = isAbortError
+        ? "Request timed out. The server may be slow or unavailable."
+        : isNetworkError
+          ? "Unable to connect to the server. Please check your internet connection."
+          : error instanceof Error
+            ? error.message
+            : "An unexpected error occurred.";
+      setFetchError(errorMsg);
+
+      // Handle specific errors with toasts
+      if (isAbortError) {
+        showToast({
+          type: "error",
+          title: "Request Timed Out",
+          message: "The server took too long to respond. Click Retry to try again.",
+          duration: 6000,
+        });
+      } else if (isNetworkError) {
         showToast({
           type: "error",
           title: "Network Error",
@@ -325,7 +370,6 @@ export default function PendingKYCPage() {
         !error.message.includes("not found") &&
         !error.message.includes("Server error")
       ) {
-        // Only show generic error if we haven't already shown a specific one
         showToast({
           type: "error",
           title: "Failed to Load KYC Requests",
@@ -953,15 +997,26 @@ export default function PendingKYCPage() {
                     <FileText className="w-16 h-16 text-gray-400" />
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        No Pending Reviews
+                        {fetchError ? "Failed to Load KYC Data" : "No Pending Reviews"}
                       </h3>
                       <p className="text-muted-foreground">
-                        {searchTerm ||
-                          priorityFilter !== "all" ||
-                          typeFilter !== "all"
-                          ? "No KYC submissions match your filters"
-                          : "All KYC submissions have been reviewed"}
+                        {fetchError
+                          ? fetchError
+                          : searchTerm ||
+                              priorityFilter !== "all" ||
+                              typeFilter !== "all"
+                            ? "No KYC submissions match your filters"
+                            : "All KYC submissions have been reviewed"}
                       </p>
+                      {fetchError && (
+                        <Button
+                          className="mt-4"
+                          onClick={() => fetchPendingKYC()}
+                        >
+                          <Loader2 className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+                          Retry
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
