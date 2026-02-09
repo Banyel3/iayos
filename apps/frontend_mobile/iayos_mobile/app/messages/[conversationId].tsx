@@ -2034,6 +2034,7 @@ export default function ChatScreen() {
                 {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <TouchableOpacity
@@ -2064,6 +2065,7 @@ export default function ChatScreen() {
                 {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
                   conversation.job.clientConfirmedWorkStarted &&
                   !conversation.job.workerMarkedComplete && (
@@ -2082,6 +2084,7 @@ export default function ChatScreen() {
                 {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "WORKER" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
@@ -2099,6 +2102,7 @@ export default function ChatScreen() {
                 {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "WORKER" &&
                   conversation.job.clientConfirmedWorkStarted &&
                   !conversation.job.workerMarkedComplete && (
@@ -2127,6 +2131,7 @@ export default function ChatScreen() {
                 {/* WORKER: Waiting for Client Approval (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "WORKER" &&
                   conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (
@@ -2145,6 +2150,7 @@ export default function ChatScreen() {
                 {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
                   conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (

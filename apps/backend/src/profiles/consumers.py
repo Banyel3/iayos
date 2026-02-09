@@ -2,7 +2,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from .models import Conversation, Message, Profile
+from .models import Conversation, ConversationParticipant, Message, Profile
 from accounts.models import Job, JobReview, Agency
 
 User = get_user_model()
@@ -252,6 +252,13 @@ class InboxConsumer(AsyncWebsocketConsumer):
                     ) | Conversation.objects.filter(
                         worker=profile
                     )
+                    # Also include conversations where user is a ConversationParticipant (team/group jobs)
+                    participant_conv_ids = ConversationParticipant.objects.filter(
+                        profile=profile
+                    ).values_list('conversation_id', flat=True)
+                    if participant_conv_ids:
+                        participant_convs = Conversation.objects.filter(conversationID__in=participant_conv_ids)
+                        conversations = conversations | participant_convs
             except Exception:
                 pass
             
@@ -287,14 +294,22 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 else:
                     profile = Profile.objects.filter(accountFK=self.user).first()
                 if profile:
-                    if conversation.client.profileID == profile.profileID:
+                    if conversation.client and conversation.client.profileID == profile.profileID:
                         print(f"[InboxWS] Client access granted for conv {conversation_id}")
                         return True
                     if conversation.worker and conversation.worker.profileID == profile.profileID:
                         print(f"[InboxWS] Worker access granted for conv {conversation_id}")
                         return True
-            except Exception:
-                pass
+                    # Check ConversationParticipant for team/group jobs
+                    is_participant = ConversationParticipant.objects.filter(
+                        conversation=conversation,
+                        profile=profile
+                    ).exists()
+                    if is_participant:
+                        print(f"[InboxWS] Participant access granted for conv {conversation_id}")
+                        return True
+            except Exception as e:
+                print(f"[InboxWS] Error checking profile access for conv {conversation_id}: {e}")
             
             # Check Agency-based access (directly via agency field)
             try:
@@ -305,7 +320,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
             except Agency.DoesNotExist:
                 pass
             
-            print(f"[InboxWS] Access DENIED for conv {conversation_id}")
+            print(f"[InboxWS] Access DENIED for conv {conversation_id} (user={self.user.email}, client={getattr(conversation.client, 'profileID', None)}, worker={getattr(conversation.worker, 'profileID', None) if conversation.worker else None})")
             return False
         except Conversation.DoesNotExist as e:
             print(f"[InboxWS] ERROR: Conversation {conversation_id} not found")
