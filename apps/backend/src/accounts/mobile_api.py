@@ -4310,7 +4310,7 @@ def mobile_get_pending_reviews(request, job_id: int):
                     if not worker_reviewed:
                         result['pending_reviews'].append({
                             'type': 'WORKER',
-                            'worker_id': job.assignedWorkerID.workerProfileID,
+                            'worker_id': job.assignedWorkerID.id,
                             'worker_name': f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip(),
                             'worker_account_id': job.assignedWorkerID.profileID.accountFK.accountID
                         })
@@ -4325,7 +4325,7 @@ def mobile_get_pending_reviews(request, job_id: int):
             if not client_reviewed:
                 result['pending_reviews'].append({
                     'type': 'CLIENT',
-                    'client_id': job.clientID.clientProfileID,
+                    'client_id': job.clientID.id,
                     'client_name': f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip(),
                     'client_account_id': job.clientID.profileID.accountFK.accountID
                 })

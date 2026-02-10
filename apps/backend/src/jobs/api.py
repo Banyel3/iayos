@@ -4442,7 +4442,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             worker_account = assignment.workerID.profileID.accountFK
                             if worker_account.id not in reviewed_worker_ids:
                                 pending_workers.append({
-                                    "worker_id": assignment.workerID.workerID,
+                                    "worker_id": assignment.workerID.id,
                                     "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
                                 })
                         
@@ -4565,7 +4565,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     # Check if still pending review
                     if worker_account_id not in reviewed_worker_account_ids:
                         pending_team_workers.append({
-                            "worker_id": a.workerID.workerID,
+                            "worker_id": a.workerID.id,
                             "account_id": worker_account_id,
                             "name": worker_name,
                             "avatar": worker_profile.profileImg,
