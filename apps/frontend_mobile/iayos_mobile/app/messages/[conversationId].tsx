@@ -531,9 +531,9 @@ export default function ChatScreen() {
 
     const isRatingComplete = isClientReviewing
       ? ratingQuality > 0 &&
-        ratingCommunication > 0 &&
-        ratingPunctuality > 0 &&
-        ratingProfessionalism > 0
+      ratingCommunication > 0 &&
+      ratingPunctuality > 0 &&
+      ratingProfessionalism > 0
       : singleRating > 0;
 
     if (!isRatingComplete) {
@@ -1002,7 +1002,7 @@ export default function ChatScreen() {
       index === 0 ||
       Math.abs(
         new Date(item.created_at).getTime() -
-          new Date(conversation!.messages[index - 1].created_at).getTime(),
+        new Date(conversation!.messages[index - 1].created_at).getTime(),
       ) > 60000;
 
     // Extract image URL from attachments if present
@@ -1219,43 +1219,84 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
-          <TouchableOpacity
-            style={styles.jobHeader}
-            onPress={() => router.push(`/jobs/${conversation.job.id}`)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.jobInfo}>
-              <Ionicons
-                name="briefcase-outline"
-                size={16}
-                color={Colors.primary}
-              />
-              <Text style={styles.jobTitle} numberOfLines={1}>
-                {conversation.job.title}
-              </Text>
-            </View>
-            <View style={styles.jobMeta}>
-              <Text style={styles.jobBudget}>
-                ₱{conversation.job.budget.toLocaleString()}
-              </Text>
-              {/* ML Estimated Completion Time - Compact mode */}
-              {(isLoading ||
-                (conversation.job.estimatedCompletion &&
-                  conversation.job.status !== "COMPLETED")) && (
-                <EstimatedTimeCard
-                  prediction={conversation?.job?.estimatedCompletion || null}
-                  compact={true}
-                  countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                  jobStartTime={
-                    conversation?.job?.clientConfirmedWorkStarted
-                      ? new Date().toISOString()
-                      : undefined
-                  }
-                  isLoading={isLoading}
+          <View style={[styles.jobHeader, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              onPress={() => router.push(`/jobs/${conversation.job.id}`)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.jobInfo}>
+                <Ionicons
+                  name="briefcase-outline"
+                  size={16}
+                  color={Colors.primary}
                 />
+                <Text style={styles.jobTitle} numberOfLines={1}>
+                  {conversation.job.title}
+                </Text>
+              </View>
+              <View style={styles.jobMeta}>
+                <Text style={styles.jobBudget}>
+                  ₱{conversation.job.budget.toLocaleString()}
+                </Text>
+                {/* ML Estimated Completion Time - Compact mode */}
+                {(isLoading ||
+                  (conversation.job.estimatedCompletion &&
+                    conversation.job.status !== "COMPLETED")) && (
+                    <EstimatedTimeCard
+                      prediction={conversation?.job?.estimatedCompletion || null}
+                      compact={true}
+                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                      jobStartTime={
+                        conversation?.job?.clientConfirmedWorkStarted
+                          ? new Date().toISOString()
+                          : undefined
+                      }
+                      isLoading={isLoading}
+                    />
+                  )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Rate Button (Client & Worker) */}
+            {conversation.job.clientMarkedComplete &&
+              !isConversationClosed &&
+              ((conversation.my_role === "WORKER" &&
+                !conversation.job.workerReviewed) ||
+                (conversation.my_role === "CLIENT" &&
+                  !(conversation.is_team_job
+                    ? conversation.all_team_workers_reviewed
+                    : conversation.job.clientReviewed))) && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    marginLeft: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: "#FBC02D",
+                  }}
+                  onPress={() => setShowReviewModal(true)}
+                >
+                  <Ionicons name="star" size={16} color="#FBC02D" />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#FBC02D",
+                    }}
+                  >
+                    {conversation.my_role === "WORKER"
+                      ? "Rate Client"
+                      : "Rate Worker"}
+                  </Text>
+                </TouchableOpacity>
               )}
-            </View>
-          </TouchableOpacity>
+          </View>
 
           {/* Action Buttons (replaces role banner) */}
           {conversation.job.status === "IN_PROGRESS" &&
@@ -1293,7 +1334,7 @@ export default function ChatScreen() {
                               style={[
                                 styles.teamWorkerCardCompact,
                                 assignment.client_confirmed_arrival &&
-                                  styles.teamWorkerCardConfirmed,
+                                styles.teamWorkerCardConfirmed,
                               ]}
                             >
                               <View style={styles.teamWorkerInfoCompact}>
@@ -1685,11 +1726,10 @@ export default function ChatScreen() {
                   )}
 
                 {conversation.job.workerMarkedComplete &&
-                  !conversation.job.clientMarkedComplete && (
+                  !conversation.job.clientMarkedComplete &&
+                  conversation.my_role === "CLIENT" && (
                     <Text style={styles.statusMessage}>
-                      {conversation.my_role === "CLIENT"
-                        ? "Worker marked job complete. Please review and approve."
-                        : "✓ Marked complete. Waiting for client approval."}
+                      Worker marked job complete. Please review and approve.
                     </Text>
                   )}
 
@@ -1833,7 +1873,7 @@ export default function ChatScreen() {
                       })}{" "}
                       held
                       {conversation.job.paymentBuffer.remaining_days !== null &&
-                      conversation.job.paymentBuffer.remaining_days > 0
+                        conversation.job.paymentBuffer.remaining_days > 0
                         ? ` · ${conversation.job.paymentBuffer.remaining_days}d left`
                         : " · releasing soon"}
                     </Text>
@@ -1841,7 +1881,7 @@ export default function ChatScreen() {
                     <Text style={styles.paymentBufferTitleCompact}>
                       ⏳ {conversation.job.paymentBuffer.buffer_days}-Day Hold
                       {conversation.job.paymentBuffer.remaining_days !== null &&
-                      conversation.job.paymentBuffer.remaining_days > 0
+                        conversation.job.paymentBuffer.remaining_days > 0
                         ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining`
                         : " · releasing soon"}
                     </Text>
@@ -1866,8 +1906,8 @@ export default function ChatScreen() {
                 (conversation.is_team_job
                   ? conversation.all_team_workers_reviewed
                   : conversation.job.clientReviewed)) ||
-              (conversation.my_role === "WORKER" &&
-                conversation.job.workerReviewed) ? (
+                (conversation.my_role === "WORKER" &&
+                  conversation.job.workerReviewed) ? (
                 // User has already reviewed - show compact waiting banner
                 <View style={styles.reviewCompleteBanner}>
                   <Ionicons
@@ -1877,7 +1917,7 @@ export default function ChatScreen() {
                   />
                   <Text style={styles.reviewCompleteBannerText}>
                     {conversation.is_team_job &&
-                    conversation.my_role === "CLIENT"
+                      conversation.my_role === "CLIENT"
                       ? `✅ Reviewed all ${conversation.team_worker_assignments?.length || 0} workers`
                       : "✅ Review submitted"}
                   </Text>
@@ -1885,54 +1925,22 @@ export default function ChatScreen() {
                     !conversation.job.workerReviewed) ||
                     (conversation.my_role === "WORKER" &&
                       !conversation.job.clientReviewed)) && (
-                    <View style={styles.reviewWaitingBadge}>
-                      <Ionicons
-                        name="time-outline"
-                        size={12}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.reviewWaitingBadgeText}>
-                        Waiting for{" "}
-                        {conversation.my_role === "CLIENT"
-                          ? "worker"
-                          : "client"}
-                      </Text>
-                    </View>
-                  )}
+                      <View style={styles.reviewWaitingBadge}>
+                        <Ionicons
+                          name="time-outline"
+                          size={12}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.reviewWaitingBadgeText}>
+                          Waiting for{" "}
+                          {conversation.my_role === "CLIENT"
+                            ? "worker"
+                            : "client"}
+                        </Text>
+                      </View>
+                    )}
                 </View>
-              ) : (
-                // User hasn't reviewed yet - show compact banner to open modal
-                <TouchableOpacity
-                  style={styles.leaveReviewBanner}
-                  onPress={() => setShowReviewModal(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="star" size={20} color="#FFB800" />
-                  <View style={styles.leaveReviewTextContainer}>
-                    <Text style={styles.leaveReviewTitle}>
-                      {conversation.is_team_job &&
-                      conversation.my_role === "CLIENT"
-                        ? `Rate ${conversation.pending_team_worker_reviews?.length || conversation.team_worker_assignments?.length || 0} worker${(conversation.pending_team_worker_reviews?.length || conversation.team_worker_assignments?.length || 0) > 1 ? "s" : ""}`
-                        : conversation.is_agency_job &&
-                            conversation.my_role === "CLIENT"
-                          ? reviewStep === "EMPLOYEE"
-                            ? "Rate Employee"
-                            : "Rate Agency"
-                          : `Rate ${conversation.my_role === "CLIENT" ? "Worker" : "Client"}`}
-                    </Text>
-                  </View>
-                  <View style={styles.leaveReviewBadge}>
-                    <Text style={styles.leaveReviewBadgeText}>
-                      Tap to review
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={16}
-                    color={Colors.primary}
-                  />
-                </TouchableOpacity>
-              )}
+              ) : null}
             </>
           )}
 
@@ -1968,8 +1976,8 @@ export default function ChatScreen() {
                     (conversation.is_team_job
                       ? conversation.all_team_workers_reviewed
                       : conversation.job.clientReviewed)) ||
-                  (conversation.my_role === "WORKER" &&
-                    conversation.job.workerReviewed) ? (
+                    (conversation.my_role === "WORKER" &&
+                      conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
                     <View style={styles.reviewWaitingContainer}>
                       <Ionicons
@@ -1979,7 +1987,7 @@ export default function ChatScreen() {
                       />
                       <Text style={styles.reviewWaitingTitle}>
                         {conversation.is_team_job &&
-                        conversation.my_role === "CLIENT"
+                          conversation.my_role === "CLIENT"
                           ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
                           : "Thank you for your review!"}
                       </Text>
@@ -1987,21 +1995,21 @@ export default function ChatScreen() {
                         !conversation.job.workerReviewed) ||
                         (conversation.my_role === "WORKER" &&
                           !conversation.job.clientReviewed)) && (
-                        <Text style={styles.reviewWaitingText}>
-                          Waiting for{" "}
-                          {conversation.my_role === "CLIENT"
-                            ? "workers"
-                            : "client"}{" "}
-                          to review...
-                        </Text>
-                      )}
+                          <Text style={styles.reviewWaitingText}>
+                            Waiting for{" "}
+                            {conversation.my_role === "CLIENT"
+                              ? "workers"
+                              : "client"}{" "}
+                            to review...
+                          </Text>
+                        )}
                     </View>
                   ) : (
                     // User hasn't reviewed yet - show review form
                     <>
                       {/* Dynamic title based on agency job review step */}
                       {conversation.is_agency_job &&
-                      conversation.my_role === "CLIENT" ? (
+                        conversation.my_role === "CLIENT" ? (
                         <>
                           {/* Multi-employee support: show which employee is being reviewed */}
                           {(() => {
@@ -2347,13 +2355,13 @@ export default function ChatScreen() {
                           styles.submitReviewButton,
                           ((conversation.my_role === "CLIENT"
                             ? ratingQuality === 0 ||
-                              ratingCommunication === 0 ||
-                              ratingPunctuality === 0 ||
-                              ratingProfessionalism === 0
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0
                             : singleRating === 0) ||
                             !reviewComment.trim() ||
                             submitReviewMutation.isPending) &&
-                            styles.submitReviewButtonDisabled,
+                          styles.submitReviewButtonDisabled,
                         ]}
                         onPress={() => {
                           Keyboard.dismiss();
@@ -2362,9 +2370,9 @@ export default function ChatScreen() {
                         disabled={
                           (conversation.my_role === "CLIENT"
                             ? ratingQuality === 0 ||
-                              ratingCommunication === 0 ||
-                              ratingPunctuality === 0 ||
-                              ratingProfessionalism === 0
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0
                             : singleRating === 0) ||
                           !reviewComment.trim() ||
                           submitReviewMutation.isPending
@@ -2854,7 +2862,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   jobHeader: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
