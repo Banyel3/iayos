@@ -20,6 +20,7 @@ import {
   TextInput,
   Keyboard,
   ScrollView,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack, useRouter } from "expo-router";
@@ -165,6 +166,39 @@ export default function ChatScreen() {
     conversation?.job?.clientReviewed &&
     conversation?.job?.workerReviewed &&
     !hasApprovedBackjob);
+
+  // Force review: user must review before leaving conversation after payment/completion
+  const needsReview = !!(
+    conversation?.job &&
+    (conversation.job.clientMarkedComplete || conversation.job.status === "COMPLETED") &&
+    !isConversationClosed &&
+    !hasApprovedBackjob &&
+    ((conversation.my_role === "CLIENT" &&
+      (conversation.is_team_job
+        ? !conversation.all_team_workers_reviewed
+        : !conversation.job.clientReviewed)) ||
+     (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
+  );
+
+  // Block hardware back button when review is needed
+  useEffect(() => {
+    if (!needsReview) return;
+    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
+      Alert.alert(
+        "Review Required",
+        "Please leave a review before exiting this conversation. Your feedback helps improve the platform.",
+        [
+          {
+            text: "Leave Review",
+            onPress: () => setShowReviewModal(true),
+          },
+        ],
+        { cancelable: false }
+      );
+      return true; // Block back
+    });
+    return () => handler.remove();
+  }, [needsReview]);
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -1182,7 +1216,18 @@ export default function ChatScreen() {
       {/* Custom Header */}
       <View style={styles.customHeader}>
         <TouchableOpacity
-          onPress={() => safeGoBack(routerHook, "/(tabs)/messages")}
+          onPress={() => {
+            if (needsReview) {
+              Alert.alert(
+                "Review Required",
+                "Please leave a review before exiting this conversation.",
+                [{ text: "Leave Review", onPress: () => setShowReviewModal(true) }],
+                { cancelable: false }
+              );
+            } else {
+              safeGoBack(routerHook, "/(tabs)/messages");
+            }
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -2722,16 +2767,25 @@ export default function ChatScreen() {
             visible={showReviewModal}
             animationType="slide"
             presentationStyle="pageSheet"
-            onRequestClose={() => setShowReviewModal(false)}
+            onRequestClose={() => {
+              if (!needsReview) setShowReviewModal(false);
+              // Block dismiss when review is required
+            }}
           >
             <SafeAreaView style={styles.reviewModalContainer}>
               {/* Modal Header */}
               <View style={styles.reviewModalHeader}>
                 <TouchableOpacity
-                  onPress={() => setShowReviewModal(false)}
+                  onPress={() => {
+                    if (!needsReview) {
+                      setShowReviewModal(false);
+                    } else {
+                      Alert.alert("Review Required", "Please complete your review before closing.");
+                    }
+                  }}
                   style={styles.reviewModalCloseButton}
                 >
-                  <Ionicons name="close" size={24} color={Colors.textPrimary} />
+                  <Ionicons name="close" size={24} color={needsReview ? Colors.textSecondary : Colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.reviewModalTitle}>Leave a Review</Text>
                 <View style={{ width: 40 }} />

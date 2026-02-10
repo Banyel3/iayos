@@ -31,6 +31,7 @@ export const reviewKeys = {
   workerStats: (workerId: number) =>
     [...reviewKeys.all, "stats", workerId] as const,
   myReviews: () => [...reviewKeys.all, "my-reviews"] as const,
+  pendingReviews: () => [...reviewKeys.all, "pending"] as const,
 };
 
 // ============================================================================
@@ -196,6 +197,10 @@ export function useSubmitReview() {
       queryClient.invalidateQueries({
         queryKey: reviewKeys.myReviews(),
       });
+      // Invalidate pending reviews (force review modal)
+      queryClient.invalidateQueries({
+        queryKey: reviewKeys.pendingReviews(),
+      });
     },
   });
 }
@@ -264,6 +269,46 @@ export function useReportReview() {
         queryKey: reviewKeys.all,
       });
     },
+  });
+}
+
+// ============================================================================
+// PENDING REVIEWS (Force Review Feature)
+// ============================================================================
+
+export interface PendingReview {
+  job_id: number;
+  job_title: string;
+  completed_at: string | null;
+  reviewee_id: number;
+  reviewee_name: string;
+  review_type: "WORKER_TO_CLIENT" | "CLIENT_TO_WORKER";
+  conversation_id: number | null;
+}
+
+export interface PendingReviewsResponse {
+  pending_reviews: PendingReview[];
+  count: number;
+}
+
+/**
+ * Fetch pending reviews for the current user.
+ * Used by PendingReviewModal to force users to review after job completion.
+ */
+export function usePendingReviews(enabled = true) {
+  return useQuery<PendingReviewsResponse>({
+    queryKey: reviewKeys.pendingReviews(),
+    queryFn: async () => {
+      const response = await apiRequest(ENDPOINTS.PENDING_REVIEWS);
+      if (!response.ok) {
+        throw new Error("Failed to fetch pending reviews");
+      }
+      const json = await response.json();
+      return json.data || { pending_reviews: [], count: 0 };
+    },
+    enabled,
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
   });
 }
 

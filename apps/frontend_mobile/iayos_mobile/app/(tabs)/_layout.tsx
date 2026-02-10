@@ -1,6 +1,6 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
-import React, { useEffect } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { AppState, AppStateStatus, Platform, StyleSheet, View } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -8,6 +8,8 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/context/AuthContext";
 import { KYCBanner } from "@/components/KYCBanner";
+import PendingReviewModal from "@/components/PendingReviewModal";
+import { usePendingReviews } from "@/lib/hooks/useReviews";
 // Debug imports at runtime to detect undefined exports
 try {
   // eslint-disable-next-line no-console
@@ -26,6 +28,43 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
+
+  // Pending review check - force review on app reopen
+  const [showPendingReview, setShowPendingReview] = useState(false);
+  const appState = useRef(AppState.currentState);
+  const { data: pendingReviews, refetch: refetchPendingReviews } =
+    usePendingReviews(isAuthenticated);
+
+  // Check for pending reviews when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (
+          appState.current.match(/inactive|background/) &&
+          nextAppState === "active"
+        ) {
+          // App came to foreground - check pending reviews
+          refetchPendingReviews();
+        }
+        appState.current = nextAppState;
+      }
+    );
+    return () => subscription.remove();
+  }, [refetchPendingReviews]);
+
+  // Show modal when pending reviews exist
+  useEffect(() => {
+    if (pendingReviews && pendingReviews.count > 0) {
+      // Only show if the first pending review has a conversation_id
+      const firstReview = pendingReviews.pending_reviews[0];
+      if (firstReview?.conversation_id) {
+        setShowPendingReview(true);
+      }
+    } else {
+      setShowPendingReview(false);
+    }
+  }, [pendingReviews]);
 
   // Redirect logic based on authentication and profile type
   useEffect(() => {
@@ -135,6 +174,13 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
+      {/* Force Review Modal - shown when user has pending reviews */}
+      <PendingReviewModal
+        visible={showPendingReview}
+        pendingReview={
+          pendingReviews?.pending_reviews?.[0] ?? null
+        }
+      />
     </View>
   );
 }
