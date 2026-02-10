@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Force Review Feature** (PR #349)
+  - Users must leave a review after job completion/payment before exiting conversation
+  - Hardware back button blocked with "Review Required" alert when review is pending
+  - Header back button blocked with same alert, redirects to review modal
+  - Review modal close button disabled when review is required
+  - Full-screen blocking PendingReviewModal shown on app reopen when pending reviews exist
+  - AppState listener checks for pending reviews when app comes to foreground
+  - Backend now includes `conversation_id` in pending reviews API response
+  - **Impact**: Users can no longer skip reviews after job completion, improving platform trust and feedback quality
+
 ### Fixed
 - **DAILY Team Job Button Guard Fixes** (PR #344)
   - Fixed Team Arrival section ("Worker Arrivals" per-worker Confirm buttons) showing for DAILY team jobs alongside Daily Attendance section — now only shows for PROJECT team jobs

@@ -579,6 +579,7 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/reviews/${reviewId}`,
   REPORT_REVIEW: (reviewId: number) =>
     `${API_URL}/api/mobile/reviews/${reviewId}/report`,
+  PENDING_REVIEWS: `${API_URL}/api/mobile/reviews/pending`,
 
   // Backjobs / Disputes
   REQUEST_BACKJOB: (jobId: number) =>

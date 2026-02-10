@@ -3793,13 +3793,18 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
                     client_account = job.clientID.profileID.accountFK
                     client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip()
 
+                    # Lookup conversation for this job
+                    from profiles.models import Conversation
+                    conv = Conversation.objects.filter(relatedJobPosting_id=job.jobID).first()
+
                     pending_jobs.append({
                         'job_id': job.jobID,
                         'job_title': job.title,
                         'completed_at': job.updatedAt.isoformat() if job.updatedAt else None,
                         'reviewee_id': client_account.accountID,
                         'reviewee_name': client_name,
-                        'review_type': 'WORKER_TO_CLIENT'
+                        'review_type': 'WORKER_TO_CLIENT',
+                        'conversation_id': conv.conversationID if conv else None,
                     })
 
         # Check jobs where user was client
@@ -3820,13 +3825,18 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
                     worker_account = job.workerID.profileID.accountFK
                     worker_name = f"{job.workerID.profileID.firstName} {job.workerID.profileID.lastName}".strip()
 
+                    # Lookup conversation for this job
+                    from profiles.models import Conversation
+                    conv = Conversation.objects.filter(relatedJobPosting_id=job.jobID).first()
+
                     pending_jobs.append({
                         'job_id': job.jobID,
                         'job_title': job.title,
                         'completed_at': job.updatedAt.isoformat() if job.updatedAt else None,
                         'reviewee_id': worker_account.accountID,
                         'reviewee_name': worker_name,
-                        'review_type': 'CLIENT_TO_WORKER'
+                        'review_type': 'CLIENT_TO_WORKER',
+                        'conversation_id': conv.conversationID if conv else None,
                     })
 
         # Sort by completed date (most recent first)
