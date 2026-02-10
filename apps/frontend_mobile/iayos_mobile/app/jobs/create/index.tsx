@@ -227,13 +227,13 @@ export default function CreateJobScreen() {
     }
 
     // Only predict if we have enough data
-    if (title.length >= 5 && description.length >= 10 && categoryId) {
+    if (title.length >= 5 && description.length >= 10 && effectiveCategoryId) {
       // Debounce prediction by 800ms to avoid too many API calls
       predictionTimeoutRef.current = setTimeout(() => {
         predictPrice({
           title,
           description,
-          category_id: categoryId,
+          category_id: effectiveCategoryId,
           urgency,
           skill_level: skillLevel,
           job_scope: jobScope,
@@ -397,6 +397,21 @@ export default function CreateJobScreen() {
     }
   }, [workerId, workerDetailsData, categories, categoryId]);
 
+  // For agency jobs, derive category from first skill slot (slots already pick category)
+  const primaryCategoryId = React.useMemo(() => {
+    if (!agencyId) return null;
+    return skillSlots[0]?.specialization_id ?? null;
+  }, [agencyId, skillSlots]);
+
+  const primaryCategory = React.useMemo(() => {
+    if (!primaryCategoryId || !categories) return null;
+    return categories.find((c) => c.id === primaryCategoryId) ?? null;
+  }, [primaryCategoryId, categories]);
+
+  // Effective category: from slots for agency, from standalone picker for listing/invite
+  const effectiveCategoryId = agencyId ? primaryCategoryId : categoryId;
+  const effectiveCategory = agencyId ? primaryCategory : selectedCategory;
+
   const getSpecializationName = useCallback(
     (specId: number) => {
       if (!categories || !Array.isArray(categories)) {
@@ -526,8 +541,8 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please enter a job description");
       return;
     }
-    if (!categoryId) {
-      Alert.alert("Error", "Please select a category");
+    if (!effectiveCategoryId) {
+      Alert.alert("Error", agencyId ? "Please add at least one worker requirement slot" : "Please select a category");
       return;
     }
 
@@ -538,12 +553,12 @@ export default function CreateJobScreen() {
         return;
       }
       // Validate against minimum rate
-      if (selectedCategory && selectedCategory.minimum_rate > 0) {
+      if (effectiveCategory && effectiveCategory.minimum_rate > 0) {
         const budgetValue = parseFloat(budget);
-        if (budgetValue < selectedCategory.minimum_rate) {
+        if (budgetValue < effectiveCategory.minimum_rate) {
           Alert.alert(
             "Budget Too Low",
-            `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
+            `The minimum budget for ${effectiveCategory.name} is ₱${effectiveCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
           );
           return;
         }
@@ -612,7 +627,7 @@ export default function CreateJobScreen() {
     const jobData: CreateJobRequest = {
       title: title.trim(),
       description: description.trim(),
-      category_id: categoryId,
+      category_id: effectiveCategoryId!,
       location: `${street.trim()}, ${barangay.trim()}`,
       expected_duration: duration.trim() || undefined,
       urgency_level: urgency,
@@ -719,6 +734,8 @@ export default function CreateJobScreen() {
                 <Text style={styles.charCount}>{description.length}/500</Text>
               </View>
 
+              {/* Category picker - only for listing/invite jobs (agency jobs derive category from slots) */}
+              {!agencyId && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Category *</Text>
                 {/* Show hint when hiring specific worker */}
@@ -785,6 +802,7 @@ export default function CreateJobScreen() {
                   </ScrollView>
                 )}
               </View>
+              )}
             </View>
 
             {/* Worker Requirements Section - Only visible when hiring an agency */}
@@ -942,28 +960,28 @@ export default function CreateJobScreen() {
                 <View
                   style={[
                     styles.budgetInput,
-                    !categoryId && styles.inputDisabled,
+                    !effectiveCategoryId && styles.inputDisabled,
                   ]}
                 >
                   <Text style={styles.currencySymbol}>₱</Text>
                   <TextInput
                     style={styles.budgetTextInput}
                     placeholder={
-                      categoryId ? "0.00" : "Select a category first"
+                      effectiveCategoryId ? "0.00" : agencyId ? "Add a worker requirement first" : "Select a category first"
                     }
                     value={budget}
                     onChangeText={setBudget}
                     keyboardType="decimal-pad"
                     placeholderTextColor={Colors.textHint}
-                    editable={!!categoryId}
+                    editable={!!effectiveCategoryId}
                   />
                 </View>
                 <Text style={styles.hint}>
-                  {selectedCategory && selectedCategory.minimum_rate > 0
-                    ? `Minimum: ₱${selectedCategory.minimum_rate.toFixed(2)}`
-                    : categoryId
+                  {effectiveCategory && effectiveCategory.minimum_rate > 0
+                    ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
+                    : effectiveCategoryId
                       ? "This is what the worker will receive"
-                      : "Select a category first"}
+                      : agencyId ? "Add a worker requirement first" : "Select a category first"}
                 </Text>
               </View>
               )}
