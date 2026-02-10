@@ -17,7 +17,8 @@ export interface AvailableSkill {
 }
 
 export interface WorkerSkill {
-  id: number; // Specialization ID
+  id: number; // WorkerSpecialization join table PK
+  specializationId: number; // Specializations table PK
   name: string;
   description: string;
   experienceYears: number;

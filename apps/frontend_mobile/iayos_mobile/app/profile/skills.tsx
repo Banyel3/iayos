@@ -66,7 +66,7 @@ export default function SkillsScreen() {
   const removeSkill = useRemoveSkill();
 
   // Get skills the worker doesn't have yet
-  const mySkillIds = new Set(mySkills.map((s) => s.id));
+  const mySkillIds = new Set(mySkills.map((s) => s.specializationId));
   const availableToAdd = availableSkills.filter((s) => !mySkillIds.has(s.id));
 
   const onRefresh = useCallback(async () => {
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   skillsList: {
-    maxHeight: 200,
+    maxHeight: 400,
     marginBottom: Spacing.md,
   },
   skillOption: {
