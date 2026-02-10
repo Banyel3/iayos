@@ -39,7 +39,6 @@ import {
   useAcceptTeamApplication,
   useRejectTeamApplication,
   useWorkerCompleteAssignment,
-  useClientApproveTeamJob,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -722,7 +721,6 @@ export default function JobDetailScreen() {
 
   // Team job completion mutations
   const workerCompleteAssignment = useWorkerCompleteAssignment();
-  const clientApproveTeamJob = useClientApproveTeamJob();
 
   // Team job applications (for clients)
   const { data: teamApplicationsData } = useTeamJobApplications(
@@ -842,23 +840,6 @@ export default function JobDetailScreen() {
               assignmentId: currentWorkerAssignment.assignment_id,
               completionNotes: completionNotes || undefined,
             });
-          },
-        },
-      ],
-    );
-  };
-
-  const handleClientApproveTeamJob = () => {
-    Alert.alert(
-      "Approve Job Completion",
-      "Are you sure all team workers have completed their work satisfactorily?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Approve",
-          style: "default",
-          onPress: () => {
-            clientApproveTeamJob.mutate({ jobId: parseInt(id) });
           },
         },
       ],
@@ -1662,26 +1643,6 @@ export default function JobDetailScreen() {
               </View>
             )}
 
-            {/* Client Approve Button */}
-            {isClient && job.status === "IN_PROGRESS" && (
-              <TouchableOpacity
-                style={styles.approveTeamJobButton}
-                onPress={handleClientApproveTeamJob}
-                disabled={clientApproveTeamJob.isPending}
-                activeOpacity={0.8}
-              >
-                {clientApproveTeamJob.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
-                ) : (
-                  <>
-                    <Ionicons name="thumbs-up" size={20} color={Colors.white} />
-                    <Text style={styles.approveTeamJobButtonText}>
-                      Approve Team Job Completion
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
@@ -3930,22 +3891,7 @@ const styles = StyleSheet.create({
     color: Colors.success,
     fontWeight: "500",
   },
-  approveTeamJobButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.lg,
-    ...Shadows.sm,
-  },
-  approveTeamJobButtonText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: "700",
-    color: Colors.white,
-  },
+
   // Job Requirements Section (Universal ML Fields)
   requirementsGrid: {
     flexDirection: "row",
