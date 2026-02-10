@@ -112,10 +112,6 @@ export default function CreateJobScreen() {
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null,
-  );
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
@@ -140,8 +136,8 @@ export default function CreateJobScreen() {
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
 
-  // Skill slots for agency hiring (unified model - no toggle needed)
-  // When hiring an agency, skill slots are always used (even for 1 worker)
+  // Skill slots for worker requirements (unified model for all job types)
+  // Category is derived from the first skill slot's specialization
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
   const [newSlotSpecializationId, setNewSlotSpecializationId] = useState<
@@ -254,7 +250,7 @@ export default function CreateJobScreen() {
   }, [
     title,
     description,
-    categoryId,
+    effectiveCategoryId,
     urgency,
     skillLevel,
     jobScope,
@@ -367,50 +363,52 @@ export default function CreateJobScreen() {
   });
 
   // Filter categories to only show worker's skills when hiring specific worker
+  // Categories available in slot modal: filter to worker's skills for invite jobs, all for listing
   const filteredCategories = React.useMemo(() => {
     if (!workerId || !workerDetailsData?.skills) {
       return categories; // Show all categories for LISTING jobs
     }
     // For INVITE jobs, only show worker's skills
-    const workerSkillIds = workerDetailsData.skills.map((s) => s.id);
+    const workerSkillIds = workerDetailsData.skills.map((s: any) => s.id);
     return categories.filter((cat) => workerSkillIds.includes(cat.id));
   }, [workerId, workerDetailsData, categories]);
 
-  // Auto-select category when worker has exactly 1 skill
+  // Auto-add skill slot when invite worker has exactly 1 skill
   useEffect(() => {
-    if (workerId && workerDetailsData?.skills && !categoryId) {
+    if (workerId && workerDetailsData?.skills && skillSlots.length === 0) {
       const skills = workerDetailsData.skills;
       if (skills.length === 1) {
-        // Auto-select the single skill
         const singleSkill = skills[0];
-        setCategoryId(singleSkill.id);
-        // Find matching category for minimum_rate
+        // Auto-add a slot for the worker's single skill
+        setSkillSlots([{
+          specialization_id: singleSkill.id,
+          workers_needed: 1,
+          skill_level_required: 'INTERMEDIATE',
+          notes: '',
+        }]);
+        // Set budget from category's minimum_rate
         const matchingCat = categories.find((c) => c.id === singleSkill.id);
-        if (matchingCat) {
-          setSelectedCategory(matchingCat);
-          if (matchingCat.minimum_rate > 0) {
-            setBudget(matchingCat.minimum_rate.toFixed(2));
-          }
+        if (matchingCat && matchingCat.minimum_rate > 0) {
+          setBudget(matchingCat.minimum_rate.toFixed(2));
         }
-        console.log(`[CreateJob] Auto-selected worker's single skill: ${singleSkill.name}`);
+        console.log(`[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`);
       }
     }
-  }, [workerId, workerDetailsData, categories, categoryId]);
+  }, [workerId, workerDetailsData, categories, skillSlots.length]);
 
-  // For agency jobs, derive category from first skill slot (slots already pick category)
+  // Derive category from first skill slot (universal for all job types)
   const primaryCategoryId = React.useMemo(() => {
-    if (!agencyId) return null;
     return skillSlots[0]?.specialization_id ?? null;
-  }, [agencyId, skillSlots]);
+  }, [skillSlots]);
 
   const primaryCategory = React.useMemo(() => {
     if (!primaryCategoryId || !categories) return null;
     return categories.find((c) => c.id === primaryCategoryId) ?? null;
   }, [primaryCategoryId, categories]);
 
-  // Effective category: from slots for agency, from standalone picker for listing/invite
-  const effectiveCategoryId = agencyId ? primaryCategoryId : categoryId;
-  const effectiveCategory = agencyId ? primaryCategory : selectedCategory;
+  // Category always derived from the first skill slot
+  const effectiveCategoryId = primaryCategoryId;
+  const effectiveCategory = primaryCategory;
 
   const getSpecializationName = useCallback(
     (specId: number) => {
@@ -542,7 +540,7 @@ export default function CreateJobScreen() {
       return;
     }
     if (!effectiveCategoryId) {
-      Alert.alert("Error", agencyId ? "Please add at least one worker requirement slot" : "Please select a category");
+      Alert.alert("Error", "Please add at least one worker requirement");
       return;
     }
 
@@ -657,10 +655,10 @@ export default function CreateJobScreen() {
     }
     if (agencyId) {
       (jobData as any).agency_id = parseInt(agencyId);
-      // Always add skill slots for agency jobs (unified hiring model)
-      if (skillSlots.length > 0) {
-        jobData.skill_slots = skillSlots;
-      }
+    }
+    // Always include skill slots in payload (backend ignores for non-agency via is_team_job guard)
+    if (skillSlots.length > 0) {
+      jobData.skill_slots = skillSlots;
     }
 
     createJobMutation.mutate(jobData);
@@ -733,87 +731,20 @@ export default function CreateJobScreen() {
                 />
                 <Text style={styles.charCount}>{description.length}/500</Text>
               </View>
-
-              {/* Category picker - only for listing/invite jobs (agency jobs derive category from slots) */}
-              {!agencyId && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Category *</Text>
-                {/* Show hint when hiring specific worker */}
-                {workerId && workerDetailsData?.skills && (
-                  <Text style={[styles.sectionHint, { marginBottom: 8 }]}>
-                    {workerDetailsData.skills.length === 1
-                      ? `Auto-selected based on ${workerDetailsData?.name || 'worker'}'s skill`
-                      : `Showing only ${workerDetailsData?.name || 'worker'}'s skills (${workerDetailsData.skills.length} available)`}
-                  </Text>
-                )}
-                {categoriesLoading || workerDetailsLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.loadingText}>
-                      {workerDetailsLoading ? "Loading worker skills..." : "Loading categories..."}
-                    </Text>
-                  </View>
-                ) : !Array.isArray(filteredCategories) || filteredCategories.length === 0 ? (
-                  <View style={styles.emptyStateContainer}>
-                    <Ionicons
-                      name="alert-circle-outline"
-                      size={24}
-                      color={Colors.warning}
-                    />
-                    <Text style={styles.emptyStateText}>
-                      {workerId 
-                        ? "Worker has no skills registered. They need to add skills to their profile."
-                        : "No specializations available in database. Please contact support."}
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.categoryScroll}
-                  >
-                    {filteredCategories.map((category) => (
-                      <TouchableOpacity
-                        key={category.id}
-                        style={[
-                          styles.categoryChip,
-                          categoryId === category.id &&
-                            styles.categoryChipActive,
-                        ]}
-                        onPress={() => {
-                          setCategoryId(category.id);
-                          setSelectedCategory(category);
-                          if (category.minimum_rate > 0) {
-                            setBudget(category.minimum_rate.toFixed(2));
-                          }
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.categoryChipText,
-                            categoryId === category.id &&
-                              styles.categoryChipTextActive,
-                          ]}
-                        >
-                          {category.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-              </View>
-              )}
             </View>
 
-            {/* Worker Requirements Section - Only visible when hiring an agency */}
-            {agencyId && (
-              <View style={styles.section}>
+            {/* Worker Requirements Section - shown for all job types */}
+            <View style={styles.section}>
                 <Text style={styles.sectionTitle}>👥 Worker Requirements</Text>
                 <Text style={styles.sectionHint}>
-                  Specify the workers you need for this job. You can add multiple skill types.
+                  {workerId
+                    ? `Select the skill you need from ${workerDetailsData?.name || 'this worker'}.`
+                    : agencyId
+                      ? 'Specify the workers you need for this job. You can add multiple skill types.'
+                      : 'What type of worker do you need for this job?'}
                 </Text>
 
-                {/* Skill Slots List - Always shown for agency jobs */}
+                {/* Skill Slots List */}
                 <View style={styles.skillSlotsContainer}>
                   {skillSlots.length === 0 ? (
                     <View style={styles.emptySlots}>
@@ -901,7 +832,6 @@ export default function CreateJobScreen() {
                     </TouchableOpacity>
                   </View>
               </View>
-            )}
 
             {/* Budget Section */}
             <View style={styles.section}>
@@ -967,7 +897,7 @@ export default function CreateJobScreen() {
                   <TextInput
                     style={styles.budgetTextInput}
                     placeholder={
-                      effectiveCategoryId ? "0.00" : agencyId ? "Add a worker requirement first" : "Select a category first"
+                      effectiveCategoryId ? "0.00" : "Add a worker requirement first"
                     }
                     value={budget}
                     onChangeText={setBudget}
@@ -981,7 +911,7 @@ export default function CreateJobScreen() {
                     ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
                     : effectiveCategoryId
                       ? "This is what the worker will receive"
-                      : agencyId ? "Add a worker requirement first" : "Select a category first"}
+                      : "Add a worker requirement first"}
                 </Text>
               </View>
               )}
@@ -994,20 +924,20 @@ export default function CreateJobScreen() {
                     <View
                       style={[
                         styles.budgetInput,
-                        !categoryId && styles.inputDisabled,
+                        !effectiveCategoryId && styles.inputDisabled,
                       ]}
                     >
                       <Text style={styles.currencySymbol}>₱</Text>
                       <TextInput
                         style={styles.budgetTextInput}
                         placeholder={
-                          categoryId ? "0.00" : "Select a category first"
+                          effectiveCategoryId ? "0.00" : "Add a worker requirement first"
                         }
                         value={dailyRate}
                         onChangeText={setDailyRate}
                         keyboardType="decimal-pad"
                         placeholderTextColor={Colors.textHint}
-                        editable={!!categoryId}
+                        editable={!!effectiveCategoryId}
                       />
                     </View>
                     <Text style={styles.hint}>
@@ -1020,16 +950,16 @@ export default function CreateJobScreen() {
                     <TextInput
                       style={[
                         styles.input,
-                        !categoryId && styles.inputDisabled,
+                        !effectiveCategoryId && styles.inputDisabled,
                       ]}
                       placeholder={
-                        categoryId ? "e.g., 5" : "Select a category first"
+                        effectiveCategoryId ? "e.g., 5" : "Add a worker requirement first"
                       }
                       value={durationDays}
                       onChangeText={setDurationDays}
                       keyboardType="number-pad"
                       placeholderTextColor={Colors.textHint}
-                      editable={!!categoryId}
+                      editable={!!effectiveCategoryId}
                     />
                     <Text style={styles.hint}>
                       Estimated number of working days
@@ -1040,7 +970,7 @@ export default function CreateJobScreen() {
 
               {/* AI Price Suggestion Card - Only for PROJECT model */}
               {paymentModel === "PROJECT" &&
-                categoryId &&
+                effectiveCategoryId &&
                 (title.length >= 5 || description.length >= 10) && (
                   <PriceSuggestionCard
                     minPrice={pricePrediction?.min_price}
@@ -1335,8 +1265,8 @@ export default function CreateJobScreen() {
                           />
                           <Text style={styles.loadingText}>Loading...</Text>
                         </View>
-                      ) : !Array.isArray(categories) ||
-                        categories.length === 0 ? (
+                      ) : !Array.isArray(filteredCategories) ||
+                        filteredCategories.length === 0 ? (
                         <Text style={styles.emptyStateText}>
                           No specializations available
                         </Text>
@@ -1346,7 +1276,7 @@ export default function CreateJobScreen() {
                           showsHorizontalScrollIndicator={false}
                           style={styles.categoryScroll}
                         >
-                          {categories.map((category) => (
+                          {filteredCategories.map((category) => (
                             <TouchableOpacity
                               key={category.id}
                               style={[
