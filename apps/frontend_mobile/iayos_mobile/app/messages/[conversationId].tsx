@@ -156,14 +156,19 @@ export default function ChatScreen() {
   const hasApprovedBackjob =
     conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "UNDER_REVIEW";
+  // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
+  // so we must use all_team_workers_reviewed to prevent premature conversation closure
+  const clientHasFullyReviewed = conversation?.is_team_job
+    ? !!conversation?.all_team_workers_reviewed
+    : !!conversation?.job?.clientReviewed;
   const isConversationClosed =
     (conversation?.job?.clientMarkedComplete &&
-    conversation?.job?.clientReviewed &&
+    clientHasFullyReviewed &&
     conversation?.job?.workerReviewed &&
     !hasApprovedBackjob) || // Don't close if there's an APPROVED backjob
     // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
     (conversation?.job?.status === "COMPLETED" &&
-    conversation?.job?.clientReviewed &&
+    clientHasFullyReviewed &&
     conversation?.job?.workerReviewed &&
     !hasApprovedBackjob);
 
@@ -2738,7 +2743,14 @@ export default function ChatScreen() {
                     <Text style={styles.leaveReviewTitle}>
                       {conversation.is_team_job &&
                       conversation.my_role === "CLIENT"
-                        ? `Rate ${conversation.pending_team_worker_reviews?.length || conversation.team_worker_assignments?.length || 0} worker${(conversation.pending_team_worker_reviews?.length || conversation.team_worker_assignments?.length || 0) > 1 ? "s" : ""}`
+                        ? (() => {
+                            const pending = conversation.pending_team_worker_reviews?.length || 0;
+                            const total = conversation.team_worker_assignments?.length || 0;
+                            const reviewed = total - pending;
+                            return reviewed > 0
+                              ? `Rate workers (${reviewed}/${total} done)`
+                              : `Rate ${total} worker${total > 1 ? "s" : ""}`;
+                          })()
                         : conversation.is_agency_job &&
                             conversation.my_role === "CLIENT"
                           ? reviewStep === "EMPLOYEE"
@@ -2758,6 +2770,45 @@ export default function ChatScreen() {
                     color={Colors.primary}
                   />
                 </TouchableOpacity>
+              )}
+
+              {/* Team job worker review checklist - show who's been reviewed */}
+              {conversation.is_team_job &&
+                conversation.my_role === "CLIENT" &&
+                (conversation.job.clientMarkedComplete || conversation.job.status === "COMPLETED") &&
+                !isConversationClosed &&
+                (conversation.team_worker_assignments?.length || 0) > 1 && (
+                <View style={styles.teamReviewChecklist}>
+                  {(conversation.team_worker_assignments || []).map((worker: any, idx: number) => {
+                    const isPending = (conversation.pending_team_worker_reviews || []).some(
+                      (pw: any) => pw.worker_id === worker.worker_id
+                    );
+                    const isReviewed = !isPending;
+                    return (
+                      <View key={worker.worker_id || idx} style={styles.teamReviewChecklistItem}>
+                        <Ionicons
+                          name={isReviewed ? "checkmark-circle" : "ellipse-outline"}
+                          size={16}
+                          color={isReviewed ? Colors.success : Colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.teamReviewChecklistName,
+                            isReviewed && styles.teamReviewChecklistNameDone,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {worker.name || `Worker ${idx + 1}`}
+                        </Text>
+                        {worker.skill && (
+                          <Text style={styles.teamReviewChecklistSkill}>
+                            {worker.skill}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </>
           )}
@@ -2949,19 +3000,63 @@ export default function ChatScreen() {
                                     : ""}
                                 </Text>
 
-                                {/* Progress indicator */}
+                                {/* Progress bar and worker checklist */}
                                 {totalWorkers > 1 && (
-                                  <View style={styles.stepIndicator}>
-                                    <Ionicons
-                                      name="people"
-                                      size={16}
-                                      color={Colors.primary}
-                                    />
-                                    <Text style={styles.stepIndicatorText}>
-                                      Worker {reviewedCount + 1} of{" "}
-                                      {totalWorkers}
-                                    </Text>
-                                  </View>
+                                  <>
+                                    <View style={styles.teamReviewProgressContainer}>
+                                      <View style={styles.teamReviewProgressBarBg}>
+                                        <View
+                                          style={[
+                                            styles.teamReviewProgressBarFill,
+                                            { width: `${(reviewedCount / totalWorkers) * 100}%` },
+                                          ]}
+                                        />
+                                      </View>
+                                      <View style={styles.stepIndicator}>
+                                        <Ionicons
+                                          name="people"
+                                          size={16}
+                                          color={Colors.primary}
+                                        />
+                                        <Text style={styles.stepIndicatorText}>
+                                          Worker {reviewedCount + 1} of{" "}
+                                          {totalWorkers}
+                                        </Text>
+                                      </View>
+                                    </View>
+
+                                    {/* Mini worker checklist in modal */}
+                                    <View style={styles.teamReviewModalChecklist}>
+                                      {allWorkers.map((w: any, i: number) => {
+                                        const isWorkerPending = pendingWorkers.some(
+                                          (pw: any) => pw.worker_id === w.worker_id
+                                        );
+                                        const isCurrent = pendingWorkers[0]?.worker_id === w.worker_id;
+                                        const isReviewed = !isWorkerPending;
+                                        return (
+                                          <View
+                                            key={w.worker_id || i}
+                                            style={[
+                                              styles.teamReviewModalChecklistDot,
+                                              isReviewed && styles.teamReviewModalChecklistDotDone,
+                                              isCurrent && styles.teamReviewModalChecklistDotCurrent,
+                                            ]}
+                                          >
+                                            {isReviewed ? (
+                                              <Ionicons name="checkmark" size={10} color={Colors.white} />
+                                            ) : (
+                                              <Text style={[
+                                                styles.teamReviewModalChecklistDotText,
+                                                isCurrent && styles.teamReviewModalChecklistDotTextCurrent,
+                                              ]}>
+                                                {i + 1}
+                                              </Text>
+                                            )}
+                                          </View>
+                                        );
+                                      })}
+                                    </View>
+                                  </>
                                 )}
                               </>
                             );
@@ -4962,5 +5057,88 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     backgroundColor: Colors.white,
+  },
+  // Team job review checklist (below banner)
+  teamReviewChecklist: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    marginHorizontal: Spacing.md,
+    marginBottom: 4,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  teamReviewChecklistItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.sm,
+  },
+  teamReviewChecklistName: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  teamReviewChecklistNameDone: {
+    color: Colors.success,
+    textDecorationLine: "line-through",
+  },
+  teamReviewChecklistSkill: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+  },
+  // Team review progress bar (inside modal)
+  teamReviewProgressContainer: {
+    marginTop: Spacing.sm,
+    gap: 6,
+  },
+  teamReviewProgressBarBg: {
+    height: 4,
+    backgroundColor: Colors.border,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  teamReviewProgressBarFill: {
+    height: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
+  },
+  // Dot indicators inside modal
+  teamReviewModalChecklist: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  teamReviewModalChecklistDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  teamReviewModalChecklistDotDone: {
+    backgroundColor: Colors.success,
+  },
+  teamReviewModalChecklistDotCurrent: {
+    backgroundColor: Colors.primary,
+  },
+  teamReviewModalChecklistDotText: {
+    ...Typography.body.small,
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+  },
+  teamReviewModalChecklistDotTextCurrent: {
+    color: Colors.white,
   },
 });
