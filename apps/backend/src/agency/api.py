@@ -1,6 +1,6 @@
 from ninja import Router, Form
 from ninja.responses import Response
-from accounts.authentication import cookie_auth
+from accounts.authentication import cookie_auth, dual_auth
 from . import services, schemas
 from .fast_upload_service import upload_agency_kyc_fast, extract_ocr_for_autofill
 import logging
@@ -3876,7 +3876,7 @@ def get_daily_attendance(request, job_id: int, date: str = None):
 
 @router.post(
     "/jobs/{job_id}/employees/{employee_id}/dispatch-project",
-    auth=cookie_auth,
+    auth=dual_auth,
     response={200: dict, 400: dict, 403: dict, 404: dict}
 )
 def dispatch_project_employee(request, job_id: int, employee_id: int):
@@ -3991,7 +3991,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
 
 @router.post(
     "/jobs/{job_id}/employees/{employee_id}/mark-complete-project",
-    auth=cookie_auth,
+    auth=dual_auth,
     response={200: dict, 400: dict, 403: dict, 404: dict}
 )
 def mark_project_employee_complete(request, job_id: int, employee_id: int, notes: str = ""):
