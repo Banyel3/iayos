@@ -22,6 +22,7 @@ import { CameraView, useCameraPermissions, FlashMode } from "expo-camera";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { Colors, Typography } from "@/constants/theme";
 import { cameraEvents } from "@/lib/utils/cameraEvents";
 
@@ -83,6 +84,94 @@ const getGuideConfig = (documentType: DocumentType): GuideConfig => {
         facing: "back",
       };
   }
+};
+
+/**
+ * Crop the full camera photo to match the on-screen guide frame.
+ *
+ * The CameraView renders in "cover" mode — the camera sensor image is scaled
+ * and centered so it fills the entire screen, which means parts of the photo
+ * extend beyond the screen edges. We need to map the on-screen guide frame
+ * coordinates back to the original photo coordinate space.
+ *
+ * Math:
+ *   cover-scale  = max(screenW / photoW, screenH / photoH)
+ *   visibleW     = screenW / scale,   visibleH = screenH / scale
+ *   offsetX      = (photoW - visibleW) / 2   (hidden portion on each side)
+ *   offsetY      = (photoH - visibleH) / 2
+ *   cropX        = offsetX + frameX / scale
+ *   cropY        = offsetY + frameY / scale
+ *   cropW        = frameW / scale,     cropH = frameH / scale
+ */
+const cropToGuideRegion = async (
+  photoUri: string,
+  photoWidth: number,
+  photoHeight: number,
+  config: GuideConfig,
+): Promise<string> => {
+  // Guide frame is centered on screen
+  const frameX = (SCREEN_WIDTH - config.frameWidth) / 2;
+  const frameY = (SCREEN_HEIGHT - config.frameHeight) / 2;
+
+  // Cover-mode scaling: camera image scaled to fill screen completely
+  const scale = Math.max(
+    SCREEN_WIDTH / photoWidth,
+    SCREEN_HEIGHT / photoHeight,
+  );
+
+  // How much of the photo is visible on screen
+  const visibleWidth = SCREEN_WIDTH / scale;
+  const visibleHeight = SCREEN_HEIGHT / scale;
+
+  // Offset: the hidden portion cropped by cover mode
+  const offsetX = (photoWidth - visibleWidth) / 2;
+  const offsetY = (photoHeight - visibleHeight) / 2;
+
+  // Map screen-space guide frame to photo-space crop region
+  let cropOriginX = Math.round(offsetX + frameX / scale);
+  let cropOriginY = Math.round(offsetY + frameY / scale);
+  let cropWidth = Math.round(config.frameWidth / scale);
+  let cropHeight = Math.round(config.frameHeight / scale);
+
+  // Clamp to photo bounds (safety)
+  cropOriginX = Math.max(0, Math.min(cropOriginX, photoWidth - 1));
+  cropOriginY = Math.max(0, Math.min(cropOriginY, photoHeight - 1));
+  cropWidth = Math.min(cropWidth, photoWidth - cropOriginX);
+  cropHeight = Math.min(cropHeight, photoHeight - cropOriginY);
+
+  // Ensure minimum crop size (at least 100px)
+  if (cropWidth < 100 || cropHeight < 100) {
+    console.warn("[KYC Camera] Crop region too small, skipping crop");
+    return photoUri;
+  }
+
+  console.log(
+    `[KYC Camera] Cropping: photo ${photoWidth}x${photoHeight} → crop(${cropOriginX}, ${cropOriginY}, ${cropWidth}x${cropHeight})`,
+  );
+
+  const result = await manipulateAsync(
+    photoUri,
+    [
+      {
+        crop: {
+          originX: cropOriginX,
+          originY: cropOriginY,
+          width: cropWidth,
+          height: cropHeight,
+        },
+      },
+    ],
+    {
+      compress: 0.92,
+      format: SaveFormat.JPEG,
+    },
+  );
+
+  console.log(
+    `[KYC Camera] Cropped result: ${result.width}x${result.height}`,
+  );
+
+  return result.uri;
 };
 
 export default function KYCCameraScreen() {
@@ -202,8 +291,32 @@ export default function KYCCameraScreen() {
       });
 
       if (photo?.uri) {
-        // Emit the captured photo URI to listeners in upload.tsx
-        cameraEvents.emit(documentType, photo.uri);
+        let finalUri = photo.uri;
+
+        // Crop to guide frame for document types (not selfie)
+        // Selfie uses an oval guide which doesn't map to a useful rectangular crop
+        if (documentType !== "selfie" && photo.width && photo.height) {
+          try {
+            console.log(
+              `[KYC Camera] Photo captured: ${photo.width}x${photo.height}, cropping to guide...`,
+            );
+            finalUri = await cropToGuideRegion(
+              photo.uri,
+              photo.width,
+              photo.height,
+              config,
+            );
+          } catch (cropError) {
+            console.warn(
+              "[KYC Camera] Crop failed, using full photo:",
+              cropError,
+            );
+            // Graceful fallback: emit full uncropped photo
+          }
+        }
+
+        // Emit the (cropped) photo URI to listeners in upload.tsx
+        cameraEvents.emit(documentType, finalUri);
         // Navigate back to the upload screen
         router.back();
       }
