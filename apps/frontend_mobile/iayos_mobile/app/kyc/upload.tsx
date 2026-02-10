@@ -263,15 +263,15 @@ export default function KYCUploadScreen() {
     type: "front" | "back" | "clearance" | "selfie",
     asset: ImagePicker.ImagePickerAsset,
   ) => {
-    // Compress image aggressively for fast upload while preserving OCR readability
-    // Target: ~1MB or less, 1600px max dimension, 0.7 quality (good balance)
+    // Compress image for upload while preserving face detail and OCR readability
+    // Target: ~1-2MB, 1600px max dimension, 0.85 quality (higher to preserve small face details on IDs)
     let finalUri = asset.uri;
     try {
       console.log(`[KYC] Compressing ${type} image...`);
       const compressed = await compressImage(asset.uri, {
         maxWidth: 1600,
         maxHeight: 1600,
-        quality: 0.7,
+        quality: 0.85,
         format: "jpeg",
       });
       finalUri = compressed.uri;

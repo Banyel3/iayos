@@ -239,7 +239,7 @@ FACE_REQUIRED_DOCUMENTS = [
 MIN_RESOLUTION = 400  # Minimum width or height in pixels (lowered from 640 for testing)
 MIN_FACE_SIZE_RATIO = 0.05  # Face must be at least 5% of image area
 MAX_BLUR_THRESHOLD = 50  # Lowered from 100 for leniency on REP IDs  # Laplacian variance threshold (lower = more blur)
-MIN_CONFIDENCE_FACE = 0.40  # Minimum confidence for face detection (lowered for ID photos with small/faded faces)
+MIN_CONFIDENCE_FACE = 0.25  # Minimum confidence for face detection (lowered for ID card photos with small/faded faces)
 
 
 TEXT_ONLY_DOCUMENTS = [
@@ -814,6 +814,7 @@ class DocumentVerificationService:
                     "detected": False,
                     "count": 0,
                     "confidence": 0,
+                    "skipped": True,
                     "error": f"API error: {response.status_code}"
                 }
             
@@ -847,7 +848,8 @@ class DocumentVerificationService:
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
-                "error": "Face detection timed out"
+                "skipped": True,
+                "error": "Face detection timed out - will be reviewed manually"
             }
         except Exception as e:
             logger.error(f"Face detection error: {e}", exc_info=True)
@@ -855,6 +857,7 @@ class DocumentVerificationService:
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
+                "skipped": True,
                 "error": str(e)
             }
 
