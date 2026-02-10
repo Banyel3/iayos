@@ -750,7 +750,7 @@ export default function JobDetailScreen() {
 
     // Check if worker has the required skill
     const hasRequiredSkill = mySkills.some(
-      (skill) => skill.id === slot.specialization_id,
+      (skill) => skill.specializationId === slot.specialization_id,
     );
 
     if (!hasRequiredSkill) {

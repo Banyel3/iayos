@@ -29,7 +29,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
-import { useMySkills, useRemoveSkill, useAvailableSkills, useAddSkill } from "@/lib/hooks/useSkills";
+import { useMySkills, useRemoveSkill } from "@/lib/hooks/useSkills";
 import * as ImagePicker from "expo-image-picker";
 
 // ===== TYPES =====
@@ -96,19 +96,7 @@ export default function EditProfileScreen() {
 
   // Fetch worker's current backend skills
   const { data: mySkills = [], refetch: refetchMySkills } = useMySkills();
-  const { data: availableSkills = [] } = useAvailableSkills();
   const removeSkillMutation = useRemoveSkill();
-  const addSkillMutation = useAddSkill();
-  
-  // Add skill modal state
-  const [showAddSkillModal, setShowAddSkillModal] = useState(false);
-  const [selectedNewSkillId, setSelectedNewSkillId] = useState<number | null>(null);
-  const [newSkillYears, setNewSkillYears] = useState("1");
-  
-  // Get skills not yet added by worker
-  const availableToAdd = availableSkills.filter(
-    (skill) => !mySkills.some((my) => my.id === skill.id)
-  );
   
   // Handle skill removal (one-tap delete)
   const handleRemoveSkill = (skillId: number, skillName: string) => {
@@ -128,25 +116,7 @@ export default function EditProfileScreen() {
     });
   };
   
-  // Handle adding a new skill
-  const handleAddSkill = () => {
-    if (!selectedNewSkillId) return;
-    const years = parseInt(newSkillYears) || 1;
-    addSkillMutation.mutate(
-      { specialization_id: selectedNewSkillId, experience_years: years },
-      {
-        onSuccess: () => {
-          setShowAddSkillModal(false);
-          setSelectedNewSkillId(null);
-          setNewSkillYears("1");
-          refetchMySkills();
-        },
-        onError: (error) => {
-          Alert.alert("Error", error.message);
-        },
-      }
-    );
-  };
+
 
   // Fetch current profile
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
@@ -647,7 +617,7 @@ export default function EditProfileScreen() {
               </View>
               <Pressable
                 style={styles.addSkillButton}
-                onPress={() => setShowAddSkillModal(true)}
+                onPress={() => router.push("/profile/skills")}
               >
                 <Ionicons name="add" size={24} color={Colors.white} />
               </Pressable>
@@ -677,90 +647,6 @@ export default function EditProfileScreen() {
               </View>
             )}
           </View>
-
-          {/* Add Skill Modal */}
-          {showAddSkillModal && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.addSkillModalContent}>
-                <Text style={styles.modalTitle}>Add Skill</Text>
-                
-                {availableToAdd.length === 0 ? (
-                  <Text style={styles.noSkillsAvailable}>
-                    You've added all available skills!
-                  </Text>
-                ) : (
-                  <>
-                    <Text style={styles.modalSubtitle}>Select a skill:</Text>
-                    <ScrollView style={styles.skillPickerList} nestedScrollEnabled>
-                      {availableToAdd.map((skill) => (
-                        <Pressable
-                          key={skill.id}
-                          style={[
-                            styles.skillPickerItem,
-                            selectedNewSkillId === skill.id && styles.skillPickerItemSelected,
-                          ]}
-                          onPress={() => setSelectedNewSkillId(skill.id)}
-                        >
-                          <Text
-                            style={[
-                              styles.skillPickerItemText,
-                              selectedNewSkillId === skill.id && styles.skillPickerItemTextSelected,
-                            ]}
-                          >
-                            {skill.name}
-                          </Text>
-                          {selectedNewSkillId === skill.id && (
-                            <Ionicons name="checkmark" size={20} color={Colors.primary} />
-                          )}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                    
-                    <View style={styles.yearsInputContainer}>
-                      <Text style={styles.yearsLabel}>Years of experience:</Text>
-                      <TextInput
-                        style={styles.yearsInput}
-                        value={newSkillYears}
-                        onChangeText={setNewSkillYears}
-                        keyboardType="number-pad"
-                        maxLength={2}
-                      />
-                    </View>
-                  </>
-                )}
-                
-                <View style={styles.modalButtons}>
-                  <Pressable
-                    style={[styles.modalButton, styles.modalButtonCancel]}
-                    onPress={() => {
-                      setShowAddSkillModal(false);
-                      setSelectedNewSkillId(null);
-                      setNewSkillYears("1");
-                    }}
-                  >
-                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-                  </Pressable>
-                  {availableToAdd.length > 0 && (
-                    <Pressable
-                      style={[
-                        styles.modalButton,
-                        styles.modalButtonSave,
-                        (!selectedNewSkillId || addSkillMutation.isPending) && styles.modalButtonDisabled,
-                      ]}
-                      onPress={handleAddSkill}
-                      disabled={!selectedNewSkillId || addSkillMutation.isPending}
-                    >
-                      {addSkillMutation.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <Text style={styles.modalButtonTextSave}>Add Skill</Text>
-                      )}
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            </View>
-          )}
 
           {/* Soft Skills Section */}
           <View style={styles.formSection}>
