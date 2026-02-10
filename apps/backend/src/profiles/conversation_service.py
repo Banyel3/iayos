@@ -2,7 +2,7 @@
 Conversation Archive/Unarchive Service Layer
 Handles conversation archiving for both 1:1 and team conversations.
 """
-from accounts.models import Conversation, ConversationParticipant
+from profiles.models import Conversation, ConversationParticipant
 from django.db import transaction
 
 

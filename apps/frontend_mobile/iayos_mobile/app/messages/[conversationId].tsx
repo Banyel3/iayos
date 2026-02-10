@@ -2528,10 +2528,11 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Request Backjob Banner - Only for clients on completed jobs without existing backjob */}
+          {/* Request Backjob Banner - Only after both parties reviewed and conversation closed */}
           {conversation.my_role === "CLIENT" &&
             conversation.job.status === "COMPLETED" &&
-            !conversation.backjob?.has_backjob && (
+            !conversation.backjob?.has_backjob &&
+            isConversationClosed && (
               <TouchableOpacity
                 style={styles.requestBackjobBanner}
                 onPress={() =>
