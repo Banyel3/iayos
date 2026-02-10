@@ -1765,27 +1765,79 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* View Receipt Button - Shows for COMPLETED jobs */}
+          {/* View Receipt Banner - Merged with Payment Buffer Info */}
           {conversation.job.status === "COMPLETED" && (
             <TouchableOpacity
-              style={styles.viewReceiptBanner}
+              style={[
+                styles.viewReceiptBanner,
+                conversation.job.paymentBuffer?.is_payment_released && {
+                  backgroundColor: "#E8F5E9",
+                  borderColor: "#A5D6A7",
+                },
+              ]}
               onPress={() => setShowReceiptModal(true)}
               activeOpacity={0.8}
             >
               <View style={styles.viewReceiptContent}>
-                <View style={styles.viewReceiptIconContainer}>
-                  <Ionicons name="receipt" size={20} color={Colors.white} />
+                <View
+                  style={[
+                    styles.viewReceiptIconContainer,
+                    conversation.job.paymentBuffer?.is_payment_released && {
+                      backgroundColor: Colors.success,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      conversation.job.paymentBuffer?.is_payment_released
+                        ? "checkmark-circle"
+                        : "receipt"
+                    }
+                    size={20}
+                    color={Colors.white}
+                  />
                 </View>
                 <View style={styles.viewReceiptTextContainer}>
-                  <Text style={styles.viewReceiptTitle}>View Receipt</Text>
-                  <Text style={styles.viewReceiptSubtitle}>
-                    Payment breakdown and job details
+                  <Text
+                    style={[
+                      styles.viewReceiptTitle,
+                      conversation.job.paymentBuffer?.is_payment_released && {
+                        color: Colors.success,
+                      },
+                    ]}
+                  >
+                    View Receipt
                   </Text>
+                  {/* Dynamic description based on payment hold status */}
+                  {conversation.job.paymentBuffer ? (
+                    <Text
+                      style={[
+                        styles.viewReceiptSubtitle,
+                        conversation.job.paymentBuffer.is_payment_released
+                          ? { color: "#388E3C" } // Success Green
+                          : { color: "#E65100" }, // Orange for hold
+                      ]}
+                    >
+                      {conversation.job.paymentBuffer.is_payment_released
+                        ? "✅ Payment Released"
+                        : conversation.my_role === "WORKER"
+                          ? `💰 ₱${(conversation.job.budget * 0.5).toLocaleString("en-PH", { minimumFractionDigits: 0 })} held ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d left` : " · releasing soon"}`
+                          : `⏳ ${conversation.job.paymentBuffer.buffer_days}-Day Hold ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining` : " · releasing soon"}`}
+                    </Text>
+                  ) : (
+                    <Text style={styles.viewReceiptSubtitle}>
+                      Payment breakdown and job details
+                    </Text>
+                  )}
                 </View>
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color={Colors.primary}
+                  color={
+                    conversation.job.paymentBuffer?.is_payment_released
+                      ? Colors.success
+                      : Colors.primary
+                  }
                 />
               </View>
             </TouchableOpacity>
@@ -1829,74 +1881,7 @@ export default function ChatScreen() {
               </TouchableOpacity>
             )}
 
-          {/* Payment Buffer Banner - Shows for COMPLETED jobs with payment held - COMPACT */}
-          {conversation.job.status === "COMPLETED" &&
-            conversation.job.clientMarkedComplete &&
-            conversation.job.paymentBuffer && (
-              <TouchableOpacity
-                style={[
-                  styles.paymentBufferBannerCompact,
-                  conversation.job.paymentBuffer.is_payment_released
-                    ? styles.paymentReleasedBannerCompact
-                    : null,
-                ]}
-                onPress={() =>
-                  conversation.my_role === "WORKER" && router.push("/wallet")
-                }
-                activeOpacity={conversation.my_role === "WORKER" ? 0.7 : 1}
-              >
-                <Ionicons
-                  name={
-                    conversation.job.paymentBuffer.is_payment_released
-                      ? "checkmark-circle"
-                      : conversation.my_role === "WORKER"
-                        ? "time"
-                        : "shield-checkmark"
-                  }
-                  size={20}
-                  color={
-                    conversation.job.paymentBuffer.is_payment_released
-                      ? Colors.success
-                      : "#FFA000"
-                  }
-                />
-                <View style={styles.paymentBufferTextCompact}>
-                  {conversation.job.paymentBuffer.is_payment_released ? (
-                    <Text style={styles.paymentReleasedTitleCompact}>
-                      ✅ Payment Released
-                    </Text>
-                  ) : conversation.my_role === "WORKER" ? (
-                    <Text style={styles.paymentBufferTitleCompact}>
-                      💰 ₱
-                      {(conversation.job.budget * 0.5).toLocaleString("en-PH", {
-                        minimumFractionDigits: 0,
-                      })}{" "}
-                      held
-                      {conversation.job.paymentBuffer.remaining_days !== null &&
-                        conversation.job.paymentBuffer.remaining_days > 0
-                        ? ` · ${conversation.job.paymentBuffer.remaining_days}d left`
-                        : " · releasing soon"}
-                    </Text>
-                  ) : (
-                    <Text style={styles.paymentBufferTitleCompact}>
-                      ⏳ {conversation.job.paymentBuffer.buffer_days}-Day Hold
-                      {conversation.job.paymentBuffer.remaining_days !== null &&
-                        conversation.job.paymentBuffer.remaining_days > 0
-                        ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining`
-                        : " · releasing soon"}
-                    </Text>
-                  )}
-                </View>
-                {conversation.my_role === "WORKER" &&
-                  !conversation.job.paymentBuffer.is_payment_released && (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color="#FFA000"
-                    />
-                  )}
-              </TouchableOpacity>
-            )}
+
 
           {/* Review Section - Compact Banner that opens modal */}
           {conversation.job.clientMarkedComplete && !isConversationClosed && (
