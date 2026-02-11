@@ -535,7 +535,7 @@ export default function Sidebar({ className }: SidebarProps) {
   return (
     <div
       className={cn(
-        "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-400 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] z-40",
+        "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] z-40",
         collapsed ? "w-16" : "w-64",
         className,
       )}

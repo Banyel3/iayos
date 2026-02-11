@@ -46,7 +46,7 @@ export default function AdminDashboardPage() {
   const { collapsed } = useSidebar();
   
   const mainClassName = cn(
-    "p-6 bg-gray-50 min-h-screen transition-all duration-400 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
+    "p-6 bg-gray-50 min-h-screen transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
     collapsed ? "pl-24" : "pl-72"
   );
 

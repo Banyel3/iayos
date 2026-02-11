@@ -3,6 +3,8 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
+  useMemo,
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -168,9 +170,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Clear all cached data (AsyncStorage + React Query + CacheManager + WebSocket)
   const clearAllCaches = async () => {
-    // Log who called this function
-    console.log("🗑️ [CLEAR_CACHE] clearAllCaches called!");
-    console.log("🗑️ [CLEAR_CACHE] Stack trace:", new Error().stack);
+    if (__DEV__) {
+      console.log("🗑️ [CLEAR_CACHE] clearAllCaches called!");
+    }
 
     // Clear AsyncStorage auth keys
     const cacheKeys = [
@@ -256,8 +258,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Login function
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      // Clear only AsyncStorage auth keys, NOT React Query cache
-      // (clearing React Query cache causes immediate refetch flood)
+      // Cancel any in-flight queries and clear React Query cache to avoid
+      // cross-user data exposure when starting a new login session.
+      // This prevents a refetch flood because we clear (not invalidate)
+      // the cache after cancelling running queries.
+      try {
+        await queryClient.cancelQueries();
+        queryClient.clear();
+      } catch (e) {
+        console.warn("⚠️ Failed to clear React Query cache on login:", e);
+      }
+
+      // Clear AsyncStorage auth keys for the previous session
       await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
       setUser(null);
 
@@ -530,8 +542,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Clear user state first
       setUser(null);
 
-      // Clear only AsyncStorage keys, NOT React Query cache
-      // (clearing React Query cache causes immediate refetch flood)
+      // Cancel any in-flight queries and clear React Query cache to prevent
+      // sensitive cached data from remaining accessible post-logout.
+      // Clear after setUser(null) and cancel queries to mitigate refetch storms.
+      try {
+        await queryClient.cancelQueries();
+        queryClient.clear();
+        console.log("🗑️ [LOGOUT] Cleared React Query cache");
+      } catch (e) {
+        console.warn("⚠️ Failed to clear React Query cache on logout:", e);
+      }
+
+      // Clear AsyncStorage auth keys
       await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
       console.log("🗑️ [LOGOUT] Cleared AsyncStorage auth keys");
 
@@ -648,8 +670,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   /**
    * Refresh user data without showing loading state
    * Useful for updating user data when external state changes (e.g., KYC verification)
+   * Memoized with useCallback to prevent refresh loops in dependent hooks
    */
-  const refreshUserData = async (): Promise<void> => {
+  const refreshUserData = useCallback(async (): Promise<void> => {
     try {
       console.log("🔄 [REFRESH_USER] Refreshing user data...");
       const response = await apiRequest(ENDPOINTS.ME);
@@ -676,25 +699,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("❌ [REFRESH_USER] Error refreshing user data:", error);
     }
-  };
+  }, []);
 
   const isAuthenticated = !!user;
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      user,
+      isAuthenticated,
+      isLoading,
+      login,
+      register,
+      logout,
+      checkAuth,
+      assignRole,
+      switchProfile,
+      refreshUserData,
+    }),
+    [user, isAuthenticated, isLoading, login, register, logout, checkAuth, assignRole, switchProfile, refreshUserData]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated,
-        isLoading,
-        login,
-        register,
-        logout,
-        checkAuth,
-        assignRole,
-        switchProfile,
-        refreshUserData,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
