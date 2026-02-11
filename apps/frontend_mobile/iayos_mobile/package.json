@@ -1,6 +1,6 @@
 {
   "name": "iayos_mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "3.0.0",
   "scripts": {
     "start": "expo start",
