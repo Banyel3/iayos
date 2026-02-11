@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ import {
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
 import { useMySkills } from "@/lib/hooks/useSkills";
+import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
@@ -718,6 +719,13 @@ export default function JobDetailScreen() {
 
   // Fetch worker's skills for skill mismatch warning
   const { data: mySkills = [] } = useMySkills();
+
+  // Invalidate skills cache when screen gains focus (e.g., after adding a skill)
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
+    }, [queryClient])
+  );
 
   // Team job completion mutations
   const workerCompleteAssignment = useWorkerCompleteAssignment();

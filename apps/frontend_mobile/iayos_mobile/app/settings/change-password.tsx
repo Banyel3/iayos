@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { API_BASE_URL, apiRequest } from '@/lib/api/config';
@@ -88,7 +89,7 @@ export default function ChangePasswordScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
         ]
       );
@@ -289,7 +290,7 @@ export default function ChangePasswordScreen() {
         {/* Cancel Button */}
         <TouchableOpacity
           style={styles.cancelButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
           disabled={changePasswordMutation.isPending}
         >
           <Text style={styles.cancelButtonText}>Cancel</Text>

@@ -19,6 +19,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "../../context/AuthContext";
 import {
   Colors,
@@ -350,7 +351,7 @@ export default function RegisterScreen() {
             {/* Back Button */}
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => safeGoBack(router, "/(tabs)")}
               disabled={isLoading}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.primary} />

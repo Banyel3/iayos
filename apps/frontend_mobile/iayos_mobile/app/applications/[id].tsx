@@ -14,6 +14,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
   Colors,
   Typography,
@@ -174,7 +175,7 @@ export default function ApplicationDetailScreen() {
       Alert.alert("Success", "Application withdrawn successfully", [
         {
           text: "OK",
-          onPress: () => router.back(),
+          onPress: () => safeGoBack(router, "/(tabs)/jobs"),
         },
       ]);
     },
@@ -215,7 +216,7 @@ export default function ApplicationDetailScreen() {
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
         <Text style={styles.errorText}>Failed to load application</Text>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={() => safeGoBack(router, "/(tabs)/jobs")}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
       </View>
@@ -230,7 +231,7 @@ export default function ApplicationDetailScreen() {
     <View style={styles.container}>
       {/* Header with Status */}
       <View style={styles.header}>
-        <Pressable style={styles.backIcon} onPress={() => router.back()}>
+        <Pressable style={styles.backIcon} onPress={() => safeGoBack(router, "/(tabs)/jobs")}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
 

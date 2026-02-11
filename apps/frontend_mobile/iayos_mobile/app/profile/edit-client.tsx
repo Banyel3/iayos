@@ -15,6 +15,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
@@ -112,7 +113,7 @@ export default function EditClientProfileScreen() {
         Alert.alert("Success", "Profile updated successfully", [
           {
             text: "OK",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
         ]);
       } else {
@@ -136,12 +137,12 @@ export default function EditClientProfileScreen() {
           {
             text: "Discard",
             style: "destructive",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
         ]
       );
     } else {
-      router.back();
+      safeGoBack(router, "/(tabs)/profile");
     }
   };
 

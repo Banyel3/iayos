@@ -10,6 +10,7 @@ import {
   Image,
 } from "react-native";
 import { router } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors, Typography, BorderRadius, Spacing } from "@/constants/theme";
@@ -330,7 +331,7 @@ export default function MyBackjobsScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/jobs")}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>

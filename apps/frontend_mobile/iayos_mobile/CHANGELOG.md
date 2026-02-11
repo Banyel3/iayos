@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Skill Mismatch Banner Stale Cache Fix**
+  - Reduced `useMySkills()` staleTime from 5 minutes to 30 seconds
+  - Added `useFocusEffect` in job detail screen to invalidate skills cache on screen focus
+  - **Impact**: After adding a skill, returning to a job listing immediately shows correct "skill match" status instead of stale mismatch warning
+
+- **Add Skills Modal Scroll Fix**
+  - Replaced hardcoded `maxHeight: 400` on skills list with `flexShrink: 1` for dynamic sizing
+  - Added `nestedScrollEnabled` for proper Android nested scroll support
+  - **Impact**: Users can now scroll through the full skills list in the Add Skills modal on all screen sizes
+
+- **Safe Back Navigation App-Wide** (54 files, 98 instances)
+  - Replaced all `router.back()` calls with `safeGoBack(router, fallbackRoute)` across the entire mobile app
+  - Each screen now falls back to its logical parent tab instead of closing the app when there's no navigation history
+  - Fallback routes: profile screens → `/(tabs)/profile`, job screens → `/(tabs)/jobs`, auth screens → `/(tabs)`, call screens → `/(tabs)/messages`
+  - **Impact**: Tapping the back button no longer closes the app when navigating directly to a screen via deep link or notification
+
 ### Added
 - **Force Review Feature** (PR #349)
   - Users must leave a review after job completion/payment before exiting conversation

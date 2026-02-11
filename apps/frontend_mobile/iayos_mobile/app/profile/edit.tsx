@@ -20,6 +20,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -270,7 +271,7 @@ export default function EditProfileScreen() {
       Alert.alert("Success", "Profile updated successfully", [
         {
           text: "OK",
-          onPress: () => router.back(),
+          onPress: () => safeGoBack(router, "/(tabs)/profile"),
         },
       ]);
     },
@@ -390,12 +391,12 @@ export default function EditProfileScreen() {
           {
             text: "Discard",
             style: "destructive",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
         ]
       );
     } else {
-      router.back();
+      safeGoBack(router, "/(tabs)/profile");
     }
   };
 

@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
   Colors,
   Typography,
@@ -324,7 +325,7 @@ export default function SavedJobsScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

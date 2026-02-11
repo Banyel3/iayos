@@ -20,6 +20,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { usePendingEarnings, PendingEarningItem } from "@/lib/hooks/useWallet";
@@ -78,7 +79,7 @@ export default function PendingEarningsScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Colors, Typography, Shadows, BorderRadius } from "@/constants/theme";
 import CertificationCard from "@/components/CertificationCard";
 import CertificationForm from "@/components/CertificationForm";
@@ -92,7 +93,7 @@ export default function CertificationsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >

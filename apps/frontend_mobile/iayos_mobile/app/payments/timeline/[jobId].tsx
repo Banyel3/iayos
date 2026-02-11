@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -277,7 +278,7 @@ export default function PaymentTimelineScreen() {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
         >
           <Ionicons name="arrow-back" size={20} color={Colors.primary} />
           <Text style={styles.backButtonText}>Back</Text>

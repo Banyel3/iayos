@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
 } from "react-native-paper";
 import { router } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
@@ -176,7 +177,7 @@ export default function NotificationSettingsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <Appbar.Header>
-          <Appbar.BackAction onPress={() => router.back()} />
+          <Appbar.BackAction onPress={() => safeGoBack(router, "/(tabs)")} />
           <Appbar.Content title="Notification Settings" />
         </Appbar.Header>
         <View style={styles.errorContainer}>
@@ -190,7 +191,7 @@ export default function NotificationSettingsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction onPress={() => safeGoBack(router, "/(tabs)")} />
         <Appbar.Content title="Notification Settings" />
       </Appbar.Header>
 

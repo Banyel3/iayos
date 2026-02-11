@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -309,7 +310,7 @@ export default function PaymentStatusScreen() {
         {status === "failed" && (
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/profile")}
           >
             <Text style={styles.primaryButtonText}>Try Again</Text>
             <Ionicons name="refresh" size={20} color={Colors.white} />

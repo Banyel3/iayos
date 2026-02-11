@@ -26,6 +26,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
   Colors,
   Typography,
@@ -110,13 +111,13 @@ export default function WithdrawScreen() {
         [
           {
             text: "Cancel",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
             style: "cancel",
           },
           {
             text: "Add Payment Account",
             onPress: () => {
-              router.back();
+              safeGoBack(router, "/(tabs)/profile");
               router.push("/profile/payment-methods" as any);
             },
           },
@@ -226,7 +227,7 @@ export default function WithdrawScreen() {
               // Show success modal directly (manual processing, no receipt URL)
               setShowSuccess(true);
               setTimeout(() => {
-                router.back();
+                safeGoBack(router, "/(tabs)/profile");
               }, 2000);
             } catch (error: unknown) {
               Alert.alert(
@@ -339,7 +340,7 @@ export default function WithdrawScreen() {
 
           <TouchableOpacity
             style={styles.doneButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/profile")}
           >
             <Text style={styles.doneButtonText}>Done</Text>
           </TouchableOpacity>
@@ -366,7 +367,7 @@ export default function WithdrawScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/profile")}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
