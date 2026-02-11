@@ -450,6 +450,14 @@ export default function WorkerDetailScreen() {
             )}
           </View>
 
+          {/* Bio */}
+          {data.bio && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>About</Text>
+              <Text style={styles.bioText}>{data.bio}</Text>
+            </View>
+          )}
+
           {/* Stats Cards */}
           <View style={styles.statsSection}>
             <View style={styles.statCard}>
@@ -674,7 +682,7 @@ export default function WorkerDetailScreen() {
                           style={[
                             styles.paginationButton,
                             reviewsPage === 1 &&
-                              styles.paginationButtonDisabled,
+                            styles.paginationButtonDisabled,
                           ]}
                           onPress={() =>
                             setReviewsPage(Math.max(1, reviewsPage - 1))
@@ -698,7 +706,7 @@ export default function WorkerDetailScreen() {
                           style={[
                             styles.paginationButton,
                             reviewsPage === reviewsData.total_pages &&
-                              styles.paginationButtonDisabled,
+                            styles.paginationButtonDisabled,
                           ]}
                           onPress={() =>
                             setReviewsPage(
@@ -849,13 +857,7 @@ export default function WorkerDetailScreen() {
             </View>
           )}
 
-          {/* Bio */}
-          {data.bio && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About</Text>
-              <Text style={styles.bioText}>{data.bio}</Text>
-            </View>
-          )}
+
 
           {/* Soft Skills */}
           {data.softSkills && (
@@ -933,7 +935,7 @@ export default function WorkerDetailScreen() {
                             style={[
                               styles.certBadgeText,
                               skill.certificationCount > 0 &&
-                                styles.certBadgeTextActive,
+                              styles.certBadgeTextActive,
                             ]}
                           >
                             {skill.certificationCount}
@@ -955,10 +957,10 @@ export default function WorkerDetailScreen() {
                             // Calculate days until expiry for warning badge
                             const daysUntilExpiry = cert.expiryDate
                               ? Math.ceil(
-                                  (new Date(cert.expiryDate).getTime() -
-                                    new Date().getTime()) /
-                                    (1000 * 60 * 60 * 24)
-                                )
+                                (new Date(cert.expiryDate).getTime() -
+                                  new Date().getTime()) /
+                                (1000 * 60 * 60 * 24)
+                              )
                               : null;
                             const isExpiringSoon =
                               daysUntilExpiry !== null &&
@@ -1098,10 +1100,10 @@ export default function WorkerDetailScreen() {
                       // Calculate days until expiry for warning badge
                       const daysUntilExpiry = cert.expiryDate
                         ? Math.ceil(
-                            (new Date(cert.expiryDate).getTime() -
-                              new Date().getTime()) /
-                              (1000 * 60 * 60 * 24)
-                          )
+                          (new Date(cert.expiryDate).getTime() -
+                            new Date().getTime()) /
+                          (1000 * 60 * 60 * 24)
+                        )
                         : null;
                       const isExpiringSoon =
                         daysUntilExpiry !== null &&
