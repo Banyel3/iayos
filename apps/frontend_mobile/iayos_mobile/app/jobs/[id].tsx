@@ -257,7 +257,7 @@ export default function JobDetailScreen() {
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
         payment_model: jobData.payment_model,
-        daily_rate: jobData.daily_rate,
+        daily_rate_agreed: jobData.daily_rate_agreed,
         budget: jobData.budget,
         duration_days: jobData.duration_days,
       });
@@ -337,9 +337,11 @@ export default function JobDetailScreen() {
         total_workers_assigned: jobData.total_workers_assigned,
         // Missing fields mapping
         preferred_start_date: jobData.preferred_start_date,
-        payment_model: jobData.payment_model || (jobData.daily_rate ? "DAILY" : "PROJECT"),
+        payment_model:
+          jobData.payment_model ||
+          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
         daily_rate:
-          jobData.daily_rate ||
+          jobData.daily_rate_agreed ??
           (jobData.payment_model === "DAILY" &&
             jobData.budget &&
             jobData.duration_days

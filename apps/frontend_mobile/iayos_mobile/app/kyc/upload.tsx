@@ -3,7 +3,7 @@
 // Updated: Per-step OCR extraction with dedicated verification steps
 // Updated: Uses expo-camera via /kyc/camera screen for real-time overlay guide
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,

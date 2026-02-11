@@ -16,7 +16,7 @@ The Agora voice calling feature has been temporarily disabled to allow developme
 **File: `lib/services/agora.ts`**
 - Commented out the `react-native-agora` import
 - Added type stubs to prevent TypeScript errors
-- The service will log warnings but won't crash the app
+- The service is currently stubbed and will log warnings; voice calling is disabled and calls may result in runtime errors until Agora is fully re-enabled
 
 ### Impact
 

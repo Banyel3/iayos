@@ -48,7 +48,37 @@ const ClientRoleType = {
 // Stub function - will not work until native build is created
 const createAgoraRtcEngine = (): any => {
   console.warn('[Agora] Native module disabled - requires development build');
-  return null;
+  
+  const noop = () => {};
+  const asyncNoop = async () => {};
+
+  // Return a no-op engine stub so calls like `this.engine.initialize(...)`
+  // do not crash when the native module is unavailable.
+  const stubEngine: IRtcEngine = {
+    // Core lifecycle
+    initialize: asyncNoop,
+    release: noop,
+
+    // Event handling
+    registerEventHandler: noop,
+    unregisterEventHandler: noop,
+
+    // Channel operations
+    joinChannel: asyncNoop,
+    leaveChannel: asyncNoop,
+
+    // Audio controls
+    muteLocalAudioStream: noop,
+    enableAudio: noop,
+    disableAudio: noop,
+    enableLocalAudio: noop,
+    setEnableSpeakerphone: noop,
+    setChannelProfile: noop,
+    setClientRole: noop,
+    setDefaultAudioRouteToSpeakerphone: noop,
+  } as any;
+
+  return stubEngine;
 };
 
 export interface CallState {

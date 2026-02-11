@@ -645,23 +645,21 @@ export default function CreateJobScreen() {
       work_environment: workEnvironment,
       // Payment model specific fields
       payment_model: paymentModel,
-      // Materials needed - map selected IDs to names + add manual materials
-      materials_needed: [
-        ...manualMaterials,
-        ...(selectedMaterials.length > 0
-          ? workerMaterials
-            .filter((m) => selectedMaterials.includes(m.id))
-            .map((m) => m.name)
-          : [])
-      ].length > 0 ? [
-        ...manualMaterials,
-        ...(selectedMaterials.length > 0
-          ? workerMaterials
-            .filter((m) => selectedMaterials.includes(m.id))
-            .map((m) => m.name)
-          : [])
-      ] : undefined,
     };
+
+    // Materials needed - map selected IDs to names + add manual materials
+    const combinedMaterials = [
+      ...manualMaterials,
+      ...(selectedMaterials.length > 0
+        ? workerMaterials
+          .filter((m) => selectedMaterials.includes(m.id))
+          .map((m) => m.name)
+        : [])
+    ];
+    
+    if (combinedMaterials.length > 0) {
+      jobData.materials_needed = combinedMaterials;
+    }
 
     // Add payment model specific fields
     // Add payment model specific fields

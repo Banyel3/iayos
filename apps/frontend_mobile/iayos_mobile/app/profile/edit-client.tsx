@@ -104,11 +104,10 @@ export default function EditClientProfileScreen() {
         {
           method: "PUT",
           body: JSON.stringify({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            contact_num: formData.contactNum,
-            birth_date: formData.birthDate || null,
-            profile_img: formData.profileImg,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            contactNum: formData.contactNum,
+            birthDate: formData.birthDate || null,
           }),
         }
       );
