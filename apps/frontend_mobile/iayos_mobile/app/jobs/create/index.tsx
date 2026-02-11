@@ -271,7 +271,18 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please select a specialization");
       return;
     }
-    const workersCount = parseInt(newSlotWorkersNeeded) || 1;
+
+    // Single worker jobs (non-agency): only 1 slot with 1 worker allowed
+    if (!agencyId && skillSlots.length >= 1) {
+      Alert.alert(
+        "Single Worker Job",
+        "Single worker jobs only need one worker type. For multi-worker jobs, use Team Job instead.",
+      );
+      return;
+    }
+
+    // Force 1 worker for non-agency jobs; agency jobs allow 1-10
+    const workersCount = agencyId ? (parseInt(newSlotWorkersNeeded) || 1) : 1;
     if (workersCount < 1 || workersCount > 10) {
       Alert.alert("Error", "Workers needed must be between 1 and 10");
       return;
@@ -596,6 +607,15 @@ export default function CreateJobScreen() {
         );
         return;
       }
+      // Agency jobs require at least 2 total workers
+      const totalWorkers = skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+      if (totalWorkers < 2) {
+        Alert.alert(
+          "Error",
+          "Agency jobs require at least 2 workers total. For single worker jobs, post directly without an agency.",
+        );
+        return;
+      }
     }
 
     // Wallet balance check only - deposits use QR PH (any bank/e-wallet)
@@ -742,7 +762,7 @@ export default function CreateJobScreen() {
                     ? `Select the skill you need from ${workerDetailsData?.name || 'this worker'}.`
                     : agencyId
                       ? 'Specify the workers you need for this job. You can add multiple skill types.'
-                      : 'What type of worker do you need for this job?'}
+                      : 'Select the type of worker you need for this job.'}
                 </Text>
 
                 {/* Skill Slots List */}
@@ -819,7 +839,8 @@ export default function CreateJobScreen() {
                       </>
                     )}
 
-                    {/* Add Worker Button */}
+                    {/* Add Worker Button - hidden for non-agency after 1 slot */}
+                    {(!!agencyId || skillSlots.length === 0) && (
                     <TouchableOpacity
                       style={styles.addSlotBtn}
                       onPress={() => setShowAddSlotModal(true)}
@@ -829,8 +850,11 @@ export default function CreateJobScreen() {
                         size={20}
                         color={Colors.white}
                       />
-                      <Text style={styles.addSlotBtnText}>Add Worker Requirement</Text>
+                      <Text style={styles.addSlotBtnText}>
+                        {agencyId ? 'Add Worker Requirement' : 'Select Worker Type'}
+                      </Text>
                     </TouchableOpacity>
+                    )}
                   </View>
               </View>
 
@@ -1245,7 +1269,7 @@ export default function CreateJobScreen() {
               <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Add Skill Slot</Text>
+                    <Text style={styles.modalTitle}>{agencyId ? 'Add Skill Slot' : 'Select Worker Type'}</Text>
                     <TouchableOpacity
                       onPress={() => setShowAddSlotModal(false)}
                       style={styles.modalCloseButton}
@@ -1304,7 +1328,8 @@ export default function CreateJobScreen() {
                       )}
                     </View>
 
-                    {/* Workers Needed */}
+                    {/* Workers Needed - only shown for agency jobs */}
+                    {!!agencyId && (
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Workers Needed *</Text>
                       <View style={styles.workersRow}>
@@ -1333,6 +1358,7 @@ export default function CreateJobScreen() {
                         </TouchableOpacity>
                       </View>
                     </View>
+                    )}
 
                     {/* Skill Level */}
                     <View style={styles.inputGroup}>
