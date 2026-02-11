@@ -220,7 +220,7 @@ def generateCookie(user, profile_type=None):
         'user_id': user.accountID,
         'email': user.email,
         'profile_type': profile_type,  # Include profile type in JWT
-        'exp': now + timedelta(hours=1),  # Access token: 1 hour
+        'exp': now + settings.JWT_ACCESS_TOKEN_LIFETIME,  # From settings (default: 1 hour)
         'iat': now
     }
 
@@ -228,7 +228,7 @@ def generateCookie(user, profile_type=None):
         'user_id': user.accountID,
         'email': user.email,
         'profile_type': profile_type,  # Include profile type in JWT
-        'exp': now + timedelta(days=7),  # Refresh token: 7 days
+        'exp': now + settings.JWT_REFRESH_TOKEN_LIFETIME,  # From settings (default: 7 days)
         'iat': now
     }
 
@@ -433,11 +433,12 @@ def refresh_token(expired_token):
         # Get the user
         user = Accounts.objects.get(accountID=payload['user_id'])
 
-        # Create new access token
+        # Create new access token (preserve profile_type from refresh token)
         access_payload = {
             'user_id': user.accountID,
             'email': user.email,
-            'exp': timezone.now() + timedelta(minutes=60),  # 1 hour
+            'profile_type': payload.get('profile_type'),
+            'exp': timezone.now() + settings.JWT_ACCESS_TOKEN_LIFETIME,
             'iat': timezone.now(),
         }
 
@@ -452,6 +453,7 @@ def refresh_token(expired_token):
             httponly=True,
             secure=is_production,
             samesite='Lax',
+            max_age=int(settings.JWT_ACCESS_TOKEN_LIFETIME.total_seconds()),
             domain=cookie_domain,
         )
         return response

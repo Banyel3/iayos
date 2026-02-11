@@ -61,9 +61,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get auth token from cookies
+  // Get auth token from cookies (backend sets "access" and "refresh" cookie names)
   const authCookie =
-    request.cookies.get("access_token") || request.cookies.get("auth_token");
+    request.cookies.get("access") || request.cookies.get("refresh");
 
   if (!authCookie?.value) {
     // Not logged in - let the page handle redirect to login
