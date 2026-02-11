@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Job Detail Hardcoded Data Removal** (PR #XXX)
+  - Replaced 13 `via.placeholder.com` avatar fallback URLs with Ionicons person icon across job detail and active job detail screens
+  - Changed misleading "0.0 rating" displays to show "New" for unrated users (7 instances)
+  - Fixed budget display to show "TBD" instead of "₱0" when budget is missing
+  - Fixed distance display to show location name when distance is unavailable instead of "0.0 km away"
+  - Added `payment_model` badge indicator: 💼 Project Based or 📅 Daily Rate with per-day amount
+  - Added `phone` field to client and worker data from backend
+  - Added server-side Haversine distance calculation in job detail API
+  - Fixed active job detail data transformation (category showed `[object Object]`, location fields mismatched, budget was unformatted number)
+  - Fixed "Unknown" and "N/A" worker fallbacks to use friendlier text
+  - **Impact**: All job detail data now comes from backend with no fake/placeholder values
+
 - **Skill Mismatch Banner Stale Cache Fix**
   - Reduced `useMySkills()` staleTime from 5 minutes to 30 seconds
   - Added `useFocusEffect` in job detail screen to invalidate skills cache on screen focus

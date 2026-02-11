@@ -45,9 +45,8 @@ interface ActiveJobDetail {
   description: string;
   category: string;
   budget: string;
-  location_city: string;
-  location_barangay: string;
-  status: "ASSIGNED" | "IN_PROGRESS";
+  location: string;
+  status: "ASSIGNED" | "IN_PROGRESS" | string;
   worker_marked_complete: boolean;
   client_marked_complete: boolean;
   completion_notes: string | null;
@@ -57,14 +56,14 @@ interface ActiveJobDetail {
   client: {
     id: number;
     name: string;
-    avatar: string;
-    phone: string;
+    avatar: string | null;
+    phone: string | null;
   };
   worker: {
     id: number;
     name: string;
-    avatar: string;
-    phone: string;
+    avatar: string | null;
+    phone: string | null;
   } | null;
   photos: Array<{
     id: number;
@@ -72,6 +71,10 @@ interface ActiveJobDetail {
     file_name: string;
   }>;
   estimated_completion?: EstimatedCompletion | null;
+  // Payment model fields
+  payment_model?: "PROJECT" | "DAILY" | string;
+  daily_rate_agreed?: number | null;
+  duration_days?: number | null;
   // Team Job Fields
   is_team_job?: boolean;
   skill_slots?: SkillSlot[];
@@ -153,7 +156,54 @@ export default function ActiveJobDetailScreen() {
       }
 
       const data = await response.json();
-      return data; // Backend returns job data directly, not wrapped
+
+      // Transform backend response to match frontend interface
+      const categoryName = typeof data.category === 'object' ? data.category?.name : (data.category || 'Uncategorized');
+      const clientData = data.client || {};
+      const workerData = data.assigned_worker || data.worker || null;
+
+      return {
+        id: String(data.id),
+        title: data.title,
+        description: data.description,
+        category: categoryName,
+        budget: data.budget != null ? `₱${Number(data.budget).toLocaleString()}` : 'TBD',
+        location: data.location || 'Location not specified',
+        status: data.status,
+        worker_marked_complete: data.workerMarkedComplete || data.worker_marked_complete || false,
+        client_marked_complete: data.clientMarkedComplete || data.client_marked_complete || false,
+        completion_notes: data.completionNotes || data.completion_notes || null,
+        assigned_at: data.assigned_at || data.created_at || '',
+        started_at: data.started_at || null,
+        worker_marked_complete_at: data.worker_marked_complete_at || null,
+        client: {
+          id: clientData.id || 0,
+          name: clientData.name || 'Client',
+          avatar: clientData.avatar || null,
+          phone: clientData.phone || null,
+        },
+        worker: workerData ? {
+          id: workerData.id || 0,
+          name: workerData.name || 'Worker',
+          avatar: workerData.avatar || null,
+          phone: workerData.phone || null,
+        } : null,
+        photos: data.photos?.map((url: string, idx: number) => ({
+          id: idx,
+          url,
+          file_name: `photo-${idx}`,
+        })) || [],
+        estimated_completion: data.estimated_completion || null,
+        payment_model: data.payment_model || 'PROJECT',
+        daily_rate_agreed: data.daily_rate_agreed ?? null,
+        duration_days: data.duration_days ?? null,
+        is_team_job: data.is_team_job || false,
+        skill_slots: data.skill_slots || [],
+        worker_assignments: data.worker_assignments || [],
+        total_workers_needed: data.total_workers_needed,
+        total_workers_assigned: data.total_workers_assigned,
+        team_fill_percentage: data.team_fill_percentage,
+      } as ActiveJobDetail;
     },
   });
 
@@ -584,6 +634,11 @@ export default function ActiveJobDetailScreen() {
             <Ionicons name="cash-outline" size={24} color={Colors.primary} />
             <Text style={styles.detailLabel}>Budget</Text>
             <Text style={styles.detailValue}>{job.budget}</Text>
+            {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
+              <Text style={{ fontSize: 11, color: Colors.primary, marginTop: 2 }}>📅 ₱{Number(job.daily_rate_agreed).toLocaleString()}/day</Text>
+            ) : (
+              <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 2 }}>💼 Project</Text>
+            )}
           </View>
           <View style={styles.detailCard}>
             <Ionicons
@@ -593,7 +648,7 @@ export default function ActiveJobDetailScreen() {
             />
             <Text style={styles.detailLabel}>Location</Text>
             <Text style={styles.detailValue}>
-              {job.location_barangay}, {job.location_city}
+              {job.location}
             </Text>
           </View>
         </View>
@@ -626,12 +681,16 @@ export default function ActiveJobDetailScreen() {
               }
               activeOpacity={0.7}
             >
-              <Image
-                source={{
-                  uri: job.client.avatar || "https://via.placeholder.com/60",
-                }}
-                style={styles.userAvatar}
-              />
+              {job.client.avatar ? (
+                <Image
+                  source={{ uri: job.client.avatar }}
+                  style={styles.userAvatar}
+                />
+              ) : (
+                <View style={[styles.userAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                </View>
+              )}
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>{job.client.name}</Text>
                 <View style={styles.userContact}>
@@ -640,7 +699,7 @@ export default function ActiveJobDetailScreen() {
                     size={16}
                     color={Colors.textSecondary}
                   />
-                  <Text style={styles.userPhone}>{job.client.phone}</Text>
+                  <Text style={styles.userPhone}>{job.client.phone || "Not available"}</Text>
                 </View>
                 <Text style={styles.tapToViewHint}>Tap to view profile</Text>
               </View>
@@ -660,15 +719,19 @@ export default function ActiveJobDetailScreen() {
               }
               activeOpacity={0.7}
             >
-              <Image
-                source={{
-                  uri: job.worker?.avatar || "https://via.placeholder.com/60",
-                }}
-                style={styles.userAvatar}
-              />
+              {job.worker?.avatar ? (
+                <Image
+                  source={{ uri: job.worker.avatar }}
+                  style={styles.userAvatar}
+                />
+              ) : (
+                <View style={[styles.userAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                </View>
+              )}
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>
-                  {job.worker?.name || "Unknown"}
+                  {job.worker?.name || "Worker"}
                 </Text>
                 <View style={styles.userContact}>
                   <Ionicons
@@ -677,7 +740,7 @@ export default function ActiveJobDetailScreen() {
                     color={Colors.textSecondary}
                   />
                   <Text style={styles.userPhone}>
-                    {job.worker?.phone || "N/A"}
+                    {job.worker?.phone || "Not available"}
                   </Text>
                 </View>
                 <Text style={styles.tapToViewHint}>Tap to view profile</Text>
@@ -808,14 +871,16 @@ export default function ActiveJobDetailScreen() {
                     style={styles.assignmentCard}
                   >
                     <View style={styles.assignmentHeader}>
-                      <Image
-                        source={{
-                          uri:
-                            assignment.worker_avatar ||
-                            "https://via.placeholder.com/40",
-                        }}
-                        style={styles.assignmentAvatar}
-                      />
+                      {assignment.worker_avatar ? (
+                        <Image
+                          source={{ uri: assignment.worker_avatar }}
+                          style={styles.assignmentAvatar}
+                        />
+                      ) : (
+                        <View style={[styles.assignmentAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="person" size={20} color={Colors.textSecondary} />
+                        </View>
+                      )}
                       <View style={styles.assignmentInfo}>
                         <Text style={styles.assignmentWorkerName}>
                           {assignment.worker_name}
