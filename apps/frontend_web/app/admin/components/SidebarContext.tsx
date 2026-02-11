@@ -34,7 +34,7 @@ export function useSidebar() {
 // Helper to get responsive main content class
 export function useMainContentClass(additionalClasses?: string) {
   const { collapsed } = useSidebar();
-  const baseClasses = "transition-all duration-400 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]";
+  const baseClasses = "transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]";
   const paddingClass = collapsed ? "pl-24" : "pl-72";
   return `${baseClasses} ${paddingClass} ${additionalClasses || ""}`.trim();
 }
