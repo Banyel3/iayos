@@ -258,7 +258,6 @@ export default function EmployeesPage() {
     setEditMobile(emp.mobile || "");
     setEditSpecializations(emp.specializations || (emp.role ? [emp.role] : []));
   };
-  };
 
   const toggleSpecialization = (spec: string) => {
     setSelectedSpecializations(prev => 
