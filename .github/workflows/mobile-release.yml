@@ -71,11 +71,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: ${{ env.MOBILE_DIR }}/package-lock.json
 
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      # EAS CLI no longer needed - using local builds
+      # - name: Setup EAS CLI
+      #   uses: expo/expo-github-action@v8
+      #   with:
+      #     eas-version: latest
+      #     token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Analyze commit messages
         id: analyze
@@ -216,74 +217,84 @@ jobs:
         run: npm ci
 
       # ============================================
-      # EAS CLOUD BUILD (Uses resourceClass: large)
+      # LOCAL GITHUB ACTIONS BUILD (No EAS Credits Required)
       # ============================================
 
-      - name: Build Android APK (EAS Cloud Build)
+      - name: Setup Java
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Expo
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          # No token needed for local builds
+
+      - name: Build Android APK (Local GitHub Actions Build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_API_URL: "https://api.iayos.online"
         run: |
-          BUILD_PROFILE="production"
-
-          echo "🏗️ EAS CLOUD BUILD with profile: $BUILD_PROFILE"
-          echo "☁️ Building on EAS servers with resourceClass: large (16GB RAM)"
+          echo "🏗️ LOCAL GITHUB ACTIONS BUILD"
+          echo "☁️ Building on GitHub Actions runners (no EAS credits required)"
           echo "📦 Production build - ready for app store distribution"
 
-          # Build on EAS cloud (no --local flag, no metaspace errors!)
-          # Uses resourceClass: large from eas.json (16GB RAM runners)
-          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
+          # Generate native Android project using expo prebuild
+          echo "📱 Generating native Android project..."
+          npx expo prebuild --clean --platform android
 
-          # Download the built APK
-          echo "📥 Downloading built APK from EAS..."
-          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+          # Build release APK using Gradle
+          echo "🔨 Building release APK with Gradle..."
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
 
-          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
-            echo "❌ Failed to get build URL from EAS"
-            exit 1
-          fi
+          # Copy APK to expected location
+          echo "📦 Copying APK to release location..."
+          cd ..
+          cp android/app/build/outputs/apk/release/app-release.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
 
-          curl -L --fail --retry 3 -o ./iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
-
-          echo "✅ Cloud build complete!"
+          echo "✅ Local build complete!"
           ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
-      - name: Download APK from EAS (if using latest build)
+      - name: Download APK from latest release (if using latest build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          echo "♻️ Attempting to use latest existing build from Expo..."
-          echo ""
-          echo "⚠️  NOTE: This option only works for CLOUD (EAS) builds!"
-          echo "   Local builds are not uploaded to Expo and cannot be reused."
-          echo "   If you've been using local builds, you need to build fresh."
+          echo "♻️ Attempting to use latest existing build from GitHub Releases..."
           echo ""
 
-          # Get build info
-          BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
-          BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
-          BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // empty')
-          BUILD_DATE=$(echo "$BUILD_INFO" | jq -r '.[0].createdAt // empty')
+          # Get latest release info
+          RELEASE_INFO=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
+          
+          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -1)
+          RELEASE_TAG=$(echo "$RELEASE_INFO" | jq -r '.[0].tag_name')
 
-          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
-            echo "❌ No existing EAS cloud build found!"
+          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+            echo "❌ No existing APK found in latest release!"
             echo ""
             echo "📋 Options:"
-            echo "   1. Run workflow again WITHOUT 'use latest build' to build locally"
-            echo "   2. Run 'eas build --platform android' locally to create a cloud build"
+            echo "   1. Run workflow again WITHOUT 'use latest build' to build fresh"
             echo ""
             exit 1
           fi
 
-          echo "📦 Found EAS build:"
-          echo "   Status: $BUILD_STATUS"
-          echo "   Date: $BUILD_DATE"
-          echo "   URL: $BUILD_URL"
+          echo "📦 Found APK in release: $RELEASE_TAG"
+          echo "   URL: $DOWNLOAD_URL"
           echo ""
 
-          echo "Downloading APK from: $BUILD_URL"
-          curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+          echo "Downloading APK from: $DOWNLOAD_URL"
+          curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$DOWNLOAD_URL"
 
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
@@ -432,15 +443,16 @@ jobs:
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
             **Build Profile:** production
-            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'Newly Built' }}
+            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Reused from Latest Release' || 'Local GitHub Actions Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
 
-            ### 📦 Production Build
+            ### 📦 Production Build (Local GitHub Actions)
 
-            Optimized release ready for:
-            - ✅ App Store distribution
-            - ✅ Production deployment
-            - ✅ End users
+            Built on GitHub Actions runners (no EAS credits required):
+            - ✅ App Store distribution ready
+            - ✅ Production deployment ready
+            - ✅ End user ready
+            - 🚀 Fast local builds on GitHub infrastructure
 
             ### What's Changed
             ${{ steps.changelog.outputs.changelog_notes }}
@@ -529,10 +541,10 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "📍 APK: \`android/app/build/outputs/apk/release/app-release.apk\`" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
-              echo "♻️ **Build:** Using latest existing build" >> $GITHUB_STEP_SUMMARY
+              echo "♻️ **Build:** Using latest existing build from GitHub Releases" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             else
-              echo "🏗️ **Build:** Newly built" >> $GITHUB_STEP_SUMMARY
+              echo "🏗️ **Build:** Local GitHub Actions build (no EAS credits)" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             fi
           else
