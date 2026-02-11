@@ -1,10 +1,12 @@
 // lib/hooks/useKYC.ts
 // Hook for fetching KYC verification status and history
 
+import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import type { KYCStatusResponse } from "@/lib/types/kyc";
+import { useAuth } from "@/context/AuthContext";
 
 /**
  * Fetch KYC status for current user
@@ -34,16 +36,16 @@ const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
     status: responseData.status || "NOT_SUBMITTED",
     kycRecord: hasKYC
       ? {
-          kycID: responseData.kyc_id,
-          accountFK: 0, // Not returned by backend
-          kyc_status: responseData.status,
-          reviewedAt: responseData.reviewed_at,
-          reviewedBy: undefined,
-          notes: responseData.notes || "",
-          createdAt: responseData.submitted_at,
-          updatedAt: responseData.submitted_at,
-          files: responseData.files || [],
-        }
+        kycID: responseData.kyc_id,
+        accountFK: 0, // Not returned by backend
+        kyc_status: responseData.status,
+        reviewedAt: responseData.reviewed_at,
+        reviewedBy: undefined,
+        notes: responseData.notes || "",
+        createdAt: responseData.submitted_at,
+        updatedAt: responseData.submitted_at,
+        files: responseData.files || [],
+      }
       : undefined,
     files: responseData.files || [],
     message: responseData.message,
@@ -55,6 +57,7 @@ const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
  */
 export const useKYC = () => {
   const queryClient = useQueryClient();
+  const { refreshUserData } = useAuth();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<
     KYCStatusResponse,
@@ -119,6 +122,17 @@ export const useKYC = () => {
    * Get review date
    */
   const reviewDate = data?.kycRecord?.reviewedAt;
+
+  // Auto-refresh user data when KYC status changes to APPROVED
+  // This ensures user.kycVerified is updated immediately
+  React.useEffect(() => {
+    if (isVerified && !isLoading) {
+      console.log("✅ [useKYC] KYC verified, refreshing user data...");
+      refreshUserData().catch((err) => {
+        console.error("❌ [useKYC] Failed to refresh user data:", err);
+      });
+    }
+  }, [isVerified, isLoading, refreshUserData]);
 
   return {
     // Data

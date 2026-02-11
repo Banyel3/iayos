@@ -252,7 +252,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Login function
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      await clearAllCaches();
+      // Clear only AsyncStorage auth keys, NOT React Query cache
+      // (clearing React Query cache causes immediate refetch flood)
+      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
       setUser(null);
 
       const response = await apiRequest(ENDPOINTS.LOGIN, {
