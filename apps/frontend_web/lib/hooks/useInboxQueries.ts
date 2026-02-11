@@ -6,6 +6,7 @@ import {
   ChatMessage,
   ConversationFilter,
 } from "@/lib/api/chat";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 const API_BASE_URL = API_BASE;
@@ -71,7 +72,7 @@ export function useMarkJobComplete() {
   return useMutation({
     mutationFn: async (jobId: number) => {
       const response = await fetch(
-        `${API_BASE_URL}/api/jobs/${jobId}/mark-complete`,
+        `${API_BASE_URL}/jobs/${jobId}/mark-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -81,7 +82,9 @@ export function useMarkJobComplete() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to mark job as complete");
+        throw new Error(
+          getErrorMessage(error, "Failed to mark job as complete"),
+        );
       }
 
       return response.json();
@@ -113,7 +116,7 @@ export function useApproveJobCompletion() {
       paymentMethod?: "WALLET" | "GCASH" | "CASH";
     }) => {
       const response = await fetch(
-        `${API_BASE_URL}/api/jobs/${jobId}/approve-completion`,
+        `${API_BASE_URL}/jobs/${jobId}/approve-completion`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -124,7 +127,9 @@ export function useApproveJobCompletion() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to approve job completion");
+        throw new Error(
+          getErrorMessage(error, "Failed to approve job completion"),
+        );
       }
 
       return response.json();
@@ -152,23 +157,32 @@ export function useSubmitReview() {
   return useMutation({
     mutationFn: async ({
       jobId,
-      rating,
+      rating_quality,
+      rating_communication,
+      rating_punctuality,
+      rating_professionalism,
       message,
       review_target,
       employee_id,
     }: {
       jobId: number;
-      rating: number;
+      rating_quality: number;
+      rating_communication: number;
+      rating_punctuality: number;
+      rating_professionalism: number;
       message: string;
       review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs
       employee_id?: number; // For multi-employee agency jobs
     }) => {
-      const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/review`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          rating,
+          rating_quality,
+          rating_communication,
+          rating_punctuality,
+          rating_professionalism,
           message: message.trim() || null,
           review_target,
           employee_id,
@@ -177,7 +191,7 @@ export function useSubmitReview() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to submit review");
+        throw new Error(getErrorMessage(error, "Failed to submit review"));
       }
 
       return response.json();

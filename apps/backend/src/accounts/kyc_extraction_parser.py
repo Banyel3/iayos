@@ -192,19 +192,77 @@ class KYCExtractionParser:
         self._split_name(result)  # Parse into first/middle/last
         
         result.birth_date = self._extract_birth_date(text_upper, text_lines)
-        result.id_number = self._extract_id_number(text_upper, document_type)
-        result.address = self._extract_address(text_upper, text_lines)
-        result.sex = self._extract_sex(text_upper)
-        result.nationality = self._extract_nationality(text_upper)
+        result.id_number = self._extract_id_number(text_upper, document_type, text_lines)
+        result.address = self._extract_address(text_upper, text_lines, document_type)
+        result.sex = self._extract_sex(text_upper, text_lines)
+        result.nationality = self._extract_nationality(text_upper, text_lines)
         result.expiry_date = self._extract_expiry_date(text_upper, text_lines)
+        
+        # Validate field consistency (dates make sense, etc.)
+        self._validate_field_consistency(result)
         
         # Calculate overall confidence
         result.calculate_overall_confidence()
         
         logger.info(f"   ✅ Extraction complete: overall_confidence={result.overall_confidence:.2f}")
         logger.info(f"   📋 Name: {result.full_name.value}, DOB: {result.birth_date.value}, ID: {result.id_number.value}")
+        # Debug: Log first 500 chars of raw OCR text for troubleshooting extraction issues
+        logger.debug(f"   📝 RAW OCR TEXT (first 500 chars):\n{ocr_text[:500]}\n   --- END RAW TEXT ---")
         
         return result
+    
+    def _validate_field_consistency(self, result: ParsedKYCData) -> None:
+        """
+        Validate that extracted fields make logical sense.
+        Adjusts confidence scores if data seems inconsistent.
+        """
+        today = date.today()
+        
+        # Validate birth date: Should result in age between 15-120 years
+        if result.birth_date.value:
+            try:
+                birth = datetime.strptime(result.birth_date.value, "%Y-%m-%d").date()
+                age = (today - birth).days // 365
+                
+                if age < 15 or age > 120:
+                    logger.warning(f"   ⚠️ Invalid age calculated: {age} years (DOB: {result.birth_date.value})")
+                    result.birth_date.confidence = max(0.3, result.birth_date.confidence * 0.5)
+                elif age < 18:
+                    logger.info(f"   ℹ️ Minor detected: {age} years old")
+            except (ValueError, TypeError):
+                pass
+        
+        # Validate expiry date: Should be after birth date
+        if result.birth_date.value and result.expiry_date.value:
+            try:
+                birth = datetime.strptime(result.birth_date.value, "%Y-%m-%d").date()
+                expiry = datetime.strptime(result.expiry_date.value, "%Y-%m-%d").date()
+                
+                if expiry <= birth:
+                    logger.warning(f"   ⚠️ Expiry date ({result.expiry_date.value}) is before birth date ({result.birth_date.value})")
+                    # Swap if they seem reversed
+                    if (today - expiry).days // 365 > 15:  # Expiry looks like a birth date
+                        logger.info(f"   🔄 Swapping birth/expiry dates (they appear reversed)\")")
+                        result.birth_date.value, result.expiry_date.value = result.expiry_date.value, result.birth_date.value
+            except (ValueError, TypeError):
+                pass
+        
+        # Validate expiry date: Check if already expired (just log, don't reduce confidence)
+        if result.expiry_date.value:
+            try:
+                expiry = datetime.strptime(result.expiry_date.value, "%Y-%m-%d").date()
+                if expiry < today:
+                    days_expired = (today - expiry).days
+                    logger.info(f"   ⚠️ Document expired {days_expired} days ago (expiry: {result.expiry_date.value})")
+            except (ValueError, TypeError):
+                pass
+        
+        # Validate ID number format for driver's license
+        if result.id_type_detected == "DRIVERSLICENSE" and result.id_number.value:
+            # LTO format: [A-Z]##-##-###### (e.g., C23-75-007537)
+            if not re.match(r'^[A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7}$', result.id_number.value):
+                logger.warning(f"   ⚠️ License number format may be incorrect: {result.id_number.value}")
+                result.id_number.confidence = max(0.5, result.id_number.confidence * 0.8)
     
     def _detect_document_type(self, text_upper: str) -> str:
         """Detect the type of government ID from OCR text"""
@@ -237,6 +295,161 @@ class KYCExtractionParser:
     
     def _extract_name(self, text_upper: str, text_lines: List[str], document_type: str) -> ExtractionResult:
         """Extract full name from document"""
+        
+        # Driver's License specific: Look for "Last Name, First Name, Middle Name" label with value on next line
+        if document_type == "DRIVERSLICENSE":
+            # PATTERN 0 (DIRECT SCAN): Look for any line with exactly 2-3 comma-separated uppercase words
+            # that looks like a name (e.g., "CORNELIO, VANIEL JOHN, GARCIA")
+            # This works even when OCR doesn't properly detect the label line
+            # FIXED: Allow for OCR noise (stray digits, special chars) and clean them up
+            excluded_name_words = [
+                "LICENSE", "PROFESSIONAL", "NON-PROFESSIONAL", "DRIVER", "REPUBLIC",
+                "PHILIPPINES", "LAND", "TRANSPORTATION", "OFFICE", "LTO", "LAST",
+                "FIRST", "MIDDLE", "NAME", "ADDRESS", "DATE", "BIRTH", "NATIONALITY",
+                "RESTRICTIONS", "CONDITIONS", "AGENCY", "CODE", "WEIGHT", "HEIGHT",
+                "SEX", "BLOOD", "TYPE", "EXPIRATION", "VALID"
+            ]
+            
+            for line in text_lines:
+                line_clean = line.strip()
+                # Skip lines that are too short or too long (names are typically 15-60 chars)
+                if len(line_clean) < 10 or len(line_clean) > 80:
+                    continue
+                    
+                # Check if line has comma-separated parts (typical name format)
+                parts = [p.strip() for p in line_clean.split(',')]
+                if 2 <= len(parts) <= 4:
+                    # Check if all parts look like name parts (primarily uppercase letters)
+                    # FIXED: Allow for OCR noise - check if >80% are valid name characters
+                    all_valid = True
+                    cleaned_parts = []
+                    for part in parts:
+                        # Clean OCR noise: remove stray digits and special chars, keep letters and spaces
+                        cleaned_part = re.sub(r'[^A-Za-z\s\-]', '', part).strip().upper()
+                        if len(cleaned_part) < 2:
+                            all_valid = False
+                            break
+                        # Skip if any part is an excluded word
+                        if any(excl in cleaned_part.split() for excl in excluded_name_words):
+                            all_valid = False
+                            break
+                        cleaned_parts.append(cleaned_part)
+                    
+                    if all_valid and len(cleaned_parts) >= 2:
+                        # Format: LASTNAME, FIRSTNAME, MIDDLENAME or LASTNAME, FIRSTNAME MIDDLENAME
+                        last_name = cleaned_parts[0]
+                        
+                        # Handle 2-part format: "BAKAUN, EDRIS SAPPAYANI" where middle name is space-separated
+                        if len(cleaned_parts) == 2:
+                            # Split the second part by spaces to extract first name and middle name
+                            given_names = cleaned_parts[1].split()
+                            first_name = given_names[0] if len(given_names) > 0 else ""
+                            middle_name = ' '.join(given_names[1:]) if len(given_names) > 1 else ""
+                        else:
+                            # 3+ parts: "LASTNAME, FIRSTNAME, MIDDLENAME"
+                            first_name = cleaned_parts[1] if len(cleaned_parts) > 1 else ""
+                            middle_name = cleaned_parts[2] if len(cleaned_parts) > 2 else ""
+                        
+                        full_name = f"{first_name} {middle_name} {last_name}".strip()
+                        full_name = ' '.join(full_name.split())  # Remove extra spaces
+                        
+                        logger.info(f"   DL Name (direct scan): {full_name}")
+                        return ExtractionResult(
+                            value=full_name.title(),
+                            confidence=0.90,
+                            source_text=f"DL_DIRECT_SCAN: {line_clean}"
+                        )
+            
+            # Pattern 1 (LABEL-BASED): Check if previous line is the label "Last Name, First Name, Middle Name"
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip()
+                line_upper = line_clean.upper()
+                
+                if i > 0:
+                    prev_line = text_lines[i - 1].strip().upper()
+                    if ("LAST" in prev_line and "FIRST" in prev_line) or ("LAST NAME" in prev_line):
+                        # This line should contain the name in format: "DELA CRUZ, JUAN, OCAMPO"
+                        parts = [p.strip() for p in line_clean.split(',')]
+                        if len(parts) >= 2:
+                            last_name = parts[0].strip()
+                            first_name = parts[1].strip() if len(parts) > 1 else ""
+                            middle_name = parts[2].strip() if len(parts) > 2 else ""
+                            
+                            # Skip if it looks like labels, not values
+                            if any(label in last_name.upper() for label in ["NAME", "SURNAME", "LAST", "FIRST", "MIDDLE"]):
+                                continue
+                            
+                            full_name = f"{first_name} {middle_name} {last_name}".strip()
+                            # Remove extra spaces
+                            full_name = ' '.join(full_name.split())
+                            
+                            return ExtractionResult(
+                                value=full_name.title(),
+                                confidence=0.95,
+                                source_text=f"DL_LABEL_FORMAT: {line_clean}"
+                            )
+            
+            # Pattern 1: "Last Name, First Name, Middle Name" label with "LASTNAME, FIRSTNAME MIDDLENAME" on next line
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip().upper()
+                # Look for the label line
+                if "LAST NAME" in line_clean and "FIRST NAME" in line_clean and "MIDDLE NAME" in line_clean:
+                    # Name is on the next line in format: "TUGADE, ARTHUR PLANTA"
+                    if i + 1 < len(text_lines):
+                        name_line = text_lines[i + 1].strip()
+                        # Parse "LASTNAME, FIRSTNAME MIDDLENAME" format
+                        if ',' in name_line:
+                            parts = name_line.split(',', 1)
+                            last_name = parts[0].strip()
+                            if len(parts) > 1:
+                                given_names = parts[1].strip().split()
+                                first_name = given_names[0] if len(given_names) > 0 else ""
+                                middle_name = given_names[1] if len(given_names) > 1 else ""
+                                
+                                full_name = f"{first_name} {middle_name} {last_name}".strip()
+                                return ExtractionResult(
+                                    value=full_name.title(),
+                                    confidence=0.9,
+                                    source_text=f"DL_FORMAT: {name_line}"
+                                )
+            
+            # Pattern 2: Separate SURNAME, FIRST NAME, MIDDLE NAME labels with values below each
+            surname = ""
+            first_name = ""
+            middle_name = ""
+            
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip()
+                line_upper = line_clean.upper()
+                
+                # Look for individual label lines with value on next line
+                if line_upper in ["SURNAME", "LAST NAME"] or line_upper.startswith("SURNAME"):
+                    if i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        if next_line and len(next_line) > 1 and next_line.isupper():
+                            surname = next_line
+                
+                elif line_upper in ["FIRST NAME", "GIVEN NAME"] or line_upper.startswith("FIRST NAME"):
+                    if i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        if next_line and len(next_line) > 1 and next_line.isupper():
+                            first_name = next_line
+                
+                elif line_upper in ["MIDDLE NAME"] or line_upper.startswith("MIDDLE NAME"):
+                    if i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        if next_line and len(next_line) > 1 and next_line.isupper():
+                            middle_name = next_line
+            
+            # Construct full name if we found parts
+            if surname or first_name:
+                full_name_parts = [p for p in [first_name, middle_name, surname] if p]
+                full_name = " ".join(full_name_parts).title()
+                return ExtractionResult(
+                    value=full_name,
+                    confidence=0.8,
+                    source_text=f"SURNAME: {surname}, FIRST: {first_name}, MIDDLE: {middle_name}"
+                )
         
         # Common name field labels
         name_labels = [
@@ -322,18 +535,35 @@ class KYCExtractionParser:
         if not full_name:
             return
         
-        parts = full_name.split()
-        confidence = result.full_name.confidence * 0.8  # Reduce confidence for parsed components
-        
-        if len(parts) == 1:
-            result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
-        elif len(parts) == 2:
-            result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
-            result.last_name = ExtractionResult(value=parts[1], confidence=confidence)
-        elif len(parts) >= 3:
-            result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
-            result.middle_name = ExtractionResult(value=' '.join(parts[1:-1]), confidence=confidence * 0.9)
-            result.last_name = ExtractionResult(value=parts[-1], confidence=confidence)
+        # Check if source_text indicates Driver's License format (already parsed)
+        if "SURNAME:" in result.full_name.source_text:
+            # Name already in FIRST MIDDLE LAST order from Driver's License extraction
+            parts = full_name.split()
+            confidence = result.full_name.confidence  # Use full confidence since we parsed correctly
+            
+            if len(parts) == 1:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+            elif len(parts) == 2:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.last_name = ExtractionResult(value=parts[1], confidence=confidence)
+            elif len(parts) >= 3:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.middle_name = ExtractionResult(value=parts[1], confidence=confidence)
+                result.last_name = ExtractionResult(value=parts[2], confidence=confidence)
+        else:
+            # Standard parsing for other ID types
+            parts = full_name.split()
+            confidence = result.full_name.confidence * 0.8  # Reduce confidence for parsed components
+            
+            if len(parts) == 1:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+            elif len(parts) == 2:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.last_name = ExtractionResult(value=parts[1], confidence=confidence)
+            elif len(parts) >= 3:
+                result.first_name = ExtractionResult(value=parts[0], confidence=confidence)
+                result.middle_name = ExtractionResult(value=' '.join(parts[1:-1]), confidence=confidence * 0.9)
+                result.last_name = ExtractionResult(value=parts[-1], confidence=confidence)
     
     def _extract_birth_date(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
         """Extract birth date from document"""
@@ -349,23 +579,24 @@ class KYCExtractionParser:
             
             for label in date_labels:
                 if label in line_upper:
-                    # Try to find date on this line or next
-                    date_result = self._parse_date_from_text(line_upper)
-                    if date_result:
+                    # NEW LTO FORMAT: Try to find date on SAME line first (e.g., "Date of Birth  1977/03/01")
+                    same_line_date = self._parse_date_from_text(line_upper)
+                    if same_line_date:
                         return ExtractionResult(
-                            value=date_result,
-                            confidence=0.9,
-                            source_text=line
+                            value=same_line_date,
+                            confidence=0.95,
+                            source_text=f"DL_SAME_LINE: {label} -> {same_line_date}"
                         )
                     
-                    # Check next line
+                    # OLD FORMAT: Driver's License pattern - value is on the NEXT line
                     if i + 1 < len(text_lines):
-                        next_date = self._parse_date_from_text(text_lines[i + 1].upper())
+                        next_line = text_lines[i + 1].strip()
+                        next_date = self._parse_date_from_text(next_line.upper())
                         if next_date:
                             return ExtractionResult(
                                 value=next_date,
-                                confidence=0.85,
-                                source_text=text_lines[i + 1]
+                                confidence=0.9,
+                                source_text=f"DL_LABEL_PATTERN: {label} -> {next_line}"
                             )
         
         # Fall back to finding any date in the text
@@ -390,6 +621,16 @@ class KYCExtractionParser:
     
     def _parse_date_from_text(self, text: str) -> Optional[str]:
         """Try to parse a date from text"""
+        
+        # Pattern: YYYY/MM/DD (NEW LTO FORMAT - e.g., 1977/03/01, 2021/03/01)
+        match = re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', text)
+        if match:
+            year, month, day = match.groups()
+            try:
+                parsed = date(int(year), int(month), int(day))
+                return parsed.strftime("%Y-%m-%d")
+            except ValueError:
+                pass
         
         # Pattern: DD/MM/YYYY or DD-MM-YYYY
         match = re.search(r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})', text)
@@ -450,8 +691,53 @@ class KYCExtractionParser:
         
         return dates
     
-    def _extract_id_number(self, text_upper: str, document_type: str) -> ExtractionResult:
+    def _extract_id_number(self, text_upper: str, document_type: str, text_lines: Optional[List[str]] = None) -> ExtractionResult:
         """Extract ID/document number based on document type"""
+        
+        # Driver's License: Look for "License No." label with value on same or next line
+        if document_type == "DRIVERSLICENSE" and text_lines:
+            license_labels = ["LICENSE NO", "LICENSE NUMBER", "LIC NO", "DL NO", "LISENSYA"]
+            for i, line in enumerate(text_lines):
+                line_clean = line.strip().upper()
+                for label in license_labels:
+                    if label in line_clean:
+                        # NEW LTO FORMAT: License number on SAME line (e.g., "License No.  C23-75-007537")
+                        # Pattern: [A-Z]\d{2}-\d{2}-\d{6,7} (e.g., C23-75-007537)
+                        same_line_match = re.search(r'([A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7})', line_clean)
+                        if same_line_match:
+                            return ExtractionResult(
+                                value=same_line_match.group(1),
+                                confidence=0.95,
+                                source_text=f"DL_SAME_LINE: {label} -> {same_line_match.group(1)}"
+                            )
+                        
+                        # Fallback: License number is on the next line (OLD FORMAT)
+                        if i + 1 < len(text_lines):
+                            id_line = text_lines[i + 1].strip()
+                            # Extract alphanumeric ID
+                            id_match = re.search(r'([A-Z0-9\-]{8,15})', id_line.upper())
+                            if id_match:
+                                return ExtractionResult(
+                                    value=id_match.group(1),
+                                    confidence=0.9,
+                                    source_text=f"DL_LABEL_PATTERN: {label} -> {id_line}"
+                                )
+            
+            # FALLBACK: Scan ALL lines for license number format without label
+            # Philippine DL format: X##-##-###### (e.g., C23-75-007537)
+            for line in text_lines:
+                line_clean = line.strip().upper()
+                # Skip lines that are clearly labels
+                if any(lbl in line_clean for lbl in ["NAME", "ADDRESS", "DATE", "SEX", "BIRTH"]):
+                    continue
+                # Look for Philippine driver's license format
+                dl_match = re.search(r'([A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6,7})', line_clean)
+                if dl_match:
+                    return ExtractionResult(
+                        value=dl_match.group(1).replace(' ', '-'),
+                        confidence=0.80,
+                        source_text=f"DL_FORMAT_SCAN: {dl_match.group(1)}"
+                    )
         
         patterns = {
             "PASSPORT": (self.PATTERNS["passport"], 0.9),
@@ -472,6 +758,14 @@ class KYCExtractionParser:
                     source_text=match.group(0)
                 )
         
+        # Excluded words that should NOT be matched as ID numbers (header/boilerplate text)
+        id_exclusions = [
+            "PROFESSIONAL", "NON-PROFESSIONAL", "N-PROFESSIONAL",
+            "DRIVER", "LICENSE", "LICENCE", "REPUBLIC", "PHILIPPINES",
+            "TRANSPORTATION", "OFFICE", "RESTRICTION", "CONDITIONS",
+            "NATIONALITY", "PILIPINO", "FILIPINO"
+        ]
+        
         # Generic ID number patterns
         generic_patterns = [
             r'NO\.?\s*[:\s]?\s*([A-Z0-9\-]{8,15})',
@@ -482,15 +776,20 @@ class KYCExtractionParser:
         for pattern in generic_patterns:
             match = re.search(pattern, text_upper)
             if match:
+                matched_value = match.group(1) if match.lastindex else match.group(0)
+                # Skip if the matched value is an excluded word (e.g., "N-PROFESSIONAL")
+                if any(excl in matched_value for excl in id_exclusions):
+                    logger.debug(f"   Skipping excluded ID match: {matched_value}")
+                    continue
                 return ExtractionResult(
-                    value=match.group(1) if match.lastindex else match.group(0),
+                    value=matched_value,
                     confidence=0.6,
                     source_text=match.group(0)
                 )
         
         return ExtractionResult()
     
-    def _extract_address(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
+    def _extract_address(self, text_upper: str, text_lines: List[str], document_type: str = "") -> ExtractionResult:
         """Extract address from document"""
         
         # Look for address labels
@@ -502,28 +801,47 @@ class KYCExtractionParser:
                     # Collect address lines
                     address_parts = []
                     
-                    # Check if address is on same line
-                    after_keyword = line_upper.split(keyword)[-1].strip()
-                    after_keyword = re.sub(r'^[:\s/]+', '', after_keyword)
-                    if after_keyword and len(after_keyword) > 5:
-                        address_parts.append(after_keyword)
-                    
-                    # Collect subsequent lines that look like address parts
-                    for j in range(i + 1, min(i + 4, len(text_lines))):
-                        next_line = text_lines[j].strip()
-                        if next_line and len(next_line) > 3:
-                            # Stop if we hit another label
-                            if any(lbl in next_line.upper() for lbl in ["NAME", "DATE", "SEX", "BORN", "NUMBER"]):
-                                break
-                            address_parts.append(next_line)
-                    
-                    if address_parts:
-                        full_address = ', '.join(address_parts)
-                        return ExtractionResult(
-                            value=self._clean_address(full_address),
-                            confidence=0.8,
-                            source_text=full_address[:100]
-                        )
+                    # Driver's License pattern: address is on NEXT line(s), not same line
+                    if document_type == "DRIVERSLICENSE":
+                        # Collect subsequent lines that look like address parts
+                        for j in range(i + 1, min(i + 4, len(text_lines))):
+                            next_line = text_lines[j].strip()
+                            if next_line and len(next_line) > 3:
+                                # Stop if we hit another label
+                                if any(lbl in next_line.upper() for lbl in ["NAME", "DATE", "SEX", "BORN", "NUMBER", "LICENSE", "NATIONALITY"]):
+                                    break
+                                address_parts.append(next_line)
+                        
+                        if address_parts:
+                            full_address = ', '.join(address_parts)
+                            return ExtractionResult(
+                                value=self._clean_address(full_address),
+                                confidence=0.9,
+                                source_text=f"DL_LABEL_PATTERN: {keyword} -> {full_address[:50]}"
+                            )
+                    else:
+                        # Other documents: check if address is on same line
+                        after_keyword = line_upper.split(keyword)[-1].strip()
+                        after_keyword = re.sub(r'^[:\s/]+', '', after_keyword)
+                        if after_keyword and len(after_keyword) > 5:
+                            address_parts.append(after_keyword)
+                        
+                        # Collect subsequent lines that look like address parts
+                        for j in range(i + 1, min(i + 4, len(text_lines))):
+                            next_line = text_lines[j].strip()
+                            if next_line and len(next_line) > 3:
+                                # Stop if we hit another label
+                                if any(lbl in next_line.upper() for lbl in ["NAME", "DATE", "SEX", "BORN", "NUMBER"]):
+                                    break
+                                address_parts.append(next_line)
+                        
+                        if address_parts:
+                            full_address = ', '.join(address_parts)
+                            return ExtractionResult(
+                                value=self._clean_address(full_address),
+                                confidence=0.8,
+                                source_text=full_address[:100]
+                            )
         
         # Look for Philippine location names
         for location in self.PATTERNS["ph_locations"]:
@@ -537,6 +855,39 @@ class KYCExtractionParser:
                             source_text=line
                         )
         
+        # FALLBACK for Driver's License: Scan for lines with Philippine location keywords
+        if document_type == "DRIVERSLICENSE":
+            ph_address_keywords = [
+                "BARANGAY", "BRGY", "PUROK", "ZONE", "SITIO",
+                "STREET", "ST.", "ROAD", "RD.", "AVENUE", "AVE.",
+                "CITY OF", "MUNICIPALITY", "PROVINCE OF",
+                "ZAMBOANGA", "MANILA", "CEBU", "DAVAO", "QUEZON",
+                "CALOOCAN", "MAKATI", "PASIG", "TAGUIG", "PARAÑAQUE",
+                "CAVITE", "LAGUNA", "BULACAN", "PAMPANGA", "RIZAL",
+                "BATANGAS", "PANGASINAN", "ILOILO", "NEGROS",
+            ]
+            # Collect address parts from lines containing location keywords
+            address_parts = []
+            for line in text_lines:
+                line_clean = line.strip()
+                line_upper = line_clean.upper()
+                # Skip very short lines and label lines
+                if len(line_clean) < 8:
+                    continue
+                if any(lbl in line_upper for lbl in ["NAME", "DATE", "SEX", "BIRTH", "LICENSE NO", "NATIONALITY"]):
+                    continue
+                # Check if line has Philippine address keywords
+                if any(kw in line_upper for kw in ph_address_keywords):
+                    address_parts.append(line_clean)
+            
+            if address_parts:
+                full_address = ', '.join(address_parts[:3])  # Max 3 lines
+                return ExtractionResult(
+                    value=self._clean_address(full_address),
+                    confidence=0.65,
+                    source_text=f"DL_LOCATION_SCAN: {full_address[:50]}"
+                )
+        
         return ExtractionResult()
     
     def _clean_address(self, address: str) -> str:
@@ -545,13 +896,39 @@ class KYCExtractionParser:
         address = address.strip(' ,.')
         return address.title()
     
-    def _extract_sex(self, text_upper: str) -> ExtractionResult:
+    def _extract_sex(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
         """Extract sex/gender from document"""
         
-        # Look for explicit sex labels
+        # NEW LTO FORMAT: Columnar layout where "Gender" is in header row
+        # and "M" or "F" is in the data row below
+        for i, line in enumerate(text_lines):
+            line_upper = line.strip().upper()
+            if 'GENDER' in line_upper or 'SEX' in line_upper:
+                # Check if value is on next line (columnar format)
+                if i + 1 < len(text_lines):
+                    next_line = text_lines[i + 1].strip().upper()
+                    # Look for standalone M or F in the data row
+                    # Use word boundary to avoid matching M in other words
+                    m_match = re.search(r'\bM\b', next_line)
+                    f_match = re.search(r'\bF\b', next_line)
+                    if m_match:
+                        return ExtractionResult(
+                            value='MALE',
+                            confidence=0.9,
+                            source_text=f"COLUMNAR: {line_upper} -> M"
+                        )
+                    elif f_match:
+                        return ExtractionResult(
+                            value='FEMALE',
+                            confidence=0.9,
+                            source_text=f"COLUMNAR: {line_upper} -> F"
+                        )
+        
+        # Look for explicit sex labels (same-line patterns)
         patterns = [
             r'SEX[:\s]*([MF]|MALE|FEMALE)',
             r'KASARIAN[:\s]*([MF]|LALAKI|BABAE)',
+            r'GENDER[:\s]+([MF])\b',
             r'GENDER[:\s]*([MF]|MALE|FEMALE)',
             r'\b(MALE|FEMALE)\b',
         ]
@@ -574,10 +951,26 @@ class KYCExtractionParser:
         
         return ExtractionResult()
     
-    def _extract_nationality(self, text_upper: str) -> ExtractionResult:
+    def _extract_nationality(self, text_upper: str, text_lines: List[str]) -> ExtractionResult:
         """Extract nationality from document"""
         
-        # Common nationality patterns
+        # NEW LTO FORMAT: Columnar layout where "Nationality" is in header row
+        # and "Filipino" is in the data row below
+        for i, line in enumerate(text_lines):
+            line_upper = line.strip().upper()
+            if 'NATIONALITY' in line_upper or 'NASYONALIDAD' in line_upper:
+                # Check if value is on next line (columnar format)
+                if i + 1 < len(text_lines):
+                    next_line = text_lines[i + 1].strip().upper()
+                    if 'FILIPINO' in next_line or 'FILIPINA' in next_line or 'PILIPINO' in next_line:
+                        value = 'FILIPINO' if 'FILIPINO' in next_line or 'PILIPINO' in next_line else 'FILIPINA'
+                        return ExtractionResult(
+                            value=value,
+                            confidence=0.95,
+                            source_text=f"COLUMNAR: {line_upper} -> {value}"
+                        )
+        
+        # Common nationality patterns (same-line format)
         patterns = [
             r'NATIONALITY[:\s]*(FILIPINO|FILIPINA|PHILIPPINE|PH)',
             r'NASYONALIDAD[:\s]*(PILIPINO|PILIPINA)',
@@ -616,25 +1009,186 @@ class KYCExtractionParser:
             
             for label in expiry_labels:
                 if label in line_upper:
+                    # NEW LTO FORMAT: Try to find date on SAME line first (e.g., "Expiration Date  2021/03/01")
+                    same_line_date = self._parse_date_from_text(line_upper)
+                    if same_line_date:
+                        return ExtractionResult(
+                            value=same_line_date,
+                            confidence=0.95,
+                            source_text=f"DL_SAME_LINE: {label} -> {same_line_date}"
+                        )
+                    
+                    # OLD FORMAT: Driver's License pattern - date is on the NEXT line
+                    if i + 1 < len(text_lines):
+                        next_line = text_lines[i + 1].strip()
+                        next_date = self._parse_date_from_text(next_line.upper())
+                        if next_date:
+                            return ExtractionResult(
+                                value=next_date,
+                                confidence=0.9,
+                                source_text=f"DL_LABEL_PATTERN: {label} -> {next_line}"
+                            )
+                    
+                    # Fallback: Try to find date on next line without label check
                     date_result = self._parse_date_from_text(line_upper)
                     if date_result:
                         return ExtractionResult(
                             value=date_result,
-                            confidence=0.85,
+                            confidence=0.8,
                             source_text=line
                         )
-                    
-                    # Check next line
-                    if i + 1 < len(text_lines):
-                        next_date = self._parse_date_from_text(text_lines[i + 1].upper())
-                        if next_date:
-                            return ExtractionResult(
-                                value=next_date,
-                                confidence=0.8,
-                                source_text=text_lines[i + 1]
-                            )
         
         return ExtractionResult()
+
+    def parse_clearance_text(self, ocr_text: str, clearance_type: str = "NBI") -> Dict[str, Any]:
+        """
+        Parse NBI or Police clearance OCR text to extract key fields.
+        
+        Args:
+            ocr_text: Raw OCR text from clearance document
+            clearance_type: Type of clearance (NBI or POLICE)
+            
+        Returns:
+            Dictionary with extracted clearance fields and confidence scores
+        """
+        logger.info(f"🔍 Parsing {clearance_type} clearance OCR text ({len(ocr_text)} chars)")
+        
+        result = {
+            "clearance_number": "",
+            "clearance_number_confidence": 0.0,
+            "holder_name": "",
+            "holder_name_confidence": 0.0,
+            "issue_date": "",
+            "issue_date_confidence": 0.0,
+            "validity_date": "",
+            "validity_date_confidence": 0.0,
+            "overall_confidence": 0.0
+        }
+        
+        if not ocr_text or len(ocr_text) < 10:
+            return result
+        
+        text_upper = ocr_text.upper()
+        lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
+        
+        # =====================================================================
+        # NBI CLEARANCE PATTERNS
+        # =====================================================================
+        if clearance_type == "NBI":
+            # NBI Clearance Number pattern: "NBI CLEARANCE NO: XXXX-XXXXXXXX" or similar
+            nbi_number_patterns = [
+                r'(?:NBI\s*)?CLEARANCE\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
+                r'NO[:\.\s]*(\d{4}[\-\s]?\d{8})',
+                r'(?:NBI|CLEARANCE)\s*[:\.\s]*([A-Z]?\d{4,}[\-\s]?\d{0,8})',
+            ]
+            
+            for pattern in nbi_number_patterns:
+                match = re.search(pattern, text_upper, re.IGNORECASE)
+                if match:
+                    result["clearance_number"] = match.group(1).strip()
+                    result["clearance_number_confidence"] = 0.85
+                    break
+            
+            # Name pattern: "NAME: JUAN DELA CRUZ" or "DELACRUZ, JUAN SANTOS"
+            name_patterns = [
+                r'NAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
+                r'(?:ISSUED\s+TO|HOLDER)[:\.\s]+([A-Z][A-Z\s,\.]+)',
+            ]
+            
+            for pattern in name_patterns:
+                match = re.search(pattern, text_upper)
+                if match:
+                    name = match.group(1).strip()
+                    # Clean up name (remove trailing dates or extra info)
+                    name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
+                    name = re.sub(r'\s+', ' ', name).strip()
+                    if len(name) > 3:
+                        result["holder_name"] = name.title()
+                        result["holder_name_confidence"] = 0.8
+                        break
+        
+        # =====================================================================
+        # POLICE CLEARANCE PATTERNS
+        # =====================================================================
+        elif clearance_type == "POLICE":
+            # Police Clearance Number pattern
+            police_number_patterns = [
+                r'(?:CONTROL|CLEARANCE|REFERENCE)\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
+                r'NO[:\.\s]*(\d{4,}[\-\s]?\d{0,8})',
+            ]
+            
+            for pattern in police_number_patterns:
+                match = re.search(pattern, text_upper)
+                if match:
+                    result["clearance_number"] = match.group(1).strip()
+                    result["clearance_number_confidence"] = 0.8
+                    break
+            
+            # Name pattern for police clearance
+            name_patterns = [
+                r'NAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
+                r'(?:CERTIFY|HEREBY|THIS\s+IS\s+TO)[^A-Z]*([A-Z][A-Z\s,\.]{5,30})',
+            ]
+            
+            for pattern in name_patterns:
+                match = re.search(pattern, text_upper)
+                if match:
+                    name = match.group(1).strip()
+                    name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
+                    name = re.sub(r'\s+', ' ', name).strip()
+                    if len(name) > 3:
+                        result["holder_name"] = name.title()
+                        result["holder_name_confidence"] = 0.75
+                        break
+        
+        # =====================================================================
+        # DATE EXTRACTION (Common for both types)
+        # =====================================================================
+        # Issue date patterns
+        issue_patterns = [
+            r'(?:DATE\s+OF\s+ISSUE|ISSUED\s+ON|ISSUE\s+DATE|DATE\s+ISSUED)[:\.\s]*([A-Z0-9\s,\-/]+)',
+            r'ISSUED[:\.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
+        ]
+        
+        for pattern in issue_patterns:
+            match = re.search(pattern, text_upper)
+            if match:
+                date_str = match.group(1).strip()[:30]  # Limit length
+                parsed_date = self._parse_date_from_text(date_str)
+                if parsed_date:
+                    result["issue_date"] = parsed_date
+                    result["issue_date_confidence"] = 0.8
+                    break
+        
+        # Validity/expiry date patterns
+        validity_patterns = [
+            r'(?:VALID\s+UNTIL|EXPIRY|EXPIRATION|VALID\s+THRU)[:\.\s]*([A-Z0-9\s,\-/]+)',
+            r'(?:VALID|EXPIRES)[:\.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
+        ]
+        
+        for pattern in validity_patterns:
+            match = re.search(pattern, text_upper)
+            if match:
+                date_str = match.group(1).strip()[:30]
+                parsed_date = self._parse_date_from_text(date_str)
+                if parsed_date:
+                    result["validity_date"] = parsed_date
+                    result["validity_date_confidence"] = 0.8
+                    break
+        
+        # Calculate overall confidence
+        confidences = [
+            result["clearance_number_confidence"],
+            result["holder_name_confidence"],
+            result["issue_date_confidence"],
+            result["validity_date_confidence"]
+        ]
+        non_zero = [c for c in confidences if c > 0]
+        result["overall_confidence"] = sum(non_zero) / len(non_zero) if non_zero else 0.0
+        
+        logger.info(f"   Clearance extraction: number={result['clearance_number']}, name={result['holder_name']}, conf={result['overall_confidence']:.2f}")
+        
+        return result
 
 
 # Singleton instance

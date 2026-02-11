@@ -26,5 +26,6 @@ const apiUrl =
 export const API_BASE = apiUrl; // Base URL without /api
 export const API_BASE_URL = `${apiUrl}/api`; // Base URL with /api
 
-const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8001";
+// WebSocket URL - production uses wss, dev uses ws
+const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isProduction ? "wss://api.iayos.online" : "ws://localhost:8000");
 export const WS_BASE_URL = wsUrl.replace(/^wss?:\/\//, ""); // Strip protocol for WebSocket

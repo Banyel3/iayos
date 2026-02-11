@@ -113,16 +113,17 @@ def check_rate_limit(category: str, identifier: str) -> tuple[bool, int, int]:
             ttl = cache.ttl(key) if hasattr(cache, 'ttl') else window
             return False, current, ttl if ttl > 0 else window
         
-        # Increment counter
-        new_count = cache.get_or_set(key, 0, window)
-        if new_count == 0:
+        # Increment counter with proper TTL handling
+        if current == 0 or current is None:
+            # First request in window - set counter to 1 with TTL
             cache.set(key, 1, window)
             new_count = 1
         else:
+            # Subsequent requests - increment existing counter
             try:
                 new_count = cache.incr(key)
             except ValueError:
-                # Key expired between get and incr
+                # Key expired between get and incr - start new window
                 cache.set(key, 1, window)
                 new_count = 1
         

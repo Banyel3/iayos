@@ -3,11 +3,15 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
-from .schemas import CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
+from .schemas import (
+    CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, 
+    JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema,
+    LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema
+)
 from datetime import datetime
 from django.utils import timezone
 from decimal import Decimal
@@ -515,24 +519,54 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     status=400
                 )
         
-        # Calculate 50% downpayment (escrow)
-        downpayment = Decimal(str(data.budget)) * Decimal('0.5')
-        remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
+        # Determine payment model
+        payment_model = (data.payment_model or "PROJECT").upper()
         
-        # Calculate platform fee (10% of TOTAL BUDGET - this is our revenue)
-        platform_fee = Decimal(str(data.budget)) * Decimal('0.10')  # 10% platform fee on total budget
-        
-        # Client pays: downpayment + platform fee upfront, then remaining payment at completion
-        total_to_charge = downpayment + platform_fee  # Total amount to charge client for first payment
-        
-        print(f"💰 Payment breakdown:")
-        print(f"   Total Budget: ₱{data.budget}")
-        print(f"   Downpayment (50%): ₱{downpayment}")
-        print(f"   Platform Fee (10% of budget): ₱{platform_fee}")
-        print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
-        print(f"   Remaining (50%): ₱{remaining_payment}")
-        print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
-        print(f"   Worker Receives: ₱{data.budget} (full budget)")
+        # Calculate payment based on payment model
+        if payment_model == "DAILY":
+            # DAILY payment model: 100% escrow upfront + 10% platform fee
+            if not data.daily_rate or not data.duration_days:
+                return Response(
+                    {"error": "daily_rate and duration_days are required for DAILY payment model"},
+                    status=400
+                )
+            
+            total_budget = Decimal(str(data.daily_rate)) * Decimal(str(data.duration_days))
+            downpayment = total_budget  # 100% escrow for DAILY jobs
+            remaining_payment = Decimal('0.00')  # No remaining payment - paid daily as work is completed
+            platform_fee = total_budget * Decimal('0.10')  # 10% platform fee
+            total_to_charge = downpayment + platform_fee
+            
+            print(f"💰 DAILY Payment breakdown:")
+            print(f"   Daily Rate: ₱{data.daily_rate}/day")
+            print(f"   Duration: {data.duration_days} days")
+            print(f"   Total Budget: ₱{total_budget}")
+            print(f"   Escrow (100%): ₱{downpayment}")
+            print(f"   Platform Fee (10%): ₱{platform_fee}")
+            print(f"   Total to Charge: ₱{total_to_charge}")
+            print(f"   Worker Receives: ₱{total_budget} (released daily as attendance confirmed)")
+        else:
+            # PROJECT payment model: 50% escrow + 5% platform fee
+            if not data.budget:
+                return Response(
+                    {"error": "budget is required for PROJECT payment model"},
+                    status=400
+                )
+            
+            total_budget = Decimal(str(data.budget))
+            downpayment = total_budget * Decimal('0.5')  # 50% escrow
+            remaining_payment = total_budget * Decimal('0.5')  # 50% at completion
+            platform_fee = total_budget * Decimal('0.05')  # 5% platform fee
+            total_to_charge = downpayment + platform_fee
+            
+            print(f"💰 PROJECT Payment breakdown:")
+            print(f"   Total Budget: ₱{total_budget}")
+            print(f"   Downpayment (50%): ₱{downpayment}")
+            print(f"   Platform Fee (5%): ₱{platform_fee}")
+            print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
+            print(f"   Remaining (50%): ₱{remaining_payment}")
+            print(f"   Total Client Pays: ₱{total_budget + platform_fee}")
+            print(f"   Worker Receives: ₱{total_budget} (full budget)")
         
         # Get or create client's wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -589,30 +623,81 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     transaction_status = Transaction.TransactionStatus.COMPLETED
                     print(f"💸 Deducted ₱{total_to_charge} from wallet (₱{downpayment} escrow + ₱{platform_fee} fee). New balance: ₱{wallet.balance}")
                 
+                # Determine if this is a team job (agency with skill slots)
+                is_team_job = bool(data.agency_id and data.skill_slots and len(data.skill_slots) > 0)
+                
+                # Support frontend field aliases: urgency_level → urgency
+                urgency_value = (data.urgency_level or data.urgency or "MEDIUM").upper()
+                
                 # Create job posting
                 job_posting = JobPosting.objects.create(
                     clientID=client_profile,
                     title=data.title,
                     description=data.description,
                     categoryID=category,
-                    budget=data.budget,
+                    budget=float(total_budget),
                     escrowAmount=downpayment,
                     escrowPaid=escrow_paid,
                     escrowPaidAt=escrow_paid_at,
                     remainingPayment=remaining_payment,
                     location=data.location,
                     expectedDuration=data.expected_duration,
-                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    urgency=urgency_value,
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
                     inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
                     assignedWorkerID=worker_profile if data.worker_id else None,
                     assignedAgencyFK=assigned_agency if data.agency_id else None,
-                    status=JobPosting.JobStatus.ACTIVE
+                    status=JobPosting.JobStatus.ACTIVE,
+                    is_team_job=is_team_job,
+                    payment_model=payment_model,
+                    daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
+                    duration_days=data.duration_days if payment_model == "DAILY" else None
                 )
                 
-                print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
+                print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'}, is_team_job: {is_team_job})")
+                
+                # If DAILY payment model, set up daily payment schedule and attendance tracking
+                if payment_model == "DAILY":
+                    from jobs.daily_payment_service import DailyPaymentService
+                    num_workers = 1  # Default to 1 worker for single hire
+                    if is_team_job and data.skill_slots:
+                        num_workers = sum(slot.workers_needed for slot in data.skill_slots)
+                    
+                    DailyPaymentService.create_daily_job(
+                        job=job_posting,
+                        daily_rate=Decimal(str(data.daily_rate)),
+                        duration_days=data.duration_days,
+                        num_workers=num_workers
+                    )
+                    print(f"✅ Daily payment schedule created: {num_workers} worker(s) × ₱{data.daily_rate}/day × {data.duration_days} days")
+                
+                # Create skill slots for team jobs
+                if is_team_job and data.skill_slots:
+                    total_workers = sum(slot.workers_needed for slot in data.skill_slots)
+                    num_slots = len(data.skill_slots)
+                    budget_per_slot = total_budget / Decimal(str(num_slots)) if num_slots > 0 else Decimal('0')
+                    
+                    print(f"👷 Creating {num_slots} skill slots for {total_workers} total workers")
+                    
+                    for slot_data in data.skill_slots:
+                        try:
+                            slot_specialization = Specializations.objects.get(
+                                specializationID=slot_data.specialization_id
+                            )
+                            JobSkillSlot.objects.create(
+                                jobID=job_posting,
+                                specializationID=slot_specialization,
+                                workers_needed=slot_data.workers_needed,
+                                budget_allocated=budget_per_slot,
+                                skill_level_required=slot_data.skill_level_required.upper() if slot_data.skill_level_required else 'ENTRY',
+                                notes=slot_data.notes or '',
+                                status='OPEN'
+                            )
+                            print(f"   ✅ Created slot: {slot_specialization.specializationName} x{slot_data.workers_needed}")
+                        except Specializations.DoesNotExist:
+                            print(f"   ⚠️ Specialization {slot_data.specialization_id} not found, skipping slot")
                 
                 # If worker_id provided (direct hire), auto-create application and accept it
                 if data.worker_id:
@@ -620,7 +705,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         jobID=job_posting,
                         workerID=worker_profile,
                         proposalMessage=f"Direct hire by client",
-                        proposedBudget=data.budget,
+                        proposedBudget=float(total_budget),
                         estimatedDuration=data.expected_duration or "As discussed",
                         budgetOption="ACCEPT",
                         status=JobApplication.ApplicationStatus.ACCEPTED
@@ -735,28 +820,47 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 # Determine job type: INVITE if worker/agency direct hire, otherwise LISTING
                 job_type = JobPosting.JobType.INVITE if (data.worker_id or data.agency_id) else JobPosting.JobType.LISTING
                 
+                # Support frontend field aliases
+                urgency_value = (data.urgency_level or data.urgency or "MEDIUM").upper()
+                
                 # Create job posting first (with escrowPaid=False)
                 job_posting = JobPosting.objects.create(
                     clientID=client_profile,
                     title=data.title,
                     description=data.description,
                     categoryID=category,
-                    budget=data.budget,
+                    budget=float(total_budget),
                     escrowAmount=downpayment,
                     escrowPaid=False,
                     remainingPayment=remaining_payment,
                     location=data.location,
                     expectedDuration=data.expected_duration,
-                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    urgency=urgency_value,
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
                     inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
                     assignedAgencyFK=assigned_agency if data.agency_id else None,
-                    status=JobPosting.JobStatus.ACTIVE
+                    status=JobPosting.JobStatus.ACTIVE,
+                    payment_model=payment_model,
+                    daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
+                    duration_days=data.duration_days if payment_model == "DAILY" else None
                 )
                 
                 print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
+                
+                # If DAILY payment model, set up daily payment schedule and attendance tracking
+                if payment_model == "DAILY":
+                    from jobs.daily_payment_service import DailyPaymentService
+                    num_workers = 1  # Default to 1 worker for single hire (agencies not supported via GCASH yet)
+                    
+                    DailyPaymentService.create_daily_job(
+                        job=job_posting,
+                        daily_rate=Decimal(str(data.daily_rate)),
+                        duration_days=data.duration_days,
+                        num_workers=num_workers
+                    )
+                    print(f"✅ Daily payment schedule created: {num_workers} worker(s) × ₱{data.daily_rate}/day × {data.duration_days} days")
                 
                 # If worker_id provided, auto-create application (but don't accept until payment)
                 if data.worker_id:
@@ -765,7 +869,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         jobID=job_posting,
                         workerID=worker_profile,
                         proposalMessage=f"Direct hire by client (pending payment)",
-                        proposedBudget=data.budget,
+                        proposedBudget=float(total_budget),
                         estimatedDuration=data.expected_duration or "As discussed",
                         budgetOption="ACCEPT",
                         status=JobApplication.ApplicationStatus.PENDING
@@ -1431,6 +1535,97 @@ def get_my_applications(request):
         )
 
 
+# NOTE: This route MUST be defined BEFORE /{job_id} to avoid route matching conflict!
+# Otherwise "my-backjobs" gets parsed as a job_id integer and fails.
+@router.get("/my-backjobs", auth=dual_auth)
+def get_my_backjobs(request, status: Optional[str] = None):
+    """
+    Get backjobs assigned to the current worker or agency.
+    Only shows approved backjobs (UNDER_REVIEW status means admin approved and worker needs to action).
+    """
+    try:
+        print(f"📋 Fetching backjobs for user {request.auth.email}")
+        
+        # Determine if user is worker or agency
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        agency = Agency.objects.filter(accountFK=request.auth).first()
+        
+        if not profile and not agency:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Build query for disputes where the related job was assigned to this worker/agency
+        disputes_query = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID__profileID__accountFK',
+            'jobID__assignedWorkerID__profileID',
+            'jobID__assignedAgencyFK',
+            'jobID__categoryID'
+        ).prefetch_related('evidence')
+        
+        # Filter by jobs assigned to this user
+        if agency:
+            disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
+        elif profile and profile.profileType == "WORKER":
+            worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+            if worker_profile:
+                disputes_query = disputes_query.filter(jobID__assignedWorkerID=worker_profile)
+            else:
+                return {"backjobs": [], "total": 0}
+        else:
+            return {"backjobs": [], "total": 0}
+        
+        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
+        # or show all if status filter provided
+        if status:
+            disputes_query = disputes_query.filter(status=status)
+        else:
+            # By default show UNDER_REVIEW (approved for action) and RESOLVED
+            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
+        
+        disputes = disputes_query.order_by('-openedDate')
+        
+        backjobs_data = []
+        for dispute in disputes:
+            job = dispute.jobID
+            client = job.clientID.profileID if job.clientID else None
+            
+            evidence_urls = [e.imageURL for e in dispute.evidence.all()]
+            
+            backjobs_data.append({
+                "dispute_id": dispute.disputeID,
+                "job_id": job.jobID,
+                "job_title": job.title,
+                "job_description": job.description,
+                "job_budget": float(job.budget),
+                "job_location": job.location,
+                "job_category": job.categoryID.specializationName if job.categoryID else None,
+                "reason": dispute.reason,
+                "description": dispute.description,
+                "status": dispute.status,
+                "priority": dispute.priority,
+                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
+                "resolution": dispute.resolution,
+                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "evidence_images": evidence_urls,
+                "client": {
+                    "id": client.profileID if client else None,
+                    "name": f"{client.firstName} {client.lastName}" if client else "Unknown",
+                    "avatar": client.profileImg if client else None
+                } if client else None
+            })
+        
+        return {
+            "backjobs": backjobs_data,
+            "total": len(backjobs_data)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching backjobs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to fetch backjobs"}, status=500)
+
+
 @router.get("/{job_id}", auth=cookie_auth)
 def get_job_posting(request, job_id: int):
     """
@@ -1824,6 +2019,42 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=403
             )
         
+        # CRITICAL: Prevent workers from applying if they have an active job
+        # Check both regular jobs (assignedWorkerID) and team jobs (JobWorkerAssignment)
+        from accounts.models import JobWorkerAssignment
+        
+        # Check for active regular job
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS
+        ).first()
+        
+        if active_regular_job:
+            return Response(
+                {
+                    "error": f"You already have an active job: '{active_regular_job.title}'. Complete it before applying to new jobs.",
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title
+                },
+                status=400
+            )
+        
+        # Check for active team job assignment
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE'
+        ).select_related('jobID').first()
+        
+        if active_team_assignment:
+            return Response(
+                {
+                    "error": f"You are currently assigned to a team job: '{active_team_assignment.jobID.title}'. Complete it before applying to new jobs.",
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title
+                },
+                status=400
+            )
+        
         # Get the job posting
         try:
             job = JobPosting.objects.get(jobID=job_id)
@@ -1981,6 +2212,46 @@ def accept_application(request, job_id: int, application_id: int):
                 status=400
             )
         
+        # CRITICAL: Prevent accepting application if worker already has an active job
+        # This prevents race condition where worker applies to multiple jobs
+        from accounts.models import JobWorkerAssignment
+        
+        worker = application.workerID
+        
+        # Check for active regular job
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker,
+            status=JobPosting.JobStatus.IN_PROGRESS
+        ).first()
+        
+        if active_regular_job:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_regular_job.jobID,
+                    "worker_active_job_title": active_regular_job.title
+                },
+                status=400
+            )
+        
+        # Check for active team job assignment
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker,
+            assignment_status='ACTIVE'
+        ).select_related('jobID').first()
+        
+        if active_team_assignment:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_team_assignment.jobID.jobID,
+                    "worker_active_job_title": active_team_assignment.jobID.title
+                },
+                status=400
+            )
+        
         # Use database transaction for atomicity
         with db_transaction.atomic():
             # Update application status
@@ -2105,6 +2376,12 @@ def accept_application(request, job_id: int, application_id: int):
                 'status': Conversation.ConversationStatus.ACTIVE
             }
         )
+        
+        # If conversation already existed, ensure worker FK is up to date
+        if not created and conversation.worker != application.workerID.profileID:
+            conversation.worker = application.workerID.profileID
+            conversation.save(update_fields=['worker'])
+            print(f"✅ Updated conversation {conversation.conversationID} worker to {application.workerID.profileID.profileID}")
         
         if created:
             print(f"✅ Created conversation {conversation.conversationID} for job {job_id}")
@@ -2643,6 +2920,165 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
         )
 
 
+@router.post("/{job_id}/upload-completion-photo", auth=dual_auth)
+def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...)):  # type: ignore[misc]
+    """
+    Upload completion photo for a job (Worker or Agency action).
+    
+    This endpoint allows workers and agencies to upload photos documenting 
+    completed work before or after marking the job as complete.
+    
+    Path structure: users/user_{userID}/job_{jobID}/completion_filename.ext
+    
+    Args:
+        job_id: ID of the job posting
+        image: Image file (JPEG, PNG, JPG, WEBP, max 5MB)
+    
+    Returns:
+        success: boolean
+        message: string
+        image_url: string (public URL)
+    """
+    try:
+        from iayos_project.utils import upload_file
+        
+        # Validate job exists
+        try:
+            job = JobPosting.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedEmployeeID__agency',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify authorization - worker or agency owner
+        is_authorized = False
+        uploader_name = "Unknown"
+        
+        # Check if this is an agency job (check both legacy single-employee FK and agency FK)
+        if job.assignedEmployeeID is not None:
+            # Agency job (legacy single employee) - verify requesting user is the agency owner
+            agency_owner_account = job.assignedEmployeeID.agency
+            if agency_owner_account.accountID == request.auth.accountID:
+                is_authorized = True
+                uploader_name = f"Agency ({job.assignedEmployeeID.name})"
+        elif job.assignedAgencyFK is not None:
+            # Agency job (slot-based multi-employee) - assignedEmployeeID may be NULL
+            if job.assignedAgencyFK.accountFK.accountID == request.auth.accountID:
+                is_authorized = True
+                uploader_name = f"Agency ({job.assignedAgencyFK.businessName})"
+        
+        # Check if user is the assigned worker
+        if not is_authorized and job.assignedWorkerID:
+            profile_type = getattr(request.auth, 'profile_type', 'WORKER')
+            try:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first() or Profile.objects.filter(
+                    accountFK=request.auth, 
+                    profileType='WORKER'
+                ).first()
+                
+                if profile:
+                    try:
+                        worker_profile = WorkerProfile.objects.get(profileID=profile)
+                        if job.assignedWorkerID.profileID.profileID == worker_profile.profileID.profileID:
+                            is_authorized = True
+                            uploader_name = f"{profile.firstName} {profile.lastName}"
+                    except WorkerProfile.DoesNotExist:
+                        pass
+            except Exception:
+                pass
+        
+        if not is_authorized:
+            return Response(
+                {"error": "You are not authorized to upload photos for this job"},
+                status=403
+            )
+        
+        # Verify job is in appropriate state
+        if job.status not in ["IN_PROGRESS", "ACTIVE"]:
+            return Response(
+                {"error": f"Cannot upload photos. Job status must be IN_PROGRESS or ACTIVE. Current: {job.status}"},
+                status=400
+            )
+        
+        # Validate file
+        allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+        max_size = 5 * 1024 * 1024  # 5 MB
+        
+        if image.content_type not in allowed_mime_types:
+            return Response(
+                {"error": "Invalid file type. Allowed: JPEG, PNG, JPG, WEBP"},
+                status=400
+            )
+        
+        if image.size > max_size:
+            return Response(
+                {"error": "File too large. Maximum size is 5MB"},
+                status=400
+            )
+        
+        # Generate filename
+        import os
+        from datetime import datetime
+        file_extension = os.path.splitext(image.name)[1] or '.jpg'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        completion_filename = f"completion_{timestamp}{file_extension}"
+        
+        print(f"📸 Uploading completion photo: {image.name} ({image.size} bytes)")
+        print(f"   Uploader: {uploader_name}, Job ID: {job_id}")
+        
+        # Upload to Supabase - use job client's user ID for path consistency
+        client_user_id = job.clientID.profileID.accountFK.accountID
+        image_url = upload_file(
+            file=image,
+            bucket="users",
+            path=f"user_{client_user_id}/job_{job_id}/completion",
+            public=True,
+            custom_name=completion_filename
+        )
+        
+        if not image_url:
+            print(f"❌ upload_file returned None")
+            return Response(
+                {"error": "Failed to upload image to storage"},
+                status=500
+            )
+        
+        # Create JobPhoto record with completion flag
+        job_photo = JobPhoto.objects.create(
+            jobID=job,
+            photoURL=image_url,
+            fileName=completion_filename
+        )
+        
+        print(f"✅ Completion photo uploaded successfully for job {job_id} by {uploader_name}")
+        print(f"   Image URL: {image_url}")
+        
+        return {
+            "success": True,
+            "message": "Completion photo uploaded successfully",
+            "image_url": image_url,
+            "photo_id": job_photo.photoID
+        }
+        
+    except Exception as e:
+        print(f"❌ Exception in completion photo upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to upload completion photo: {str(e)}"},
+            status=500
+        )
+
+
 @router.post("/{job_id}/confirm-work-started", auth=dual_auth)
 def client_confirm_work_started(request, job_id: int):
     """
@@ -2770,7 +3206,8 @@ def worker_mark_job_complete(request, job_id: int):
             job = JobPosting.objects.select_related(
                 'clientID__profileID__accountFK',
                 'assignedWorkerID__profileID__accountFK',
-                'assignedEmployeeID__agency'
+                'assignedEmployeeID__agency',
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -2778,22 +3215,41 @@ def worker_mark_job_complete(request, job_id: int):
                 status=404
             )
         
-        # Check if this is an agency job (has assignedEmployeeID)
-        is_agency_job = job.assignedEmployeeID is not None
+        # Check if this is an agency job (check both legacy single-employee FK and agency FK)
+        is_agency_job = job.assignedEmployeeID is not None or job.assignedAgencyFK is not None
         worker_name = None
         is_authorized = False
         
         if is_agency_job:
             # Agency job - verify the requesting user is the agency owner
-            # Note: AgencyEmployee.agency is a FK to Accounts (the agency owner), not to Agency model
-            print(f"📋 This is an agency job. Assigned employee: {job.assignedEmployeeID.name}")
-            agency_owner_account = job.assignedEmployeeID.agency  # This IS the Accounts object
+            agency_owner_account = None
+            
+            if job.assignedEmployeeID is not None:
+                # Legacy path: agency detected via assignedEmployeeID
+                agency_owner_account = job.assignedEmployeeID.agency  # This IS the Accounts object
+                worker_name = job.assignedEmployeeID.name
+            elif job.assignedAgencyFK is not None:
+                # Slot-based assignment: assignedEmployeeID may be NULL, use assignedAgencyFK
+                agency_owner_account = job.assignedAgencyFK.accountFK
+                # Get primary contact name from JobEmployeeAssignment
+                from accounts.models import JobEmployeeAssignment
+                primary_assignment = JobEmployeeAssignment.objects.filter(
+                    job=job, isPrimaryContact=True
+                ).select_related('employee').first()
+                worker_name = primary_assignment.employee.name if primary_assignment else job.assignedAgencyFK.businessName
+            
+            print(f"📋 This is an agency job. Worker/Employee: {worker_name}")
+            
+            if agency_owner_account is None:
+                return Response(
+                    {"error": "Agency information not found for this job"},
+                    status=400
+                )
             
             print(f"📋 Agency owner account ID: {agency_owner_account.accountID}, Request auth ID: {request.auth.accountID}")
             
             if agency_owner_account.accountID == request.auth.accountID:
                 is_authorized = True
-                worker_name = job.assignedEmployeeID.name
                 print(f"✅ Agency owner {request.auth.email} authorized to mark complete")
             else:
                 return Response(
@@ -2851,11 +3307,25 @@ def worker_mark_job_complete(request, job_id: int):
             )
         
         # CRITICAL: Check if client has confirmed work started
-        if not job.clientConfirmedWorkStarted:
-            return Response(
-                {"error": "Client must confirm that work has started before you can mark it as complete"},
-                status=400
-            )
+        if is_agency_job:
+            # Agency jobs use per-employee arrival confirmation (JobEmployeeAssignment.clientConfirmedArrival)
+            # set by the confirm-arrival-project endpoint, NOT Job.clientConfirmedWorkStarted
+            from accounts.models import JobEmployeeAssignment
+            has_confirmed_arrival = JobEmployeeAssignment.objects.filter(
+                job=job, clientConfirmedArrival=True
+            ).exists()
+            if not has_confirmed_arrival:
+                return Response(
+                    {"error": "Client must confirm employee arrival before you can mark this job as complete. Ask the client to confirm arrival on their app."},
+                    status=400
+                )
+        else:
+            # Regular worker jobs use Job.clientConfirmedWorkStarted
+            if not job.clientConfirmedWorkStarted:
+                return Response(
+                    {"error": "Client must confirm that work has started before you can mark it as complete"},
+                    status=400
+                )
         
         # Check if already marked complete by worker
         if job.workerMarkedComplete:
@@ -2968,6 +3438,46 @@ def client_approve_job_completion(
                 {"error": "Cash proof image is required for CASH payment method"},
                 status=400
             )
+        
+        # ==========================================================================
+        # CRITICAL: Pre-validate wallet balance BEFORE marking job as complete
+        # This prevents the bug where job is marked COMPLETED but payment fails
+        # ==========================================================================
+        if payment_method_upper == 'WALLET':
+            from accounts.models import Wallet
+            
+            # Get client profile first to check wallet
+            profile_type_check = getattr(request.auth, 'profile_type', 'CLIENT')
+            profile_check = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type_check
+            ).first() or Profile.objects.filter(accountFK=request.auth, profileType='CLIENT').first()
+            
+            if profile_check:
+                # Get or create wallet for client
+                wallet_check, _ = Wallet.objects.get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': 0}
+                )
+                
+                # Get the job to check remaining payment
+                try:
+                    job_check = JobPosting.objects.get(jobID=job_id)
+                    remaining_amount = job_check.remainingPayment
+                    
+                    # Check if client has sufficient balance BEFORE proceeding
+                    if wallet_check.balance < remaining_amount:
+                        print(f"❌ Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
+                        return Response({
+                            "error": "Insufficient wallet balance",
+                            "required": float(remaining_amount),
+                            "available": float(wallet_check.balance),
+                            "message": f"You need ₱{remaining_amount:,.2f} but only have ₱{wallet_check.balance:,.2f}. Please deposit more funds or choose CASH payment."
+                        }, status=400)
+                    
+                    print(f"✅ Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
+                except JobPosting.DoesNotExist:
+                    pass  # Will be caught later in the flow
         
         # Get client's profile (support dual profiles via profile_type in JWT)
         profile_type = getattr(request.auth, 'profile_type', 'CLIENT')
@@ -3103,6 +3613,12 @@ def client_approve_job_completion(
                 conversation.status = Conversation.ConversationStatus.COMPLETED
                 conversation.save()
                 print(f"✅ Conversation {conversation.conversationID} closed for completed job {job_id}")
+                
+                # Auto-archive if both parties have reviewed
+                from profiles.conversation_service import archive_conversation, should_auto_archive
+                if should_auto_archive(conversation):
+                    archive_result = archive_conversation(conversation)
+                    print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
         except Exception as e:
             print(f"⚠️ Failed to close conversation: {str(e)}")
             # Don't fail job completion if conversation closing fails
@@ -3537,7 +4053,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             job = JobPosting.objects.select_related(
                 'clientID__profileID',
                 'assignedWorkerID__profileID',
-                'assignedEmployeeID__agency'
+                'assignedEmployeeID__agency',
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -3552,14 +4069,17 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Check if this is an agency job
-        is_agency_job = job.assignedEmployeeID is not None
+        # Check if this is an agency job (check both legacy single-employee FK and agency FK)
+        is_agency_job = job.assignedEmployeeID is not None or job.assignedAgencyFK is not None
         
         # Determine reviewer type first to check payment requirement
         # Agency owners may not have a Profile, so check for None
         is_client = profile is not None and job.clientID.profileID.profileID == profile.profileID
         is_worker = profile is not None and job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
-        is_agency_owner = is_agency_job and job.assignedEmployeeID.agency == request.auth
+        is_agency_owner = is_agency_job and (
+            (job.assignedEmployeeID is not None and job.assignedEmployeeID.agency == request.auth) or
+            (job.assignedAgencyFK is not None and job.assignedAgencyFK.accountFK == request.auth)
+        )
         
         # For team jobs, check if worker is part of the team via JobWorkerAssignment
         is_team_worker = False
@@ -3619,13 +4139,20 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             status=400
                         )
                 else:
-                    # Fallback to legacy single employee
+                    # Fallback to legacy single employee or primary contact from assignments
                     employee = job.assignedEmployeeID
                     if not employee:
-                        return Response(
-                            {"error": "No employee assigned to this job"},
-                            status=400
-                        )
+                        # For slot-based assignments, get primary contact
+                        primary = assigned_employees.filter(isPrimaryContact=True).first()
+                        if primary:
+                            employee = primary.employee
+                        elif assigned_employees.exists():
+                            employee = assigned_employees.first().employee
+                        else:
+                            return Response(
+                                {"error": "No employee assigned to this job"},
+                                status=400
+                            )
                 
                 # Check if this specific employee review already exists
                 existing_employee_review = JobReview.objects.filter(
@@ -3670,7 +4197,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     employee.rating = avg_rating
                     employee.save(update_fields=['rating'])
                 
-                print(f"✅ Employee review submitted: {employee.name} got {data.rating} stars")
+                print(f"✅ Employee review submitted: {employee.name} got {overall_rating} stars")
                 
                 # Check which employees still need reviews
                 all_assigned_employee_ids = list(assigned_employees.values_list('employee_id', flat=True))
@@ -3731,7 +4258,20 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 # Review the agency
                 from accounts.models import Agency
                 try:
-                    agency = Agency.objects.get(accountFK=job.assignedEmployeeID.agency)
+                    # Get agency account - use assignedEmployeeID.agency if available, fallback to assignedAgencyFK
+                    agency_account_fk = None
+                    if job.assignedEmployeeID is not None:
+                        agency_account_fk = job.assignedEmployeeID.agency
+                    elif job.assignedAgencyFK is not None:
+                        agency_account_fk = job.assignedAgencyFK.accountFK
+                    
+                    if agency_account_fk is None:
+                        return Response(
+                            {"error": "Agency information not found for this job"},
+                            status=400
+                        )
+                    
+                    agency = Agency.objects.get(accountFK=agency_account_fk)
                 except Agency.DoesNotExist:
                     return Response(
                         {"error": "Agency not found"},
@@ -3770,7 +4310,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     status="ACTIVE"
                 )
                 
-                print(f"✅ Agency review submitted: {agency.businessName} got {data.rating} stars")
+                print(f"✅ Agency review submitted: {agency.businessName} got {overall_rating} stars")
                 
                 # Check if ALL employees have been reviewed (multi-employee support)
                 assigned_employees = JobEmployeeAssignment.objects.filter(
@@ -3902,7 +4442,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             worker_account = assignment.workerID.profileID.accountFK
                             if worker_account.id not in reviewed_worker_ids:
                                 pending_workers.append({
-                                    "worker_id": assignment.workerID.workerID,
+                                    "worker_id": assignment.workerID.id,
                                     "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
                                 })
                         
@@ -4025,7 +4565,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     # Check if still pending review
                     if worker_account_id not in reviewed_worker_account_ids:
                         pending_team_workers.append({
-                            "worker_id": a.workerID.workerID,
+                            "worker_id": a.workerID.id,
                             "account_id": worker_account_id,
                             "name": worker_name,
                             "avatar": worker_profile.profileImg,
@@ -4772,7 +5312,14 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                                 {'content-type': image.content_type}
                             )
                             
-                            image_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+                            # Get signed URL for private bucket (24 hour expiry)
+                            signed_url_response = settings.STORAGE.storage().from_('iayos_files').create_signed_url(
+                                storage_path, 
+                                expires_in=86400  # 24 hours
+                            )
+                            if signed_url_response.get('error'):
+                                raise Exception(f"Failed to create signed URL: {signed_url_response['error']}")
+                            image_url = signed_url_response.get('signedURL')
                             
                             # Create evidence record
                             evidence = DisputeEvidence.objects.create(
@@ -4789,6 +5336,34 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             # In a real system, you might have an admin notification channel
             # For now, just log it
             print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
+            
+            # ============================================================
+            # NOTIFY WORKER/AGENCY: Alert them about backjob request
+            # ============================================================
+            from accounts.models import Notification
+            
+            # Notify assigned worker if exists (individual job)
+            if job.assignedWorkerID:
+                Notification.objects.create(
+                    accountFK=job.assignedWorkerID.profileID.accountFK,
+                    notificationType="BACKJOB_REQUESTED",
+                    title="Backjob Request Received",
+                    message=f"📋 Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Notified worker {job.assignedWorkerID.profileID.accountFK.email} about backjob request")
+            
+            # Notify assigned agency if exists
+            if job.assignedAgencyFK:
+                Notification.objects.create(
+                    accountFK=job.assignedAgencyFK.accountFK,
+                    notificationType="BACKJOB_REQUESTED",
+                    title="Backjob Request Received",
+                    message=f"📋 Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Notified agency {job.assignedAgencyFK.businessName} about backjob request")
+            # ============================================================
             
             # ============================================================
             # HOLD PAYMENT: Put payment on hold due to backjob request
@@ -4823,95 +5398,6 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to submit backjob request: {str(e)}"}, status=500)
-
-
-@router.get("/my-backjobs", auth=jwt_auth)
-def get_my_backjobs(request, status: Optional[str] = None):
-    """
-    Get backjobs assigned to the current worker or agency.
-    Only shows approved backjobs (UNDER_REVIEW status means admin approved and worker needs to action).
-    """
-    try:
-        print(f"📋 Fetching backjobs for user {request.auth.email}")
-        
-        # Determine if user is worker or agency
-        profile = Profile.objects.filter(accountFK=request.auth).first()
-        agency = Agency.objects.filter(accountFK=request.auth).first()
-        
-        if not profile and not agency:
-            return Response({"error": "Profile not found"}, status=404)
-        
-        # Build query for disputes where the related job was assigned to this worker/agency
-        disputes_query = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__clientID__profileID__accountFK',
-            'jobID__assignedWorkerID__profileID',
-            'jobID__assignedAgencyFK',
-            'jobID__categoryID'
-        ).prefetch_related('evidence')
-        
-        # Filter by jobs assigned to this user
-        if agency:
-            disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
-        elif profile and profile.profileType == "WORKER":
-            worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
-            if worker_profile:
-                disputes_query = disputes_query.filter(jobID__assignedWorkerID=worker_profile)
-            else:
-                return {"backjobs": [], "total": 0}
-        else:
-            return {"backjobs": [], "total": 0}
-        
-        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
-        # or show all if status filter provided
-        if status:
-            disputes_query = disputes_query.filter(status=status)
-        else:
-            # By default show UNDER_REVIEW (approved for action) and RESOLVED
-            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
-        
-        disputes = disputes_query.order_by('-openedDate')
-        
-        backjobs_data = []
-        for dispute in disputes:
-            job = dispute.jobID
-            client = job.clientID.profileID if job.clientID else None
-            
-            evidence_urls = [e.imageURL for e in dispute.evidence.all()]
-            
-            backjobs_data.append({
-                "dispute_id": dispute.disputeID,
-                "job_id": job.jobID,
-                "job_title": job.title,
-                "job_description": job.description,
-                "job_budget": float(job.budget),
-                "job_location": job.location,
-                "job_category": job.categoryID.name if job.categoryID else None,
-                "reason": dispute.reason,
-                "description": dispute.description,
-                "status": dispute.status,
-                "priority": dispute.priority,
-                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
-                "resolution": dispute.resolution,
-                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
-                "evidence_images": evidence_urls,
-                "client": {
-                    "id": client.profileID if client else None,
-                    "name": f"{client.firstName} {client.lastName}" if client else "Unknown",
-                    "avatar": client.profileImg if client else None
-                } if client else None
-            })
-        
-        return {
-            "backjobs": backjobs_data,
-            "total": len(backjobs_data)
-        }
-        
-    except Exception as e:
-        print(f"❌ Error fetching backjobs: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to fetch backjobs"}, status=500)
 
 
 @router.get("/{job_id}/backjob-status", auth=dual_auth)
@@ -5243,6 +5729,11 @@ def approve_backjob_completion(request, job_id: int):
                     messageText="✅ Backjob completed and confirmed! This conversation is now closed. Thank you for using iAyos!",
                     messageType="SYSTEM"
                 )
+                
+                # Auto-archive conversation after backjob completion
+                from profiles.conversation_service import archive_conversation
+                archive_result = archive_conversation(conversation)
+                print(f"📦 {archive_result.get('message', 'Conversation archived after backjob completion')}")
             
             # Create job log with distinct backjob status
             JobLog.objects.create(
@@ -5630,7 +6121,7 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
 
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
-def approve_team_job_completion(request, job_id: int, payment_method: str = 'WALLET'):
+def approve_team_job_completion(request, job_id: int, payment_method: str = Form('WALLET')):
     """
     Client approves team job completion after all workers have marked complete.
     This closes the job and team conversation.
@@ -5781,10 +6272,10 @@ def get_job_receipt(request, job_id: int):
             agency = job.assignedAgencyFK
             worker_info = {
                 'type': 'AGENCY',
-                'id': agency.agencyID,
+                'id': agency.agencyId,
                 'name': agency.businessName,
-                'avatar': agency.profileImg,
-                'contact': agency.contactNum,
+                'avatar': None,  # Agency model doesn't have profile image field
+                'contact': agency.contactNumber,  # Fixed: was contactNum (wrong field name)
             }
         
         # Build client info
@@ -5870,4 +6361,1273 @@ def get_job_receipt(request, job_id: int):
         traceback.print_exc()
         return Response({"error": f"Failed to generate receipt: {str(e)}"}, status=500)
 
+
+@router.get("/{job_id}/payment-timeline", auth=dual_auth)
+def get_job_payment_timeline(request, job_id: int):
+    """
+    Get the payment timeline for a job, showing all payment-related events.
+    Useful for tracking payment progress from job creation to final release.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from jobs.payment_buffer_service import get_payment_buffer_days
+    
+    try:
+        # Get the job
+        job = Job.objects.select_related(
+            'clientID__profileID__accountFK',
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK__accountFK'
+        ).get(jobID=job_id)
+        
+        # Verify user is client or assigned worker/agency for this job
+        user = request.auth
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == user
+        )
+        is_agency = (
+            job.assignedAgencyFK and 
+            job.assignedAgencyFK.accountFK == user
+        )
+        
+        if not (is_client or is_worker or is_agency):
+            return Response({"error": "You don't have access to this job's payment timeline"}, status=403)
+        
+        # Build timeline events
+        timeline = []
+        now = timezone.now()
+        
+        # 1. Job Created
+        timeline.append({
+            "event": "JOB_CREATED",
+            "title": "Job Posted",
+            "description": f"Job '{job.title}' was posted",
+            "date": job.createdAt.isoformat() if job.createdAt else None,
+            "status": "completed",
+            "amount": float(job.budget) if job.budget else 0
+        })
+        
+        # 2. Escrow Payment
+        if job.escrowPaid:
+            timeline.append({
+                "event": "ESCROW_PAID",
+                "title": "Escrow Deposited",
+                "description": "50% downpayment deposited in escrow",
+                "date": job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
+                "status": "completed",
+                "amount": float(job.escrowAmount) if job.escrowAmount else 0
+            })
+        else:
+            timeline.append({
+                "event": "ESCROW_PENDING",
+                "title": "Escrow Pending",
+                "description": "Awaiting 50% downpayment",
+                "date": None,
+                "status": "pending" if job.status in ['ACTIVE', 'IN_PROGRESS'] else "skipped",
+                "amount": float(job.budget) * 0.5 if job.budget else 0
+            })
+        
+        # 3. Work Started
+        if job.clientConfirmedWorkStarted:
+            timeline.append({
+                "event": "WORK_STARTED",
+                "title": "Work Started",
+                "description": "Client confirmed work has started",
+                "date": job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+                "status": "completed"
+            })
+        
+        # 4. Job Completion
+        if job.workerMarkedComplete:
+            timeline.append({
+                "event": "WORKER_COMPLETED",
+                "title": "Worker Marked Complete",
+                "description": "Worker marked the job as complete",
+                "date": job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
+                "status": "completed"
+            })
+        
+        if job.clientMarkedComplete:
+            timeline.append({
+                "event": "CLIENT_APPROVED",
+                "title": "Client Approved",
+                "description": "Client approved the completed work",
+                "date": job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
+                "status": "completed"
+            })
+        
+        # 5. Final Payment
+        if job.remainingPaymentPaid:
+            timeline.append({
+                "event": "FINAL_PAYMENT",
+                "title": "Final Payment Made",
+                "description": f"Remaining 50% paid via {job.finalPaymentMethod or 'wallet'}",
+                "date": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                "status": "completed",
+                "amount": float(job.remainingPayment) if job.remainingPayment else 0
+            })
+        elif job.status == 'COMPLETED':
+            timeline.append({
+                "event": "FINAL_PAYMENT_PENDING",
+                "title": "Final Payment Pending",
+                "description": "Awaiting final 50% payment",
+                "date": None,
+                "status": "pending",
+                "amount": float(job.remainingPayment) if job.remainingPayment else (float(job.budget) * 0.5 if job.budget else 0)
+            })
+        
+        # 6. Buffer Period
+        buffer_days = get_payment_buffer_days()
+        buffer_start = job.clientMarkedCompleteAt or job.completedAt
+        
+        if buffer_start:
+            buffer_end = buffer_start + timedelta(days=buffer_days)
+            remaining_days = max(0, (buffer_end - now).days)
+            
+            if job.paymentReleasedToWorker:
+                timeline.append({
+                    "event": "PAYMENT_RELEASED",
+                    "title": "Payment Released",
+                    "description": "Earnings released to worker's wallet",
+                    "date": job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                    "status": "completed",
+                    "amount": float(job.budget) if job.budget else 0
+                })
+            else:
+                timeline.append({
+                    "event": "BUFFER_PERIOD",
+                    "title": f"Buffer Period ({remaining_days} days remaining)",
+                    "description": f"Payment will be released on {buffer_end.strftime('%b %d, %Y')}",
+                    "date": buffer_end.isoformat(),
+                    "status": "in_progress" if remaining_days > 0 else "pending",
+                    "remaining_days": remaining_days
+                })
+        
+        return {
+            "success": True,
+            "job_id": job.jobID,
+            "job_title": job.title,
+            "job_status": job.status,
+            "total_budget": float(job.budget) if job.budget else 0,
+            "timeline": timeline
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error generating payment timeline for job {job_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to generate payment timeline: {str(e)}"}, status=500)
+
 #endregion
+
+
+# =============================================================================
+# region Daily Payment Endpoints
+# =============================================================================
+
+@router.post("/{job_id}/daily/attendance", auth=dual_auth)
+def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
+    """
+    Log attendance for a day of work on a daily-rate job.
+    
+    For freelance workers: worker logs their own attendance
+    For agency jobs: agency rep logs attendance for all employees
+    
+    Required fields:
+        - work_date: str (YYYY-MM-DD)
+        - status: str (PENDING, PRESENT, HALF_DAY, ABSENT)
+    
+    Optional fields:
+        - time_in: str (ISO datetime)
+        - time_out: str (ISO datetime)
+        - notes: str
+        - assignment_id: int (for team jobs)
+        - employee_id: int (for agency jobs)
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from datetime import date
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    # Determine worker type and validate access
+    user = request.auth
+    profile_type = getattr(user, 'profile_type', None)
+    
+    # Parse date
+    work_date_str = data.work_date
+    if not work_date_str:
+        return Response({"error": "work_date is required"}, status=400)
+    
+    try:
+        work_date = date.fromisoformat(work_date_str)
+    except ValueError:
+        return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+    
+    status = data.status or 'PENDING'
+    if status not in ['PENDING', 'PRESENT', 'HALF_DAY', 'ABSENT']:
+        return Response({"error": "Invalid status. Use PENDING, PRESENT, HALF_DAY, or ABSENT"}, status=400)
+    
+    # Parse optional time fields
+    time_in = None
+    time_out = None
+    if data.time_in:
+        try:
+            time_in = datetime.fromisoformat(data.time_in)
+        except ValueError:
+            pass
+    if data.time_out:
+        try:
+            time_out = datetime.fromisoformat(data.time_out)
+        except ValueError:
+            pass
+    
+    # Get worker/assignment/employee
+    worker = None
+    assignment = None
+    employee_id = data.employee_id
+    
+    if data.assignment_id:
+        from accounts.models import JobWorkerAssignment
+        try:
+            assignment = JobWorkerAssignment.objects.get(
+                assignmentID=data.assignment_id,
+                jobID=job
+            )
+        except JobWorkerAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found"}, status=404)
+    elif not employee_id:
+        # Single worker job - get assigned worker
+        worker = job.assignedWorkerID
+        if not worker:
+            return Response({"error": "No worker assigned to this job"}, status=400)
+    
+    result = DailyPaymentService.log_attendance(
+        job=job,
+        work_date=work_date,
+        worker=worker,
+        assignment=assignment,
+        employee_id=employee_id,
+        time_in=time_in,
+        time_out=time_out,
+        status=status,
+        notes=data.notes or ''
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to log attendance')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/confirm-worker", auth=dual_auth)
+def confirm_attendance_worker(request, job_id: int, attendance_id: int):
+    """
+    Worker confirms their attendance for a specific day.
+    For agency jobs, agency rep confirms on behalf of employees.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyAttendance
+    
+    try:
+        attendance = DailyAttendance.objects.get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    result = DailyPaymentService.confirm_attendance_worker(attendance, request.auth)
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/confirm-client", auth=dual_auth)
+def confirm_attendance_client(request, job_id: int, attendance_id: int, data: dict = None):
+    """
+    Client confirms attendance for a worker's day.
+    Client can optionally adjust the attendance status.
+    
+    Optional fields:
+        - approved_status: str (PRESENT, HALF_DAY, ABSENT)
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyAttendance
+    
+    try:
+        attendance = DailyAttendance.objects.get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    # Verify client ownership
+    if attendance.jobID.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can confirm attendance"}, status=403)
+    
+    approved_status = data.get('approved_status') if data else None
+    
+    result = DailyPaymentService.confirm_attendance_client(
+        attendance, 
+        request.auth,
+        approved_status=approved_status
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/verify-arrival", auth=dual_auth)
+def verify_employee_arrival(request, job_id: int, attendance_id: int):
+    """
+    Client verifies that a dispatched employee has arrived.
+    This sets time_in and starts the work timer.
+    Only works for DISPATCHED status (employee was sent by agency).
+    """
+    from accounts.models import DailyAttendance
+    from django.utils import timezone
+    
+    try:
+        attendance = DailyAttendance.objects.select_related(
+            'jobID__clientID__profileID__accountFK',
+            'employeeID'
+        ).get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    # Verify client ownership
+    if attendance.jobID.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can verify employee arrival"}, status=403)
+    
+    # Verify employee is in DISPATCHED status
+    if attendance.status != 'DISPATCHED':
+        if attendance.time_in:
+            return Response({
+                "error": "Employee arrival has already been verified",
+                "time_in": attendance.time_in.isoformat()
+            }, status=400)
+        return Response({"error": f"Cannot verify arrival - current status is {attendance.status}"}, status=400)
+    
+    # Set time_in (work starts now) and change status to PENDING
+    attendance.time_in = timezone.now()
+    attendance.status = 'PENDING'
+    
+    # FIX: Recalculate amount_earned from ₱0 (DISPATCHED initial state)
+    # When agency dispatches employee, amount starts at ₱0. Now that work begins,
+    # set the actual daily rate so workers see correct payment amount in UI.
+    from decimal import Decimal
+    daily_rate = Decimal('0.00')
+    if attendance.employeeID and attendance.employeeID.daily_rate:
+        daily_rate = attendance.employeeID.daily_rate
+    elif attendance.jobID and attendance.jobID.daily_rate_agreed:
+        daily_rate = attendance.jobID.daily_rate_agreed
+    attendance.amount_earned = daily_rate
+    
+    attendance.save()
+    
+    # Get employee name for response
+    employee_name = attendance.employeeID.fullName if attendance.employeeID else 'Worker'
+    
+    return {
+        "success": True,
+        "message": f"{employee_name} arrival verified - work started",
+        "attendance_id": attendance.attendanceID,
+        "employee_name": employee_name,
+        "time_in": attendance.time_in.isoformat(),
+        "status": "PENDING"
+    }
+
+
+@router.post("/{job_id}/daily/attendance/{attendance_id}/mark-checkout", auth=dual_auth)
+def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
+    """
+    Client marks an employee as checked out for the day.
+    This sets time_out, signaling end of work for this day.
+    Employee must have been verified as arrived (time_in set).
+    """
+    from accounts.models import DailyAttendance
+    from django.utils import timezone
+    
+    try:
+        attendance = DailyAttendance.objects.select_related(
+            'jobID__clientID__profileID__accountFK',
+            'employeeID'
+        ).get(
+            attendanceID=attendance_id,
+            jobID__jobID=job_id
+        )
+    except DailyAttendance.DoesNotExist:
+        return Response({"error": "Attendance record not found"}, status=404)
+    
+    # Verify client ownership
+    if attendance.jobID.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can mark checkout"}, status=403)
+    
+    # Verify employee has been verified as arrived
+    if not attendance.time_in:
+        return Response({"error": "Cannot checkout - employee arrival has not been verified yet"}, status=400)
+    
+    # Check if already checked out
+    if attendance.time_out:
+        return Response({
+            "error": "Employee has already been checked out",
+            "time_out": attendance.time_out.isoformat()
+        }, status=400)
+    
+    # Set time_out (work ends now)
+    attendance.time_out = timezone.now()
+    attendance.worker_confirmed = True  # Auto-confirm on checkout
+    attendance.save()
+    
+    # Get employee name for response
+    employee_name = attendance.employeeID.fullName if attendance.employeeID else 'Worker'
+    
+    return {
+        "success": True,
+        "message": f"{employee_name} checked out - ready for payment confirmation",
+        "attendance_id": attendance.attendanceID,
+        "employee_name": employee_name,
+        "time_in": attendance.time_in.isoformat(),
+        "time_out": attendance.time_out.isoformat(),
+        "status": attendance.status
+    }
+
+
+@router.get("/{job_id}/daily/attendance", auth=dual_auth)
+def get_daily_attendance(request, job_id: int, start_date: str = None, end_date: str = None):
+    """
+    Get attendance records for a daily job.
+    
+    Optional filters:
+        - start_date: str (YYYY-MM-DD)
+        - end_date: str (YYYY-MM-DD)
+    """
+    from accounts.models import DailyAttendance
+    from datetime import date
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    queryset = DailyAttendance.objects.filter(jobID=job).select_related(
+        'workerID__profileID__accountFK',
+        'employeeID',
+        'assignmentID__workerID__profileID__accountFK'
+    ).order_by('-date')
+    
+    # Apply date filters
+    if start_date:
+        try:
+            queryset = queryset.filter(date__gte=date.fromisoformat(start_date))
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            queryset = queryset.filter(date__lte=date.fromisoformat(end_date))
+        except ValueError:
+            pass
+    
+    records = []
+    for attendance in queryset:
+        worker_name = None
+        worker_id = None
+        employee_id = None
+        
+        if attendance.workerID:
+            worker_id = attendance.workerID_id
+            worker_name = f"{attendance.workerID.profileID.accountFK.firstName} {attendance.workerID.profileID.accountFK.lastName}"
+        elif attendance.employeeID:
+            employee_id = attendance.employeeID.employeeID
+            worker_name = f"{attendance.employeeID.first_name} {attendance.employeeID.last_name}"
+        elif attendance.assignmentID:
+            worker_id = attendance.assignmentID.workerID_id
+            if attendance.assignmentID.workerID and attendance.assignmentID.workerID.profileID:
+                worker_name = f"{attendance.assignmentID.workerID.profileID.accountFK.firstName} {attendance.assignmentID.workerID.profileID.accountFK.lastName}"
+        
+        records.append({
+            'attendance_id': attendance.attendanceID,
+            'worker_id': worker_id,
+            'employee_id': employee_id,
+            'date': str(attendance.date),
+            'worker_name': worker_name,
+            'status': attendance.status,
+            'time_in': attendance.time_in.isoformat() if attendance.time_in else None,
+            'time_out': attendance.time_out.isoformat() if attendance.time_out else None,
+            'amount_earned': float(attendance.amount_earned),
+            'worker_confirmed': attendance.worker_confirmed,
+            'client_confirmed': attendance.client_confirmed,
+            'payment_processed': attendance.payment_processed,
+            'notes': attendance.notes,
+        })
+    
+    return {
+        'success': True,
+        'job_id': job_id,
+        'daily_rate': float(job.daily_rate_agreed or 0),
+        'records': records,
+        'total_records': len(records)
+    }
+
+
+@router.get("/{job_id}/daily/summary", auth=dual_auth)
+def get_daily_job_summary(request, job_id: int):
+    """
+    Get a comprehensive summary of a daily-rate job.
+    Includes attendance stats, payment info, and pending requests.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    return DailyPaymentService.get_daily_summary(job)
+
+
+@router.post("/{job_id}/daily/extension", auth=dual_auth)
+def request_daily_extension(request, job_id: int, data: RequestExtensionSchema):
+    """
+    Request an extension for a daily job.
+    Requires mutual approval from both client and worker/agency.
+    
+    Required fields:
+        - additional_days: int
+        - reason: str
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    additional_days = data.additional_days
+    reason = data.reason
+    
+    if not additional_days or additional_days < 1:
+        return Response({"error": "additional_days must be at least 1"}, status=400)
+    
+    if not reason:
+        return Response({"error": "reason is required"}, status=400)
+    
+    # Determine who is requesting
+    user = request.auth
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        requested_by = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        requested_by = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        requested_by = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can request extensions"}, status=403)
+    
+    result = DailyPaymentService.request_extension(
+        job=job,
+        additional_days=additional_days,
+        reason=reason,
+        requested_by=requested_by,
+        user=user
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to request extension')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/extension/{extension_id}/approve", auth=dual_auth)
+def approve_daily_extension(request, job_id: int, extension_id: int):
+    """
+    Approve an extension request.
+    When both parties approve, additional escrow is collected and job is extended.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyJobExtension
+    
+    try:
+        extension = DailyJobExtension.objects.get(
+            extensionID=extension_id,
+            jobID__jobID=job_id
+        )
+    except DailyJobExtension.DoesNotExist:
+        return Response({"error": "Extension request not found"}, status=404)
+    
+    job = extension.jobID
+    user = request.auth
+    
+    # Determine approver type
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        approver_type = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        approver_type = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        approver_type = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can approve extensions"}, status=403)
+    
+    result = DailyPaymentService.approve_extension(extension, approver_type, user)
+    
+    if not result.get('success'):
+        status_code = 402 if result.get('needs_top_up') else 400
+        return Response({"error": result.get('error', 'Failed to approve extension')}, status=status_code)
+    
+    return result
+
+
+@router.get("/{job_id}/daily/extensions", auth=dual_auth)
+def get_daily_extensions(request, job_id: int):
+    """
+    Get all extension requests for a daily job.
+    """
+    from accounts.models import DailyJobExtension
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    extensions = DailyJobExtension.objects.filter(jobID=job).order_by('-created_at')
+    
+    records = []
+    for ext in extensions:
+        records.append({
+            'extension_id': ext.extensionID,
+            'additional_days': ext.additional_days,
+            'additional_escrow': float(ext.additional_escrow),
+            'reason': ext.reason,
+            'requested_by': ext.requested_by,
+            'status': ext.status,
+            'client_approved': ext.client_approved,
+            'worker_approved': ext.worker_approved,
+            'created_at': ext.created_at.isoformat(),
+        })
+    
+    return {
+        'success': True,
+        'job_id': job_id,
+        'extensions': records,
+        'total': len(records)
+    }
+
+
+@router.post("/{job_id}/daily/rate-change", auth=dual_auth)
+def request_rate_change(request, job_id: int, data: RequestRateChangeSchema):
+    """
+    Request a rate change for a daily job.
+    Requires mutual approval from both client and worker/agency.
+    
+    Required fields:
+        - new_rate: float/decimal (new daily rate)
+        - reason: str
+        - effective_date: str (YYYY-MM-DD)
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from datetime import date
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    new_rate = data.new_rate
+    reason = data.reason
+    effective_date_str = data.effective_date
+    
+    if not new_rate or Decimal(str(new_rate)) <= 0:
+        return Response({"error": "new_rate must be positive"}, status=400)
+    
+    if not reason:
+        return Response({"error": "reason is required"}, status=400)
+    
+    if not effective_date_str:
+        return Response({"error": "effective_date is required"}, status=400)
+    
+    try:
+        effective_date = date.fromisoformat(effective_date_str)
+    except ValueError:
+        return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+    
+    # Determine who is requesting
+    user = request.auth
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        requested_by = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        requested_by = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        requested_by = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can request rate changes"}, status=403)
+    
+    result = DailyPaymentService.request_rate_change(
+        job=job,
+        new_rate=Decimal(str(new_rate)),
+        reason=reason,
+        effective_date=effective_date,
+        requested_by=requested_by,
+        user=user
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to request rate change')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/daily/rate-change/{change_id}/approve", auth=dual_auth)
+def approve_rate_change(request, job_id: int, change_id: int):
+    """
+    Approve a rate change request.
+    When both parties approve, job rate is updated and escrow adjusted.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    from accounts.models import DailyRateChange
+    
+    try:
+        rate_change = DailyRateChange.objects.get(
+            changeID=change_id,
+            jobID__jobID=job_id
+        )
+    except DailyRateChange.DoesNotExist:
+        return Response({"error": "Rate change request not found"}, status=404)
+    
+    job = rate_change.jobID
+    user = request.auth
+    
+    # Determine approver type
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        approver_type = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        approver_type = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        approver_type = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can approve rate changes"}, status=403)
+    
+    result = DailyPaymentService.approve_rate_change(rate_change, approver_type, user)
+    
+    if not result.get('success'):
+        status_code = 402 if result.get('needs_top_up') else 400
+        return Response({"error": result.get('error', 'Failed to approve rate change')}, status=status_code)
+    
+    return result
+
+
+@router.get("/{job_id}/daily/rate-changes", auth=dual_auth)
+def get_rate_changes(request, job_id: int):
+    """
+    Get all rate change requests for a daily job.
+    """
+    from accounts.models import DailyRateChange
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    rate_changes = DailyRateChange.objects.filter(jobID=job).order_by('-created_at')
+    
+    records = []
+    for change in rate_changes:
+        records.append({
+            'change_id': change.changeID,
+            'old_rate': float(change.old_rate),
+            'new_rate': float(change.new_rate),
+            'reason': change.reason,
+            'effective_date': str(change.effective_date),
+            'requested_by': change.requested_by,
+            'status': change.status,
+            'client_approved': change.client_approved,
+            'worker_approved': change.worker_approved,
+            'escrow_adjustment_amount': float(change.escrow_adjustment_amount),
+            'created_at': change.created_at.isoformat(),
+        })
+    
+    return {
+        'success': True,
+        'job_id': job_id,
+        'rate_changes': records,
+        'total': len(records)
+    }
+
+
+@router.post("/{job_id}/daily/cancel", auth=dual_auth)
+def cancel_daily_job(request, job_id: int, data: CancelDailyJobSchema):
+    """
+    Cancel remaining days of a daily job.
+    Refunds unused escrow to client.
+    
+    Required fields:
+        - reason: str
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This job is not a daily-rate job"}, status=400)
+    
+    reason = data.reason
+    if not reason:
+        return Response({"error": "reason is required"}, status=400)
+    
+    # Determine who is cancelling
+    user = request.auth
+    is_client = job.clientID.profileID.accountFK == user
+    
+    if is_client:
+        cancelled_by = 'CLIENT'
+    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        cancelled_by = 'AGENCY'
+    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        cancelled_by = 'WORKER'
+    else:
+        return Response({"error": "Only the client, worker, or agency can cancel jobs"}, status=403)
+    
+    result = DailyPaymentService.cancel_remaining_days(
+        job=job,
+        reason=reason,
+        cancelled_by=cancelled_by,
+        user=user
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to cancel job')}, status=400)
+    
+    return result
+
+
+@router.get("/daily/escrow-estimate", auth=dual_auth)
+def get_daily_escrow_estimate(request, job_id: int = None, daily_rate: float = None, num_workers: int = 1, num_days: int = None):
+    """
+    Calculate escrow estimate for a daily job.
+    Can be used before job creation to show client the cost.
+    
+    Query params:
+        - daily_rate: float (required if no job_id)
+        - num_workers: int (default 1)
+        - num_days: int (required if no job_id)
+    
+    Or provide job_id to get estimate for an existing job.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+    
+    if job_id:
+        try:
+            job = Job.objects.get(jobID=job_id)
+            daily_rate = float(job.daily_rate_agreed or 0)
+            num_workers = job.total_workers_needed or 1
+            num_days = job.duration_days or 0
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+    
+    if not daily_rate or not num_days:
+        return Response({"error": "daily_rate and num_days are required"}, status=400)
+    
+    if daily_rate <= 0:
+        return Response({"error": "daily_rate must be positive"}, status=400)
+    
+    if num_days < 1:
+        return Response({"error": "num_days must be at least 1"}, status=400)
+    
+    result = DailyPaymentService.calculate_daily_escrow(
+        Decimal(str(daily_rate)),
+        num_workers,
+        num_days
+    )
+    
+    # Convert Decimals to floats for JSON
+    return {
+        'success': True,
+        'daily_rate': float(result['daily_rate']),
+        'num_workers': result['num_workers'],
+        'num_days': result['num_days'],
+        'escrow_amount': float(result['escrow_amount']),
+        'platform_fee': float(result['platform_fee']),
+        'total_required': float(result['total_required']),
+        'breakdown': f"₱{result['daily_rate']} × {result['num_workers']} workers × {result['num_days']} days = ₱{result['escrow_amount']} + ₱{result['platform_fee']} fee = ₱{result['total_required']} total"
+    }
+
+# endregion
+
+
+# =============================================================================
+# AGENCY PROJECT JOB WORKFLOW - CLIENT ENDPOINTS
+# =============================================================================
+# Client-side endpoints for PROJECT payment model agency jobs:
+# 1. confirm-arrival-project: Client confirms dispatched employee has arrived
+# 2. approve-agency-project: Client approves all work and pays
+# Agency-side endpoints (dispatch, mark-complete) are in agency/api.py
+
+
+@router.post("/{job_id}/employees/{employee_id}/confirm-arrival-project", auth=dual_auth)
+def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
+    """
+    Client confirms that a dispatched agency employee has arrived.
+    This is for PROJECT payment model jobs (not DAILY).
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    
+    Requires:
+    - User must be the job client
+    - Employee must be dispatched first
+    """
+    from accounts.models import Job, JobEmployeeAssignment
+    from agency.models import AgencyEmployee
+    from django.utils import timezone
+    
+    try:
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedAgencyFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can confirm employee arrival"}, status=403)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({
+                "error": "This endpoint is for PROJECT jobs only. Use /daily/attendance/{id}/verify-arrival for daily-rate jobs."
+            }, status=400)
+        
+        # Verify it's an agency job
+        if not job.assignedAgencyFK:
+            return Response({"error": "This is not an agency job"}, status=400)
+        
+        # Get employee
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+        
+        # Get assignment
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({
+                "error": f"{employee.fullName} is not assigned to this job"
+            }, status=404)
+        
+        # Verify employee is dispatched
+        if not assignment.dispatched:
+            return Response({
+                "error": f"{employee.fullName} has not been dispatched yet. Wait for agency to dispatch."
+            }, status=400)
+        
+        # Check if already confirmed
+        if assignment.clientConfirmedArrival:
+            return Response({
+                "error": f"{employee.fullName}'s arrival has already been confirmed",
+                "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat() if assignment.clientConfirmedArrivalAt else None
+            }, status=400)
+        
+        # Confirm arrival
+        assignment.clientConfirmedArrival = True
+        assignment.clientConfirmedArrivalAt = timezone.now()
+        assignment.save()
+        
+        # Check how many employees have arrived vs total
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        )
+        arrived_count = sum(1 for a in all_assignments if a.clientConfirmedArrival)
+        total_count = all_assignments.count()
+        all_arrived = arrived_count == total_count
+        
+        return {
+            "success": True,
+            "message": f"{employee.fullName}'s arrival confirmed - work can begin",
+            "assignment_id": assignment.assignmentID,
+            "employee_id": employee_id,
+            "employee_name": employee.fullName,
+            "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat(),
+            "all_arrived": all_arrived,
+            "arrived_count": arrived_count,
+            "total_count": total_count,
+            "next_step": "All employees arrived" if all_arrived else f"{total_count - arrived_count} employee(s) still pending arrival"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/{job_id}/approve-agency-project", auth=dual_auth)
+def approve_agency_project_job(
+    request,
+    job_id: int,
+    payment_method: str = Form("WALLET"),
+    cash_proof_image: UploadedFile = File(None)
+):
+    """
+    Client approves the completed PROJECT-based agency job and pays.
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    
+    Requires:
+    - All assigned employees must have completed the full workflow:
+      - dispatched = True
+      - clientConfirmedArrival = True
+      - agencyMarkedComplete = True
+    - Payment method must be WALLET, GCASH, or CASH
+    - CASH requires cash_proof_image
+    
+    payment_method: WALLET | GCASH | CASH
+    cash_proof_image: Required if payment_method is CASH
+    """
+    from accounts.models import Job, JobEmployeeAssignment, Transaction, Wallet
+    from django.utils import timezone
+    from django.db import transaction
+    from decimal import Decimal
+    
+    try:
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can approve completion"}, status=403)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({
+                "error": "This endpoint is for PROJECT jobs only. Use daily payment endpoints for daily-rate jobs."
+            }, status=400)
+        
+        # Verify it's an agency job
+        if not job.assignedAgencyFK:
+            return Response({"error": "This is not an agency job"}, status=400)
+        
+        # Verify job is not already completed
+        if job.status == 'COMPLETED':
+            return Response({"error": "This job has already been completed"}, status=400)
+        
+        # Validate payment method
+        payment_method = payment_method.upper()
+        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
+            return Response({"error": "Invalid payment method. Must be WALLET, GCASH, or CASH"}, status=400)
+        
+        # CASH requires proof
+        if payment_method == 'CASH' and not cash_proof_image:
+            return Response({
+                "error": "Cash payment requires proof of payment image",
+                "requires_proof": True
+            }, status=400)
+        
+        # Get all active assignments
+        assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        ).select_related('employee')
+        
+        if not assignments.exists():
+            return Response({"error": "No employees assigned to this job"}, status=400)
+        
+        # Verify ALL employees have completed the full workflow
+        workflow_errors = []
+        for assignment in assignments:
+            emp_name = assignment.employee.fullName
+            if not assignment.dispatched:
+                workflow_errors.append(f"{emp_name} has not been dispatched")
+            elif not assignment.clientConfirmedArrival:
+                workflow_errors.append(f"You haven't confirmed {emp_name}'s arrival")
+            elif not assignment.agencyMarkedComplete:
+                workflow_errors.append(f"Agency hasn't marked {emp_name}'s work as complete")
+        
+        if workflow_errors:
+            return Response({
+                "error": "Cannot approve - workflow incomplete",
+                "workflow_errors": workflow_errors,
+                "required_steps": [
+                    "1. Agency dispatches all employees",
+                    "2. Client confirms all arrivals",
+                    "3. Agency marks all employees complete",
+                    "4. Client approves and pays"
+                ]
+            }, status=400)
+        
+        # Calculate payment
+        remaining_balance = job.budget - (job.downpaymentAmount or Decimal('0.00'))
+        
+        with transaction.atomic():
+            # Handle payment
+            if payment_method == 'WALLET':
+                # Get client wallet
+                try:
+                    client_wallet = Wallet.objects.select_for_update().get(
+                        accountFK=request.auth
+                    )
+                except Wallet.DoesNotExist:
+                    return Response({"error": "Client wallet not found"}, status=404)
+                
+                # Check sufficient balance
+                if client_wallet.balance < remaining_balance:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(remaining_balance),
+                        "available": float(client_wallet.balance)
+                    }, status=400)
+                
+                # Deduct from client wallet
+                client_wallet.balance -= remaining_balance
+                client_wallet.save()
+                
+                # Create payment transaction
+                Transaction.objects.create(
+                    senderWallet=client_wallet,
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Final payment for job: {job.title}',
+                    jobID=job
+                )
+            
+            elif payment_method == 'GCASH':
+                # TODO: Integrate with Xendit GCash payment
+                # For now, mark as pending payment
+                pass
+            
+            elif payment_method == 'CASH':
+                # Store cash proof
+                job.cashProofImage = cash_proof_image
+                
+                # Create transaction record for cash payment
+                Transaction.objects.create(
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Cash payment for job: {job.title} (proof uploaded)',
+                    jobID=job
+                )
+            
+            # Mark all assignments as completed
+            assignments.update(status='COMPLETED')
+            
+            # Mark job as completed
+            job.status = 'COMPLETED'
+            job.clientMarkedComplete = True
+            job.workerMarkedComplete = True  # Agency job - worker side is agency completion
+            job.save()
+        
+        # Close the conversation for this job
+        from profiles.models import Conversation
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                conv.status = Conversation.ConversationStatus.COMPLETED
+                conv.save()
+                print(f"✅ Conversation {conv.conversationID} closed for completed agency job {job_id}")
+                
+                # Auto-archive if both parties have reviewed
+                from profiles.conversation_service import archive_conversation, should_auto_archive
+                if should_auto_archive(conv):
+                    archive_result = archive_conversation(conv)
+                    print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
+        except Exception as e:
+            print(f"⚠️ Failed to close conversation for agency job: {str(e)}")
+            # Don't fail job completion if conversation closing fails
+        
+        # Send notifications
+        from accounts.models import Notification
+        try:
+            # Notify agency owner
+            if job.agencyID and job.agencyID.owner:
+                client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
+                Notification.objects.create(
+                    accountFK=job.agencyID.owner,
+                    notificationType="JOB_COMPLETED_CLIENT",
+                    title="Job Completion Approved! 🎉",
+                    message=f"{client_name} has approved the completion of '{job.title}'. Payment of ₱{float(remaining_balance):,.2f} processed.",
+                    relatedJobID=job.jobID
+                )
+            
+            # Notify client
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_COMPLETED_CLIENT",
+                title="Job Completed ✅",
+                message=f"You approved '{job.title}' as complete. Payment of ₱{float(remaining_balance):,.2f} has been processed.",
+                relatedJobID=job.jobID
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to send notifications for agency job: {str(e)}")
+        
+        employee_names = [a.employee.fullName for a in assignments]
+        
+        return {
+            "success": True,
+            "message": "Job approved and payment processed successfully",
+            "job_id": job_id,
+            "job_title": job.title,
+            "payment_method": payment_method,
+            "amount_paid": float(remaining_balance),
+            "employees_completed": employee_names,
+            "job_status": "COMPLETED"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+# endregion

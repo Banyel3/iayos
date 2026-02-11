@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../../components";
 import Link from "next/link";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface Address {
   street: string;
@@ -176,7 +177,7 @@ export default function AgencyDetailPage() {
       }
     } catch (error) {
       console.error("Suspend error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to suspend agency"));
     } finally {
       setActionLoading(false);
     }
@@ -208,7 +209,7 @@ export default function AgencyDetailPage() {
       }
     } catch (error) {
       console.error("Ban error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to ban agency"));
     } finally {
       setActionLoading(false);
     }
@@ -230,11 +231,12 @@ export default function AgencyDetailPage() {
         setShowActivateModal(false);
         refetchAgency();
       } else {
-        alert("Failed to activate agency");
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || "Failed to activate agency");
       }
     } catch (error) {
       console.error("Activate error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to activate agency"));
     } finally {
       setActionLoading(false);
     }
@@ -258,11 +260,12 @@ export default function AgencyDetailPage() {
         alert("Agency deleted successfully");
         router.push("/admin/users/agency");
       } else {
-        alert("Failed to delete agency");
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || "Failed to delete agency");
       }
     } catch (error) {
       console.error("Delete error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to delete agency"));
     } finally {
       setActionLoading(false);
     }

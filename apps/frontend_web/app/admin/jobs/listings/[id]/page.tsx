@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { JobDetail, JobDetailResponse } from "@/types/admin-job-detail";
 import { JobTimelineVisualization } from "../../components/JobTimelineVisualization";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -54,7 +55,7 @@ export default function JobDetailPage() {
       }
     } catch (error) {
       console.error("Error fetching job detail:", error);
-      setError("An error occurred while loading job details");
+      setError(getErrorMessage(error, "Failed to load job details"));
     } finally {
       setLoading(false);
     }
@@ -223,8 +224,7 @@ export default function JobDetailPage() {
             <CardContent>
               <JobTimelineVisualization
                 timeline={job.timeline}
-                photos={job.photos}
-                workerName={job.worker?.name}
+                jobStatus={job.status}
               />
             </CardContent>
           </Card>

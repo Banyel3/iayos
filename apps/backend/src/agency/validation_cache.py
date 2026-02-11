@@ -20,7 +20,7 @@ def cache_validation_result(
     file_hash: str,
     document_type: str,
     validation_result: Dict[str, Any],
-    timeout: int = 300  # 5 minutes
+    timeout: int = 600  # 10 minutes - allows time for user to fill forms
 ) -> None:
     """
     Cache validation result in Redis.

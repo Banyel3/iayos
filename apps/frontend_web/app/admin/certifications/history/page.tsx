@@ -229,7 +229,7 @@ export default function CertificationHistoryPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
         <main className={mainClass}>
           <div className="flex items-center justify-center h-[80vh]">
@@ -249,7 +249,7 @@ export default function CertificationHistoryPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}

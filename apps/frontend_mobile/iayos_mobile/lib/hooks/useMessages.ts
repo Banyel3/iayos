@@ -65,6 +65,10 @@ export type ConversationDetail = {
     estimatedCompletion?: EstimatedCompletion | null;
     // Payment buffer info for completed jobs
     paymentBuffer?: PaymentBufferInfo | null;
+    // Daily payment model fields
+    payment_model?: "PROJECT" | "DAILY";
+    daily_rate?: number;
+    duration_days?: number;
   };
   other_participant: {
     name: string;
@@ -88,6 +92,13 @@ export type ConversationDetail = {
     rating?: number | null;
     isPrimaryContact?: boolean;
     reviewSubmitted?: boolean;
+    // PROJECT job workflow tracking (mirrors DAILY job DailyAttendance)
+    dispatched?: boolean;
+    dispatchedAt?: string | null;
+    clientConfirmedArrival?: boolean;
+    clientConfirmedArrivalAt?: string | null;
+    agencyMarkedComplete?: boolean;
+    agencyMarkedCompleteAt?: string | null;
   }>;
   pending_employee_reviews?: number[]; // Employee IDs not yet reviewed
   all_employees_reviewed?: boolean;
@@ -127,6 +138,21 @@ export type ConversationDetail = {
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;
   } | null;
+  // Daily attendance tracking for DAILY payment model jobs
+  attendance_today?: Array<{
+    attendance_id: number;
+    worker_id?: number;
+    worker_name?: string;
+    worker_avatar?: string;
+    date: string;
+    time_in?: string;
+    time_out?: string;
+    status: string;
+    amount_earned: number;
+    worker_confirmed: boolean;
+    client_confirmed: boolean;
+    payment_processed: boolean;
+  }>;
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
@@ -148,42 +174,42 @@ export function useMessages(conversationId: number) {
         throw new Error(`Failed to fetch messages: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ConversationDetail;
       // Transform avatar URLs to absolute URLs for local storage compatibility
       return {
         ...data,
         other_participant: data.other_participant
           ? {
               ...data.other_participant,
-              avatar: getAbsoluteMediaUrl(data.other_participant.avatar),
+              avatar: getAbsoluteMediaUrl(data.other_participant.avatar) || "",
             }
           : null,
         assigned_employee: data.assigned_employee
           ? {
               ...data.assigned_employee,
-              avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar),
+              avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar) || "",
             }
           : null,
         assigned_employees: data.assigned_employees?.map((emp: any) => ({
           ...emp,
-          avatar: getAbsoluteMediaUrl(emp.avatar),
+          avatar: getAbsoluteMediaUrl(emp.avatar) || "",
         })),
         // Team worker assignments for team jobs
         team_worker_assignments: data.team_worker_assignments?.map(
           (worker: any) => ({
             ...worker,
-            avatar: getAbsoluteMediaUrl(worker.avatar),
+            avatar: getAbsoluteMediaUrl(worker.avatar) || "",
           }),
         ),
         pending_team_worker_reviews: data.pending_team_worker_reviews?.map(
           (worker: any) => ({
             ...worker,
-            avatar: getAbsoluteMediaUrl(worker.avatar),
+            avatar: getAbsoluteMediaUrl(worker.avatar) || "",
           }),
         ),
         messages: data.messages.map((msg: Message) => ({
           ...msg,
-          sender_avatar: getAbsoluteMediaUrl(msg.sender_avatar),
+          sender_avatar: getAbsoluteMediaUrl(msg.sender_avatar) || "",
         })),
       };
     },
@@ -261,7 +287,7 @@ export function useUploadImageMessage() {
       const url = ENDPOINTS.UPLOAD_MESSAGE_IMAGE(conversationId);
       const response = await apiRequest(url, {
         method: "POST",
-        body: formData,
+        body: formData as any,
       });
 
       if (!response.ok) {
@@ -314,7 +340,7 @@ export function useInfiniteMessages(conversationId: number) {
         throw new Error(`Failed to fetch messages: ${response.statusText}`);
       }
 
-      const data: ConversationDetail = await response.json();
+      const data = (await response.json()) as ConversationDetail;
 
       return {
         messages: data.messages,

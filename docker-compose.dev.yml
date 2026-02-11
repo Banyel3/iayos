@@ -50,6 +50,9 @@ services:
     container_name: iayos-backend-dev
     env_file:
       - .env.docker
+    environment:
+      # TODO: REMOVE FOR PROD - Enable testing mode for GCash direct deposits
+      - TESTING=true
     ports:
       - "8000:8000"
       - "8001:8001"

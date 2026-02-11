@@ -15,6 +15,7 @@ class createAccountSchema(Schema):
     email: EmailStr
     password: str
     street_address: str
+    barangay: str             # "Tetuan"
     city: str             # "Zamboanga City"
     province: str        # "Zamboanga del Sur"
     postal_code: str    # Changed from int to str to match Accounts model CharField
@@ -36,6 +37,7 @@ class createAgencySchema(Schema):
     password: str
     businessName: str
     street_address: str
+    barangay: str             # "Tetuan"
     city: str             # "Zamboanga City"
     province: str        # "Zamboanga del Sur"
     postal_code: str    # "7000"
@@ -159,6 +161,30 @@ class CreateJobMobileSchema(Schema):
     skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
     work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
 
+
+class UpdateJobMobileSchema(Schema):
+    """Mobile-optimized schema for updating an existing job posting.
+    All fields are optional - only update what's provided.
+    Budget changes require wallet balance if increasing.
+    Non-budget edits allowed with pending applications; budget changes blocked.
+    """
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category_id: Optional[int] = None
+    budget: Optional[float] = None  # Will trigger wallet adjustment
+    location: Optional[str] = None
+    expected_duration: Optional[str] = None
+    urgency_level: Optional[str] = None  # 'LOW' | 'MEDIUM' | 'HIGH'
+    preferred_start_date: Optional[str] = None  # ISO format datetime string or null to clear
+    materials_needed: Optional[list] = None  # List of strings
+    # Universal fields for ML accuracy
+    job_scope: Optional[str] = None  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
+    skill_level_required: Optional[str] = None  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    work_environment: Optional[str] = None  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
+    # Audit trail
+    edit_reason: Optional[str] = None  # Optional reason for the edit (logged)
+
+
 class ApplyJobMobileSchema(Schema):
     """Mobile-optimized schema for job application"""
     proposal_message: str
@@ -190,6 +216,10 @@ class SubmitReviewMobileSchema(Schema):
     rating_professionalism: int  # Professionalism
     comment: str
     review_type: str  # 'CLIENT_TO_WORKER' | 'WORKER_TO_CLIENT'
+    # Agency job review fields (optional - for agency/multi-employee jobs)
+    review_target: Optional[str] = None  # 'EMPLOYEE' | 'AGENCY' | 'TEAM_WORKER' | None (regular job)
+    employee_id: Optional[int] = None  # For agency employee reviews (JobEmployeeAssignment)
+    worker_assignment_id: Optional[int] = None  # For team job worker reviews (JobWorkerAssignment)
 
 class SendMessageMobileSchema(Schema):
     """Schema for sending chat message"""
@@ -342,11 +372,20 @@ class ReorderPortfolioRequest(Schema):
     """Schema for reordering portfolio"""
     portfolio_id_order: list  # List of portfolio IDs in desired order
 
+
+class InviteSkillSlotSchema(Schema):
+    """Schema for skill slots in multi-employee agency invites"""
+    specialization_id: int
+    workers_needed: int = 1  # Default 1, max 10
+    skill_level_required: str = "ENTRY"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    notes: Optional[str] = None
+
+
 class CreateInviteJobMobileSchema(Schema):
     """Mobile schema for creating INVITE-type job (direct worker/agency hiring)"""
     title: str
     description: str
-    category_id: int
+    category_id: Optional[int] = None  # Optional for backwards compatibility (required if no skill_slots)
     budget: float
     location: str
     expected_duration: Optional[str] = None
@@ -360,6 +399,8 @@ class CreateInviteJobMobileSchema(Schema):
     job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
     skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
     work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
+    # Multi-employee agency invite (optional - only for agencies)
+    skill_slots: Optional[list] = None  # List of InviteSkillSlotSchema for multi-employee mode
 
 
 # Skill Management Schemas

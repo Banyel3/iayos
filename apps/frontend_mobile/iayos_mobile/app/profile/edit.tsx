@@ -29,7 +29,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
-import { useMySkills } from "@/lib/hooks/useSkills";
+import { useMySkills, useRemoveSkill } from "@/lib/hooks/useSkills";
 import * as ImagePicker from "expo-image-picker";
 
 // ===== TYPES =====
@@ -95,7 +95,28 @@ export default function EditProfileScreen() {
   ];
 
   // Fetch worker's current backend skills
-  const { data: mySkills = [] } = useMySkills();
+  const { data: mySkills = [], refetch: refetchMySkills } = useMySkills();
+  const removeSkillMutation = useRemoveSkill();
+  
+  // Handle skill removal (one-tap delete)
+  const handleRemoveSkill = (skillId: number, skillName: string) => {
+    removeSkillMutation.mutate(skillId, {
+      onSuccess: (data) => {
+        if (data.deletedCertifications > 0) {
+          Alert.alert(
+            "Skill Removed",
+            `${skillName} removed. ${data.deletedCertifications} linked certification(s) were also removed.`
+          );
+        }
+        refetchMySkills();
+      },
+      onError: (error) => {
+        Alert.alert("Error", error.message);
+      },
+    });
+  };
+  
+
 
   // Fetch current profile
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
@@ -584,49 +605,47 @@ export default function EditProfileScreen() {
           {/* Skills Management Section */}
           <View style={styles.managementSection}>
             <View style={styles.managementHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.sectionTitle}>
                   Skills (Specializations)
                 </Text>
                 <Text style={styles.managementHint}>
                   {mySkills.length > 0
                     ? `${mySkills.length} skill${mySkills.length === 1 ? "" : "s"} added`
-                    : "Add skills to showcase your expertise"}
+                    : "Tap + to add your first skill"}
                 </Text>
               </View>
-              <Ionicons name="construct" size={32} color={Colors.primary} />
+              <Pressable
+                style={styles.addSkillButton}
+                onPress={() => router.push("/profile/skills")}
+              >
+                <Ionicons name="add" size={24} color={Colors.white} />
+              </Pressable>
             </View>
 
-            {/* Display current skills as read-only bubbles */}
-            {mySkills.length > 0 && (
-              <View style={styles.skillBubblesContainer}>
+            {/* Display current skills as deletable chips */}
+            {mySkills.length > 0 ? (
+              <View style={styles.skillChipsContainer}>
                 {mySkills.map((skill) => (
-                  <View key={skill.id} style={styles.skillBubble}>
-                    <Text style={styles.skillBubbleText}>{skill.name}</Text>
-                    <Text style={styles.skillBubbleYears}>
-                      {skill.experienceYears}y
-                    </Text>
+                  <View key={skill.id} style={styles.skillChip}>
+                    <Text style={styles.skillChipText}>{skill.name}</Text>
+                    <Text style={styles.skillChipYears}>{skill.experienceYears}y</Text>
+                    <Pressable
+                      style={styles.skillChipDelete}
+                      onPress={() => handleRemoveSkill(skill.id, skill.name)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={18} color={Colors.error} />
+                    </Pressable>
                   </View>
                 ))}
               </View>
+            ) : (
+              <View style={styles.emptySkillsState}>
+                <Ionicons name="construct-outline" size={32} color={Colors.textSecondary} />
+                <Text style={styles.emptySkillsText}>No skills added yet</Text>
+              </View>
             )}
-
-            <Pressable
-              style={styles.manageButton}
-              onPress={() => router.push("/profile/skills" as any)}
-            >
-              <Ionicons
-                name="settings-outline"
-                size={20}
-                color={Colors.primary}
-              />
-              <Text style={styles.manageButtonText}>Manage Skills</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.primary}
-              />
-            </Pressable>
           </View>
 
           {/* Soft Skills Section */}
@@ -1148,7 +1167,7 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
   },
 
-  // Skill Bubbles
+  // Skill Bubbles (legacy - kept for reference)
   skillBubblesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1174,6 +1193,126 @@ const styles = StyleSheet.create({
     color: Colors.white,
     opacity: 0.8,
     fontSize: 10,
+  },
+  
+  // New Skill Chips with delete
+  addSkillButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  skillChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  skillChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: Spacing.xs,
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.xs,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  skillChipText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  skillChipYears: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    opacity: 0.7,
+    fontSize: 10,
+    marginLeft: 4,
+  },
+  skillChipDelete: {
+    marginLeft: 4,
+    padding: 2,
+  },
+  emptySkillsState: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+  },
+  emptySkillsText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  
+  // Add Skill Modal
+  addSkillModalContent: {
+    width: "90%",
+    maxHeight: "80%",
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.large,
+    padding: Spacing.lg,
+    ...Shadows.medium,
+  },
+  modalSubtitle: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  skillPickerList: {
+    maxHeight: 250,
+    marginBottom: Spacing.md,
+  },
+  skillPickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  skillPickerItemSelected: {
+    backgroundColor: Colors.primaryLight,
+  },
+  skillPickerItemText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+  },
+  skillPickerItemTextSelected: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  yearsInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  yearsLabel: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    marginRight: Spacing.md,
+  },
+  yearsInput: {
+    ...Typography.body.medium,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    width: 60,
+    textAlign: "center",
+  },
+  noSkillsAvailable: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    paddingVertical: Spacing.lg,
+  },
+  modalButtonDisabled: {
+    opacity: 0.5,
   },
 
   // Soft Skills

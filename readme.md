@@ -1,18 +1,56 @@
-# 🛠️ iAyos Marketplace Platform
+# 🛠️ iAyos - Blue-Collar Services Marketplace
 
 [![Deploy Backend](https://github.com/Banyel3/iayos/actions/workflows/deploy-backend.yml/badge.svg)](https://github.com/Banyel3/iayos/actions/workflows/deploy-backend.yml)
+[![Mobile Build](https://github.com/Banyel3/iayos/actions/workflows/mobile-release.yml/badge.svg)](https://github.com/Banyel3/iayos/actions/workflows/mobile-release.yml)
 
-iAyos is a niche marketplace platform connecting freelance blue-collar workers and small home-based businesses with clients seeking services like home construction, repair, and mechanical work. Think of it as a specialized version of Fiverr or Upwork, focused on practical, hands-on services.
+> **A comprehensive marketplace connecting skilled workers with clients in the Philippines**  
+> Secure payments · Team jobs · AI-powered KYC · Real-time chat
 
-The platform provides:
+---
 
-✅ Client-Worker Matching: Quickly find service providers or gigs.
+## 🌟 What is iAyos?
 
-✅ User Profiles & Ratings: Build trust through verified profiles and reviews.
+iAyos is a digital platform bringing traditional blue-collar work into the gig economy with modern financial security and trust mechanisms. Think of it as **"Upwork for hands-on services"** - connecting clients with skilled professionals in plumbing, electrical, carpentry, and 15+ other categories.
 
-✅ Task Management: Track, accept, and complete jobs efficiently.
+### For Workers
+Browse jobs, apply with proposals, manage certifications, build portfolios, and receive secure payments via GCash or digital wallet.
 
-✅ Secure Communication: In-app messaging for seamless coordination.
+### For Clients  
+Post job listings or send direct invites, hire individual workers or teams, track progress with escrow payments, and rate service quality.
+
+### For Agencies
+Manage employee rosters, assign workers to jobs, track performance analytics, and receive weekly automated payouts.
+
+### Key Features
+- 🔒 **AI-Powered KYC**: DeepFace face detection + Tesseract OCR for identity verification
+- 💰 **50% Escrow System**: Secure payments with 7-day buffer period
+- 👥 **Team Jobs**: Hire multiple specialists (e.g., 2 plumbers + 3 electricians) in one job
+- 🤖 **ML Price Prediction**: LSTM model trained on Philippine blue-collar job data
+- 💬 **Real-Time Chat**: WebSocket-based messaging with typing indicators
+- 📱 **Multi-Platform**: Web dashboard + Android mobile app
+
+---
+
+## 🌐 Live Platform
+
+| Service | URL | Version |
+|---------|-----|---------|
+| **Web App** (Agency Dashboard) | https://iayos.online | 0.1.0 |
+| **Backend API** | https://api.iayos.online | - |
+| **Mobile APK** (Worker/Client) | [Download Latest Release](https://github.com/Banyel3/iayos/releases/latest) | 1.21.2 |
+
+**Deployment**: DigitalOcean App Platform (Singapore region)
+
+---
+
+## 🏗️ Technology Stack
+
+**Backend**: Django 5.2.8 · PostgreSQL · Django Channels · TensorFlow · DeepFace  
+**Frontend Web**: Next.js 15.2.0 · React 19 · TypeScript · Tailwind CSS · shadcn/ui  
+**Mobile**: React Native/Expo · TypeScript · TanStack Query  
+**Infrastructure**: Docker · Turborepo · Supabase · PayMongo · Resend
+
+📖 **Full stack details**: See [AGENTS.md](AGENTS.md)
 
 ---
 
@@ -20,289 +58,107 @@ The platform provides:
 
 This is a **Turborepo monorepo** with the following structure:
 
+<details>
+<summary>View folder structure</summary>
+
 ```
 iayos/
 ├── apps/
-│   ├── backend/           # Django API server (Python)
-│   ├── frontend_web/      # Next.js dashboard (TypeScript)
-│   └── frontend_mobile/   # React Native/Expo app (TypeScript)
-├── docs/                  # All documentation
-└── ...                    # Config files (Docker, Turbo, etc.)
+│   ├── backend/           # Django API server with ML models
+│   ├── frontend_web/      # Next.js admin/agency dashboard
+│   └── frontend_mobile/   # React Native worker/client app
+├── docs/                  # Comprehensive documentation
+│   ├── 01-completed/      # Feature completion docs
+│   ├── bug-fixes/         # Bug fix documentation
+│   ├── setup/             # Deployment guides
+│   └── mobile/            # Mobile app docs
+├── tests/                 # API tests (.http files)
+└── scripts/               # Utility scripts
 ```
 
-📖 **Full structure details:** See [REPO_STRUCTURE.md](REPO_STRUCTURE.md)
+📖 **Full structure**: See [REPO_STRUCTURE.md](REPO_STRUCTURE.md)
+</details>
 
 ---
 
-## 🎓 About This Project
+## 📱 Mobile App
 
-This project was developed as the final submission for the Software Engineering course at [Your University Name].
-It showcases full-stack development skills using Next.js (frontend) and Django (backend), including deployment best practices, environment setup, and team collaboration.
+**Latest Version**: 1.21.2  
+**Platform**: Android (APK)  
+**Download**: [GitHub Releases](https://github.com/Banyel3/iayos/releases/latest)
 
----
-
-## 📜 License
-
-This project is licensed under the MIT License — see the LICENSE
-file for details.
-You are free to explore, learn from, and modify the code, with proper credit to the authors.
-
----
-
-# 🚀 Project Setup Guide
-
-## Prerequisites
-
-## Prerequisites
-
-- **Docker Desktop** (Windows/macOS) or Docker Engine (Linux)
-- **Visual Studio Code** (recommended)
-- **GitHub Desktop** (recommended for Git operations)
-- **`.env.docker` file** at project root (get from team lead)
+### For Developers
+```bash
+cd apps/frontend_mobile/iayos_mobile
+npm install
+npx expo start
+```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Development)
 
-### 1. Clone and Switch to Development Branch
+### Prerequisites
+- Docker Desktop
+- `.env.docker` file (request from team lead)
 
-**Using GitHub Desktop:**
-
-1. Open GitHub Desktop
-2. Clone repository: `Banyel3/iayos`
-3. After cloning, click **Current Branch** dropdown at the top
-4. Switch to branch: `features/kyc`
-5. Click **Fetch origin** to ensure you have latest changes
-6. Click **Pull origin** if there are updates
-
-**Using Git CLI (alternative):**
-
-```powershell
+### Setup
+```bash
 git clone https://github.com/Banyel3/iayos.git
 cd iayos
-git checkout features/kyc
-git pull origin features/kyc
-```
-
-### 2. Get Environment File
-
-- Request `.env.docker` file from team lead
-- Place it in project root: `iayos/.env.docker`
-
-### 3. Build and Start
-
-Open VS Code, open a terminal (`` Ctrl+` ``), and run:
-
-```powershell
-# Build and start all services
+# Place .env.docker in project root
 docker-compose -f docker-compose.dev.yml up --build
 ```
 
-### 4. Access the Application
+**Access**:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
+- Admin: http://localhost:8000/admin
 
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:8000
-- **Backend Admin:** http://localhost:8000/admin
-
----
-
-## 🔄 Keeping Your Branch Up to Date
-
-**Using GitHub Desktop:**
-
-1. Click **Fetch origin** to check for updates
-2. If updates are available, click **Pull origin**
-3. Resolve any conflicts if prompted
-
-**Using Git CLI (alternative):**
-
-```powershell
-git pull origin features/kyc
-```
+📖 **Full setup guide with daily commands**: See [docs/setup/DEPLOYMENT_SETUP.md](docs/setup/DEPLOYMENT_SETUP.md)
 
 ---
 
-## Daily Development
+## 🧪 Testing
 
-Open VS Code terminal (`` Ctrl+` ``) and run:
+**API Tests**: `.http` files in `tests/` (use VS Code REST Client extension)
 
-```powershell
+```bash
+# Backend tests
+docker exec iayos-backend-dev pytest
 
-# Build First
-
-docker-compose -f docker-compose.dev.yml build
-
-# Start everything (hot reload enabled - code changes auto-update!)
-docker-compose -f docker-compose.dev.yml up -d
-
-# Stop all services
-docker-compose -f docker-compose.dev.yml down
-
-# Rebuild when dependencies change (package.json, requirements.txt, Dockerfile)
-docker-compose -f docker-compose.dev.yml build
-
-# Restart a service
-docker-compose -f docker-compose.dev.yml restart frontend
-docker-compose -f docker-compose.dev.yml restart backend
-
-# View logs
-docker logs iayos-frontend-dev -f --tail=100
-docker logs iayos-backend-dev -f --tail=100
-```
-
-> **💡 Development Tip:** Code changes in `apps/backend` and `apps/frontend_web` auto-reload thanks to volume mounts. You only need to rebuild when dependencies change!
-> docker logs iayos-backend-dev -f --tail=100
-
-````
-
-> **💡 Development Tip:** Code changes in `apps/backend` and `apps/frontend_web` auto-reload thanks to volume mounts. You only need to rebuild when dependencies change!
-
----
-
-## Common Tasks
-
-### Django Migrations
-
-```powershell
 # Apply migrations
 docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 manage.py migrate"
 
-# Create superuser
-docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 manage.py createsuperuser"
-````
-
-### Access Container Shell
-
-```powershell
-docker exec -it iayos-frontend-dev sh
-docker exec -it iayos-backend-dev sh
+# Apply migrations
+docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 manage.py migrate"
 ```
 
 ---
 
-## Troubleshooting
+## 📚 Documentation
 
-### "env file .env.docker not found"
-
-- Make sure `.env.docker` is in the project root
-- Get the file from your team lead
-
-### Containers exit immediately
-
-```powershell
-# Check logs for errors
-docker logs iayos-backend-dev
-docker logs iayos-frontend-dev
-```
-
-### Changes not reflecting
-
-- Code changes should hot-reload automatically
-- If `package.json` or `requirements.txt` changed, rebuild:
-
-```powershell
-docker-compose -f docker-compose.dev.yml build
-```
-
-- For `.env.docker` changes, restart:
-
-```powershell
-docker-compose -f docker-compose.dev.yml restart
-```
-
-### Port already in use
-
-```powershell
-docker-compose -f docker-compose.dev.yml down
-```
-
-### Clean rebuild (fixes most issues)
-
-```powershell
-docker-compose -f docker-compose.dev.yml down
-docker-compose -f docker-compose.dev.yml build --no-cache
-docker-compose -f docker-compose.dev.yml up -d
-```
+| Topic | Location |
+|-------|----------|
+| Platform Features | [AGENTS.md](AGENTS.md) - Complete feature history |
+| Setup Guides | [docs/setup/](docs/setup/) |
+| Bug Fixes | [docs/bug-fixes/](docs/bug-fixes/) |
+| Mobile Docs | [docs/mobile/](docs/mobile/) |
+| Git Workflow | [docs/guides/GIT_WORKFLOW_GUIDE.md](docs/guides/GIT_WORKFLOW_GUIDE.md) |
 
 ---
 
-## Environment Variables
+## 📄 License
 
-**🔐 Setup:**
-
-1. Get `.env.docker` from team lead
-2. Place at project root: `iayos/.env.docker`
-3. Never commit to Git (already gitignored)
-
-**Key Variables in `.env.docker`:**
-
-```bash
-# Database
-DATABASE_URL=postgresql://...
-
-# Django
-DJANGO_SECRET_KEY=...
-FRONTEND_URL=http://localhost:3000
-
-# Xendit (Payments)
-XENDIT_API_KEY=xnd_development_...
-
-# Supabase (Storage)
-SUPABASE_ANON_KEY=...
-SUPABASE_URL=...
-
-# API URLs (must use localhost for browser)
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8001
-```
-
-⚠️ **Important:** `NEXT_PUBLIC_*` variables must use `localhost`, NOT Docker service names
+MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-## � Flutter Mobile App
+## 👥 About
 
-### Build APK with Docker
-
-```powershell
-# Build Flutter APK (outputs to ./output/ folder)
-.\scripts\build-mobile.ps1
-
-# Or manually:
-docker buildx build --target mobile-production --output type=local,dest=./output -f Dockerfile .
-```
-
-### Local Flutter Development
-
-```powershell
-cd apps\frontend_mobile\iayos_mobile
-flutter pub get
-flutter run
-```
-
-📖 **Full Flutter build guide:** See [docs/FLUTTER_DOCKER_BUILD.md](docs/FLUTTER_DOCKER_BUILD.md)
+Developed as a final project for Software Engineering course.  
+Showcasing full-stack development with Django, Next.js, and React Native.
 
 ---
 
-## �📝 Tips
-
-- **Open terminal in VS Code:** Press `` Ctrl+` `` (backtick key)
-- **Run commands from project root**
-- **Frontend changes auto-reload:** Changes to React/Next.js files hot reload automatically
-- **Backend changes need restart:** After changing Python/Django code, restart backend:
-  ```powershell
-  docker-compose -f docker-compose.dev.yml restart backend
-  ```
-- **For dependency changes:** Rebuild containers
-- **Stuck?** Try a clean rebuild (see Troubleshooting)
-
----
-
-## 🎓 About This Project
-
-This project was developed as the final submission for the Software Engineering course.
-It showcases full-stack development using Next.js (frontend) and Django (backend), including Docker deployment and team collaboration.
-
-## 📜 License
-
-MIT License — see LICENSE file for details.
+**Made with ❤️ in the Philippines**

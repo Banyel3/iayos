@@ -1,0 +1,255 @@
+### Test Agency Daily Attendance Endpoints
+### Requires browser authentication (cookie-based)
+
+@baseUrl = https://api.iayos.online
+# For local testing:
+# @baseUrl = http://localhost:8000
+
+### Step 1: Login as Agency Representative
+### Open browser: https://iayos.online/agency/login
+### Email: gamerofgames76@gmail.com
+### Password: VanielCornelio_123
+### This will set cookies in browser for authenticated requests
+
+### ============================================================================
+### TEST SCENARIO: DAILY JOB EMPLOYEE ATTENDANCE MARKING
+### ============================================================================
+
+### 2. Mark Employee #1 Arrival
+### Replace {job_id} and {employee_id} with actual IDs from your agency's jobs
+POST {{baseUrl}}/api/agency/jobs/117/employees/1/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 200:
+# {
+#   "success": true,
+#   "message": "John Doe marked as arrived",
+#   "attendance_id": 1,
+#   "employee_id": 1,
+#   "employee_name": "John Doe",
+#   "date": "2026-02-06",
+#   "time_in": "2026-02-06T08:30:00+08:00",
+#   "time_out": null,
+#   "status": "PENDING"
+# }
+
+###
+
+### 3. Attempt Duplicate Check-In (Should Fail)
+POST {{baseUrl}}/api/agency/jobs/117/employees/1/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 400:
+# {
+#   "success": false,
+#   "error": "John Doe has already been marked as arrived today",
+#   "attendance_id": 1
+# }
+
+###
+
+### 4. Mark Employee #2 Arrival
+POST {{baseUrl}}/api/agency/jobs/117/employees/2/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+###
+
+### 5. Get Daily Attendance Records (Today)
+GET {{baseUrl}}/api/agency/jobs/117/daily-attendance
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 200:
+# {
+#   "success": true,
+#   "job_id": 117,
+#   "date": "2026-02-06",
+#   "records": [
+#     {
+#       "attendance_id": 1,
+#       "employee_id": 1,
+#       "employee_name": "John Doe",
+#       "date": "2026-02-06",
+#       "time_in": "2026-02-06T08:30:00+08:00",
+#       "time_out": null,
+#       "status": "PENDING",
+#       "worker_confirmed": false,
+#       "client_confirmed": false,
+#       "amount_earned": 0.00
+#     },
+#     {
+#       "attendance_id": 2,
+#       "employee_id": 2,
+#       "employee_name": "Jane Smith",
+#       "date": "2026-02-06",
+#       "time_in": "2026-02-06T08:35:00+08:00",
+#       "time_out": null,
+#       "status": "PENDING",
+#       "worker_confirmed": false,
+#       "client_confirmed": false,
+#       "amount_earned": 0.00
+#     }
+#   ],
+#   "total_count": 2
+# }
+
+###
+
+### 6. Get Daily Attendance for Specific Date
+GET {{baseUrl}}/api/agency/jobs/117/daily-attendance?date=2026-02-05
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+###
+
+### 7. Mark Employee #1 Checkout
+POST {{baseUrl}}/api/agency/jobs/117/employees/1/mark-checkout
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 200:
+# {
+#   "success": true,
+#   "message": "John Doe marked as checked out",
+#   "attendance_id": 1,
+#   "employee_id": 1,
+#   "employee_name": "John Doe",
+#   "date": "2026-02-06",
+#   "time_in": "2026-02-06T08:30:00+08:00",
+#   "time_out": "2026-02-06T17:00:00+08:00",
+#   "status": "PENDING"
+# }
+
+###
+
+### 8. Attempt Checkout Without Check-In (Should Fail)
+POST {{baseUrl}}/api/agency/jobs/117/employees/3/mark-checkout
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 400:
+# {
+#   "success": false,
+#   "error": "Employee Name has not been marked as arrived today"
+# }
+
+###
+
+### 9. Attempt Duplicate Checkout (Should Fail)
+POST {{baseUrl}}/api/agency/jobs/117/employees/1/mark-checkout
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 400:
+# {
+#   "success": false,
+#   "error": "John Doe has already been checked out today",
+#   "attendance_id": 1
+# }
+
+###
+
+### ============================================================================
+### ERROR CASES
+### ============================================================================
+
+### 10. Unauthorized Access (No Cookie)
+POST {{baseUrl}}/api/agency/jobs/117/employees/1/mark-arrival
+Content-Type: application/json
+
+# Expected Response 401:
+# {
+#   "detail": "Unauthorized"
+# }
+
+###
+
+### 11. Job Not Found
+POST {{baseUrl}}/api/agency/jobs/99999/employees/1/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 404:
+# {
+#   "success": false,
+#   "error": "Job not found"
+# }
+
+###
+
+### 12. Employee Not Found
+POST {{baseUrl}}/api/agency/jobs/117/employees/99999/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 404:
+# {
+#   "success": false,
+#   "error": "Employee not found"
+# }
+
+###
+
+### 13. Wrong Agency (Employee from Different Agency)
+POST {{baseUrl}}/api/agency/jobs/117/employees/999/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 403:
+# {
+#   "success": false,
+#   "error": "This job is not assigned to your agency"
+# }
+
+###
+
+### 14. Non-DAILY Job (PROJECT payment model)
+POST {{baseUrl}}/api/agency/jobs/100/employees/1/mark-arrival
+Content-Type: application/json
+Cookie: sessionid=YOUR_SESSION_COOKIE_HERE
+
+# Expected Response 400:
+# {
+#   "success": false,
+#   "error": "This job is not a daily-rate job"
+# }
+
+###
+
+### ============================================================================
+### MANUAL UI TESTING CHECKLIST
+### ============================================================================
+
+### Test Steps:
+### 1. Login to agency portal: https://iayos.online/agency/login
+### 2. Navigate to Messages tab
+### 3. Find a DAILY payment_model job conversation (status: IN_PROGRESS)
+### 4. Look for "Daily Attendance" section below the blue banner
+### 5. Verify employee list shows with checkboxes
+### 6. Click "Mark Arrived" on an employee → Should show success toast
+### 7. Verify status changes to "Working" with green badge
+### 8. Click "Mark Checkout" → Should show success toast
+### 9. Verify status changes to "Awaiting Client" with amber badge
+### 10. Client login and verify attendance from their side
+### 11. Client confirms attendance → Verify status changes to "Client Verified" with blue badge
+
+### Visual Verification:
+### ✅ Employee list renders with names and primary contact badge
+### ✅ "Mark Arrived" button shows initially
+### ✅ After arrival: Green "Working" badge + "Mark Checkout" button
+### ✅ Shows arrival time (e.g., "Arrived: 8:30 AM")
+### ✅ After checkout: Amber "Awaiting Client" badge + checkout time
+### ✅ After client verification: Blue "Client Verified" badge
+### ✅ Loading spinners during API calls
+### ✅ Success toasts on successful operations
+### ✅ Error toasts on failures
+### ✅ Real-time updates (auto-refresh every 30 seconds)
+
+### Edge Cases to Test:
+### ✅ Attempt duplicate check-in (should show error toast)
+### ✅ Attempt checkout before check-in (should show error toast)
+### ✅ Attempt duplicate checkout (should show error toast)
+### ✅ Verify only DAILY jobs show the attendance section
+### ✅ Verify PROJECT jobs don't show the attendance section
+### ✅ No employees assigned → Shows "No employees assigned" message

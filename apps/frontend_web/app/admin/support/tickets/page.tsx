@@ -40,6 +40,9 @@ interface TicketData {
   created_at: string;
   last_reply_at: string;
   reply_count: number;
+  ticket_type?: "individual" | "agency";
+  agency_id?: number | null;
+  agency_name?: string | null;
 }
 
 interface TicketsResponse {
@@ -98,6 +101,14 @@ const CATEGORY_CONFIG: Record<string, { color: string }> = {
   feature_request: { color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
   bug_report: { color: "bg-red-100 text-red-700 border-red-200" },
   general: { color: "bg-gray-100 text-gray-700 border-gray-200" },
+  kyc: { color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  employees: { color: "bg-cyan-100 text-cyan-700 border-cyan-200" },
+  jobs: { color: "bg-orange-100 text-orange-700 border-orange-200" },
+};
+
+const TICKET_TYPE_CONFIG = {
+  individual: { label: "Individual", color: "bg-gray-100 text-gray-700 border-gray-200" },
+  agency: { label: "Agency", color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
 };
 
 export default function SupportTicketsPage() {
@@ -114,6 +125,7 @@ export default function SupportTicketsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [dateRange, setDateRange] = useState("last_30_days");
+  const [ticketTypeFilter, setTicketTypeFilter] = useState("all");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -137,6 +149,7 @@ export default function SupportTicketsPage() {
     categoryFilter,
     assignedFilter,
     dateRange,
+    ticketTypeFilter,
   ]);
 
   const fetchTickets = async () => {
@@ -153,6 +166,7 @@ export default function SupportTicketsPage() {
       if (assignedFilter !== "all")
         params.append("assigned_to", assignedFilter);
       if (searchTerm) params.append("search", searchTerm);
+      if (ticketTypeFilter !== "all") params.append("ticket_type", ticketTypeFilter);
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets?${params.toString()}`,
@@ -397,6 +411,19 @@ export default function SupportTicketsPage() {
                 {/* Additional Filters */}
                 <div className="flex flex-wrap gap-4">
                   <select
+                    value={ticketTypeFilter}
+                    onChange={(e) => {
+                      setTicketTypeFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="px-3 py-2 border rounded-lg text-sm"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="individual">Individual</option>
+                    <option value="agency">Agency</option>
+                  </select>
+
+                  <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
                     className="px-3 py-2 border rounded-lg text-sm"
@@ -420,6 +447,9 @@ export default function SupportTicketsPage() {
                     <option value="feature_request">Feature Request</option>
                     <option value="bug_report">Bug Report</option>
                     <option value="general">General</option>
+                    <option value="kyc">KYC</option>
+                    <option value="employees">Employees</option>
+                    <option value="jobs">Jobs</option>
                   </select>
 
                   <select
@@ -505,10 +535,13 @@ export default function SupportTicketsPage() {
                         ID
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Subject
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        User
+                        User / Agency
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Category
@@ -533,7 +566,7 @@ export default function SupportTicketsPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {loading ? (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center">
+                        <td colSpan={11} className="px-6 py-12 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <MessageSquare className="h-8 w-8 text-gray-400 animate-pulse" />
                             <p className="text-gray-500">Loading tickets...</p>
@@ -542,7 +575,7 @@ export default function SupportTicketsPage() {
                       </tr>
                     ) : tickets.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center">
+                        <td colSpan={11} className="px-6 py-12 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <Inbox className="h-12 w-12 text-gray-400" />
                             <p className="text-gray-500 font-medium">
@@ -578,6 +611,17 @@ export default function SupportTicketsPage() {
                             #{ticket.id}
                           </td>
                           <td className="px-6 py-4">
+                            <Badge
+                              className={
+                                ticket.ticket_type === "agency"
+                                  ? TICKET_TYPE_CONFIG.agency.color
+                                  : TICKET_TYPE_CONFIG.individual.color
+                              }
+                            >
+                              {ticket.ticket_type === "agency" ? "Agency" : "Individual"}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-gray-900 max-w-md truncate">
                                 {ticket.subject}
@@ -590,7 +634,14 @@ export default function SupportTicketsPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
-                            {ticket.user_name}
+                            <div className="flex flex-col">
+                              <span>{ticket.user_name}</span>
+                              {ticket.ticket_type === "agency" && ticket.agency_name && (
+                                <span className="text-xs text-indigo-600 font-medium">
+                                  {ticket.agency_name}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <Badge

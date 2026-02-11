@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -168,7 +169,10 @@ export default function ScheduledReports() {
                   Manage automated report generation and delivery
                 </p>
               </div>
-              <Button className="bg-white text-blue-600 hover:bg-gray-100">
+              <Button
+                className="bg-white text-blue-600 hover:bg-gray-100"
+                onClick={() => toast.info("Coming soon", { description: "Report scheduling will be available in a future update." })}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Schedule New Report
               </Button>
@@ -320,20 +324,21 @@ export default function ScheduledReports() {
                             </td>
                             <td className="p-3">
                               <div className="flex items-center justify-end space-x-1">
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => toast.info("Coming soon", { description: `${report.status === "active" ? "Pause" : "Resume"} functionality will be available in a future update.` })}>
                                   {report.status === "active" ? (
                                     <Pause className="h-4 w-4" />
                                   ) : (
                                     <Play className="h-4 w-4" />
                                   )}
                                 </Button>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => toast.info("Coming soon", { description: "Report editing will be available in a future update." })}>
                                   <Edit className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   className="text-red-600 hover:text-red-700"
+                                  onClick={() => toast.info("Coming soon", { description: "Report deletion will be available in a future update." })}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -378,7 +383,7 @@ export default function ScheduledReports() {
                               <p className="text-sm text-gray-600 mb-3">
                                 {template.description}
                               </p>
-                              <Button size="sm" variant="outline">
+                              <Button size="sm" variant="outline" onClick={() => toast.info("Coming soon", { description: "Template usage will be available in a future update." })}>
                                 <Plus className="h-4 w-4 mr-2" />
                                 Use Template
                               </Button>
@@ -452,11 +457,11 @@ export default function ScheduledReports() {
                             <div className="flex items-center justify-end space-x-2">
                               {report.status === "success" && (
                                 <>
-                                  <Button variant="outline" size="sm">
+                                  <Button variant="outline" size="sm" onClick={() => toast.info("Coming soon", { description: "Report download will be available in a future update." })}>
                                     <Download className="h-4 w-4 mr-2" />
                                     Download
                                   </Button>
-                                  <Button variant="ghost" size="sm">
+                                  <Button variant="ghost" size="sm" onClick={() => toast.info("Coming soon", { description: "Email delivery will be available in a future update." })}>
                                     <Mail className="h-4 w-4" />
                                   </Button>
                                 </>

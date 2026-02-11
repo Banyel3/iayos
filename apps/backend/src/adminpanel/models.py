@@ -1,6 +1,9 @@
 from django.db import models
 from accounts.models import Accounts, kyc
 
+# Import Agency model - use string reference to avoid circular import
+# Agency FK uses 'agency.Agency' string reference
+
 # Create your models here.
 
 
@@ -180,6 +183,7 @@ class CertificationLog(models.Model):
 class SupportTicket(models.Model):
     """
     Support tickets submitted by users for platform issues.
+    Supports both individual users and agencies.
     """
     ticketID = models.BigAutoField(primary_key=True)
     
@@ -191,15 +195,41 @@ class SupportTicket(models.Model):
         help_text="User who submitted the ticket"
     )
     
+    # Agency context (optional - for agency-submitted tickets)
+    agencyFK = models.ForeignKey(
+        'accounts.Agency',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='support_tickets',
+        help_text="Agency that submitted the ticket (if agency ticket)"
+    )
+    
+    class TicketType(models.TextChoices):
+        INDIVIDUAL = "individual", "Individual User"
+        AGENCY = "agency", "Agency"
+    
+    ticketType = models.CharField(
+        max_length=15,
+        choices=TicketType.choices,
+        default=TicketType.INDIVIDUAL,
+        help_text="Whether ticket is from individual user or agency"
+    )
+    
     subject = models.CharField(max_length=200, help_text="Brief description of the issue")
     
     class Category(models.TextChoices):
+        # General categories
         ACCOUNT = "account", "Account Issues"
         PAYMENT = "payment", "Payment Issues"
         TECHNICAL = "technical", "Technical Problems"
         FEATURE_REQUEST = "feature_request", "Feature Request"
         BUG_REPORT = "bug_report", "Bug Report"
         GENERAL = "general", "General Inquiry"
+        # Agency-specific categories
+        KYC = "kyc", "KYC Verification"
+        EMPLOYEES = "employees", "Employee Management"
+        JOBS = "jobs", "Jobs & Invitations"
     
     category = models.CharField(
         max_length=20,
@@ -248,6 +278,30 @@ class SupportTicket(models.Model):
     lastReplyAt = models.DateTimeField(null=True, blank=True)
     resolvedAt = models.DateTimeField(null=True, blank=True)
     
+    # Platform tracking
+    class Platform(models.TextChoices):
+        WEB = "web", "Web Browser"
+        MOBILE = "mobile", "Mobile App"
+        AGENCY_PORTAL = "agency_portal", "Agency Portal"
+    
+    platform = models.CharField(
+        max_length=15,
+        choices=Platform.choices,
+        default=Platform.WEB,
+        help_text="Platform where ticket was created"
+    )
+    deviceInfo = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Device/browser info (User-Agent)"
+    )
+    appVersion = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text="Mobile app version"
+    )
+    
     class Meta:
         ordering = ['-createdAt']
         verbose_name = "Support Ticket"
@@ -258,6 +312,9 @@ class SupportTicket(models.Model):
             models.Index(fields=['priority']),
             models.Index(fields=['category']),
             models.Index(fields=['assignedTo']),
+            models.Index(fields=['ticketType']),
+            models.Index(fields=['agencyFK']),
+            models.Index(fields=['platform']),
         ]
     
     def __str__(self):

@@ -13,7 +13,11 @@ import {
   FileText,
   Award,
   Target,
+  Edit,
+  Trash2,
+  ToggleLeft,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface JobCategory {
   id: number;
@@ -331,6 +335,31 @@ export default function JobCategoriesPage() {
                           </div>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => toast.info("Category editing coming soon")}
+                        className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+                        title="Edit Category"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => toast.info("Category status toggle coming soon")}
+                        className="p-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 transition-colors"
+                        title="Toggle Status"
+                      >
+                        <ToggleLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => toast.info("Category deletion coming soon")}
+                        className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
+                        title="Delete Category"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 </CardContent>

@@ -8,7 +8,7 @@ import type { NextRequest } from "next/server";
  * AGENCY and ADMIN accounts retain full web access.
  *
  * Routes protected:
- * - /dashboard/* - Worker and Client dashboard pages
+ * - /dashboard/* - Worker and Client dashboard pages (REMOVED - mobile-only)
  *
  * Routes allowed for all authenticated users:
  * - /admin/* - Admin panel (server-side role check in admin/layout.tsx)
@@ -17,10 +17,6 @@ import type { NextRequest } from "next/server";
  * - /api/* - API routes
  * - Static assets
  */
-
-// Feature flags - can be toggled to enable/disable web access for specific profile types
-const ENABLE_WORKER_WEB_UI = false; // Set to true to allow workers on web
-const ENABLE_CLIENT_WEB_UI = false; // Set to true to allow clients on web
 
 // Routes that require mobile-only enforcement for workers/clients
 const MOBILE_ONLY_ROUTES = ["/dashboard"];
@@ -65,9 +61,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get auth token from cookies
+  // Get auth token from cookies (backend sets "access" and "refresh" cookie names)
   const authCookie =
-    request.cookies.get("access_token") || request.cookies.get("auth_token");
+    request.cookies.get("access") || request.cookies.get("refresh");
 
   if (!authCookie?.value) {
     // Not logged in - let the page handle redirect to login
@@ -95,15 +91,9 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Check if WORKER web access is enabled
-    if (profileType === "WORKER" && !ENABLE_WORKER_WEB_UI) {
-      console.log(`[MIDDLEWARE] Blocking WORKER from web route: ${pathname}`);
-      return NextResponse.redirect(new URL("/mobile-only", request.url));
-    }
-
-    // Check if CLIENT web access is enabled
-    if (profileType === "CLIENT" && !ENABLE_CLIENT_WEB_UI) {
-      console.log(`[MIDDLEWARE] Blocking CLIENT from web route: ${pathname}`);
+    // Workers and clients are permanently redirected to mobile-only
+    if (profileType === "WORKER" || profileType === "CLIENT") {
+      console.log(`[MIDDLEWARE] Redirecting ${profileType} to mobile-only from: ${pathname}`);
       return NextResponse.redirect(new URL("/mobile-only", request.url));
     }
 

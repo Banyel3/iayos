@@ -32,7 +32,7 @@ interface PaymentGateway {
 
 interface GatewaysResponse {
   success: boolean;
-  xendit: PaymentGateway;
+  paymongo: PaymentGateway;
   gcash: PaymentGateway;
   bank_transfer: PaymentGateway;
 }
@@ -252,7 +252,7 @@ export default function PaymentGatewaysPage() {
 
         {/* Gateway Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Xendit Card */}
+          {/* PayMongo Card */}
           <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
             <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50 pb-4">
               <div className="flex items-center justify-between">
@@ -261,13 +261,13 @@ export default function PaymentGatewaysPage() {
                     <CreditCard className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Xendit</CardTitle>
+                    <CardTitle className="text-lg">PayMongo</CardTitle>
                     <p className="text-sm text-gray-500 mt-0.5">
                       Online Payments
                     </p>
                   </div>
                 </div>
-                {gateways.xendit.enabled ? (
+                {gateways.paymongo?.enabled ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : (
                   <XCircle className="h-5 w-5 text-gray-400" />
@@ -279,20 +279,20 @@ export default function PaymentGatewaysPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-900">Status</p>
                   <p
-                    className={`text-xs mt-0.5 ${gateways.xendit.enabled ? "text-green-600" : "text-gray-500"}`}
+                    className={`text-xs mt-0.5 ${gateways.paymongo?.enabled ? "text-green-600" : "text-gray-500"}`}
                   >
-                    {gateways.xendit.enabled ? "Enabled" : "Disabled"}
+                    {gateways.paymongo?.enabled ? "Enabled" : "Disabled"}
                   </p>
                 </div>
                 <button
                   onClick={() =>
-                    handleToggleGateway("xendit", gateways.xendit.enabled)
+                    handleToggleGateway("paymongo", gateways.paymongo?.enabled || false)
                   }
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gateways.xendit.enabled ? "bg-green-600" : "bg-gray-300"
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gateways.paymongo?.enabled ? "bg-green-600" : "bg-gray-300"
                     }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.xendit.enabled
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.paymongo?.enabled
                         ? "translate-x-6"
                         : "translate-x-1"
                       }`}
@@ -303,7 +303,7 @@ export default function PaymentGatewaysPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">API Key</span>
-                  {gateways.xendit.api_key_configured ? (
+                  {gateways.paymongo?.api_key_configured ? (
                     <span className="text-green-600 flex items-center gap-1">
                       <CheckCircle2 className="h-4 w-4" />
                       Configured
@@ -316,16 +316,16 @@ export default function PaymentGatewaysPage() {
                   )}
                 </div>
 
-                {gateways.xendit.webhook_url && (
+                {gateways.paymongo?.webhook_url && (
                   <div className="p-2 bg-gray-50 rounded border border-gray-200">
                     <p className="text-xs text-gray-600 mb-1">Webhook URL</p>
                     <div className="flex items-center gap-2">
                       <code className="text-xs text-gray-800 truncate flex-1">
-                        {gateways.xendit.webhook_url}
+                        {gateways.paymongo.webhook_url}
                       </code>
                       <button
                         onClick={() =>
-                          copyToClipboard(gateways.xendit.webhook_url!)
+                          copyToClipboard(gateways.paymongo.webhook_url!)
                         }
                         className="p-1 hover:bg-gray-200 rounded"
                       >
@@ -335,18 +335,18 @@ export default function PaymentGatewaysPage() {
                   </div>
                 )}
 
-                {gateways.xendit.transaction_count !== undefined && (
+                {gateways.paymongo?.transaction_count !== undefined && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Transactions</span>
                     <span className="font-semibold text-gray-900">
-                      {gateways.xendit.transaction_count}
+                      {gateways.paymongo.transaction_count}
                     </span>
                   </div>
                 )}
               </div>
 
               <Button
-                onClick={() => handleConfigure("xendit")}
+                onClick={() => handleConfigure("paymongo")}
                 className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Settings className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function PaymentGatewaysPage() {
               </Button>
 
               <a
-                href="https://docs.xendit.co/"
+                href="https://developers.paymongo.com/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-700"
@@ -548,8 +548,8 @@ export default function PaymentGatewaysPage() {
               </div>
 
               <div className="p-6 space-y-4">
-                {/* Xendit Config */}
-                {selectedGateway === "xendit" && (
+                {/* PayMongo Config */}
+                {selectedGateway === "paymongo" && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -565,7 +565,7 @@ export default function PaymentGatewaysPage() {
                               api_key: e.target.value,
                             })
                           }
-                          placeholder="xnd_..."
+                          placeholder="pk_live_..."
                           className="pr-10"
                         />
                         <button
@@ -600,7 +600,7 @@ export default function PaymentGatewaysPage() {
                               secret_key: e.target.value,
                             })
                           }
-                          placeholder="xnd_secret_..."
+                          placeholder="sk_live_..."
                           className="pr-10"
                         />
                         <button

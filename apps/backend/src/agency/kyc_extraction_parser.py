@@ -128,8 +128,8 @@ class AgencyKYCExtractionParser:
         # Matches "Business Name No.7663018" or "Business Name No. 7663018"
         self.dti_business_name_pattern = re.compile(r'Business\s+Name\s+No\.?\s*(\d+)', re.IGNORECASE)
         # Matches certificate ID like "BPXW658418425073" (4 letters + 12 digits)
-        # Must be on its own line or after "Certificate ID:" to avoid matching Business Name No.
-        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Z]{4}\d{12})\s*(?:$|\n)', re.MULTILINE)
+        # Must be on its own line or standalone - case insensitive for OCR errors
+        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Za-z]{4}\d{12,16})\s*(?:$|\n)', re.MULTILINE)
         # Matches "issued to VANIEL JOHN GARCIA CORNELIO" or "This certificate issued to NAME"
         self.issued_to_pattern = re.compile(r'(?:This\s+certificate\s+)?issued\s+to\s+([A-Z\s]+?)(?:\n|is\s+valid|subject\s+to)', re.IGNORECASE)
         # Matches "valid from January 06, 2026 to January 06, 2031"
@@ -138,7 +138,25 @@ class AgencyKYCExtractionParser:
             re.IGNORECASE
         )
         # Matches "DEVANTE SOFTWARE DEVELOPMENT SERVICES" after "This certifies that"
-        self.certifies_that_pattern = re.compile(r'This\s+certifies\s+that\s+([A-Z\s&-]+?)(?:\n|\()', re.IGNORECASE)
+        # FIXED: Handle multi-line OCR where business name is on next line after "This certifies that"
+        # Pattern 1: Business name on SAME LINE as "This certifies that"
+        self.certifies_that_same_line_pattern = re.compile(
+            r'This\s+certifies\s+that\s+([A-Z][A-Z0-9\s&\-\.]{4,}?)'
+            r'(?:\(|is\s+a|is\s+registered|located|with\s+business|,\s*(?:REGION|CITY|PROVINCE|BARANGAY|BLK|BLOCK|LOT))',
+            re.IGNORECASE
+        )
+        # Pattern 2: Business name on NEXT LINE after "This certifies that" (common OCR output)
+        # FIXED: Use greedy match to capture full business name until newline
+        # Format: "This certifies that\nDEVANTE SOFTWARE DEVELOPMENT SERVICES\n(BARANGAY)"
+        self.certifies_that_next_line_pattern = re.compile(
+            r'This\s+certifies\s+that\s*[\n\r]+\s*([A-Z][A-Z0-9\s&\-\.]{5,})\s*(?=[\n\r])',
+            re.IGNORECASE | re.DOTALL
+        )
+        # Pattern for extracting owner name to EXCLUDE from business name
+        self.owner_name_pattern = re.compile(
+            r'(?:issued\s+to|owner|proprietor)[:\s]+([A-Z][A-Z\s]+?)(?:\n|is\s+valid|subject\s+to|,)',
+            re.IGNORECASE
+        )
         
         # Date patterns (various formats)
         self.date_patterns = [
@@ -167,6 +185,8 @@ class AgencyKYCExtractionParser:
             return result
         
         logger.info(f"📄 Parsing {document_type} OCR text ({len(ocr_text)} chars)")
+        # Debug: Log first 500 chars of raw OCR text for troubleshooting extraction issues
+        logger.debug(f"   📝 RAW OCR TEXT (first 500 chars):\n{ocr_text[:500]}\n   --- END RAW TEXT ---")
         
         # Parse based on document type
         if document_type == "BUSINESS_PERMIT":
@@ -206,18 +226,55 @@ class AgencyKYCExtractionParser:
         lines = text.split('\n')
         text_upper = text.upper()
         
+        # First, extract owner name so we can EXCLUDE it from business name
+        owner_name = None
+        issued_to_match = self.issued_to_pattern.search(text)
+        if issued_to_match:
+            owner_name = issued_to_match.group(1).strip().upper()
+            logger.info(f"   Detected Owner Name (to exclude): {owner_name}")
+        
+        # Also try owner_name_pattern for additional detection
+        if not owner_name:
+            owner_match = self.owner_name_pattern.search(text)
+            if owner_match:
+                owner_name = owner_match.group(1).strip().upper()
+                logger.info(f"   Detected Owner Name (from proprietor): {owner_name}")
+        
         # Extract business name - prefer DTI certificate format "This certifies that"
-        certifies_match = self.certifies_that_pattern.search(text)
+        # PATTERN 1: Same line - "This certifies that BUSINESS NAME"
+        certifies_match = self.certifies_that_same_line_pattern.search(text)
         if certifies_match:
             business_name = certifies_match.group(1).strip()
-            result.business_name = ExtractionResult(
-                value=business_name.title(),
-                confidence=0.85,
-                source_text=certifies_match.group(0)
-            )
-            logger.info(f"   Business Name (from 'certifies that'): {result.business_name.value}")
+            # Skip if this matches the owner name
+            if owner_name and business_name.upper() == owner_name:
+                logger.info(f"   Skipping owner name as business name: {business_name}")
+                certifies_match = None
+            else:
+                result.business_name = ExtractionResult(
+                    value=business_name,
+                    confidence=0.9,
+                    source_text=certifies_match.group(0)
+                )
+                logger.info(f"   Business Name (from 'certifies that' same-line): {result.business_name.value}")
+        
+        # PATTERN 2: Next line - "This certifies that\nBUSINESS NAME"
+        if not result.business_name.value:
+            certifies_match = self.certifies_that_next_line_pattern.search(text)
+            if certifies_match:
+                business_name = certifies_match.group(1).strip()
+                # Skip if this matches the owner name
+                if owner_name and business_name.upper() == owner_name:
+                    logger.info(f"   Skipping owner name as business name (next-line): {business_name}")
+                    certifies_match = None
+                else:
+                    result.business_name = ExtractionResult(
+                        value=business_name,
+                        confidence=0.85,
+                        source_text=certifies_match.group(0)[:50] + "..."
+                    )
+                    logger.info(f"   Business Name (from 'certifies that' next-line): {result.business_name.value}")
 
-        # Fallback: first all-caps line near the top (avoid boilerplate lines)
+        # Fallback: first all-caps line near the top (avoid boilerplate lines and OWNER NAME)
         if not result.business_name.value:
             excluded_phrases = [
                 "CERTIFICATE",
@@ -226,20 +283,41 @@ class AgencyKYCExtractionParser:
                 "REPUBLIC",
                 "PHILIPPINES",
                 "IS A BUSINESS NAME REGISTERED",
+                "BARANGAY",
+                # Location-related exclusions (Issue fix: addresses were being picked as business names)
+                "REGION",
+                "CITY OF",
+                "PROVINCE OF",
+                "ZAMBOANGA",
+                "MANILA",
+                "CEBU",
+                "DAVAO",
+                "QUEZON",
+                "PASOBOLONG",
+                "BLK",
+                "BLOCK",
+                "LOT",
+                "STREET",
+                "ZONE",
+                "PUROK",
             ]
             for line in lines[:12]:
                 line = line.strip()
+                # Skip owner name
+                if owner_name and line.upper() == owner_name:
+                    logger.debug(f"   Skipping owner name in fallback: {line}")
+                    continue
                 if (
                     line.isupper()
                     and len(line) > 5
                     and not any(kw in line.upper() for kw in excluded_phrases)
                 ):
                     result.business_name = ExtractionResult(
-                        value=line.title(),
+                        value=line,  # Keep original case
                         confidence=0.7,
                         source_text=line,
                     )
-                    logger.info(f"   Business Name: {result.business_name.value}")
+                    logger.info(f"   Business Name (fallback): {result.business_name.value}")
                     break
         
         # Extract business type (look for keywords like "sole proprietor", "corporation")
@@ -302,26 +380,34 @@ class AgencyKYCExtractionParser:
                 source_text="date extraction"
             )
         
-        # Extract DTI number
-        dti_match = self.dti_pattern.search(text)
-        if dti_match:
-            result.dti_number = ExtractionResult(
-                value=dti_match.group(1).strip(),
-                confidence=0.85,
-                source_text=dti_match.group(0)
-            )
-            logger.info(f"   DTI Number: {result.dti_number.value}")
+        # Extract DTI number - PRIORITY ORDER:
+        # 1. DTI Business Name Number (e.g., "Business Name No.7663018") - most specific for DTI certs
+        # 2. Generic DTI pattern (e.g., "DTI-12345") - fallback for other formats
         
-        # Extract DTI Business Name Number (DTI Certificate format fallback)
+        # PRIORITY 1: DTI Business Name Number pattern (DTI Certificate format)
+        dti_bn_match = self.dti_business_name_pattern.search(text)
+        if dti_bn_match:
+            result.dti_number = ExtractionResult(
+                value=dti_bn_match.group(1).strip(),
+                confidence=0.9,  # High confidence for specific DTI cert format
+                source_text=dti_bn_match.group(0)
+            )
+            logger.info(f"   DTI Business Name Number: {result.dti_number.value}")
+        
+        # PRIORITY 2: Generic DTI pattern (fallback)
         if not result.dti_number.value:
-            dti_bn_match = self.dti_business_name_pattern.search(text)
-            if dti_bn_match:
-                result.dti_number = ExtractionResult(
-                    value=f"BN-{dti_bn_match.group(1).strip()}",
-                    confidence=0.8,
-                    source_text=dti_bn_match.group(0)
-                )
-                logger.info(f"   DTI Business Name Number: {result.dti_number.value}")
+            dti_match = self.dti_pattern.search(text)
+            if dti_match:
+                # Validate it's not just "DTI" followed by garbage like newline+text
+                dti_value = dti_match.group(1).strip()
+                # Skip if the match spans multiple lines or contains common words
+                if '\n' not in dti_match.group(0) and dti_value.upper() not in ['BAGONG', 'PILIPINAS', 'DEPARTMENT']:
+                    result.dti_number = ExtractionResult(
+                        value=dti_value,
+                        confidence=0.85,
+                        source_text=dti_match.group(0)
+                    )
+                    logger.info(f"   DTI Number: {result.dti_number.value}")
         
         # Note: DTI Certificate ID is extracted earlier in permit number section
         

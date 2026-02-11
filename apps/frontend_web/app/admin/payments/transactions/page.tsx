@@ -20,22 +20,26 @@ import {
   Wallet,
   CreditCard,
   Banknote,
+  Unlock,
+  Loader2,
 } from "lucide-react";
 
+// Backend returns this structure from get_transactions_list_optimized()
 interface Transaction {
-  id: number;
-  job_id: number;
-  job_title: string;
-  payer_id: number;
-  payer_name: string;
-  payee_id: number;
-  payee_name: string;
-  amount: number;
+  id: string;
+  type: string; // ESCROW, EARNING, WITHDRAWAL, etc.
   status: string;
-  payment_method: string;
+  amount: number;
+  currency: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  job_id: string | null;
+  reference: string | null; // xenditPaymentID or paymongoPaymentID
   created_at: string;
-  escrow_status: string;
-  refund_status: string;
+  completed_at: string | null;
 }
 
 interface Statistics {
@@ -55,9 +59,10 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [releasingId, setReleasingId] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 50,
@@ -74,8 +79,7 @@ export default function TransactionsPage() {
       });
 
       if (statusFilter !== "all") params.append("status", statusFilter);
-      if (paymentMethodFilter !== "all")
-        params.append("payment_method", paymentMethodFilter);
+      if (typeFilter !== "all") params.append("transaction_type", typeFilter);
       if (dateFrom) params.append("date_from", dateFrom);
       if (dateTo) params.append("date_to", dateTo);
       if (searchQuery) params.append("search", searchQuery);
@@ -129,13 +133,14 @@ export default function TransactionsPage() {
 
       const data = await response.json();
       setStatistics(
-        data || {
-          total_transactions: 0,
-          total_revenue: 0,
-          escrow_held: 0,
-          refunded_amount: 0,
-          platform_fees: 0,
-        },
+        data.stats ||
+          data || {
+            total_transactions: 0,
+            total_revenue: 0,
+            escrow_held: 0,
+            refunded_amount: 0,
+            platform_fees: 0,
+          },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -152,7 +157,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [statusFilter, paymentMethodFilter, dateFrom, dateTo, pagination.page]);
+  }, [statusFilter, typeFilter, dateFrom, dateTo, pagination.page]);
 
   useEffect(() => {
     fetchStatistics();
@@ -190,6 +195,92 @@ export default function TransactionsPage() {
             {status}
           </Badge>
         );
+    }
+  };
+
+  const getTypeBadge = (type: string) => {
+    switch (type?.toUpperCase()) {
+      case "ESCROW":
+        return (
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+            🔒 Escrow
+          </Badge>
+        );
+      case "EARNING":
+        return (
+          <Badge className="bg-green-100 text-green-700 border-green-200">
+            💰 Earning
+          </Badge>
+        );
+      case "PENDING_EARNING":
+        return (
+          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+            ⏳ Pending Earning
+          </Badge>
+        );
+      case "WITHDRAWAL":
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+            📤 Withdrawal
+          </Badge>
+        );
+      case "DEPOSIT":
+        return (
+          <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
+            📥 Deposit
+          </Badge>
+        );
+      case "PLATFORM_FEE":
+        return (
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200">
+            🏢 Platform Fee
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200">
+            {type}
+          </Badge>
+        );
+    }
+  };
+
+  const handleReleasePayment = async (transaction: Transaction) => {
+    if (!transaction.job_id) {
+      alert("Cannot release: No job associated with this transaction");
+      return;
+    }
+    if (
+      !confirm(
+        `Release payment of ₱${transaction.amount.toLocaleString()} immediately?\n\nThis will skip the 7-day buffer period.`,
+      )
+    ) {
+      return;
+    }
+
+    setReleasingId(transaction.id);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/adminpanel/payments/release-pending/${transaction.job_id}`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        alert(
+          `✅ Payment released successfully!\nAmount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`,
+        );
+        fetchTransactions();
+      } else {
+        alert(`❌ Failed to release payment: ${data.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error releasing payment:", error);
+      alert("Error releasing payment. Please try again.");
+    } finally {
+      setReleasingId(null);
     }
   };
 
@@ -381,14 +472,16 @@ export default function TransactionsPage() {
 
                 {/* Payment Method Filter */}
                 <select
-                  value={paymentMethodFilter}
-                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">💳 All Methods</option>
-                  <option value="gcash">GCash</option>
-                  <option value="wallet">Wallet</option>
-                  <option value="cash">Cash</option>
+                  <option value="all">💳 All Types</option>
+                  <option value="ESCROW">🔒 Escrow</option>
+                  <option value="EARNING">💰 Earning</option>
+                  <option value="PENDING_EARNING">⏳ Pending Earning</option>
+                  <option value="WITHDRAWAL">📤 Withdrawal</option>
+                  <option value="DEPOSIT">📥 Deposit</option>
                 </select>
 
                 {/* Export Button */}
@@ -437,25 +530,22 @@ export default function TransactionsPage() {
                   <thead>
                     <tr className="border-b-2 border-gray-200 bg-gray-50">
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Transaction ID
+                        ID
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Job Title
+                        Type
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Payer
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Payee
+                        User
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                         Amount
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Payment Method
+                        Status
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Status
+                        Job
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                         Date
@@ -468,7 +558,7 @@ export default function TransactionsPage() {
                   <tbody className="divide-y divide-gray-200">
                     {transactions.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-6 py-12 text-center">
+                        <td colSpan={8} className="px-6 py-12 text-center">
                           <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                           <p className="text-gray-500 font-medium">
                             No transactions found
@@ -489,23 +579,33 @@ export default function TransactionsPage() {
                           <td className="px-6 py-4 text-sm font-mono text-gray-900">
                             #{transaction.id}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {transaction.job_title}
+                          <td className="px-6 py-4">
+                            {getTypeBadge(transaction.type)}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {transaction.payer_name}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-700">
-                            {transaction.payee_name}
+                            <div>
+                              <p className="font-medium">
+                                {transaction.user?.name || "Unknown"}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {transaction.user?.email || "-"}
+                              </p>
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                             ₱{(transaction.amount ?? 0).toLocaleString()}
                           </td>
                           <td className="px-6 py-4">
-                            {getPaymentMethodBadge(transaction.payment_method)}
-                          </td>
-                          <td className="px-6 py-4">
                             {getStatusBadge(transaction.status)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {transaction.job_id ? (
+                              <span className="font-mono text-blue-600">
+                                #{transaction.job_id}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {new Date(
@@ -513,19 +613,43 @@ export default function TransactionsPage() {
                             ).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4">
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(
-                                  `/admin/payments/transactions/${transaction.id}`,
-                                );
-                              }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              View
-                              <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              {/* Release button for pending earnings */}
+                              {transaction.type === "PENDING_EARNING" &&
+                                transaction.status === "PENDING" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReleasePayment(transaction);
+                                    }}
+                                    disabled={releasingId === transaction.id}
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                  >
+                                    {releasingId === transaction.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Unlock className="h-4 w-4 mr-1" />
+                                        Release
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(
+                                    `/admin/payments/transactions/${transaction.id}`,
+                                  );
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                View
+                                <ChevronRight className="h-4 w-4 ml-1" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))

@@ -27,6 +27,7 @@ import {
   Modal,
   FlatList,
   SafeAreaView,
+  StatusBar,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -65,18 +66,32 @@ interface CreateJobRequest {
   title: string;
   description: string;
   category_id: number;
-  budget: number;
+  budget?: number; // Optional for daily payment model
   location: string;
   expected_duration?: string;
   urgency_level: "LOW" | "MEDIUM" | "HIGH";
   preferred_start_date?: string;
-  payment_method: "WALLET"; // Jobs only use Wallet payment (deposits via QR PH)
+  downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
   // Universal job fields for ML accuracy
-  skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
-  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
-  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  work_environment: "INDOOR" | "OUTDOOR" | "BOTH";
+  // Multi-employee mode for agencies
+  skill_slots?: SkillSlot[];
+  // Daily payment model fields
+  payment_model?: "PROJECT" | "DAILY";
+  daily_rate?: number;
+  duration_days?: number;
+}
+
+// Skill slot for multi-employee agency hiring
+interface SkillSlot {
+  specialization_id: number;
+  workers_needed: number;
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  notes?: string;
 }
 
 export default function CreateJobScreen() {
@@ -97,10 +112,6 @@ export default function CreateJobScreen() {
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null,
-  );
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
@@ -120,6 +131,24 @@ export default function CreateJobScreen() {
   const [workEnvironment, setWorkEnvironment] = useState<
     "INDOOR" | "OUTDOOR" | "BOTH"
   >("INDOOR");
+  // Daily payment model fields
+  const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">("PROJECT");
+  const [dailyRate, setDailyRate] = useState("");
+  const [durationDays, setDurationDays] = useState("");
+
+  // Skill slots for worker requirements (unified model for all job types)
+  // Category is derived from the first skill slot's specialization
+  const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
+  const [showAddSlotModal, setShowAddSlotModal] = useState(false);
+  const [newSlotSpecializationId, setNewSlotSpecializationId] = useState<
+    number | null
+  >(null);
+  const [newSlotWorkersNeeded, setNewSlotWorkersNeeded] = useState("1");
+  const [newSlotSkillLevel, setNewSlotSkillLevel] = useState<
+    "ENTRY" | "INTERMEDIATE" | "EXPERT"
+  >("INTERMEDIATE");
+  const [newSlotNotes, setNewSlotNotes] = useState("");
+
   const queryClient = useQueryClient();
   // Jobs only use Wallet payment - deposits via QR PH (any bank/e-wallet)
   // No payment method selection needed - always WALLET
@@ -137,8 +166,24 @@ export default function CreateJobScreen() {
 
   // Payment methods are no longer required - deposits use QR PH (any bank/e-wallet)
 
-  // Calculate required downpayment (50% of budget)
-  const requiredDownpayment = budget ? parseFloat(budget) * 0.5 : 0;
+  // Calculate required downpayment based on payment model
+  // PROJECT: 50% of budget + 5% platform fee
+  // DAILY: 100% of (daily_rate * duration_days) + 10% platform fee
+  const requiredDownpayment = React.useMemo(() => {
+    if (paymentModel === "PROJECT") {
+      return budget ? parseFloat(budget) * 0.5 * 1.05 : 0;
+    } else {
+      // DAILY payment model
+      const rate = parseFloat(dailyRate) || 0;
+      const days = parseInt(durationDays) || 0;
+      if (rate > 0 && days > 0) {
+        const totalEscrow = rate * days;
+        return totalEscrow * 1.10; // 100% escrow + 10% platform fee (DAILY uses higher fee)
+      }
+      return 0;
+    }
+  }, [paymentModel, budget, dailyRate, durationDays]);
+  
   const hasInsufficientBalance = walletBalance < requiredDownpayment;
   const shortfallAmount = requiredDownpayment - walletBalance;
 
@@ -168,7 +213,7 @@ export default function CreateJobScreen() {
   } = usePricePrediction();
 
   // Debounce timer ref for price prediction
-  const predictionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
@@ -178,13 +223,13 @@ export default function CreateJobScreen() {
     }
 
     // Only predict if we have enough data
-    if (title.length >= 5 && description.length >= 10 && categoryId) {
+    if (title.length >= 5 && description.length >= 10 && effectiveCategoryId) {
       // Debounce prediction by 800ms to avoid too many API calls
       predictionTimeoutRef.current = setTimeout(() => {
         predictPrice({
           title,
           description,
-          category_id: categoryId,
+          category_id: effectiveCategoryId,
           urgency,
           skill_level: skillLevel,
           job_scope: jobScope,
@@ -205,7 +250,7 @@ export default function CreateJobScreen() {
   }, [
     title,
     description,
-    categoryId,
+    effectiveCategoryId,
     urgency,
     skillLevel,
     jobScope,
@@ -219,7 +264,63 @@ export default function CreateJobScreen() {
     setBudget(price.toFixed(2));
   }, []);
 
-  // Fetch categories
+  // Multi-employee skill slot management
+  const addSkillSlot = useCallback(() => {
+    if (!newSlotSpecializationId) {
+      Alert.alert("Error", "Please select a specialization");
+      return;
+    }
+    const workersCount = parseInt(newSlotWorkersNeeded) || 1;
+    if (workersCount < 1 || workersCount > 10) {
+      Alert.alert("Error", "Workers needed must be between 1 and 10");
+      return;
+    }
+    // Check total workers doesn't exceed 20
+    const currentTotal = skillSlots.reduce(
+      (sum, slot) => sum + slot.workers_needed,
+      0,
+    );
+    if (currentTotal + workersCount > 20) {
+      Alert.alert(
+        "Error",
+        `Cannot add ${workersCount} workers. Maximum total is 20. Current: ${currentTotal}`,
+      );
+      return;
+    }
+
+    setSkillSlots((prev) => [
+      ...prev,
+      {
+        specialization_id: newSlotSpecializationId,
+        workers_needed: workersCount,
+        skill_level_required: newSlotSkillLevel,
+        notes: newSlotNotes.trim() || undefined,
+      },
+    ]);
+
+    // Reset form
+    setNewSlotSpecializationId(null);
+    setNewSlotWorkersNeeded("1");
+    setNewSlotSkillLevel("INTERMEDIATE");
+    setNewSlotNotes("");
+    setShowAddSlotModal(false);
+  }, [
+    newSlotSpecializationId,
+    newSlotWorkersNeeded,
+    newSlotSkillLevel,
+    newSlotNotes,
+    skillSlots,
+  ]);
+
+  const removeSkillSlot = useCallback((index: number) => {
+    setSkillSlots((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const getTotalWorkersNeeded = useCallback(() => {
+    return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+  }, [skillSlots]);
+
+  // Fetch categories - MUST be defined BEFORE getSpecializationName callback
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
@@ -231,6 +332,94 @@ export default function CreateJobScreen() {
   });
 
   const categories = categoriesData || [];
+
+  // Fetch worker details (including skills) when hiring a specific worker
+  interface WorkerSkill {
+    id: number;
+    name: string;
+    experience_years: number;
+    certification_count: number;
+  }
+  
+  interface WorkerDetailResponse {
+    success: boolean;
+    data?: {
+      id: number;
+      name: string;
+      skills?: WorkerSkill[];
+    };
+  }
+
+  const { data: workerDetailsData, isLoading: workerDetailsLoading } = useQuery({
+    queryKey: ["workerDetails", workerId],
+    queryFn: async () => {
+      if (!workerId) return null;
+      const response = await fetchJson<WorkerDetailResponse>(
+        ENDPOINTS.WORKER_DETAIL(parseInt(workerId)),
+      );
+      return response?.data || null;
+    },
+    enabled: !!workerId, // Only fetch when workerId is provided
+  });
+
+  // Filter categories to only show worker's skills when hiring specific worker
+  // Categories available in slot modal: filter to worker's skills for invite jobs, all for listing
+  const filteredCategories = React.useMemo(() => {
+    if (!workerId || !workerDetailsData?.skills) {
+      return categories; // Show all categories for LISTING jobs
+    }
+    // For INVITE jobs, only show worker's skills
+    const workerSkillIds = workerDetailsData.skills.map((s: any) => s.id);
+    return categories.filter((cat) => workerSkillIds.includes(cat.id));
+  }, [workerId, workerDetailsData, categories]);
+
+  // Auto-add skill slot when invite worker has exactly 1 skill
+  useEffect(() => {
+    if (workerId && workerDetailsData?.skills && skillSlots.length === 0) {
+      const skills = workerDetailsData.skills;
+      if (skills.length === 1) {
+        const singleSkill = skills[0];
+        // Auto-add a slot for the worker's single skill
+        setSkillSlots([{
+          specialization_id: singleSkill.id,
+          workers_needed: 1,
+          skill_level_required: 'INTERMEDIATE',
+          notes: '',
+        }]);
+        // Set budget from category's minimum_rate
+        const matchingCat = categories.find((c) => c.id === singleSkill.id);
+        if (matchingCat && matchingCat.minimum_rate > 0) {
+          setBudget(matchingCat.minimum_rate.toFixed(2));
+        }
+        console.log(`[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`);
+      }
+    }
+  }, [workerId, workerDetailsData, categories, skillSlots.length]);
+
+  // Derive category from first skill slot (universal for all job types)
+  const primaryCategoryId = React.useMemo(() => {
+    return skillSlots[0]?.specialization_id ?? null;
+  }, [skillSlots]);
+
+  const primaryCategory = React.useMemo(() => {
+    if (!primaryCategoryId || !categories) return null;
+    return categories.find((c) => c.id === primaryCategoryId) ?? null;
+  }, [primaryCategoryId, categories]);
+
+  // Category always derived from the first skill slot
+  const effectiveCategoryId = primaryCategoryId;
+  const effectiveCategory = primaryCategory;
+
+  const getSpecializationName = useCallback(
+    (specId: number) => {
+      if (!categories || !Array.isArray(categories)) {
+        return `Specialization #${specId}`;
+      }
+      const cat = categories.find((c) => c.id === specId);
+      return cat?.name || `Specialization #${specId}`;
+    },
+    [categories],
+  );
 
   // Fetch barangays for Zamboanga City (cityID = 1)
   const {
@@ -309,7 +498,7 @@ export default function CreateJobScreen() {
           pathname: "/payments/wallet",
           params: {
             jobId: data.job_posting_id.toString(),
-            budget: budget || String(jobData.budget), // full job budget for breakdown
+            budget: budget || "0", // full job budget for breakdown
             title: title || "Job Request", // Pass title for better UX
           },
         } as any);
@@ -350,25 +539,44 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please enter a job description");
       return;
     }
-    if (!categoryId) {
-      Alert.alert("Error", "Please select a category");
+    if (!effectiveCategoryId) {
+      Alert.alert("Error", "Please add at least one worker requirement");
       return;
     }
-    if (!budget || parseFloat(budget) <= 0) {
-      Alert.alert("Error", "Please enter a valid budget");
-      return;
-    }
-    // Validate against minimum rate
-    if (selectedCategory && selectedCategory.minimum_rate > 0) {
-      const budgetValue = parseFloat(budget);
-      if (budgetValue < selectedCategory.minimum_rate) {
-        Alert.alert(
-          "Budget Too Low",
-          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
-        );
+
+    // Validate payment model specific fields
+    if (paymentModel === "PROJECT") {
+      if (!budget || parseFloat(budget) <= 0) {
+        Alert.alert("Error", "Please enter a valid budget");
+        return;
+      }
+      // Validate against minimum rate
+      if (effectiveCategory && effectiveCategory.minimum_rate > 0) {
+        const budgetValue = parseFloat(budget);
+        if (budgetValue < effectiveCategory.minimum_rate) {
+          Alert.alert(
+            "Budget Too Low",
+            `The minimum budget for ${effectiveCategory.name} is ₱${effectiveCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
+          );
+          return;
+        }
+      }
+    } else {
+      // DAILY payment model validation
+      if (!dailyRate || parseFloat(dailyRate) <= 0) {
+        Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (!durationDays || parseInt(durationDays) <= 0) {
+        Alert.alert("Error", "Please enter a valid duration (number of days)");
+        return;
+      }
+      if (parseInt(durationDays) > 365) {
+        Alert.alert("Error", "Duration cannot exceed 365 days");
         return;
       }
     }
+
     if (!barangay.trim()) {
       Alert.alert("Error", "Please enter a barangay");
       return;
@@ -378,13 +586,27 @@ export default function CreateJobScreen() {
       return;
     }
 
+    // Skill slot validation for agency jobs (unified model - always require at least 1 slot)
+    if (agencyId) {
+      if (skillSlots.length === 0) {
+        Alert.alert(
+          "Error",
+          "Please add at least one worker requirement for this agency job",
+        );
+        return;
+      }
+    }
+
     // Wallet balance check only - deposits use QR PH (any bank/e-wallet)
 
     // Check wallet balance
     if (hasInsufficientBalance) {
+      const paymentDesc = paymentModel === "PROJECT" 
+        ? "50% downpayment" 
+        : "100% escrow (daily rate × days)";
       Alert.alert(
         "Insufficient Wallet Balance",
-        `You need ₱${requiredDownpayment.toFixed(2)} for the 50% downpayment, but your wallet only has ₱${walletBalance.toFixed(2)}.\n\nYou're short by ₱${shortfallAmount.toFixed(2)}.\n\nWould you like to deposit funds now?`,
+        `You need ₱${requiredDownpayment.toFixed(2)} for the ${paymentDesc}, but your wallet only has ₱${walletBalance.toFixed(2)}.\n\nYou're short by ₱${shortfallAmount.toFixed(2)}.\n\nWould you like to deposit funds now?`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -403,20 +625,29 @@ export default function CreateJobScreen() {
     const jobData: CreateJobRequest = {
       title: title.trim(),
       description: description.trim(),
-      category_id: categoryId,
-      budget: parseFloat(budget),
+      category_id: effectiveCategoryId!,
       location: `${street.trim()}, ${barangay.trim()}`,
       expected_duration: duration.trim() || undefined,
       urgency_level: urgency,
       preferred_start_date: startDate
         ? startDate.toISOString().split("T")[0]
         : undefined,
-      payment_method: "WALLET", // Jobs only use Wallet payment
-      // Universal job fields for ML accuracy
+      downpayment_method: "WALLET", // Jobs only use Wallet payment
+      // Universal job fields for ML accuracy - explicitly passed
       skill_level_required: skillLevel,
       job_scope: jobScope,
       work_environment: workEnvironment,
+      // Payment model specific fields
+      payment_model: paymentModel,
     };
+
+    // Add payment model specific fields
+    if (paymentModel === "PROJECT") {
+      jobData.budget = parseFloat(budget);
+    } else {
+      jobData.daily_rate = parseFloat(dailyRate);
+      jobData.duration_days = parseInt(durationDays);
+    }
 
     // Add worker or agency ID if provided
     if (workerId) {
@@ -424,6 +655,10 @@ export default function CreateJobScreen() {
     }
     if (agencyId) {
       (jobData as any).agency_id = parseInt(agencyId);
+    }
+    // Always include skill slots in payload (backend ignores for non-agency via is_team_job guard)
+    if (skillSlots.length > 0) {
+      jobData.skill_slots = skillSlots;
     }
 
     createJobMutation.mutate(jobData);
@@ -496,91 +731,246 @@ export default function CreateJobScreen() {
                 />
                 <Text style={styles.charCount}>{description.length}/500</Text>
               </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Category *</Text>
-                {categoriesLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.loadingText}>
-                      Loading categories...
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.categoryScroll}
-                  >
-                    {Array.isArray(categories) &&
-                      categories.map((category) => (
-                        <TouchableOpacity
-                          key={category.id}
-                          style={[
-                            styles.categoryChip,
-                            categoryId === category.id &&
-                              styles.categoryChipActive,
-                          ]}
-                          onPress={() => {
-                            setCategoryId(category.id);
-                            setSelectedCategory(category);
-                            if (category.minimum_rate > 0) {
-                              setBudget(category.minimum_rate.toFixed(2));
-                            }
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.categoryChipText,
-                              categoryId === category.id &&
-                                styles.categoryChipTextActive,
-                            ]}
-                          >
-                            {category.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                  </ScrollView>
-                )}
-              </View>
             </View>
+
+            {/* Worker Requirements Section - shown for all job types */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>👥 Worker Requirements</Text>
+                <Text style={styles.sectionHint}>
+                  {workerId
+                    ? `Select the skill you need from ${workerDetailsData?.name || 'this worker'}.`
+                    : agencyId
+                      ? 'Specify the workers you need for this job. You can add multiple skill types.'
+                      : 'What type of worker do you need for this job?'}
+                </Text>
+
+                {/* Skill Slots List */}
+                <View style={styles.skillSlotsContainer}>
+                  {skillSlots.length === 0 ? (
+                    <View style={styles.emptySlots}>
+                      <Ionicons
+                        name="people-outline"
+                        size={32}
+                        color={Colors.textHint}
+                      />
+                      <Text style={styles.emptySlotsText}>
+                        No workers added yet. Add at least one worker requirement.
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.slotsSummary}>
+                        Total: {getTotalWorkersNeeded()} worker
+                        {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
+                        {skillSlots.length} requirement
+                        {skillSlots.length !== 1 ? "s" : ""}
+                      </Text>
+                      {skillSlots.map((slot, index) => (
+                        <View key={index} style={styles.slotCard}>
+                          <View style={styles.slotHeader}>
+                            <Text style={styles.slotTitle}>
+                              {getSpecializationName(slot.specialization_id)}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => removeSkillSlot(index)}
+                                style={styles.removeSlotBtn}
+                              >
+                                <Ionicons
+                                  name="close-circle"
+                                  size={24}
+                                  color={Colors.error}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.slotDetails}>
+                              <View style={styles.slotBadge}>
+                                <Ionicons
+                                  name="people"
+                                  size={14}
+                                  color={Colors.primary}
+                                />
+                                <Text style={styles.slotBadgeText}>
+                                  {slot.workers_needed} worker
+                                  {slot.workers_needed !== 1 ? "s" : ""}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.slotBadge,
+                                  styles.slotBadgeSkill,
+                                ]}
+                              >
+                                <Text style={styles.slotBadgeText}>
+                                  {slot.skill_level_required === "ENTRY"
+                                    ? "🌱 Entry"
+                                    : slot.skill_level_required ===
+                                        "INTERMEDIATE"
+                                      ? "⭐ Intermediate"
+                                      : "👑 Expert"}
+                                </Text>
+                              </View>
+                            </View>
+                            {slot.notes && (
+                              <Text style={styles.slotNotes}>{slot.notes}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Add Worker Button */}
+                    <TouchableOpacity
+                      style={styles.addSlotBtn}
+                      onPress={() => setShowAddSlotModal(true)}
+                    >
+                      <Ionicons
+                        name="add-circle"
+                        size={20}
+                        color={Colors.white}
+                      />
+                      <Text style={styles.addSlotBtnText}>Add Worker Requirement</Text>
+                    </TouchableOpacity>
+                  </View>
+              </View>
 
             {/* Budget Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 Budget</Text>
+              <Text style={styles.sectionTitle}>💰 Budget & Payment Model</Text>
 
+              {/* Payment Model Selector */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Total Budget (₱) *</Text>
+                <Text style={styles.label}>Payment Model *</Text>
+                <View style={styles.buttonGroup}>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      paymentModel === "PROJECT" && styles.optionButtonActive,
+                    ]}
+                    onPress={() => setPaymentModel("PROJECT")}
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        paymentModel === "PROJECT" &&
+                          styles.optionButtonTextActive,
+                      ]}
+                    >
+                      💼 Fixed Budget
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      paymentModel === "DAILY" && styles.optionButtonActive,
+                    ]}
+                    onPress={() => setPaymentModel("DAILY")}
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        paymentModel === "DAILY" &&
+                          styles.optionButtonTextActive,
+                      ]}
+                    >
+                      📅 Daily Rate
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.hint}>
+                  {paymentModel === "PROJECT"
+                    ? "Pay for the entire project (50% downpayment, 50% on completion)"
+                    : "Pay per day of work (100% escrow upfront)"}
+                </Text>
+              </View>
+
+              {/* Fixed Budget Fields */}
+              {paymentModel === "PROJECT" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Total Budget (₱) *</Text>
                 <View
                   style={[
                     styles.budgetInput,
-                    !categoryId && styles.inputDisabled,
+                    !effectiveCategoryId && styles.inputDisabled,
                   ]}
                 >
                   <Text style={styles.currencySymbol}>₱</Text>
                   <TextInput
                     style={styles.budgetTextInput}
                     placeholder={
-                      categoryId ? "0.00" : "Select a category first"
+                      effectiveCategoryId ? "0.00" : "Add a worker requirement first"
                     }
                     value={budget}
                     onChangeText={setBudget}
                     keyboardType="decimal-pad"
                     placeholderTextColor={Colors.textHint}
-                    editable={!!categoryId}
+                    editable={!!effectiveCategoryId}
                   />
                 </View>
                 <Text style={styles.hint}>
-                  {selectedCategory && selectedCategory.minimum_rate > 0
-                    ? `Minimum: ₱${selectedCategory.minimum_rate.toFixed(2)}`
-                    : categoryId
+                  {effectiveCategory && effectiveCategory.minimum_rate > 0
+                    ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
+                    : effectiveCategoryId
                       ? "This is what the worker will receive"
-                      : "Select a category first"}
+                      : "Add a worker requirement first"}
                 </Text>
               </View>
+              )}
 
-              {/* AI Price Suggestion Card */}
-              {categoryId &&
+              {/* Daily Rate Fields */}
+              {paymentModel === "DAILY" && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Daily Rate per Worker (₱) *</Text>
+                    <View
+                      style={[
+                        styles.budgetInput,
+                        !effectiveCategoryId && styles.inputDisabled,
+                      ]}
+                    >
+                      <Text style={styles.currencySymbol}>₱</Text>
+                      <TextInput
+                        style={styles.budgetTextInput}
+                        placeholder={
+                          effectiveCategoryId ? "0.00" : "Add a worker requirement first"
+                        }
+                        value={dailyRate}
+                        onChangeText={setDailyRate}
+                        keyboardType="decimal-pad"
+                        placeholderTextColor={Colors.textHint}
+                        editable={!!effectiveCategoryId}
+                      />
+                    </View>
+                    <Text style={styles.hint}>
+                      Worker's daily rate (per 8-hour day)
+                    </Text>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Duration (Days) *</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        !effectiveCategoryId && styles.inputDisabled,
+                      ]}
+                      placeholder={
+                        effectiveCategoryId ? "e.g., 5" : "Add a worker requirement first"
+                      }
+                      value={durationDays}
+                      onChangeText={setDurationDays}
+                      keyboardType="number-pad"
+                      placeholderTextColor={Colors.textHint}
+                      editable={!!effectiveCategoryId}
+                    />
+                    <Text style={styles.hint}>
+                      Estimated number of working days
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {/* AI Price Suggestion Card - Only for PROJECT model */}
+              {paymentModel === "PROJECT" &&
+                effectiveCategoryId &&
                 (title.length >= 5 || description.length >= 10) && (
                   <PriceSuggestionCard
                     minPrice={pricePrediction?.min_price}
@@ -594,8 +984,8 @@ export default function CreateJobScreen() {
                   />
                 )}
 
-              {/* Payment Summary */}
-              {budget && parseFloat(budget) > 0 && (
+              {/* Payment Summary - PROJECT Model */}
+              {paymentModel === "PROJECT" && budget && parseFloat(budget) > 0 && (
                 <View style={styles.paymentSummary}>
                   <Text style={styles.summaryTitle}>Payment Summary</Text>
                   <View style={styles.summaryRow}>
@@ -648,6 +1038,72 @@ export default function CreateJobScreen() {
                   </View>
                 </View>
               )}
+
+              {/* Payment Summary - DAILY Model */}
+              {paymentModel === "DAILY" && dailyRate && durationDays && parseFloat(dailyRate) > 0 && parseInt(durationDays) > 0 && (
+                <View style={styles.paymentSummary}>
+                  <Text style={styles.summaryTitle}>Payment Summary</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Daily Rate per Worker
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{parseFloat(dailyRate).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Duration
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      {parseInt(durationDays)} day{parseInt(durationDays) !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Total Worker Payment
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays)).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Platform Fee (5% of total)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                    <Text style={styles.summaryLabelTotal}>Due Now (100% Escrow)</Text>
+                    <Text style={styles.summaryValueTotal}>
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 1.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.walletBalanceRow}>
+                    {walletLoading ? (
+                      <Text style={styles.walletLabel}>
+                        Loading wallet balance...
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.walletLabel}>
+                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                        </Text>
+                        {hasInsufficientBalance && (
+                          <Text style={styles.insufficientText}>
+                            (Need ₱{shortfallAmount.toFixed(2)} more)
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                  <Text style={styles.dailyNote}>
+                    💡 Daily jobs require 100% escrow upfront. Workers confirm attendance daily.
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Location Section */}
@@ -677,12 +1133,16 @@ export default function CreateJobScreen() {
                     </View>
                   </View>
                 ) : barangays.length === 0 ? (
-                  <View style={styles.pickerContainer}>
-                    <View style={[styles.picker, styles.pickerError]}>
-                      <Text style={styles.pickerErrorText}>
-                        No barangays available
-                      </Text>
-                    </View>
+                  <View style={styles.emptyStateContainer}>
+                    <Ionicons
+                      name="location-outline"
+                      size={24}
+                      color={Colors.warning}
+                    />
+                    <Text style={styles.emptyStateText}>
+                      No barangays available in database for Zamboanga City.
+                      Please contact support.
+                    </Text>
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -770,6 +1230,174 @@ export default function CreateJobScreen() {
                     )}
                     style={styles.barangayList}
                   />
+                </View>
+              </View>
+            </Modal>
+
+            {/* Add Skill Slot Modal */}
+            <Modal
+              visible={showAddSlotModal}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => setShowAddSlotModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Add Skill Slot</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowAddSlotModal(false)}
+                      style={styles.modalCloseButton}
+                    >
+                      <Text style={styles.modalCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.modalBody}>
+                    {/* Specialization Selection */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Specialization *</Text>
+                      {categoriesLoading ? (
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator
+                            size="small"
+                            color={Colors.primary}
+                          />
+                          <Text style={styles.loadingText}>Loading...</Text>
+                        </View>
+                      ) : !Array.isArray(filteredCategories) ||
+                        filteredCategories.length === 0 ? (
+                        <Text style={styles.emptyStateText}>
+                          No specializations available
+                        </Text>
+                      ) : (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.categoryScroll}
+                        >
+                          {filteredCategories.map((category) => (
+                            <TouchableOpacity
+                              key={category.id}
+                              style={[
+                                styles.categoryChip,
+                                newSlotSpecializationId === category.id &&
+                                  styles.categoryChipActive,
+                              ]}
+                              onPress={() =>
+                                setNewSlotSpecializationId(category.id)
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.categoryChipText,
+                                  newSlotSpecializationId === category.id &&
+                                    styles.categoryChipTextActive,
+                                ]}
+                              >
+                                {category.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+
+                    {/* Workers Needed */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Workers Needed *</Text>
+                      <View style={styles.workersRow}>
+                        <TouchableOpacity
+                          style={styles.workerBtn}
+                          onPress={() => {
+                            const current = parseInt(newSlotWorkersNeeded) || 1;
+                            if (current > 1)
+                              setNewSlotWorkersNeeded((current - 1).toString());
+                          }}
+                        >
+                          <Text style={styles.workerBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.workersCount}>
+                          {newSlotWorkersNeeded}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.workerBtn}
+                          onPress={() => {
+                            const current = parseInt(newSlotWorkersNeeded) || 1;
+                            if (current < 10)
+                              setNewSlotWorkersNeeded((current + 1).toString());
+                          }}
+                        >
+                          <Text style={styles.workerBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Skill Level */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Skill Level Required</Text>
+                      <View style={styles.skillLevelRow}>
+                        {(["ENTRY", "INTERMEDIATE", "EXPERT"] as const).map(
+                          (level) => (
+                            <TouchableOpacity
+                              key={level}
+                              style={[
+                                styles.skillLevelBtn,
+                                newSlotSkillLevel === level &&
+                                  styles.skillLevelBtnActive,
+                              ]}
+                              onPress={() => setNewSlotSkillLevel(level)}
+                            >
+                              <Text
+                                style={[
+                                  styles.skillLevelText,
+                                  newSlotSkillLevel === level &&
+                                    styles.skillLevelTextActive,
+                                ]}
+                              >
+                                {level === "ENTRY"
+                                  ? "🌱 Entry"
+                                  : level === "INTERMEDIATE"
+                                    ? "⭐ Intermediate"
+                                    : "👑 Expert"}
+                              </Text>
+                            </TouchableOpacity>
+                          ),
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Notes */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Notes (Optional)</Text>
+                      <TextInput
+                        style={[styles.input, styles.textArea]}
+                        placeholder="Any specific requirements for this role..."
+                        value={newSlotNotes}
+                        onChangeText={setNewSlotNotes}
+                        multiline
+                        numberOfLines={3}
+                        textAlignVertical="top"
+                        placeholderTextColor={Colors.textHint}
+                        maxLength={200}
+                      />
+                    </View>
+                  </ScrollView>
+
+                  {/* Add Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.addSlotConfirmBtn,
+                      !newSlotSpecializationId &&
+                        styles.addSlotConfirmBtnDisabled,
+                    ]}
+                    onPress={addSkillSlot}
+                    disabled={!newSlotSpecializationId}
+                  >
+                    <Text style={styles.addSlotConfirmBtnText}>
+                      Add Skill Slot
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </Modal>
@@ -1195,6 +1823,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
@@ -1241,6 +1870,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
   inputGroup: {
@@ -1263,6 +1897,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.md,
     gap: 8,
+  },
+  // Empty state styles
+  emptyStateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.warning + "15",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.warning + "30",
+  },
+  emptyStateText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.warning,
+    lineHeight: 20,
   },
   // Payment Summary Styles
   paymentSummary: {
@@ -1857,5 +2508,249 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.success,
     fontWeight: "500",
+  },
+  // Team Hire Styles
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  toggleHint: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.border,
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: Colors.primary,
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: "flex-end",
+  },
+  skillSlotsContainer: {
+    marginTop: 8,
+  },
+  emptySlots: {
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  emptySlotsText: {
+    fontSize: 14,
+    color: Colors.textHint,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  slotsSummary: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.primary,
+    marginBottom: 12,
+  },
+  slotCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  slotHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  slotTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  removeSlotBtn: {
+    padding: 4,
+  },
+  slotDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  slotBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary + "15",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  slotBadgeSkill: {
+    backgroundColor: Colors.warning + "15",
+  },
+  slotBadgeText: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontWeight: "500",
+  },
+  slotNotes: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+  addSlotBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 12,
+    gap: 6,
+    marginTop: 8,
+  },
+  addSlotBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  modalBody: {
+    maxHeight: 400,
+    paddingHorizontal: 4,
+  },
+  workersRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  workerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workerBtnText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: Colors.white,
+  },
+  workersCount: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: Colors.textPrimary,
+    minWidth: 50,
+    textAlign: "center",
+  },
+  skillLevelRow: {
+    flexDirection: "column",
+    gap: 8,
+  },
+  skillLevelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  skillLevelBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "10",
+  },
+  skillLevelText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  skillLevelTextActive: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  addSlotConfirmBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  addSlotConfirmBtnDisabled: {
+    backgroundColor: Colors.border,
+  },
+  addSlotConfirmBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  // Payment Model Selector Styles
+  buttonGroup: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  optionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+  },
+  optionButtonActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "10",
+  },
+  optionButtonText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  optionButtonTextActive: {
+    color: Colors.primary,
+    fontWeight: "700",
+  },
+  dailyNote: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    fontStyle: "italic",
   },
 });

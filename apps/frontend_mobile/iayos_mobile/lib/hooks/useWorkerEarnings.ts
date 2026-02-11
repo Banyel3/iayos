@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "../api/config";
+import { getErrorMessage } from "../utils/parse-api-error";
 
 // Types
 export interface EarningsSummary {
@@ -46,7 +47,7 @@ export const useEarningsSummary = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to fetch earnings summary");
+        throw new Error(getErrorMessage(error, "Failed to fetch earnings summary"));
       }
 
       return response.json();
@@ -80,7 +81,7 @@ export const useEarningsHistory = (filters?: {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to fetch earnings history");
+        throw new Error(getErrorMessage(error, "Failed to fetch earnings history"));
       }
 
       return response.json();

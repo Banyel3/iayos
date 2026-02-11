@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 const API_BASE_URL = API_BASE;
@@ -19,6 +20,7 @@ export interface AgencyReview {
   review_type: "AGENCY" | "EMPLOYEE";
   employee_name: string | null;
   employee_id: number | null;
+  agency_response?: string | null;
 }
 
 export interface AgencyReviewsStats {
@@ -59,7 +61,7 @@ async function fetchAgencyReviews(
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/api/agency/reviews?${params.toString()}`,
+    `${API_BASE_URL}/agency/reviews?${params.toString()}`,
     {
       method: "GET",
       credentials: "include",
@@ -74,7 +76,7 @@ async function fetchAgencyReviews(
       throw new Error("Unauthorized - Please log in again");
     }
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Failed to fetch reviews");
+    throw new Error(getErrorMessage(errorData, "Failed to fetch reviews"));
   }
 
   return response.json();

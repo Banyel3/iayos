@@ -2,7 +2,8 @@
 // Hook for fetching and confirming AI-extracted KYC data
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, OCR_TIMEOUT } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 /**
  * Interface for extracted KYC field with confidence
@@ -79,11 +80,13 @@ const fetchKYCAutofill = async (): Promise<KYCAutofillResponse> => {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Failed to fetch KYC auto-fill data");
+    const errorData = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new Error(getErrorMessage(errorData, "Failed to fetch KYC auto-fill data"));
   }
 
-  return response.json();
+  return response.json() as Promise<KYCAutofillResponse>;
 };
 
 /**
@@ -99,8 +102,10 @@ const confirmKYCData = async (payload: KYCConfirmPayload): Promise<any> => {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Failed to confirm KYC data");
+    const errorData = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new Error(getErrorMessage(errorData, "Failed to confirm KYC data"));
   }
 
   return response.json();
@@ -178,18 +183,6 @@ export const useKYCAutofill = () => {
     return (field?.confidence ?? 0) < threshold;
   };
 
-  /**
-   * Get confidence color for UI (red/yellow/green)
-   */
-  const getConfidenceColor = (
-    fieldName: keyof typeof extractedFields,
-  ): string => {
-    const confidence = extractedFields[fieldName]?.confidence ?? 0;
-    if (confidence >= 0.9) return "#22c55e"; // green-500
-    if (confidence >= 0.7) return "#eab308"; // yellow-500
-    return "#ef4444"; // red-500
-  };
-
   return {
     // Data
     autofillData: data,
@@ -217,7 +210,6 @@ export const useKYCAutofill = () => {
     getFieldValue,
     getFieldConfidence,
     isLowConfidence,
-    getConfidenceColor,
   };
 };
 
@@ -272,4 +264,219 @@ export const formatFieldName = (fieldName: string): string => {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+};
+
+// =============================================================================
+// PER-STEP OCR EXTRACTION HOOKS (New KYC Flow)
+// =============================================================================
+
+/**
+ * Interface for extracted field with confidence
+ */
+export interface ExtractedFieldWithConfidence {
+  value: string;
+  confidence: number;
+  editable: boolean;
+}
+
+/**
+ * Interface for ID extraction response
+ */
+export interface IDExtractionResponse {
+  success: boolean;
+  has_extraction: boolean;
+  fields: {
+    full_name?: ExtractedFieldWithConfidence;
+    id_number?: ExtractedFieldWithConfidence;
+    birth_date?: ExtractedFieldWithConfidence;
+    address?: ExtractedFieldWithConfidence;
+    sex?: ExtractedFieldWithConfidence;
+  };
+  confidence: number;
+  id_type: string;
+  extracted_at: string;
+  message?: string;
+  error?: string;
+  error_code?: string;
+}
+
+/**
+ * Interface for clearance extraction response
+ */
+export interface ClearanceExtractionResponse {
+  success: boolean;
+  has_extraction: boolean;
+  fields: {
+    clearance_number?: ExtractedFieldWithConfidence;
+    holder_name?: ExtractedFieldWithConfidence;
+    issue_date?: ExtractedFieldWithConfidence;
+    validity_date?: ExtractedFieldWithConfidence;
+    clearance_type?: ExtractedFieldWithConfidence;
+  };
+  confidence: number;
+  clearance_type: string;
+  extracted_at: string;
+  message?: string;
+  error?: string;
+  error_code?: string;
+}
+
+/**
+ * Extract ID data from uploaded image
+ * Uses extended timeout (5 min) since OCR processing can take 2-4 minutes
+ */
+const extractIDData = async (
+  formData: FormData,
+): Promise<IDExtractionResponse> => {
+  const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_ID, {
+    method: "POST",
+    body: formData as any,
+    timeout: OCR_TIMEOUT, // 5 min timeout for OCR
+  });
+
+  // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    console.error(
+      `[KYC Extract ID] Non-JSON response (${response.status}): ${contentType}`,
+    );
+    // Provide user-friendly messages for common gateway errors
+    if (response.status === 502) {
+      throw new Error(
+        "Cannot reach server. Please check your connection and try again.",
+      );
+    }
+    if (response.status === 503) {
+      throw new Error(
+        "Service is temporarily unavailable. Please try again later.",
+      );
+    }
+    if (response.status === 504) {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw new Error(
+      `Server error (${response.status}). Please try again later.`,
+    );
+  }
+
+  // Safely parse JSON
+  let data: { error?: string } & IDExtractionResponse;
+  try {
+    data = (await response.json()) as { error?: string } & IDExtractionResponse;
+  } catch (parseError) {
+    console.error(
+      "[KYC Extract ID] Failed to parse JSON response:",
+      parseError,
+    );
+    throw new Error("Invalid server response. Please try again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, "Failed to extract ID data"));
+  }
+
+  return data;
+};
+
+/**
+ * Extract clearance data from uploaded image
+ * Uses extended timeout (5 min) since OCR processing can take 2-4 minutes
+ */
+const extractClearanceData = async (
+  formData: FormData,
+): Promise<ClearanceExtractionResponse> => {
+  const response = await apiRequest(ENDPOINTS.KYC_EXTRACT_CLEARANCE, {
+    method: "POST",
+    body: formData as any,
+    timeout: OCR_TIMEOUT, // 5 min timeout for OCR
+  });
+
+  // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    console.error(
+      `[KYC Extract Clearance] Non-JSON response (${response.status}): ${contentType}`,
+    );
+    // Provide user-friendly messages for common gateway errors
+    if (response.status === 502) {
+      throw new Error(
+        "Cannot reach server. Please check your connection and try again.",
+      );
+    }
+    if (response.status === 503) {
+      throw new Error(
+        "Service is temporarily unavailable. Please try again later.",
+      );
+    }
+    if (response.status === 504) {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw new Error(
+      `Server error (${response.status}). Please try again later.`,
+    );
+  }
+
+  // Safely parse JSON
+  let data: { error?: string } & ClearanceExtractionResponse;
+  try {
+    data = (await response.json()) as {
+      error?: string;
+    } & ClearanceExtractionResponse;
+  } catch (parseError) {
+    console.error(
+      "[KYC Extract Clearance] Failed to parse JSON response:",
+      parseError,
+    );
+    throw new Error("Invalid server response. Please try again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, "Failed to extract clearance data"));
+  }
+
+  return data;
+};
+
+/**
+ * Hook for extracting ID data from front ID image
+ * Called after Step 2 validation passes
+ */
+export const useExtractID = () => {
+  return useMutation({
+    mutationFn: extractIDData,
+    onError: (error: Error) => {
+      console.error("[KYC Extract ID] Error:", error.message);
+    },
+  });
+};
+
+/**
+ * Hook for extracting clearance data from clearance image
+ * Called after Step 3 validation passes
+ */
+export const useExtractClearance = () => {
+  return useMutation({
+    mutationFn: extractClearanceData,
+    onError: (error: Error) => {
+      console.error("[KYC Extract Clearance] Error:", error.message);
+    },
+  });
+};
+
+/**
+ * Get confidence color based on score (for UI badges)
+ */
+export const getConfidenceColor = (confidence: number): string => {
+  if (confidence >= 0.8) return "#22c55e"; // green-500
+  if (confidence >= 0.6) return "#eab308"; // yellow-500
+  return "#ef4444"; // red-500
+};
+
+/**
+ * Get confidence label based on score
+ */
+export const getConfidenceLabel = (confidence: number): string => {
+  if (confidence >= 0.8) return "High";
+  if (confidence >= 0.6) return "Medium";
+  return "Low";
 };

@@ -1,6 +1,6 @@
 from ninja import Router, Form
 from ninja.responses import Response
-from accounts.authentication import cookie_auth
+from accounts.authentication import cookie_auth, dual_auth
 from . import services, schemas
 from .fast_upload_service import upload_agency_kyc_fast, extract_ocr_for_autofill
 import logging
@@ -35,10 +35,11 @@ def upload_agency_kyc(request):
         business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
         
         # Get file hashes from validation step (JSON string)
+        # Frontend sends 'file_hashes_json' field with JSON-encoded hashes
         import json
-        file_hashes_json = request.POST.get("file_hashes", "{}")
+        file_hashes_raw = request.POST.get("file_hashes_json", "{}")
         try:
-            file_hashes = json.loads(file_hashes_json)
+            file_hashes = json.loads(file_hashes_raw)
         except json.JSONDecodeError:
             file_hashes = {}
         
@@ -93,6 +94,86 @@ def agency_kyc_status(request):
         return Response({"error": "Internal server error"}, status=500)
 
 
+@router.delete("/kyc/files", auth=cookie_auth)
+def delete_agency_kyc_files(request):
+    """
+    Delete all agency KYC files for clean resubmission.
+    
+    Deletes:
+    - All files from Supabase storage (agency bucket)
+    - All AgencyKycFile database records
+    - Resets AgencyKYC status to PENDING
+    
+    Allows unlimited resubmissions.
+    """
+    import re
+    from agency.models import AgencyKYC, AgencyKycFile
+    from iayos_project.utils import delete_storage_file
+    
+    try:
+        account_id = request.auth.accountID
+        
+        # Find KYC record
+        kyc_record = AgencyKYC.objects.filter(accountFK_id=account_id).first()
+        
+        if not kyc_record:
+            return {"success": True, "message": "No KYC records found", "deleted_count": 0}
+        
+        def extract_file_path_for_delete(url_or_path):
+            """Extract file path from URL for deletion."""
+            if not url_or_path:
+                return None
+            if not url_or_path.startswith('http') and '/object/' not in url_or_path:
+                return url_or_path
+            match = re.search(r'(agency_\d+/kyc/[^?]+)', url_or_path)
+            if match:
+                return match.group(1)
+            match = re.search(r'/agency/(.+?)(?:\?|$)', url_or_path)
+            if match:
+                return match.group(1)
+            return url_or_path
+        
+        # Delete files from Supabase storage
+        old_files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+        old_files_count = old_files.count()
+        deleted_count = 0
+        
+        for f in old_files:
+            if f.fileURL:
+                file_path = extract_file_path_for_delete(f.fileURL)
+                if file_path:
+                    print(f"🗑️ Deleting agency KYC file: {file_path}")
+                    if delete_storage_file("agency", file_path):
+                        deleted_count += 1
+        
+        # Delete all file records from database
+        AgencyKycFile.objects.filter(agencyKyc=kyc_record).delete()
+        
+        # Reset KYC status and increment resubmission count
+        kyc_record.status = 'PENDING'
+        kyc_record.notes = 'Files cleared for resubmission'
+        kyc_record.resubmissionCount = kyc_record.resubmissionCount + 1
+        kyc_record.rejectionReason = ''
+        kyc_record.rejectionCategory = ''
+        kyc_record.save()
+        
+        print(f"✅ Agency KYC files cleared: {deleted_count}/{old_files_count} from Supabase, DB records deleted")
+        
+        return {
+            "success": True,
+            "message": f"Deleted {deleted_count} files from storage and cleared {old_files_count} database records",
+            "deleted_count": deleted_count,
+            "db_records_cleared": old_files_count,
+            "resubmission_count": kyc_record.resubmissionCount
+        }
+        
+    except Exception as e:
+        print(f"❌ Error deleting agency KYC files: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
 @router.post("/kyc/extract-ocr", auth=cookie_auth)
 def extract_ocr_from_documents(request):
     """
@@ -141,6 +222,161 @@ def extract_ocr_from_documents(request):
         import traceback
         traceback.print_exc()
         return Response({"error": "OCR extraction failed. Please fill the form manually."}, status=500)
+
+
+@router.post("/kyc/autofill-business", auth=cookie_auth)
+def autofill_business_from_ocr(request):
+    """
+    Extract and return BUSINESS-related fields from business permit OCR.
+
+    Used in Agency KYC Step 3 (Business Information) to auto-populate:
+    - business_name, business_address, business_type
+    - permit_number, dti_number, sec_number, tin
+    - permit_issue_date, permit_expiry_date
+
+    Request: multipart/form-data with:
+    - business_permit: Business permit image (required)
+    - business_type: Business type hint (SOLE_PROPRIETORSHIP, PARTNERSHIP, CORPORATION, COOPERATIVE)
+
+    Response:
+    - success: bool
+    - fields: dict with business fields
+    - confidence: float (0-1) for OCR quality
+    """
+    try:
+        from .kyc_extraction_parser import get_agency_kyc_parser
+        from accounts.document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        from django.utils import timezone
+
+        business_permit = request.FILES.get("business_permit")
+        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
+
+        if not business_permit:
+            return Response({"success": False, "error": "Business permit is required"}, status=400)
+
+        print("📝 [AUTOFILL-BUSINESS] Extracting business data from permit...")
+
+        business_permit.seek(0)
+        permit_bytes = business_permit.read()
+
+        doc_service = DocumentVerificationService(skip_face_service=True)
+        permit_img = Image.open(io.BytesIO(permit_bytes))
+        ocr_result = doc_service._extract_text(permit_img)
+        ocr_text = ocr_result.get("text", "")
+
+        print(
+            f"   📄 Business permit OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}"
+        )
+
+        parser = get_agency_kyc_parser()
+        parsed_business = parser.parse_ocr_text(ocr_text, "BUSINESS_PERMIT")
+
+        fields = {
+            "business_name": parsed_business.business_name.value or "",
+            "business_address": parsed_business.business_address.value or "",
+            "business_type": business_type,
+            "permit_number": parsed_business.permit_number.value or "",
+            "dti_number": parsed_business.dti_number.value or "",
+            "sec_number": parsed_business.sec_number.value or "",
+            "tin": parsed_business.tin.value or "",
+            "permit_issue_date": parsed_business.permit_issue_date.value or "",
+            "permit_expiry_date": parsed_business.permit_expiry_date.value or "",
+        }
+
+        print(
+            f"✅ [AUTOFILL-BUSINESS] Extracted: name='{fields['business_name'][:30]}...', dti={fields['dti_number']}, permit={fields['permit_number']}"
+        )
+
+        return {
+            "success": True,
+            "fields": fields,
+            "confidence": parsed_business.overall_confidence,
+            "extracted_at": timezone.now().isoformat(),
+        }
+
+    except Exception as e:
+        print(f"❌ [AUTOFILL-BUSINESS] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": "Failed to extract business data"}, status=500)
+
+
+@router.post("/kyc/autofill-id", auth=cookie_auth)
+def autofill_id_from_ocr(request):
+    """
+    Extract and return REPRESENTATIVE ID fields from ID document OCR.
+
+    Used in Agency KYC Step 4 (Representative ID) to auto-populate:
+    - rep_full_name, rep_id_number, rep_id_type
+    - rep_birth_date, rep_address
+
+    Also usable in Mobile KYC for ID autofill.
+
+    Request: multipart/form-data with:
+    - id_front: ID front image (required)
+    - id_type: ID type hint (PHILSYS_ID, DRIVERS_LICENSE, PASSPORT, etc.)
+
+    Response:
+    - success: bool
+    - fields: dict with ID fields
+    - confidence: float (0-1) for OCR quality
+    """
+    try:
+        from .kyc_extraction_parser import get_agency_kyc_parser
+        from accounts.document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        from django.utils import timezone
+
+        id_front = request.FILES.get("id_front")
+        id_type = request.POST.get("id_type", "PHILSYS_ID")
+
+        if not id_front:
+            return Response({"success": False, "error": "ID front image is required"}, status=400)
+
+        print(f"📝 [AUTOFILL-ID] Extracting ID data (type: {id_type})...")
+
+        id_front.seek(0)
+        id_bytes = id_front.read()
+
+        doc_service = DocumentVerificationService(skip_face_service=True)
+        id_img = Image.open(io.BytesIO(id_bytes))
+        ocr_result = doc_service._extract_text(id_img)
+        ocr_text = ocr_result.get("text", "")
+
+        print(
+            f"   🪪 ID OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}"
+        )
+
+        parser = get_agency_kyc_parser()
+        parsed_id = parser.parse_ocr_text(ocr_text, id_type.upper())
+
+        fields = {
+            "rep_full_name": parsed_id.rep_full_name.value or "",
+            "rep_id_number": parsed_id.rep_id_number.value or "",
+            "rep_id_type": id_type,
+            "rep_birth_date": parsed_id.rep_birth_date.value or "",
+            "rep_address": parsed_id.rep_address.value or "",
+        }
+
+        print(
+            f"✅ [AUTOFILL-ID] Extracted: name='{fields['rep_full_name']}', id_num={fields['rep_id_number']}"
+        )
+
+        return {
+            "success": True,
+            "fields": fields,
+            "confidence": parsed_id.overall_confidence,
+            "extracted_at": timezone.now().isoformat(),
+        }
+
+    except Exception as e:
+        print(f"❌ [AUTOFILL-ID] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": "Failed to extract ID data"}, status=500)
 
 
 # ============================================
@@ -201,10 +437,18 @@ def validate_agency_document(request):
         from .validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
         file_hash = generate_file_hash(file_data)
         
-        # Check cache first
-        cached_result = get_cached_validation(file_hash, document_type)
+        # Get rep_id_type BEFORE cache check - needed for composite cache key
+        # This fixes bug where changing ID type dropdown didn't invalidate cached validation
+        rep_id_type = request.POST.get("rep_id_type", "").upper()
+        
+        # Create composite cache key for rep ID documents (includes ID type)
+        # e.g., "REP_ID_FRONT:PHILSYS_ID" vs "REP_ID_FRONT:DRIVERS_LICENSE"
+        cache_doc_type = f"{document_type}:{rep_id_type}" if rep_id_type and document_type in ['REP_ID_FRONT', 'REP_ID_BACK'] else document_type
+        
+        # Check cache first using composite key
+        cached_result = get_cached_validation(file_hash, cache_doc_type)
         if cached_result:
-            print(f"✅ [CACHE HIT] Using cached validation for {document_type}")
+            print(f"✅ [CACHE HIT] Using cached validation for {cache_doc_type}")
             return {
                 "valid": cached_result.get('ai_status') != 'FAILED',
                 "error": cached_result.get('ai_rejection_message'),
@@ -212,9 +456,6 @@ def validate_agency_document(request):
                 "file_hash": file_hash,
                 "cached": True
             }
-        
-        # Get optional rep_id_type for type-specific OCR
-        rep_id_type = request.POST.get("rep_id_type", "").upper()
         
         # Determine if face detection is required (front ID only)
         require_face = document_type in ['REP_ID_FRONT']
@@ -263,8 +504,8 @@ def validate_agency_document(request):
                     'text_only_validation': True,
                 }
                 
-                # Cache the result
-                cache_validation_result(file_hash, document_type, validation_data)
+                # Cache the result using composite key
+                cache_validation_result(file_hash, cache_doc_type, validation_data)
                 
                 return {
                     "valid": result.get('valid', False),
@@ -301,8 +542,8 @@ def validate_agency_document(request):
                 'ai_rejection_message': rejection_message if rejection_message else None,
             }
             
-            # Cache the result
-            cache_validation_result(file_hash, document_type, validation_data)
+            # Cache the result using composite key
+            cache_validation_result(file_hash, cache_doc_type, validation_data)
             
             # Return response
             return {
@@ -537,20 +778,74 @@ def get_employees(request):
 
 @router.post("/employees", auth=cookie_auth)
 def add_employee(request):
-    """Add a new employee to the agency."""
+    """Add a new employee to the agency with name breakdown and multi-specializations."""
     try:
+        import json
         account_id = request.auth.accountID
-        name = request.POST.get("name")
+        firstName = request.POST.get("firstName")
+        lastName = request.POST.get("lastName")
+        middleName = request.POST.get("middleName", "")
         email = request.POST.get("email")
-        role = request.POST.get("role")
+        
+        # Handle specializations as JSON array
+        specializations_raw = request.POST.get("specializations", "[]")
+        try:
+            specializations = json.loads(specializations_raw)
+        except json.JSONDecodeError:
+            # Fallback: treat as single role (backward compatibility)
+            role = request.POST.get("role", "")
+            specializations = [role] if role else []
+        
         avatar = request.POST.get("avatar")
         rating = float(request.POST.get("rating")) if request.POST.get("rating") else None
-        result = services.add_agency_employee(account_id, name, email, role, avatar, rating)
+        
+        result = services.add_agency_employee(
+            account_id, firstName, lastName, email, specializations,
+            middleName=middleName, avatar=avatar, rating=rating
+        )
         return result
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"Error adding employee: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.put("/employees/{employee_id}", auth=cookie_auth)
+def update_employee(request, employee_id: int):
+    """Update an existing employee's information."""
+    try:
+        import json
+        account_id = request.auth.accountID
+        
+        # Parse JSON body for PUT request
+        body = json.loads(request.body.decode('utf-8'))
+        
+        firstName = body.get("firstName")
+        lastName = body.get("lastName")
+        middleName = body.get("middleName")
+        email = body.get("email")
+        specializations = body.get("specializations")
+        avatar = body.get("avatar")
+        isActive = body.get("isActive")
+        
+        result = services.update_agency_employee(
+            account_id, employee_id,
+            firstName=firstName,
+            lastName=lastName,
+            middleName=middleName,
+            email=email,
+            specializations=specializations,
+            avatar=avatar,
+            isActive=isActive
+        )
+        return result
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except json.JSONDecodeError:
+        return Response({"error": "Invalid JSON body"}, status=400)
+    except Exception as e:
+        print(f"Error updating employee: {str(e)}")
         return Response({"error": "Internal server error"}, status=500)
 
 
@@ -579,6 +874,30 @@ def get_profile(request):
         return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"Error fetching agency profile: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.get("/analytics/revenue-trends", auth=cookie_auth)
+def get_revenue_trends(request, weeks: int = 12):
+    """
+    Get weekly revenue and job completion trends for analytics charts.
+    
+    Query params:
+        weeks: Number of weeks to fetch (default: 12, max: 52)
+    
+    Returns:
+        List of weekly data points with date, revenue, and jobs completed
+    """
+    try:
+        account_id = request.auth.accountID
+        # Cap weeks at 52 (1 year)
+        weeks = min(weeks, 52)
+        trends = services.get_revenue_trends(account_id, weeks)
+        return {"success": True, "trends": trends, "weeks": weeks}
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"Error fetching revenue trends: {str(e)}")
         return Response({"error": "Internal server error"}, status=500)
 
 
@@ -746,6 +1065,7 @@ def accept_job_invite(request, job_id: int):
                 defaults={
                     'client': job.clientID.profileID,
                     'worker': None,  # For agency jobs, worker is None
+                    'agency': agency,  # Link conversation to this agency for proper filtering
                     'status': Conversation.ConversationStatus.ACTIVE
                 }
             )
@@ -869,7 +1189,7 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
                         balanceAfter=client_wallet.balance,
                         status=Transaction.TransactionStatus.COMPLETED,
                         description=f"Refund for rejected INVITE job: {job.title}",
-                        relatedJobID=job,
+                        relatedJobPosting=job,
                         completedAt=timezone.now(),
                         referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
                     )
@@ -1238,6 +1558,171 @@ def set_primary_contact_endpoint(request, job_id: int, employee_id: int):
         )
 
 
+@router.post("/jobs/{job_id}/assign-employees-to-slots", auth=cookie_auth)
+def assign_employees_to_slots_endpoint(request, job_id: int):
+    """
+    Assign agency employees to specific skill slots for multi-employee INVITE jobs.
+    
+    POST /api/agency/jobs/{job_id}/assign-employees-to-slots
+    Body (JSON):
+        - assignments: list[{skill_slot_id: int, employee_id: int}] (required)
+        - primary_contact_employee_id: int (optional) - Team lead
+    
+    Rules:
+        - All skill slots must be fully assigned (no partial assignments)
+        - Employees must have the exact specialization matching the slot (strict matching)
+        - Each employee can only be assigned to one slot per job
+        - Job status changes to IN_PROGRESS after successful assignment
+    
+    Example body:
+    {
+        "assignments": [
+            {"skill_slot_id": 1, "employee_id": 10},
+            {"skill_slot_id": 1, "employee_id": 11},
+            {"skill_slot_id": 2, "employee_id": 12}
+        ],
+        "primary_contact_employee_id": 10
+    }
+    """
+    import json
+    try:
+        print(f"📋 assign_employees_to_slots_endpoint called for job_id={job_id}")
+        data = json.loads(request.body)
+        assignments = data.get('assignments', [])
+        primary_contact_employee_id = data.get('primary_contact_employee_id')
+        print(f"   Assignments count: {len(assignments)}, Primary contact: {primary_contact_employee_id}")
+        
+        if not assignments:
+            return Response({'success': False, 'error': 'assignments list is required'}, status=400)
+        
+        # Validate assignment structure
+        for i, assignment in enumerate(assignments):
+            if not isinstance(assignment, dict):
+                return Response({'success': False, 'error': f'Assignment {i} must be an object'}, status=400)
+            if 'skill_slot_id' not in assignment:
+                return Response({'success': False, 'error': f'Assignment {i} missing skill_slot_id'}, status=400)
+            if 'employee_id' not in assignment:
+                return Response({'success': False, 'error': f'Assignment {i} missing employee_id'}, status=400)
+        
+        result = services.assign_employees_to_slots(
+            agency_account=request.auth,
+            job_id=job_id,
+            assignments=assignments,
+            primary_contact_employee_id=primary_contact_employee_id
+        )
+        
+        if result.get('success'):
+            return Response(result, status=200)
+        else:
+            return Response(result, status=400)
+    
+    except json.JSONDecodeError:
+        return Response({'success': False, 'error': 'Invalid JSON body'}, status=400)
+    except ValueError as e:
+        return Response({'success': False, 'error': str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error assigning employees to slots: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {'success': False, 'error': 'Internal server error'},
+            status=500
+        )
+
+
+@router.get("/jobs/{job_id}/skill-slots", auth=cookie_auth)
+def get_job_skill_slots_endpoint(request, job_id: int):
+    """
+    Get all skill slots for a multi-employee job with their assignment status.
+    
+    GET /api/agency/jobs/{job_id}/skill-slots
+    
+    Returns list of skill slots with:
+        - Slot details (specialization, workers_needed, skill_level)
+        - Current assignments (employees assigned to this slot)
+        - Status (OPEN, PARTIALLY_FILLED, FILLED)
+    """
+    from accounts.models import Agency, Job, JobSkillSlot, JobEmployeeAssignment
+    
+    try:
+        # Verify agency account
+        account = request.auth
+        agency = Agency.objects.filter(accountFK=account).first()
+        if not agency:
+            return Response({'success': False, 'error': 'Agency account not found'}, status=400)
+        
+        # Get job and verify ownership
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': f'Job {job_id} not found'}, status=404)
+        
+        if job.assignedAgencyFK != agency:
+            return Response({'success': False, 'error': 'This job is not assigned to your agency'}, status=403)
+        
+        # Get skill slots with assignments
+        slots = JobSkillSlot.objects.filter(jobID=job).select_related('specializationID')
+        
+        result = []
+        for slot in slots:
+            # Get employees assigned to this slot
+            assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot=slot
+            ).select_related('employee')
+            
+            assigned_employees = []
+            for assignment in assignments:
+                assigned_employees.append({
+                    'assignment_id': assignment.assignmentID,
+                    'employee_id': assignment.employee.employeeID,
+                    'employee_name': assignment.employee.fullName,
+                    'is_primary_contact': assignment.isPrimaryContact,
+                    'assigned_at': assignment.assignedAt.isoformat() if assignment.assignedAt else None
+                })
+            
+            # Determine status
+            assigned_count = len(assigned_employees)
+            if assigned_count == 0:
+                status = 'OPEN'
+            elif assigned_count < slot.workers_needed:
+                status = 'PARTIALLY_FILLED'
+            else:
+                status = 'FILLED'
+            
+            result.append({
+                'skill_slot_id': slot.skillSlotID,
+                'specialization_id': slot.specializationID.specializationID,
+                'specialization_name': slot.specializationID.specializationName,
+                'workers_needed': slot.workers_needed,
+                'skill_level_required': slot.skill_level_required,
+                'notes': slot.notes,
+                'status': status,
+                'assigned_count': assigned_count,
+                'assigned_employees': assigned_employees
+            })
+        
+        return Response({
+            'success': True,
+            'job_id': job_id,
+            'job_title': job.title,
+            'is_team_job': job.is_team_job,
+            'skill_slots': result,
+            'total_slots': len(result),
+            'total_workers_needed': sum(s['workers_needed'] for s in result),
+            'total_workers_assigned': sum(s['assigned_count'] for s in result)
+        }, status=200)
+    
+    except Exception as e:
+        print(f"❌ Error getting job skill slots: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {'success': False, 'error': 'Internal server error'},
+            status=500
+        )
+
+
 # ============================================================
 # Agency Chat/Messaging Endpoints
 # ============================================================
@@ -1260,9 +1745,15 @@ def get_agency_conversations(request, filter: str = "all"):
         
         # Verify user is an agency (has AgencyKYC)
         from .models import AgencyKYC, AgencyEmployee
+        from accounts.models import Agency
         agency_kyc = AgencyKYC.objects.filter(accountFK=account).first()
         if not agency_kyc:
             return Response({"error": "Agency account not found"}, status=400)
+        
+        # Get the Agency model instance (needed for FK relationships)
+        agency = Agency.objects.filter(accountFK=account).first()
+        if not agency:
+            return Response({"error": "Agency profile not found"}, status=404)
         
         print(f"\n🏢 === AGENCY CONVERSATIONS DEBUG ===")
         print(f"📧 Agency account: {account.email}")
@@ -1271,18 +1762,15 @@ def get_agency_conversations(request, filter: str = "all"):
         agency_employees = AgencyEmployee.objects.filter(agency=account)
         print(f"👥 Agency employees: {agency_employees.count()}")
         
-        # Get agency's profile (to find conversations where agency is worker)
-        agency_profile = Profile.objects.filter(accountFK=account).first()
+        # Find all conversations where:
+        # 1. Conversation is directly linked to this agency (via agency field)
+        # 2. Or the related job is assigned to this agency (assignedAgencyFK)
+        # NOTE: Removed legacy Q(worker=agency_profile) condition - agencies don't have Profile records,
+        # and when agency_profile=None, it incorrectly matched ALL agency conversations (worker=None)
         
-        # Find all jobs where:
-        # 1. Job was sent to agency (inviteStatus = ACCEPTED, invitedAgencyID exists)
-        # 2. Or job has an assigned employee from this agency
-        from .models import AgencyEmployee
-        
-        # Get conversations where agency is the worker (for INVITE jobs)
         conversations_query = Conversation.objects.filter(
-            Q(worker=agency_profile) |  # Agency is in worker role
-            Q(relatedJobPosting__assignedEmployeeID__agency=account)  # Employee from this agency is assigned
+            Q(agency=agency) |  # Direct agency link on Conversation
+            Q(relatedJobPosting__assignedAgencyFK=agency)  # Job is assigned to this agency
         ).select_related(
             'client__accountFK',
             'worker__accountFK',
@@ -1297,6 +1785,25 @@ def get_agency_conversations(request, filter: str = "all"):
         if filter == "archived":
             # For agencies, use worker archived status
             conversations_query = conversations_query.filter(archivedByWorker=True)
+        elif filter == "active":
+            # Show conversations where work has been agreed upon:
+            # 1. Jobs IN_PROGRESS (work started)
+            # 2. Jobs ACTIVE with employee assigned (agreed but not started)
+            # 3. Jobs with active backjob (UNDER_REVIEW dispute - conversation reopened)
+            conversations_query = conversations_query.filter(
+                archivedByWorker=False
+            ).filter(
+                Q(relatedJobPosting__status='IN_PROGRESS') |  # Work in progress
+                Q(  # Agreed but not started (employee assigned)
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__assignedEmployeeID__isnull=False
+                ) |
+                Q(  # Backjob approved - conversation reopened
+                    status='ACTIVE',
+                    relatedJobPosting__status='COMPLETED',
+                    relatedJobPosting__disputes__status='UNDER_REVIEW'
+                )
+            )
         else:
             conversations_query = conversations_query.filter(archivedByWorker=False)
             
@@ -1348,6 +1855,13 @@ def get_agency_conversations(request, filter: str = "all"):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": assignment.isPrimaryContact,
                     "status": assignment.status,
+                    # PROJECT job workflow tracking
+                    "dispatched": getattr(assignment, 'dispatched', False),
+                    "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
+                    "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
+                    "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
+                    "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
+                    "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
                 })
             
             # Fallback: if no M2M assignments but legacy field is set
@@ -1362,6 +1876,12 @@ def get_agency_conversations(request, filter: str = "all"):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": True,
                     "status": "ASSIGNED",
+                    "dispatched": False,
+                    "dispatchedAt": None,
+                    "clientConfirmedArrival": False,
+                    "clientConfirmedArrivalAt": None,
+                    "agencyMarkedComplete": False,
+                    "agencyMarkedCompleteAt": None,
                 })
             
             # Get client info
@@ -1528,6 +2048,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "rating": float(emp.rating) if emp.rating else None,
                 "isPrimaryContact": assignment.isPrimaryContact,
                 "status": assignment.status,
+                # PROJECT job workflow tracking
+                "dispatched": getattr(assignment, 'dispatched', False),
+                "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
+                "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
+                "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
+                "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
+                "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
             })
         
         # Fallback: if no M2M assignments but legacy field is set
@@ -1542,6 +2069,12 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "rating": float(emp.rating) if emp.rating else None,
                 "isPrimaryContact": True,
                 "status": "ASSIGNED",
+                "dispatched": False,
+                "dispatchedAt": None,
+                "clientConfirmedArrival": False,
+                "clientConfirmedArrivalAt": None,
+                "agencyMarkedComplete": False,
+                "agencyMarkedCompleteAt": None,
             })
         
         # Check review status
@@ -1576,8 +2109,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 attachment = MessageAttachment.objects.filter(messageID=msg).first()
                 if attachment:
                     file_url = attachment.fileURL
-                    # Convert relative URL to absolute if needed
-                    if file_url and file_url.startswith('/'):
+                    # If it's a storage path (not a full URL), generate fresh signed URL
+                    if file_url and not file_url.startswith('http'):
+                        from iayos_project.utils import get_signed_url
+                        signed = get_signed_url('iayos_files', file_url, expires_in=3600)
+                        file_url = signed if signed else file_url
+                    # Convert relative URL to absolute if needed (for legacy URLs)
+                    elif file_url and file_url.startswith('/'):
                         file_url = f"{base_url}{file_url}"
                     message_text = file_url
             
@@ -1601,6 +2139,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "status": job.status,
                 "budget": float(job.budget),
                 "location": job.location,
+                # Daily payment model fields (PR #294 fix - also needed for conversation endpoint)
+                "payment_model": getattr(job, 'payment_model', 'PROJECT'),
+                "daily_rate_agreed": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
+                "actual_start_date": job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+                "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                "daily_escrow_total": float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
@@ -1668,6 +2213,13 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
+        
+        # Block sending messages if conversation is COMPLETED (not yet reopened for backjob)
+        if conv.status == Conversation.ConversationStatus.COMPLETED:
+            return Response({
+                "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
+                "conversation_status": "COMPLETED"
+            }, status=400)
         
         # Create message - use senderAgency for agency users without profile
         message = Message.objects.create(
@@ -1842,8 +2394,8 @@ def upload_agency_chat_image(request, conversation_id: int):
             if isinstance(upload_response, dict) and 'error' in upload_response:
                 raise Exception(f"Upload failed: {upload_response['error']}")
             
-            # Get public URL (relative for local storage)
-            public_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+            # Store the storage path (NOT the signed URL) - we'll generate signed URLs on fetch
+            # This ensures URLs don't expire since we generate fresh ones each time
             
             # Create IMAGE type message (from agency)
             message = Message.objects.create(
@@ -1854,12 +2406,16 @@ def upload_agency_chat_image(request, conversation_id: int):
                 messageType="IMAGE"
             )
             
-            # Create message attachment record
+            # Create message attachment record - store the storage PATH, not signed URL
             MessageAttachment.objects.create(
                 messageID=message,
-                fileURL=public_url,
+                fileURL=storage_path,  # Store path like "chat/conversation_1/images/agency_xxx.jpg"
                 fileType="IMAGE"
             )
+            
+            # Generate signed URL for immediate response
+            from iayos_project.utils import get_signed_url
+            public_url = get_signed_url('iayos_files', storage_path, expires_in=3600) or storage_path
             
             # Build full URL for response
             scheme = request.scheme if hasattr(request, 'scheme') else 'http'
@@ -2494,3 +3050,1065 @@ def get_agency_reviews_endpoint(request, page: int = 1, limit: int = 10, review_
             {'success': False, 'error': 'Internal server error'},
             status=500
         )
+
+
+# =============================================================================
+# AGENCY SUPPORT TICKETS
+# =============================================================================
+
+@router.post("/support/ticket", auth=cookie_auth)
+def create_agency_support_ticket(request):
+    """
+    Create a new support ticket from agency portal.
+    
+    Request JSON:
+    - subject: str (required)
+    - category: str (kyc, employees, payments, jobs, account, other)
+    - description: str (required, min 20 chars)
+    - contact_email: str (optional)
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket, SupportTicketReply
+        from django.utils import timezone
+        import json
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found for this account'}, status=404)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        subject = body.get('subject', '').strip()
+        category = body.get('category', 'general').strip()
+        description = body.get('description', '').strip()
+        contact_email = body.get('contact_email', '').strip()
+        
+        # Validation
+        if not subject:
+            return Response({'success': False, 'error': 'Subject is required'}, status=400)
+        if len(subject) > 200:
+            return Response({'success': False, 'error': 'Subject must be 200 characters or less'}, status=400)
+        if not description:
+            return Response({'success': False, 'error': 'Description is required'}, status=400)
+        if len(description) < 20:
+            return Response({'success': False, 'error': 'Description must be at least 20 characters'}, status=400)
+        
+        # Map frontend categories to backend categories
+        category_map = {
+            'kyc': 'kyc',
+            'employees': 'employees',
+            'payments': 'payment',
+            'jobs': 'jobs',
+            'account': 'account',
+            'other': 'general',
+            'general': 'general',
+        }
+        db_category = category_map.get(category, 'general')
+        
+        # Create ticket with agency context
+        ticket = SupportTicket.objects.create(
+            userFK=user,
+            agencyFK=agency,
+            ticketType='agency',
+            subject=subject,
+            category=db_category,
+            priority='medium',
+            status='open',
+            platform='agency_portal',
+        )
+        
+        # Create initial reply with description
+        SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=user,
+            content=description,
+        )
+        
+        ticket.lastReplyAt = timezone.now()
+        ticket.save()
+        
+        logger.info(f"✅ Agency support ticket #{ticket.ticketID} created by agency {agency.agencyId}")
+        
+        return {
+            'success': True,
+            'ticket_id': str(ticket.ticketID),
+            'message': 'Support ticket submitted successfully',
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating agency support ticket: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.get("/support/tickets", auth=cookie_auth)
+def get_agency_support_tickets(request, page: int = 1, limit: int = 20, status: str = None):
+    """
+    Get list of support tickets submitted by this agency.
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Query tickets for this agency
+        queryset = SupportTicket.objects.filter(agencyFK=agency).order_by('-createdAt')
+        
+        if status and status != 'all':
+            queryset = queryset.filter(status=status)
+        
+        total = queryset.count()
+        total_pages = (total + limit - 1) // limit
+        
+        offset = (page - 1) * limit
+        tickets = queryset[offset:offset + limit]
+        
+        return {
+            'success': True,
+            'tickets': [
+                {
+                    'id': str(t.ticketID),
+                    'subject': t.subject,
+                    'category': t.category,
+                    'priority': t.priority,
+                    'status': t.status,
+                    'created_at': t.createdAt.isoformat(),
+                    'last_reply_at': t.lastReplyAt.isoformat() if t.lastReplyAt else t.createdAt.isoformat(),
+                    'reply_count': t.reply_count,
+                }
+                for t in tickets
+            ],
+            'total': total,
+            'page': page,
+            'total_pages': total_pages,
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching agency tickets: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.get("/support/tickets/{ticket_id}", auth=cookie_auth)
+def get_agency_ticket_detail(request, ticket_id: int):
+    """
+    Get detailed view of a support ticket including all replies.
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Get ticket and verify ownership
+        try:
+            ticket = SupportTicket.objects.select_related('assignedTo').get(ticketID=ticket_id, agencyFK=agency)
+        except SupportTicket.DoesNotExist:
+            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
+        
+        replies = ticket.replies.select_related('senderFK').all().order_by('createdAt')
+        
+        return {
+            'success': True,
+            'ticket': {
+                'id': str(ticket.ticketID),
+                'subject': ticket.subject,
+                'category': ticket.category,
+                'priority': ticket.priority,
+                'status': ticket.status,
+                'assigned_to_name': ticket.assignedTo.email.split('@')[0] if ticket.assignedTo else None,
+                'created_at': ticket.createdAt.isoformat(),
+                'updated_at': ticket.updatedAt.isoformat(),
+                'last_reply_at': ticket.lastReplyAt.isoformat() if ticket.lastReplyAt else None,
+                'resolved_at': ticket.resolvedAt.isoformat() if ticket.resolvedAt else None,
+            },
+            'messages': [
+                {
+                    'id': str(r.replyID),
+                    'sender_name': r.senderFK.email.split('@')[0] if r.senderFK else 'Unknown',
+                    'is_admin': r.senderFK_id != user.accountID if r.senderFK else False,
+                    'content': r.content,
+                    'is_system_message': r.isSystemMessage,
+                    'created_at': r.createdAt.isoformat(),
+                }
+                for r in replies
+            ],
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching ticket detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.post("/support/tickets/{ticket_id}/reply", auth=cookie_auth)
+def reply_to_agency_ticket(request, ticket_id: int):
+    """
+    Add a reply to an existing support ticket.
+    """
+    try:
+        from accounts.models import Agency
+        from adminpanel.models import SupportTicket, SupportTicketReply
+        from django.utils import timezone
+        import json
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Get ticket and verify ownership
+        try:
+            ticket = SupportTicket.objects.get(ticketID=ticket_id, agencyFK=agency)
+        except SupportTicket.DoesNotExist:
+            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
+        
+        # Check if ticket is closed
+        if ticket.status == 'closed':
+            return Response({'success': False, 'error': 'Cannot reply to a closed ticket'}, status=400)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        content = body.get('content', '').strip()
+        
+        if not content:
+            return Response({'success': False, 'error': 'Reply content is required'}, status=400)
+        if len(content) < 5:
+            return Response({'success': False, 'error': 'Reply must be at least 5 characters'}, status=400)
+        
+        # Create reply
+        reply = SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=user,
+            content=content,
+        )
+        
+        # Update ticket
+        ticket.lastReplyAt = timezone.now()
+        # If ticket was waiting_user, set back to open
+        if ticket.status == 'waiting_user':
+            ticket.status = 'open'
+        ticket.save()
+        
+        logger.info(f"✅ Reply added to ticket #{ticket_id} by agency")
+        
+        return {
+            'success': True,
+            'reply_id': str(reply.replyID),
+            'message': 'Reply sent successfully',
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error replying to ticket: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ===========================================================================
+# WALLET PENDING EARNINGS
+# ===========================================================================
+
+@router.get("/wallet/pending-earnings", auth=cookie_auth)
+def agency_get_pending_earnings(request):
+    """
+    Get detailed list of pending earnings (Due Balance) for the agency.
+    Shows all completed jobs where payment is held in the 7-day buffer period.
+    
+    Returns:
+        - List of pending payments with job details and release dates
+        - Total pending amount
+        - Buffer period info from PlatformSettings
+    """
+    try:
+        from accounts.models import Wallet
+        from decimal import Decimal
+        from jobs.payment_buffer_service import (
+            get_pending_earnings_for_account, 
+            get_payment_buffer_days
+        )
+        
+        # Get wallet for pending balance
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+            pending_total = float(wallet.pendingEarnings)
+        except Wallet.DoesNotExist:
+            pending_total = 0.0
+        
+        # Get detailed list of pending earnings
+        pending_list = get_pending_earnings_for_account(request.auth)
+        
+        buffer_days = get_payment_buffer_days()
+        
+        logger.info(f"📋 [Agency] Pending earnings for {request.auth.email}: {len(pending_list)} payments, ₱{pending_total} total")
+        
+        return {
+            "success": True,
+            "pending_earnings": pending_list,
+            "items": pending_list,  # Alias for frontend compatibility
+            "total_pending": pending_total,
+            "count": len(pending_list),
+            "buffer_days": buffer_days,
+            "info_message": f"Payments are held for {buffer_days} days after job completion before being released to your wallet."
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ [Agency] Error fetching pending earnings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch pending earnings"},
+            status=500
+        )
+
+
+# ===========================================================================
+# CHANGE PASSWORD
+# ===========================================================================
+
+@router.post("/change-password", auth=cookie_auth)
+def agency_change_password(request):
+    """
+    Change the password for the currently logged-in agency user.
+    
+    Request body:
+        - current_password: Current password for verification
+        - new_password: New password to set
+    
+    Returns:
+        - success: True if password changed
+        - message: Status message
+    """
+    try:
+        import json
+        from django.contrib.auth.hashers import check_password, make_password
+        
+        user = request.auth
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        current_password = body.get('current_password', '').strip()
+        new_password = body.get('new_password', '').strip()
+        
+        # Validate inputs
+        if not current_password:
+            return Response({'success': False, 'error': 'Current password is required'}, status=400)
+        if not new_password:
+            return Response({'success': False, 'error': 'New password is required'}, status=400)
+        if len(new_password) < 8:
+            return Response({'success': False, 'error': 'New password must be at least 8 characters'}, status=400)
+        
+        # Verify current password
+        if not check_password(current_password, user.password):
+            return Response({'success': False, 'error': 'Current password is incorrect'}, status=400)
+        
+        # Check password strength (must have uppercase, lowercase, and number)
+        import re
+        if not re.search(r'[A-Z]', new_password):
+            return Response({'success': False, 'error': 'Password must contain at least one uppercase letter'}, status=400)
+        if not re.search(r'[a-z]', new_password):
+            return Response({'success': False, 'error': 'Password must contain at least one lowercase letter'}, status=400)
+        if not re.search(r'\d', new_password):
+            return Response({'success': False, 'error': 'Password must contain at least one number'}, status=400)
+        
+        # Don't allow same password
+        if check_password(new_password, user.password):
+            return Response({'success': False, 'error': 'New password cannot be the same as current password'}, status=400)
+        
+        # Update password
+        user.password = make_password(new_password)
+        user.save()
+        
+        logger.info(f"✅ Password changed for agency user: {user.email}")
+        
+        return {
+            'success': True,
+            'message': 'Password changed successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error changing password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ===========================================================================
+# REVIEW RESPONSES
+# ===========================================================================
+
+@router.post("/reviews/{review_id}/respond", auth=cookie_auth)
+def agency_respond_to_review(request, review_id: int):
+    """
+    Allow agency to respond to a customer review.
+    
+    Request body:
+        - response: The agency's response text (min 10 chars)
+    
+    Returns:
+        - success: True if response saved
+        - message: Status message
+    """
+    try:
+        import json
+        from accounts.models import JobReview, Agency
+        
+        user = request.auth
+        
+        # Get agency for this user
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({'success': False, 'error': 'Agency not found'}, status=404)
+        
+        # Get review
+        try:
+            review = JobReview.objects.get(reviewID=review_id)
+        except JobReview.DoesNotExist:
+            return Response({'success': False, 'error': 'Review not found'}, status=404)
+        
+        # Verify the review is about this agency or one of their employees
+        # Check if the reviewee is the agency account OR an employee of the agency
+        is_about_agency = (review.revieweeID == user)
+        is_about_employee = False
+        
+        if not is_about_agency:
+            # Check if reviewee is an employee of this agency
+            from agency.models import AgencyEmployee
+            is_about_employee = AgencyEmployee.objects.filter(
+                agencyFK=agency,
+                profileFK__accountFK=review.revieweeID
+            ).exists()
+        
+        if not is_about_agency and not is_about_employee:
+            return Response({
+                'success': False, 
+                'error': 'You can only respond to reviews about your agency or employees'
+            }, status=403)
+        
+        # Check if already responded
+        if review.reviewerResponse:
+            return Response({
+                'success': False, 
+                'error': 'This review already has a response'
+            }, status=400)
+        
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
+        
+        response_text = body.get('response', '').strip()
+        
+        if not response_text:
+            return Response({'success': False, 'error': 'Response text is required'}, status=400)
+        if len(response_text) < 10:
+            return Response({'success': False, 'error': 'Response must be at least 10 characters'}, status=400)
+        if len(response_text) > 1000:
+            return Response({'success': False, 'error': 'Response cannot exceed 1000 characters'}, status=400)
+        
+        # Save response
+        review.reviewerResponse = response_text
+        review.reviewerResponseAt = timezone.now()
+        review.save()
+        
+        logger.info(f"✅ Agency responded to review #{review_id}")
+        
+        return {
+            'success': True,
+            'message': 'Response submitted successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error responding to review: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# ============================================================================
+# DAILY ATTENDANCE ENDPOINTS
+# ============================================================================
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/dispatch",
+    auth=cookie_auth,
+    response=schemas.MarkEmployeeAttendanceResponse
+)
+def dispatch_employee(request, job_id: int, employee_id: int):
+    """
+    Dispatch an agency employee for a daily-rate job.
+    Agency representative uses this to mark employee as 'on the way'.
+    Client will verify arrival (which starts the work timer).
+    """
+    try:
+        from accounts.models import Job
+        from agency.models import AgencyEmployee
+        from jobs.daily_payment_service import DailyPaymentService
+        from django.utils import timezone
+        
+        # Get authenticated agency user
+        user = request.auth
+        
+        # Verify job exists and belongs to this agency
+        try:
+            job = Job.objects.select_related('clientID__profileID').get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify the employee belongs to this agency
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Verify the employee belongs to the authenticated agency
+        if employee.agency_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This employee does not belong to your agency'
+            }, status=403)
+        
+        # Verify job was assigned to this agency
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Verify job is a daily-rate job
+        if job.payment_model != 'DAILY':
+            return Response({
+                'success': False,
+                'error': 'This job is not a daily-rate job'
+            }, status=400)
+        
+        # Check for duplicate check-in today
+        from accounts.models import DailyAttendance
+        today = timezone.now().date()
+        
+        existing_attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            employeeID=employee,
+            date=today
+        ).first()
+        
+        if existing_attendance:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has already been dispatched today',
+                'attendance_id': existing_attendance.attendanceID
+            }, status=400)
+        
+        # Mark as dispatched (on the way) - client will verify arrival
+        result = DailyPaymentService.log_attendance(
+            job=job,
+            employee_id=employee_id,
+            work_date=today,
+            time_in=None,  # time_in is set when client verifies arrival
+            status='DISPATCHED',  # On the way - client verifies arrival
+            notes=f'Dispatched by agency representative'
+        )
+        
+        if not result.get('success'):
+            return Response({
+                'success': False,
+                'error': result.get('error', 'Failed to log attendance')
+            }, status=400)
+        
+        logger.info(f"✅ Agency dispatched employee #{employee_id} ({employee.fullName}) for job #{job_id}")
+        
+        return {
+            'success': True,
+            'message': f'{employee.fullName} dispatched (on the way)',
+            'attendance_id': result['attendance_id'],
+            'employee_id': employee_id,
+            'employee_name': employee.fullName,
+            'date': str(today),
+            'time_in': None,
+            'time_out': None,
+            'status': 'DISPATCHED'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error marking employee arrival: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/mark-checkout",
+    auth=cookie_auth,
+    response=schemas.MarkEmployeeAttendanceResponse
+)
+def mark_employee_checkout(request, job_id: int, employee_id: int):
+    """
+    DEPRECATED: Client now marks checkout instead of agency.
+    This endpoint returns an error directing users to the new flow.
+    """
+    return Response({
+        'success': False,
+        'error': 'This endpoint is deprecated. Client must mark checkout using verify-arrival and mark-checkout endpoints.'
+    }, status=400)
+
+
+# ============================================================================
+# LEGACY mark_employee_checkout BELOW (kept for reference, not used)
+# ============================================================================
+def _mark_employee_checkout_legacy(request, job_id: int, employee_id: int):
+    """
+    Mark an agency employee as checked out for a daily-rate job.
+    Agency representative uses this to check out employees at end of day.
+    DEPRECATED - Client now handles checkout.
+    """
+    try:
+        from accounts.models import Job, DailyAttendance
+        from agency.models import AgencyEmployee
+        from django.utils import timezone
+        
+        # Get authenticated agency user
+        user = request.auth
+        
+        # Verify job exists and belongs to this agency
+        try:
+            job = Job.objects.select_related('clientID__profileID').get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify the employee belongs to this agency
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Verify the employee belongs to the authenticated agency
+        if employee.agency_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This employee does not belong to your agency'
+            }, status=403)
+        
+        # Verify job was assigned to this agency
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Find today's attendance record
+        today = timezone.now().date()
+        
+        try:
+            attendance = DailyAttendance.objects.get(
+                jobID=job,
+                employeeID=employee,
+                date=today
+            )
+        except DailyAttendance.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has not been marked as arrived today'
+            }, status=400)
+        
+        # Check if already checked out
+        if attendance.time_out:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has already been checked out today',
+                'attendance_id': attendance.attendanceID
+            }, status=400)
+        
+        # Mark checkout
+        attendance.time_out = timezone.now()
+        attendance.worker_confirmed = True  # Agency rep confirms work done
+        attendance.save()
+        
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) checkout for job #{job_id}")
+        
+        return {
+            'success': True,
+            'message': f'{employee.fullName} marked as checked out',
+            'attendance_id': attendance.attendanceID,
+            'employee_id': employee_id,
+            'employee_name': employee.fullName,
+            'date': str(today),
+            'time_in': attendance.time_in.isoformat() if attendance.time_in else None,
+            'time_out': timezone.now().isoformat(),
+            'status': attendance.status
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error marking employee checkout: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.get(
+    "/jobs/{job_id}/daily-attendance",
+    auth=cookie_auth,
+    response=schemas.DailyAttendanceListResponse
+)
+def get_daily_attendance(request, job_id: int, date: str = None):
+    """
+    Get daily attendance records for a job.
+    If date is not provided, returns today's attendance.
+    """
+    try:
+        from accounts.models import Job, DailyAttendance
+        from django.utils import timezone
+        from datetime import datetime
+        
+        # Get authenticated agency user
+        user = request.auth
+        
+        # Verify job exists
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID',
+                'assignedAgencyFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify job belongs to this agency
+        if not job.assignedAgencyFK:
+            return Response({
+                'success': False,
+                'error': 'Job is not assigned to any agency'
+            }, status=403)
+        
+        # Parse date
+        if date:
+            try:
+                query_date = datetime.strptime(date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'error': 'Invalid date format. Use YYYY-MM-DD'
+                }, status=400)
+        else:
+            query_date = timezone.now().date()
+        
+        # Get attendance records for this date
+        attendances = DailyAttendance.objects.filter(
+            jobID=job,
+            date=query_date
+        ).select_related('employeeID').order_by('employeeID__firstName')
+        
+        records = []
+        for att in attendances:
+            if att.employeeID:  # Only include agency employee records
+                records.append({
+                    'attendance_id': att.attendanceID,
+                    'employee_id': att.employeeID.employeeID,
+                    'employee_name': att.employeeID.fullName,
+                    'date': str(att.date),
+                    'time_in': att.time_in.isoformat() if att.time_in else None,
+                    'time_out': att.time_out.isoformat() if att.time_out else None,
+                    'status': att.status,
+                    'worker_confirmed': att.worker_confirmed,
+                    'client_confirmed': att.client_confirmed,
+                    'amount_earned': float(att.amount_earned)
+                })
+        
+        return {
+            'success': True,
+            'job_id': job_id,
+            'date': str(query_date),
+            'records': records,
+            'total_count': len(records)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching daily attendance: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+# =============================================================================
+# AGENCY PROJECT JOB WORKFLOW ENDPOINTS
+# =============================================================================
+# These endpoints mirror the DAILY job workflow but for PROJECT payment model:
+# 1. dispatch-project: Agency dispatches employee (marks as "on the way")
+# 2. mark-complete-project: Agency marks employee's work as complete
+# Client-side endpoints (confirm-arrival, approve-pay) are in jobs/api.py
+
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/dispatch-project",
+    auth=dual_auth,
+    response={200: dict, 400: dict, 403: dict, 404: dict}
+)
+def dispatch_project_employee(request, job_id: int, employee_id: int):
+    """
+    Dispatch an agency employee for a PROJECT-based job.
+    Agency representative uses this to mark employee as 'on the way'.
+    Client will verify arrival before work can begin.
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    """
+    try:
+        from accounts.models import Job, JobEmployeeAssignment
+        from agency.models import AgencyEmployee
+        from django.utils import timezone
+        
+        user = request.auth
+        
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'assignedAgencyFK__accountFK',
+                'clientID__profileID'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify this is a PROJECT job (not DAILY - that uses DailyAttendance)
+        if job.payment_model == 'DAILY':
+            return Response({
+                'success': False,
+                'error': 'This endpoint is for PROJECT jobs only. Use /dispatch for daily-rate jobs.'
+            }, status=400)
+        
+        # Verify job belongs to this agency
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Verify job is in valid status
+        if job.status not in ['ASSIGNED', 'ACTIVE', 'IN_PROGRESS']:
+            return Response({
+                'success': False,
+                'error': f'Cannot dispatch employee for job in {job.status} status'
+            }, status=400)
+        
+        # Get employee
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Verify employee belongs to this agency
+        if employee.agency_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This employee does not belong to your agency'
+            }, status=403)
+        
+        # Get or verify assignment exists
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} is not assigned to this job'
+            }, status=404)
+        
+        # Check if already dispatched
+        if assignment.dispatched:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has already been dispatched',
+                'dispatched_at': assignment.dispatchedAt.isoformat() if assignment.dispatchedAt else None
+            }, status=400)
+        
+        # Mark as dispatched
+        assignment.dispatched = True
+        assignment.dispatchedAt = timezone.now()
+        assignment.status = 'IN_PROGRESS'
+        assignment.save()
+        
+        # Update job status if needed
+        if job.status == 'ASSIGNED':
+            job.status = 'IN_PROGRESS'
+            job.save()
+        
+        logger.info(f"✅ Agency dispatched employee #{employee_id} ({employee.fullName}) for PROJECT job #{job_id}")
+        
+        return {
+            'success': True,
+            'message': f'{employee.fullName} has been dispatched',
+            'assignment_id': assignment.assignmentID,
+            'employee_id': employee_id,
+            'employee_name': employee.fullName,
+            'dispatched_at': assignment.dispatchedAt.isoformat(),
+            'status': assignment.status,
+            'next_step': 'Wait for client to confirm employee arrival'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error dispatching project employee: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@router.post(
+    "/jobs/{job_id}/employees/{employee_id}/mark-complete-project",
+    auth=dual_auth,
+    response={200: dict, 400: dict, 403: dict, 404: dict}
+)
+def mark_project_employee_complete(request, job_id: int, employee_id: int, notes: str = ""):
+    """
+    Mark an agency employee's work as complete for a PROJECT-based job.
+    This is done by the agency after the employee reports job completion.
+    
+    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    
+    Requires:
+    - Employee must be dispatched
+    - Client must have confirmed employee arrival
+    """
+    try:
+        from accounts.models import Job, JobEmployeeAssignment
+        from agency.models import AgencyEmployee
+        from django.utils import timezone
+        
+        user = request.auth
+        
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({'success': False, 'error': 'Job not found'}, status=404)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({
+                'success': False,
+                'error': 'This endpoint is for PROJECT jobs only. Use daily endpoints for daily-rate jobs.'
+            }, status=400)
+        
+        # Verify job belongs to this agency
+        if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
+            return Response({
+                'success': False,
+                'error': 'This job is not assigned to your agency'
+            }, status=403)
+        
+        # Get employee
+        try:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
+            return Response({'success': False, 'error': 'Employee not found'}, status=404)
+        
+        # Get assignment
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} is not assigned to this job'
+            }, status=404)
+        
+        # Verify workflow order: must be dispatched first
+        if not assignment.dispatched:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName} has not been dispatched yet. Dispatch first.'
+            }, status=400)
+        
+        # Verify workflow order: client must have confirmed arrival
+        if not assignment.clientConfirmedArrival:
+            return Response({
+                'success': False,
+                'error': f'Client has not confirmed {employee.fullName}\'s arrival yet. Wait for client confirmation.'
+            }, status=400)
+        
+        # Check if already marked complete
+        if assignment.agencyMarkedComplete:
+            return Response({
+                'success': False,
+                'error': f'{employee.fullName}\'s work has already been marked complete',
+                'marked_complete_at': assignment.agencyMarkedCompleteAt.isoformat() if assignment.agencyMarkedCompleteAt else None
+            }, status=400)
+        
+        # Mark as complete
+        assignment.agencyMarkedComplete = True
+        assignment.agencyMarkedCompleteAt = timezone.now()
+        assignment.completionNotes = notes or ""
+        assignment.save()
+        
+        # Check if ALL employees are complete
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        )
+        all_complete = all(a.agencyMarkedComplete for a in all_assignments)
+        completed_count = sum(1 for a in all_assignments if a.agencyMarkedComplete)
+        total_count = all_assignments.count()
+        
+        logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) complete for PROJECT job #{job_id} ({completed_count}/{total_count})")
+        
+        return {
+            'success': True,
+            'message': f'{employee.fullName}\'s work has been marked complete',
+            'assignment_id': assignment.assignmentID,
+            'employee_id': employee_id,
+            'employee_name': employee.fullName,
+            'marked_complete_at': assignment.agencyMarkedCompleteAt.isoformat(),
+            'notes': notes,
+            'all_complete': all_complete,
+            'completed_count': completed_count,
+            'total_count': total_count,
+            'next_step': 'Waiting for client to approve and pay' if all_complete else f'{total_count - completed_count} employee(s) remaining'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error marking project employee complete: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+

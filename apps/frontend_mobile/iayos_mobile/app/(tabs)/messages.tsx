@@ -29,11 +29,11 @@ import {
   processOfflineQueue,
 } from "../../lib/services/offline-queue";
 
-type FilterType = "all" | "unread" | "archived";
+type FilterType = "active" | "unread" | "archived";
 
 export default function MessagesTabScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterType>("active");
 
   // WebSocket connection
   const { isConnected, connectionState } = useWebSocketConnection();
@@ -205,7 +205,7 @@ export default function MessagesTabScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top"]} testID="messages-screen">
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>

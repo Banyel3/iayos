@@ -8,6 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 // Field configuration for Agency KYC - business + representative info
@@ -47,6 +48,14 @@ export const BUSINESS_TYPES = {
   COOPERATIVE: "COOPERATIVE",
 } as const;
 
+// Business type dropdown options (for select field)
+export const BUSINESS_TYPE_OPTIONS = [
+  { value: "SOLE_PROPRIETORSHIP", label: "Sole Proprietorship (DTI)" },
+  { value: "PARTNERSHIP", label: "Partnership (SEC)" },
+  { value: "CORPORATION", label: "Corporation (SEC)" },
+  { value: "COOPERATIVE", label: "Cooperative (CDA)" },
+];
+
 // Field configuration for the editable form
 export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
   // Business Information
@@ -61,10 +70,16 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
   {
     key: "business_type",
     label: "Business Type",
-    required: false,
-    placeholder: "Corporation / Sole Proprietor / Partnership",
+    required: true,
+    type: "select",
+    options: [
+      { value: "SOLE_PROPRIETORSHIP", label: "Sole Proprietorship (DTI)" },
+      { value: "PARTNERSHIP", label: "Partnership (SEC)" },
+      { value: "CORPORATION", label: "Corporation (SEC)" },
+      { value: "COOPERATIVE", label: "Cooperative (CDA)" },
+    ],
     section: "business",
-    // Shown for all - read-only display of selected type
+    // Dropdown to select business registration type
   },
   {
     key: "business_address",
@@ -116,7 +131,10 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
     placeholder: "SEC-XXXXXXX",
     section: "business",
     // Only for Corporations and Partnerships
-    applicableBusinessTypes: [BUSINESS_TYPES.CORPORATION, BUSINESS_TYPES.PARTNERSHIP],
+    applicableBusinessTypes: [
+      BUSINESS_TYPES.CORPORATION,
+      BUSINESS_TYPES.PARTNERSHIP,
+    ],
   },
   // Representative Information
   {
@@ -226,7 +244,7 @@ async function confirmAgencyKYCData(
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to confirm data");
+    throw new Error(getErrorMessage(data, "Failed to confirm data"));
   }
 
   return response.json();

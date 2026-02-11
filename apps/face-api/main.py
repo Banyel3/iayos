@@ -51,9 +51,9 @@ def load_mediapipe():
         mp_face_detection = mp.solutions.face_detection
         
         # Initialize with model selection 0 (short-range, faster) or 1 (full-range)
-        # Short-range is optimized for faces within 2 meters, perfect for ID photos
+        # Full-range is needed for ID card photos where faces are small in the image
         face_detector = mp_face_detection.FaceDetection(
-            model_selection=0,  # 0 = short-range (fast), 1 = full-range
+            model_selection=1,  # 0 = short-range (<2m selfies), 1 = full-range (ID cards with small faces)
             min_detection_confidence=MIN_DETECTION_CONFIDENCE
         )
         

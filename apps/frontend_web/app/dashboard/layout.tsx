@@ -7,15 +7,11 @@ import { redirect } from "next/navigation";
  * This layout enforces that only authorized users can access the dashboard:
  * - ADMIN users: Redirected to /admin/dashboard
  * - AGENCY users: Redirected to /agency/dashboard
- * - WORKER users: Redirected to /mobile-only (web access disabled)
- * - CLIENT users: Redirected to /mobile-only (web access disabled)
+ * - WORKER users: Redirected to /mobile-only (web access permanently disabled)
+ * - CLIENT users: Redirected to /mobile-only (web access permanently disabled)
  *
- * Feature flags can be toggled to enable web access for workers/clients.
+ * Workers and clients must use the mobile app exclusively.
  */
-
-// Feature flags - match the middleware settings
-const ENABLE_WORKER_WEB_UI = true; // Set to true to allow workers on web
-const ENABLE_CLIENT_WEB_UI = true; // Set to true to allow clients on web
 
 export default async function DashboardLayout({
   children,
@@ -80,18 +76,10 @@ export default async function DashboardLayout({
       redirect("/agency/dashboard");
     }
 
-    // Worker web access check
-    if (profileType === "WORKER" && !ENABLE_WORKER_WEB_UI) {
+    // Workers and clients are permanently redirected to mobile-only
+    if (profileType === "WORKER" || profileType === "CLIENT") {
       console.log(
-        "[DASHBOARD LAYOUT] Blocking WORKER - redirecting to /mobile-only",
-      );
-      redirect("/mobile-only");
-    }
-
-    // Client web access check
-    if (profileType === "CLIENT" && !ENABLE_CLIENT_WEB_UI) {
-      console.log(
-        "[DASHBOARD LAYOUT] Blocking CLIENT - redirecting to /mobile-only",
+        `[DASHBOARD LAYOUT] Redirecting ${profileType} to /mobile-only - web access disabled`,
       );
       redirect("/mobile-only");
     }

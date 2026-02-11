@@ -236,6 +236,13 @@ def get_mobile_job_list(
                 'total_workers_needed': team_workers_needed if job.is_team_job else None,
                 'total_workers_assigned': team_workers_assigned if job.is_team_job else None,
                 'team_fill_percentage': team_fill_percentage if job.is_team_job else None,
+                # Daily payment model fields
+                'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+                'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+                'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+                'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
                 # Sorting helpers
                 '_distance_sort': distance if distance is not None else 999999,
                 '_urgency_sort': urgency_value,
@@ -558,6 +565,13 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'job_scope': job.job_scope,
             'skill_level_required': job.skill_level_required,
             'work_environment': job.work_environment,
+            # Daily payment model fields
+            'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+            'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+            'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+            'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+            'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+            'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
         }
 
         # Add team job data if this is a team job
@@ -692,10 +706,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
             escrowAmount=escrow_amount,  # 50% held in escrow
             remainingPayment=escrow_amount,  # 50% remaining payment (no commission on final)
-            # Universal job fields for ML accuracy
-            job_scope=job_data.get('job_scope', 'MINOR_REPAIR'),
-            skill_level_required=job_data.get('skill_level_required', 'INTERMEDIATE'),
-            work_environment=job_data.get('work_environment', 'INDOOR'),
+            # Universal job fields for ML accuracy - use values from request (model has defaults if None)
+            job_scope=job_data.get('job_scope'),
+            skill_level_required=job_data.get('skill_level_required'),
+            work_environment=job_data.get('work_environment'),
         )
 
         # Handle payment based on method
@@ -894,12 +908,92 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             except Agency.DoesNotExist:
                 return {'success': False, 'error': 'Agency not found'}
         
-        # Validate category
+        # Handle skill_slots for multi-employee agency invites
+        skill_slots_data = job_data.get('skill_slots', [])
+        is_multi_employee = bool(skill_slots_data) and agency_id
+        
+        # Validate category or skill_slots (backwards compatibility)
+        category = None
         category_id = job_data.get('category_id')
-        try:
-            category = Specializations.objects.get(specializationID=category_id)
-        except Specializations.DoesNotExist:
-            return {'success': False, 'error': 'Invalid category'}
+        
+        if is_multi_employee:
+            # Multi-employee mode: validate skill slots
+            if len(skill_slots_data) == 0:
+                return {'success': False, 'error': 'At least one skill slot is required for multi-employee mode'}
+            
+            total_workers = sum(slot.get('workers_needed', 1) for slot in skill_slots_data)
+            if total_workers < 1:
+                return {'success': False, 'error': 'Total workers needed must be at least 1'}
+            if total_workers > 20:
+                return {'success': False, 'error': 'Maximum 20 workers per job'}
+            
+            # Validate each slot's specialization exists
+            for slot in skill_slots_data:
+                spec_id = slot.get('specialization_id')
+                if not spec_id:
+                    return {'success': False, 'error': 'Each skill slot must have a specialization_id'}
+                try:
+                    Specializations.objects.get(specializationID=spec_id)
+                except Specializations.DoesNotExist:
+                    return {'success': False, 'error': f'Invalid specialization_id: {spec_id}'}
+                
+                workers_needed = slot.get('workers_needed', 1)
+                if workers_needed < 1 or workers_needed > 10:
+                    return {'success': False, 'error': 'workers_needed must be between 1 and 10'}
+            
+            # Use first slot's specialization as job category (for compatibility)
+            category = Specializations.objects.get(specializationID=skill_slots_data[0]['specialization_id'])
+            print(f"📋 Multi-employee mode: {len(skill_slots_data)} skill slots, {total_workers} total workers")
+        else:
+            # Single-employee mode: Auto-derive or validate category from worker's skills
+            # Import workerSpecialization for skill lookup
+            from .models import workerSpecialization
+            
+            if assigned_worker:
+                # Get worker's skills (specializations)
+                worker_skills = workerSpecialization.objects.filter(
+                    workerID=assigned_worker
+                ).select_related('specializationID')
+                worker_skill_ids = [ws.specializationID.specializationID for ws in worker_skills]
+                
+                if len(worker_skill_ids) == 0:
+                    return {'success': False, 'error': 'Worker has no skills registered. They must add at least one skill to receive job invites.'}
+                
+                if not category_id:
+                    # Auto-select if worker has exactly 1 skill
+                    if len(worker_skill_ids) == 1:
+                        category = worker_skills.first().specializationID
+                        print(f"📋 Auto-selected category '{category.specializationName}' from worker's single skill")
+                    else:
+                        # Worker has multiple skills - frontend should show picker
+                        skill_names = [ws.specializationID.specializationName for ws in worker_skills]
+                        return {
+                            'success': False,
+                            'error': 'Worker has multiple skills. Please select which skill this job requires.',
+                            'worker_skills': worker_skill_ids,
+                            'skill_names': skill_names
+                        }
+                else:
+                    # Validate category matches one of worker's skills
+                    if category_id not in worker_skill_ids:
+                        skill_names = [ws.specializationID.specializationName for ws in worker_skills]
+                        return {
+                            'success': False,
+                            'error': f"Selected category doesn't match worker's skills. Worker's skills: {', '.join(skill_names)}",
+                            'worker_skills': worker_skill_ids
+                        }
+                    try:
+                        category = Specializations.objects.get(specializationID=category_id)
+                    except Specializations.DoesNotExist:
+                        return {'success': False, 'error': 'Invalid category'}
+            else:
+                # Agency job without skill_slots - require category_id (backwards compatibility)
+                if not category_id:
+                    return {'success': False, 'error': 'category_id is required for single-employee mode'}
+                try:
+                    category = Specializations.objects.get(specializationID=category_id)
+                except Specializations.DoesNotExist:
+                    return {'success': False, 'error': 'Invalid category'}
         
         # Validate budget
         budget = Decimal(str(job_data.get('budget', 0)))
@@ -971,11 +1065,28 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     status="ACTIVE",  # Job created, awaiting acceptance
                     assignedAgencyFK=assigned_agency,
                     assignedWorkerID=assigned_worker,
-                    # Universal job fields for ML accuracy
-                    job_scope=job_data.get('job_scope', 'MINOR_REPAIR'),
-                    skill_level_required=job_data.get('skill_level_required', 'INTERMEDIATE'),
-                    work_environment=job_data.get('work_environment', 'INDOOR'),
+                    is_team_job=is_multi_employee,  # True if multi-employee mode
+                    # Universal job fields for ML accuracy - use values from request (model has defaults if None)
+                    job_scope=job_data.get('job_scope'),
+                    skill_level_required=job_data.get('skill_level_required'),
+                    work_environment=job_data.get('work_environment'),
                 )
+                
+                # Create skill slots for multi-employee agency invites
+                if is_multi_employee:
+                    from .models import JobSkillSlot
+                    for slot_data in skill_slots_data:
+                        spec = Specializations.objects.get(specializationID=slot_data['specialization_id'])
+                        JobSkillSlot.objects.create(
+                            jobID=job,
+                            specializationID=spec,
+                            workers_needed=slot_data.get('workers_needed', 1),
+                            skill_level_required=slot_data.get('skill_level_required', 'ENTRY').upper(),
+                            notes=slot_data.get('notes', ''),
+                            status='OPEN',
+                            budget_allocated=Decimal('0'),  # No per-slot budget allocation - agency handles payroll
+                        )
+                    print(f"✅ Created {len(skill_slots_data)} skill slots for multi-employee job")
                 
                 # Create escrow transaction
                 Transaction.objects.create(
@@ -1103,6 +1214,72 @@ def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
                 photos_deleted = job.photos.all().delete()[0]
                 print(f"   🗑️  Deleted {photos_deleted} job photos")
             
+            # ======= CRITICAL: Release reserved funds before deletion =======
+            refund_amount = Decimal('0.00')
+            try:
+                from .models import Wallet
+                
+                wallet = Wallet.objects.get(accountFK=user)
+                
+                # Calculate total reserved (escrow + platform fee which is 5% of downpayment)
+                escrow_amount = job.escrowAmount or Decimal('0.00')
+                # Platform fee is 5% of the downpayment (escrow amount)
+                platform_fee = escrow_amount * Decimal('0.05') if escrow_amount > 0 else Decimal('0.00')
+                total_reserved = escrow_amount + platform_fee
+                
+                if total_reserved > 0:
+                    if job.escrowPaid:
+                        # Escrow was deducted from balance - refund to main balance
+                        wallet.balance += escrow_amount
+                        wallet.save()
+                        refund_amount = escrow_amount
+                        
+                        # Create refund transaction
+                        Transaction.objects.create(
+                            walletID=wallet,
+                            amount=escrow_amount,
+                            balanceAfter=wallet.balance,
+                            transactionType='REFUND',
+                            status='COMPLETED',
+                            description=f"Escrow refund for deleted job: {job.title}",
+                            relatedJobPosting=job,
+                            referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                        )
+                        print(f"   💰 Refunded ₱{escrow_amount} to wallet balance")
+                    else:
+                        # Escrow was reserved but not deducted - release from reservedBalance
+                        wallet.reservedBalance -= total_reserved
+                        if wallet.reservedBalance < 0:
+                            wallet.reservedBalance = Decimal('0.00')
+                        wallet.save()
+                        refund_amount = total_reserved
+                        
+                        # Cancel pending transactions
+                        Transaction.objects.filter(
+                            relatedJobPosting=job,
+                            status='PENDING'
+                        ).update(status='CANCELLED')
+                        print(f"   🔓 Released ₱{total_reserved} from reserved balance")
+                    
+                    # Create refund notification
+                    Notification.objects.create(
+                        accountFK=user,
+                        notificationType='PAYMENT_REFUNDED',
+                        title='Payment Refunded',
+                        message=f'Your payment of ₱{refund_amount:,.2f} for job "{job_title}" has been refunded because the job was deleted.',
+                        relatedJobID=job.jobID
+                    )
+                    print(f"   📬 Created refund notification")
+                    
+            except Wallet.DoesNotExist:
+                print(f"   ⚠️ No wallet found for user - skipping refund")
+            except Exception as wallet_error:
+                print(f"   ⚠️ Wallet refund error: {wallet_error}")
+                import traceback
+                traceback.print_exc()
+                # Continue with deletion even if refund fails - log for manual review
+            # ======= END: Release reserved funds =======
+            
             # Finally, delete the job itself
             job.delete()
             print(f"   ✅ Job '{job_title}' deleted successfully")
@@ -1119,6 +1296,445 @@ def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
         return {
             'success': False,
             'error': f'Failed to delete job: {str(e)}'
+        }
+
+
+def update_mobile_job(job_id: int, user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update an existing job posting from mobile app.
+    
+    Rules:
+    - Only the client who created the job can edit it
+    - Only ACTIVE jobs can be edited (not IN_PROGRESS or COMPLETED)
+    - Budget changes:
+      - BLOCKED if job has pending applications (to protect applicant proposals)
+      - Budget INCREASES: Check wallet balance, reserve additional funds
+      - Budget DECREASES: Release excess reserved funds back to wallet
+      - Cannot go below category minimum rate (DOLE compliance)
+    - Non-budget edits (title, description, etc.) are allowed even with pending applications
+    - All changes are logged to JobLog for audit trail
+    - Pending applicants are notified of changes
+    """
+    try:
+        from .models import (
+            Job as JobPosting, Profile, ClientProfile, Wallet, Transaction, 
+            Notification, Specializations, JobApplication, JobLog
+        )
+        from django.db import transaction as db_transaction
+        from django.utils import timezone
+        from decimal import Decimal
+        from datetime import datetime
+        import json
+        
+        print(f"📝 [UPDATE JOB] Starting update process...")
+        print(f"   Job ID: {job_id}, User: {user.email}")
+        print(f"   Fields to update: {list(job_data.keys())}")
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related(
+                'clientID__profileID__accountFK',
+                'categoryID'
+            ).get(jobID=job_id)
+            print(f"   ✓ Job found: {job.title}, Status: {job.status}")
+        except JobPosting.DoesNotExist:
+            return {'success': False, 'error': 'Job not found'}
+        
+        # Verify user is the client who posted the job
+        job_owner_account = job.clientID.profileID.accountFK
+        if job_owner_account.accountID != user.accountID:
+            print(f"   ❌ Permission denied - User {user.accountID} is not job owner {job_owner_account.accountID}")
+            return {'success': False, 'error': 'You can only edit your own job postings'}
+        
+        # Check if job can be edited (only ACTIVE status allowed)
+        if job.status != 'ACTIVE':
+            print(f"   ❌ Cannot edit - Job status is {job.status}")
+            return {
+                'success': False,
+                'error': f'Cannot edit job with status "{job.status}". Only ACTIVE jobs can be edited.'
+            }
+        
+        # Check if job has accepted/assigned worker
+        if job.assignedWorkerID or job.assignedAgencyFK:
+            print(f"   ❌ Cannot edit - Job already has assigned worker/agency")
+            return {
+                'success': False,
+                'error': 'Cannot edit job after a worker or agency has been assigned.'
+            }
+        
+        # Check for pending applications (affects what can be edited)
+        pending_applications = JobApplication.objects.filter(
+            jobID=job,
+            status=JobApplication.ApplicationStatus.PENDING
+        ).select_related('workerID__profileID__accountFK')
+        has_pending_applications = pending_applications.exists()
+        pending_count = pending_applications.count()
+        
+        # If budget change is requested and there are pending applications, block it
+        if 'budget' in job_data and job_data['budget'] is not None and has_pending_applications:
+            print(f"   ❌ Cannot change budget - Job has {pending_count} pending applications")
+            return {
+                'success': False,
+                'error': f'Cannot change budget when there are {pending_count} pending application(s). '
+                         'Applicants have proposed based on the current budget. '
+                         'You can still edit other fields like title, description, location, etc.'
+            }
+        
+        # Track changes for notification and logging
+        changes = []
+        old_values = {}
+        new_values = {}
+        old_budget = job.budget
+        new_budget = None
+        budget_difference = Decimal('0.00')
+        edit_reason = job_data.get('edit_reason', '')
+        
+        with db_transaction.atomic():
+            # Update title
+            if 'title' in job_data and job_data['title'] is not None:
+                new_title = str(job_data['title']).strip()
+                if len(new_title) < 5:
+                    return {'success': False, 'error': 'Title must be at least 5 characters'}
+                if len(new_title) > 200:
+                    return {'success': False, 'error': 'Title must be less than 200 characters'}
+                if job.title != new_title:
+                    old_values['title'] = job.title
+                    new_values['title'] = new_title
+                    changes.append(f"Title: '{job.title}' → '{new_title}'")
+                    job.title = new_title
+            
+            # Update description
+            if 'description' in job_data and job_data['description'] is not None:
+                new_description = str(job_data['description']).strip()
+                if len(new_description) < 20:
+                    return {'success': False, 'error': 'Description must be at least 20 characters'}
+                if len(new_description) > 2000:
+                    return {'success': False, 'error': 'Description must be less than 2000 characters'}
+                if job.description != new_description:
+                    old_values['description'] = job.description[:100] + '...' if len(job.description) > 100 else job.description
+                    new_values['description'] = new_description[:100] + '...' if len(new_description) > 100 else new_description
+                    changes.append("Description updated")
+                    job.description = new_description
+            
+            # Update category
+            if 'category_id' in job_data and job_data['category_id'] is not None:
+                try:
+                    new_category = Specializations.objects.get(specializationID=job_data['category_id'])
+                    if job.categoryID != new_category:
+                        old_cat_name = job.categoryID.specializationName if job.categoryID else 'None'
+                        old_values['category'] = old_cat_name
+                        new_values['category'] = new_category.specializationName
+                        changes.append(f"Category: {old_cat_name} → {new_category.specializationName}")
+                        job.categoryID = new_category
+                except Specializations.DoesNotExist:
+                    return {'success': False, 'error': 'Invalid category'}
+            
+            # Update budget (most complex - requires wallet adjustment)
+            if 'budget' in job_data and job_data['budget'] is not None:
+                new_budget = Decimal(str(job_data['budget']))
+                if new_budget <= 0:
+                    return {'success': False, 'error': 'Budget must be greater than 0'}
+                
+                # Check DOLE minimum rate for category
+                category_min_rate = Decimal('100.00')  # Default minimum
+                if job.categoryID and job.categoryID.minimumRate:
+                    category_min_rate = job.categoryID.minimumRate
+                
+                if new_budget < category_min_rate:
+                    category_name = job.categoryID.specializationName if job.categoryID else 'this category'
+                    return {
+                        'success': False,
+                        'error': f'Budget cannot be less than ₱{category_min_rate:,.2f} (DOLE minimum rate for {category_name})'
+                    }
+                
+                if new_budget != old_budget:
+                    budget_difference = new_budget - old_budget
+                    print(f"   💰 Budget change: ₱{old_budget} → ₱{new_budget} (diff: ₱{budget_difference})")
+                    
+                    # Get wallet
+                    try:
+                        wallet = Wallet.objects.get(accountFK=user)
+                    except Wallet.DoesNotExist:
+                        return {'success': False, 'error': 'Wallet not found'}
+                    
+                    # Calculate new escrow and fee amounts
+                    old_escrow = job.escrowAmount or (old_budget * Decimal('0.5'))
+                    old_fee = old_escrow * Decimal('0.05')
+                    old_total_reserved = old_escrow + old_fee
+                    
+                    new_escrow = new_budget * Decimal('0.5')
+                    new_fee = new_escrow * Decimal('0.05')
+                    new_total_reserved = new_escrow + new_fee
+                    
+                    reserve_difference = new_total_reserved - old_total_reserved
+                    
+                    if budget_difference > 0:
+                        # Budget INCREASED - need to reserve more funds
+                        additional_needed = reserve_difference
+                        
+                        # Check if user has enough available balance
+                        available = wallet.balance - wallet.reservedBalance
+                        if available < additional_needed:
+                            return {
+                                'success': False,
+                                'error': 'Insufficient wallet balance for budget increase',
+                                'required_additional': float(additional_needed),
+                                'available': float(available),
+                                'message': f'You need ₱{additional_needed:.2f} more but only have ₱{available:.2f} available.'
+                            }
+                        
+                        # Reserve additional funds
+                        wallet.reservedBalance += additional_needed
+                        wallet.save()
+                        
+                        # Create transaction for additional reservation
+                        Transaction.objects.create(
+                            walletID=wallet,
+                            transactionType=Transaction.TransactionType.PAYMENT,
+                            amount=additional_needed,
+                            balanceAfter=wallet.balance,
+                            status=Transaction.TransactionStatus.PENDING,
+                            description=f"Additional escrow for budget increase: {job.title}",
+                            relatedJobPosting=job,
+                            referenceNumber=f"ESCROW-INC-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                        )
+                        
+                        print(f"   ✅ Reserved additional ₱{additional_needed} - New reserved: ₱{wallet.reservedBalance}")
+                        
+                    else:
+                        # Budget DECREASED - release excess reserved funds
+                        excess_to_release = abs(reserve_difference)
+                        
+                        # Release from reserved balance
+                        wallet.reservedBalance = max(Decimal('0.00'), wallet.reservedBalance - excess_to_release)
+                        wallet.save()
+                        
+                        # Cancel old pending transactions and create new one
+                        Transaction.objects.filter(
+                            relatedJobPosting=job,
+                            status='PENDING'
+                        ).update(status='CANCELLED')
+                        
+                        # Create transaction for the release
+                        Transaction.objects.create(
+                            walletID=wallet,
+                            transactionType=Transaction.TransactionType.REFUND,
+                            amount=excess_to_release,
+                            balanceAfter=wallet.balance,
+                            status=Transaction.TransactionStatus.COMPLETED,
+                            description=f"Escrow released for budget decrease: {job.title}",
+                            relatedJobPosting=job,
+                            referenceNumber=f"ESCROW-DEC-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                        )
+                        
+                        print(f"   ✅ Released ₱{excess_to_release} - New reserved: ₱{wallet.reservedBalance}")
+                    
+                    # Update job budget fields
+                    old_values['budget'] = float(old_budget)
+                    new_values['budget'] = float(new_budget)
+                    job.budget = new_budget
+                    job.escrowAmount = new_escrow
+                    job.remainingPayment = new_escrow  # Remaining 50%
+                    changes.append(f"Budget: ₱{old_budget:,.2f} → ₱{new_budget:,.2f}")
+            
+            # Update location
+            if 'location' in job_data and job_data['location'] is not None:
+                new_location = str(job_data['location']).strip()
+                if new_location and job.location != new_location:
+                    old_values['location'] = job.location
+                    new_values['location'] = new_location
+                    changes.append(f"Location updated")
+                    job.location = new_location
+            
+            # Update expected duration
+            if 'expected_duration' in job_data and job_data['expected_duration'] is not None:
+                new_duration = str(job_data['expected_duration']).strip()
+                if job.expectedDuration != new_duration:
+                    old_values['expected_duration'] = job.expectedDuration
+                    new_values['expected_duration'] = new_duration
+                    changes.append(f"Duration: {job.expectedDuration or 'Not set'} → {new_duration}")
+                    job.expectedDuration = new_duration
+            
+            # Update urgency
+            if 'urgency_level' in job_data and job_data['urgency_level'] is not None:
+                new_urgency = str(job_data['urgency_level']).upper()
+                if new_urgency not in ['LOW', 'MEDIUM', 'HIGH']:
+                    return {'success': False, 'error': 'Invalid urgency level. Must be LOW, MEDIUM, or HIGH'}
+                if job.urgency != new_urgency:
+                    old_values['urgency'] = job.urgency
+                    new_values['urgency'] = new_urgency
+                    changes.append(f"Urgency: {job.urgency} → {new_urgency}")
+                    job.urgency = new_urgency
+            
+            # Update preferred start date
+            if 'preferred_start_date' in job_data:
+                if job_data['preferred_start_date'] is None or job_data['preferred_start_date'] == '':
+                    if job.preferredStartDate is not None:
+                        old_values['preferred_start_date'] = str(job.preferredStartDate)
+                        new_values['preferred_start_date'] = None
+                        changes.append("Preferred start date cleared")
+                        job.preferredStartDate = None
+                else:
+                    try:
+                        new_date = datetime.fromisoformat(str(job_data['preferred_start_date']).replace('Z', '+00:00'))
+                        if job.preferredStartDate != new_date.date():
+                            old_values['preferred_start_date'] = str(job.preferredStartDate) if job.preferredStartDate else None
+                            new_values['preferred_start_date'] = str(new_date.date())
+                            changes.append(f"Start date updated")
+                            job.preferredStartDate = new_date
+                    except (ValueError, TypeError):
+                        return {'success': False, 'error': 'Invalid date format for preferred_start_date'}
+            
+            # Update materials needed
+            if 'materials_needed' in job_data:
+                new_materials = job_data['materials_needed']
+                if new_materials is None:
+                    new_materials = []
+                if isinstance(new_materials, list):
+                    old_materials_str = json.dumps(job.materialsNeeded or [])
+                    new_materials_str = json.dumps(new_materials)
+                    if old_materials_str != new_materials_str:
+                        old_values['materials_needed'] = job.materialsNeeded or []
+                        new_values['materials_needed'] = new_materials
+                        changes.append("Materials list updated")
+                        job.materialsNeeded = new_materials
+            
+            # Update universal ML fields
+            if 'job_scope' in job_data and job_data['job_scope'] is not None:
+                new_scope = str(job_data['job_scope']).upper()
+                if new_scope not in ['MINOR_REPAIR', 'MODERATE_PROJECT', 'MAJOR_RENOVATION']:
+                    return {'success': False, 'error': 'Invalid job_scope'}
+                if job.job_scope != new_scope:
+                    old_values['job_scope'] = job.job_scope
+                    new_values['job_scope'] = new_scope
+                    changes.append(f"Job scope: {job.job_scope} → {new_scope}")
+                    job.job_scope = new_scope
+            
+            if 'skill_level_required' in job_data and job_data['skill_level_required'] is not None:
+                new_skill = str(job_data['skill_level_required']).upper()
+                if new_skill not in ['ENTRY', 'INTERMEDIATE', 'EXPERT']:
+                    return {'success': False, 'error': 'Invalid skill_level_required'}
+                if job.skill_level_required != new_skill:
+                    old_values['skill_level_required'] = job.skill_level_required
+                    new_values['skill_level_required'] = new_skill
+                    changes.append(f"Skill level: {job.skill_level_required} → {new_skill}")
+                    job.skill_level_required = new_skill
+            
+            if 'work_environment' in job_data and job_data['work_environment'] is not None:
+                new_env = str(job_data['work_environment']).upper()
+                if new_env not in ['INDOOR', 'OUTDOOR', 'BOTH']:
+                    return {'success': False, 'error': 'Invalid work_environment'}
+                if job.work_environment != new_env:
+                    old_values['work_environment'] = job.work_environment
+                    new_values['work_environment'] = new_env
+                    changes.append(f"Environment: {job.work_environment} → {new_env}")
+                    job.work_environment = new_env
+            
+            # Save the job
+            job.save()
+            print(f"   ✅ Job updated successfully. Changes: {len(changes)}")
+            
+            # Create JobLog entry for audit trail
+            if changes:
+                action_type = 'BUDGET_CHANGED' if new_budget is not None and budget_difference != 0 else 'JOB_EDITED'
+                JobLog.objects.create(
+                    jobID=job,
+                    actionType=action_type,
+                    oldStatus=job.status,
+                    newStatus=job.status,  # Status doesn't change on edit
+                    changedBy=user,
+                    notes=edit_reason or f"Job edited: {', '.join(changes)}",
+                    metadata={
+                        'changes': changes,
+                        'old_values': old_values,
+                        'new_values': new_values,
+                        'edit_reason': edit_reason,
+                        'budget_difference': float(budget_difference) if budget_difference else 0,
+                    }
+                )
+                print(f"   📋 Created JobLog entry: {action_type}")
+            
+            # Notify pending applicants about the edit (if any changes and applicants exist)
+            if changes and has_pending_applications:
+                change_summary = "; ".join(changes[:3])  # Limit to first 3 changes
+                if len(changes) > 3:
+                    change_summary += f" (+{len(changes) - 3} more)"
+                
+                for app in pending_applications:
+                    Notification.objects.create(
+                        accountFK=app.workerID.profileID.accountFK,
+                        notificationType='JOB_UPDATED',
+                        title=f'Job Updated: {job.title}',
+                        message=f'The job "{job.title}" that you applied for has been updated. Changes: {change_summary}. Please review and update your application if needed.',
+                        relatedJobID=job.jobID,
+                        relatedApplicationID=app.applicationID
+                    )
+                print(f"   📬 Notified {pending_count} pending applicant(s) about changes")
+            
+            # Create notification for budget change (for the client)
+            if new_budget is not None and budget_difference != 0:
+                direction = "increased" if budget_difference > 0 else "decreased"
+                Notification.objects.create(
+                    accountFK=user,
+                    notificationType='JOB_UPDATED',
+                    title='Job Budget Updated',
+                    message=f'Your job "{job.title}" budget has been {direction} from ₱{old_budget:,.2f} to ₱{new_budget:,.2f}.',
+                    relatedJobID=job.jobID
+                )
+        
+        # Get wallet balance for response
+        try:
+            wallet = Wallet.objects.get(accountFK=user)
+            wallet_balance = float(wallet.balance)
+            reserved_balance = float(wallet.reservedBalance)
+            available_balance = float(wallet.balance - wallet.reservedBalance)
+        except Wallet.DoesNotExist:
+            wallet_balance = 0.0
+            reserved_balance = 0.0
+            available_balance = 0.0
+        
+        return {
+            'success': True,
+            'message': 'Job updated successfully',
+            'changes_count': len(changes),
+            'changes': changes,
+            'job': {
+                'id': job.jobID,
+                'title': job.title,
+                'description': job.description,
+                'budget': float(job.budget),
+                'escrow_amount': float(job.escrowAmount) if job.escrowAmount else None,
+                'remaining_payment': float(job.remainingPayment) if job.remainingPayment else None,
+                'location': job.location,
+                'expected_duration': job.expectedDuration,
+                'urgency': job.urgency,
+                'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+                'materials_needed': job.materialsNeeded,
+                'job_scope': job.job_scope,
+                'skill_level_required': job.skill_level_required,
+                'work_environment': job.work_environment,
+                'category': {
+                    'id': job.categoryID.specializationID,
+                    'name': job.categoryID.specializationName
+                } if job.categoryID else None,
+                'status': job.status,
+                'minimum_rate': float(job.categoryID.minimumRate) if job.categoryID and job.categoryID.minimumRate else None,
+            },
+            'wallet': {
+                'balance': wallet_balance,
+                'reserved_balance': reserved_balance,
+                'available_balance': available_balance,
+            },
+            'applicants_notified': pending_count if changes and has_pending_applications else 0,
+        }
+    
+    except Exception as e:
+        print(f"❌ Update job error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': f'Failed to update job: {str(e)}'
         }
 
 
@@ -1543,7 +2159,9 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         # A person can be both an agency employee AND an individual worker - these are two
         # different systems that coexist. We only exclude agency OWNERS from the workers list.
         
-        # Get all worker profiles, excluding agency owners only
+        # Get all worker profiles, excluding:
+        # 1. Agency owners (they manage agencies, not individual workers)
+        # 2. The current user's own worker profile (can't hire yourself)
         workers = WorkerProfile.objects.select_related(
             'profileID',
             'profileID__accountFK'
@@ -1552,6 +2170,8 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             profileID__accountFK__KYCVerified=True
         ).exclude(
             profileID__accountFK__accountID__in=agency_owner_account_ids
+        ).exclude(
+            profileID__accountFK=user  # Exclude own worker profile
         ).order_by('-profileID__accountFK__createdAt')
 
         total_count = workers.count()
@@ -2416,9 +3036,34 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 # REVIEW & RATING SERVICES (Phase 8)
 # ===========================================================================
 
-def submit_review_mobile(user: Accounts, job_id: int, rating_quality: int, rating_communication: int, rating_punctuality: int, rating_professionalism: int, comment: str, review_type: str) -> Dict[str, Any]:
-    # Submit a review for a completed job with multi-criteria ratings.
-    # Validates job completion, reviewer eligibility, and creates review record.
+def submit_review_mobile(
+    user: Accounts, 
+    job_id: int, 
+    rating_quality: int, 
+    rating_communication: int, 
+    rating_punctuality: int, 
+    rating_professionalism: int, 
+    comment: str, 
+    review_type: str,
+    review_target: Optional[str] = None,
+    employee_id: Optional[int] = None,
+    worker_assignment_id: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Submit a review for a completed job with multi-criteria ratings.
+    
+    Supports:
+    - Regular jobs: Client reviews worker, worker reviews client
+    - Agency jobs: Client reviews individual employees AND the agency
+    - Team jobs: Client reviews individual workers in team
+    
+    Args:
+        review_target: 'EMPLOYEE' (agency employee), 'AGENCY', 'TEAM_WORKER', or None (regular)
+        employee_id: JobEmployeeAssignment ID for agency employee reviews
+        worker_assignment_id: JobWorkerAssignment ID for team job worker reviews
+    """
+    from agency.models import AgencyEmployee
+    from .models import JobEmployeeAssignment
     
     try:
         # Validate job exists and is completed
@@ -2430,36 +3075,141 @@ def submit_review_mobile(user: Accounts, job_id: int, rating_quality: int, ratin
         if job.status != 'COMPLETED':
             return {'success': False, 'error': 'Can only review completed jobs'}
 
-        # Determine reviewer and reviewee based on review type
+        # Initialize review fields
+        reviewer_type = None
+        reviewee = None
+        reviewee_profile = None
+        reviewee_employee = None
+        reviewee_agency = None
+        
+        # Handle different review scenarios
         if review_type == 'CLIENT_TO_WORKER':
-            # Client reviewing worker
             reviewer_type = 'CLIENT'
             if not job.clientID or job.clientID.profileID.accountFK.accountID != user.accountID:
                 return {'success': False, 'error': 'You are not the client for this job'}
-            if not job.assignedWorkerID:
-                return {'success': False, 'error': 'No worker assigned to this job'}
-            reviewee = job.assignedWorkerID.profileID.accountFK
-            reviewee_profile = job.assignedWorkerID.profileID  # Worker's profile
+            
+            # Check what type of job this is
+            if review_target == 'EMPLOYEE' and employee_id:
+                # Agency job - reviewing a specific employee
+                try:
+                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__accountFK').get(
+                        assignmentID=employee_id,
+                        job=job
+                    )
+                    reviewee_employee = assignment.employee
+                    # Check if already reviewed this employee
+                    existing = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=user,
+                        revieweeEmployeeID=reviewee_employee
+                    ).exists()
+                    if existing:
+                        return {'success': False, 'error': 'You have already reviewed this employee'}
+                except JobEmployeeAssignment.DoesNotExist:
+                    return {'success': False, 'error': 'Employee assignment not found'}
+                    
+            elif review_target == 'AGENCY':
+                # Agency job - reviewing the agency itself
+                if not job.assignedAgencyFK:
+                    return {'success': False, 'error': 'No agency assigned to this job'}
+                reviewee_agency = job.assignedAgencyFK
+                # Check if already reviewed this agency
+                existing = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeAgencyID=reviewee_agency
+                ).exists()
+                if existing:
+                    return {'success': False, 'error': 'You have already reviewed this agency'}
+                    
+            elif review_target == 'TEAM_WORKER' and worker_assignment_id:
+                # Team job - reviewing a specific worker
+                try:
+                    assignment = JobWorkerAssignment.objects.select_related('workerID', 'workerID__profileID', 'workerID__profileID__accountFK').get(
+                        assignmentID=worker_assignment_id,
+                        jobID=job
+                    )
+                    reviewee = assignment.workerID.profileID.accountFK
+                    reviewee_profile = assignment.workerID.profileID
+                    # Check if already reviewed this worker
+                    existing = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=user,
+                        revieweeID=reviewee
+                    ).exists()
+                    if existing:
+                        return {'success': False, 'error': 'You have already reviewed this worker'}
+                except JobWorkerAssignment.DoesNotExist:
+                    return {'success': False, 'error': 'Worker assignment not found'}
+                    
+            elif job.assignedAgencyFK:
+                # Legacy: Agency job without specific target - return error with guidance
+                return {
+                    'success': False, 
+                    'error': 'This is an agency job. Please specify review_target (EMPLOYEE or AGENCY) and employee_id if reviewing an employee.'
+                }
+            elif job.is_team_job:
+                # Team job without specific target - return error with guidance
+                return {
+                    'success': False,
+                    'error': 'This is a team job. Please specify review_target=TEAM_WORKER and worker_assignment_id.'
+                }
+            else:
+                # Regular job - reviewing the assigned worker
+                if not job.assignedWorkerID:
+                    return {'success': False, 'error': 'No worker assigned to this job'}
+                reviewee = job.assignedWorkerID.profileID.accountFK
+                reviewee_profile = job.assignedWorkerID.profileID
+                # Check if already reviewed
+                existing = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user,
+                    revieweeID=reviewee
+                ).exists()
+                if existing:
+                    return {'success': False, 'error': 'You have already reviewed this job'}
+                    
         elif review_type == 'WORKER_TO_CLIENT':
-            # Worker reviewing client
+            # Worker reviewing client (same for all job types)
             reviewer_type = 'WORKER'
-            if not job.assignedWorkerID or job.assignedWorkerID.profileID.accountFK.accountID != user.accountID:
-                return {'success': False, 'error': 'You are not the worker for this job'}
+            
+            # Verify this user is a worker on this job
+            is_worker = False
+            if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK.accountID == user.accountID:
+                is_worker = True
+            elif job.is_team_job:
+                # Check team job assignments
+                is_worker = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    workerID__profileID__accountFK=user,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).exists()
+            elif job.assignedAgencyFK:
+                # Check agency employee assignments
+                is_worker = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    employee__accountFK=user,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).exists()
+            
+            if not is_worker:
+                return {'success': False, 'error': 'You are not a worker for this job'}
+            
             if not job.clientID:
                 return {'success': False, 'error': 'No client for this job'}
             reviewee = job.clientID.profileID.accountFK
-            reviewee_profile = job.clientID.profileID  # Client's profile
+            reviewee_profile = job.clientID.profileID
+            
+            # Check if already reviewed
+            existing = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=user,
+                revieweeID=reviewee
+            ).exists()
+            if existing:
+                return {'success': False, 'error': 'You have already reviewed the client'}
         else:
             return {'success': False, 'error': 'Invalid review type'}
-
-        # Check if review already exists
-        existing_review = JobReview.objects.filter(
-            jobID=job,
-            reviewerID=user
-        ).first()
-
-        if existing_review:
-            return {'success': False, 'error': 'You have already reviewed this job'}
 
         # Validate all criteria ratings are between 1-5
         for rating_name, rating_value in [
@@ -3043,13 +3793,18 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
                     client_account = job.clientID.profileID.accountFK
                     client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip()
 
+                    # Lookup conversation for this job
+                    from profiles.models import Conversation
+                    conv = Conversation.objects.filter(relatedJobPosting_id=job.jobID).first()
+
                     pending_jobs.append({
                         'job_id': job.jobID,
                         'job_title': job.title,
                         'completed_at': job.updatedAt.isoformat() if job.updatedAt else None,
                         'reviewee_id': client_account.accountID,
                         'reviewee_name': client_name,
-                        'review_type': 'WORKER_TO_CLIENT'
+                        'review_type': 'WORKER_TO_CLIENT',
+                        'conversation_id': conv.conversationID if conv else None,
                     })
 
         # Check jobs where user was client
@@ -3070,13 +3825,18 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
                     worker_account = job.workerID.profileID.accountFK
                     worker_name = f"{job.workerID.profileID.firstName} {job.workerID.profileID.lastName}".strip()
 
+                    # Lookup conversation for this job
+                    from profiles.models import Conversation
+                    conv = Conversation.objects.filter(relatedJobPosting_id=job.jobID).first()
+
                     pending_jobs.append({
                         'job_id': job.jobID,
                         'job_title': job.title,
                         'completed_at': job.updatedAt.isoformat() if job.updatedAt else None,
                         'reviewee_id': worker_account.accountID,
                         'reviewee_name': worker_name,
-                        'review_type': 'CLIENT_TO_WORKER'
+                        'review_type': 'CLIENT_TO_WORKER',
+                        'conversation_id': conv.conversationID if conv else None,
                     })
 
         # Sort by completed date (most recent first)

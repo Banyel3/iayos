@@ -20,7 +20,10 @@ import {
   RESEND_OTP_ENDPOINT,
   checkNetworkConnectivity,
   getApiUrl,
+  debugNetworkDiagnostics,
+  preflightBackendReachability,
 } from "../lib/api/config";
+import { getErrorMessage } from "../lib/utils/parse-api-error";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -258,6 +261,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
       setUser(null);
 
+      if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
+        void debugNetworkDiagnostics("login");
+      }
+
+      await preflightBackendReachability("login");
+
       const response = await apiRequest(ENDPOINTS.LOGIN, {
         method: "POST",
         body: JSON.stringify({ email, password }),
@@ -265,16 +274,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        console.error("❌ Login failed response:", JSON.stringify(errorBody));
-
-        const errorMessage =
-          errorBody?.error ||
-          errorBody?.message ||
-          errorBody?.detail ||
-          errorBody?.non_field_errors?.[0] || // Django: {non_field_errors: ["message"]}
-          (errorBody && typeof errorBody === "string" ? errorBody : null) ||
-          "Login failed. Please check your credentials.";
-
+        const errorMessage = getErrorMessage(errorBody, "Login failed");
         console.error("❌ Login failed:", errorMessage);
         throw new Error(errorMessage);
       }
@@ -346,6 +346,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log(`📡 [Register] API URL: ${getApiUrl()}`);
       console.log(`📡 [Register] Endpoint: ${ENDPOINTS.REGISTER}`);
 
+      await preflightBackendReachability("register");
+
       const { confirmPassword, ...rest } = payload;
       const requestPayload = {
         ...rest,
@@ -363,16 +365,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log(`📡 [Register] Response status: ${response.status}`);
 
       if (!response.ok) {
-        let message = "Registration failed";
-        if (responseBody) {
-          // Backend returns error in various formats, extract the actual message
-          message =
-            responseBody?.error || // Most common format: {error: "message"}
-            responseBody?.message || // Alternative format: {message: "message"}
-            responseBody?.detail || // Django format: {detail: "message"}
-            responseBody?.error?.[0]?.message || // Array format
-            JSON.stringify(responseBody); // Fallback: show raw response
-        }
+        const message = getErrorMessage(responseBody, "Registration failed");
         console.error("❌ Registration failed:", message);
         throw new Error(message);
       }
@@ -427,11 +420,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const errorBody = await response.json().catch(() => null);
-      const errorMessage =
-        errorBody?.error ||
-        errorBody?.message ||
-        errorBody?.detail ||
-        "Failed to assign role";
+      const errorMessage = getErrorMessage(errorBody, "Failed to assign role");
       console.error("❌ Assign role failed:", errorMessage);
       throw new Error(errorMessage);
     } catch (error) {
@@ -460,11 +449,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify(errorBody, null, 2),
         );
 
-        const errorMessage =
-          errorBody?.error ||
-          errorBody?.message ||
-          errorBody?.detail ||
-          `Failed to switch profile (HTTP ${response.status})`;
+        const errorMessage = getErrorMessage(errorBody, `Failed to switch profile (HTTP ${response.status})`);
 
         console.error("❌ Switch profile failed:", errorMessage);
         throw new Error(errorMessage);

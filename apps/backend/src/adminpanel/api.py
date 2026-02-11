@@ -165,6 +165,78 @@ def get_kyc_extracted_data(request, kyc_id: int):
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch extracted data"}
 
+
+@router.get("/kyc/agency/{kyc_id}/extracted-data", auth=cookie_auth)
+def get_agency_kyc_extracted_data(request, kyc_id: int):
+    """
+    Get AI-extracted Agency KYC data for admin review.
+    Shows extracted values side-by-side with user-confirmed values.
+    
+    Path params:
+    - kyc_id: AgencyKYC record ID
+    
+    Returns:
+    - confirmed: User-confirmed fields (business info + representative info)
+    - overall_confidence: AI confidence score
+    """
+    try:
+        from agency.models import AgencyKYC, AgencyKYCExtractedData
+        
+        print(f"🔍 [ADMIN AGENCY KYC] Fetching extracted data for Agency KYC ID: {kyc_id}")
+        
+        # Get AgencyKYC record
+        try:
+            kyc_record = AgencyKYC.objects.get(agencyKycID=kyc_id)
+        except AgencyKYC.DoesNotExist:
+            return {"success": False, "error": f"Agency KYC record {kyc_id} not found"}
+        
+        # Get extracted data
+        try:
+            extracted = AgencyKYCExtractedData.objects.get(agencyKyc=kyc_record)
+            
+            # Build confirmed data object
+            confirmed_data = {
+                "business_name": extracted.confirmed_business_name or extracted.extracted_business_name or "",
+                "business_type": extracted.confirmed_business_type or extracted.extracted_business_type or "",
+                "business_address": extracted.confirmed_business_address or extracted.extracted_business_address or "",
+                "permit_number": extracted.confirmed_permit_number or extracted.extracted_permit_number or "",
+                "permit_issue_date": str(extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date or "") if (extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date) else "",
+                "permit_expiry_date": str(extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date or "") if (extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date) else "",
+                "dti_number": extracted.confirmed_dti_number or extracted.extracted_dti_number or "",
+                "sec_number": extracted.confirmed_sec_number or extracted.extracted_sec_number or "",
+                "tin": extracted.confirmed_tin or extracted.extracted_tin or "",
+                "rep_full_name": extracted.confirmed_rep_full_name or extracted.extracted_rep_full_name or "",
+                "rep_id_number": extracted.confirmed_rep_id_number or extracted.extracted_rep_id_number or "",
+                "rep_birth_date": str(extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date or "") if (extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date) else "",
+                "rep_address": extracted.confirmed_rep_address or extracted.extracted_rep_address or "",
+            }
+            
+            return {
+                "success": True,
+                "kyc_id": kyc_id,
+                "has_extracted_data": True,
+                "extraction_status": extracted.extraction_status,
+                "overall_confidence": extracted.overall_confidence,
+                "confirmed": confirmed_data,
+                "user_edited_fields": extracted.user_edited_fields or [],
+                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
+                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
+            }
+            
+        except AgencyKYCExtractedData.DoesNotExist:
+            return {
+                "success": True,
+                "kyc_id": kyc_id,
+                "has_extracted_data": False,
+                "message": "No extracted data available for this Agency KYC record"
+            }
+            
+    except Exception as e:
+        print(f"❌ [ADMIN AGENCY KYC] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch agency extracted data"}
+
     
 @router.post("/kyc/review", auth=cookie_auth)
 def review_kyc(request):
@@ -239,6 +311,255 @@ def reject_agency_kyc_verification(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/{kyc_id}", auth=cookie_auth)
+def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
+    """
+    Get detailed information for a single KYC record with signed file URLs.
+    
+    Args:
+        kyc_id: KYC record ID (kycID for USER, agencyKycID for AGENCY)
+        kyc_type: "USER" or "AGENCY" (default: "USER")
+    
+    Returns:
+        KYC record with user/agency info, files with signed URLs, and verification history
+    """
+    from accounts.models import kyc, kycFiles, Accounts, Profile, AgencyProfile
+    from agency.models import AgencyKYC, AgencyKycFile
+    from adminpanel.models import KYCLogs
+    from iayos_project.utils import get_signed_url
+    import re
+    
+    try:
+        print(f"[ADMIN] Fetching KYC detail: ID={kyc_id}, Type={kyc_type}")
+        
+        if kyc_type.upper() == "AGENCY":
+            # Fetch agency KYC
+            agency_kyc = AgencyKYC.objects.select_related(
+                'agencyID__profileID__accountFK'
+            ).filter(agencyKycID=kyc_id).first()
+            
+            if not agency_kyc:
+                return Response({"error": "Agency KYC not found"}, status=404)
+            
+            # Get agency files
+            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values(
+                'agencyKycFileID', 'fileURL', 'idType', 'uploadedAt'
+            )
+            
+            # Generate signed URLs for each file
+            files_with_urls = []
+            for file in files:
+                file_url = file['fileURL']
+                # Extract path from URL for Supabase
+                path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                if path_match:
+                    path = path_match.group(1)
+                    signed_url = get_signed_url('agency', path, expires_in=3600)
+                    files_with_urls.append({
+                        'id': file['agencyKycFileID'],
+                        'url': signed_url or file_url,
+                        'type': file['idType'],
+                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
+                    })
+            
+            # Get verification history from logs
+            logs = KYCLogs.objects.filter(
+                kycID=kyc_id,
+                action__in=['APPROVED', 'REJECTED']
+            ).order_by('-reviewedAt').values(
+                'action', 'reason', 'reviewedBy', 'reviewedAt'
+            )
+            
+            return {
+                "success": True,
+                "kycType": "AGENCY",
+                "kyc": {
+                    "id": agency_kyc.agencyKycID,
+                    "status": agency_kyc.status,
+                    "businessName": agency_kyc.businessName or "N/A",
+                    "businessDescription": agency_kyc.businessDesc or "N/A",
+                    "submittedAt": agency_kyc.submittedAt.isoformat() if agency_kyc.submittedAt else None,
+                    "reviewedAt": agency_kyc.reviewedAt.isoformat() if agency_kyc.reviewedAt else None,
+                },
+                "user": {
+                    "id": agency_kyc.agencyID.profileID.accountFK.accountID,
+                    "email": agency_kyc.agencyID.profileID.accountFK.email,
+                    "name": agency_kyc.businessName or "N/A",
+                    "type": "AGENCY"
+                },
+                "files": files_with_urls,
+                "history": list(logs)
+            }
+        
+        else:
+            # Fetch user KYC
+            user_kyc = kyc.objects.select_related(
+                'accountFK'
+            ).filter(kycID=kyc_id).first()
+            
+            if not user_kyc:
+                return Response({"error": "KYC not found"}, status=404)
+            
+            # Get KYC files
+            files = kycFiles.objects.filter(kycID=user_kyc).values(
+                'kycFileID', 'fileURL', 'idType', 'uploadedAt'
+            )
+            
+            # Generate signed URLs for each file
+            files_with_urls = []
+            for file in files:
+                file_url = file['fileURL']
+                # Extract path from URL for Supabase
+                path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                if path_match:
+                    path = path_match.group(1)
+                    signed_url = get_signed_url('kyc-docs', path, expires_in=3600)
+                    files_with_urls.append({
+                        'id': file['kycFileID'],
+                        'url': signed_url or file_url,
+                        'type': file['idType'],
+                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
+                    })
+            
+            # Get verification history from logs
+            logs = KYCLogs.objects.filter(
+                kycID=kyc_id,
+                action__in=['APPROVED', 'REJECTED']
+            ).order_by('-reviewedAt').values(
+                'action', 'reason', 'reviewedBy', 'reviewedAt'
+            )
+            
+            # Get user profile info
+            profile = Profile.objects.filter(accountFK=user_kyc.accountFK).first()
+            
+            return {
+                "success": True,
+                "kycType": "USER",
+                "kyc": {
+                    "id": user_kyc.kycID,
+                    "status": user_kyc.kyc_status,
+                    "submittedAt": user_kyc.createdAt.isoformat() if user_kyc.createdAt else None,
+                    "reviewedAt": None,  # User KYC model doesn't have reviewedAt
+                },
+                "user": {
+                    "id": user_kyc.accountFK.accountID,
+                    "email": user_kyc.accountFK.email,
+                    "name": f"{profile.firstName or ''} {profile.lastName or ''}" if profile else "N/A",
+                    "type": profile.profileType if profile else "WORKER"
+                },
+                "files": files_with_urls,
+                "history": list(logs)
+            }
+    
+    except Exception as e:
+        print(f"❌ Error fetching KYC detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.delete("/kyc/{kyc_id}", auth=cookie_auth)
+def delete_kyc_record(request, kyc_id: int, kyc_type: str = "USER"):
+    """
+    Delete a rejected KYC record and its associated files.
+    Only allows deletion if status is 'Rejected'.
+    Preserves KYCLogs for audit trail.
+    
+    Args:
+        kyc_id: KYC record ID
+        kyc_type: "USER" or "AGENCY" (default: "USER")
+    
+    Returns:
+        Success status and deletion details
+    """
+    from accounts.models import kyc, kycFiles
+    from agency.models import AgencyKYC, AgencyKycFile
+    from iayos_project.utils import delete_storage_file
+    from django.db import transaction
+    import re
+    
+    try:
+        print(f"[ADMIN] Deleting KYC: ID={kyc_id}, Type={kyc_type}")
+        
+        if kyc_type.upper() == "AGENCY":
+            # Delete agency KYC
+            agency_kyc = AgencyKYC.objects.filter(agencyKycID=kyc_id).first()
+            
+            if not agency_kyc:
+                return Response({"error": "Agency KYC not found"}, status=404)
+            
+            # Safety check: only delete if rejected
+            if agency_kyc.status != "Rejected":
+                return Response({
+                    "error": f"Cannot delete KYC with status '{agency_kyc.status}'. Only 'Rejected' KYC can be deleted."
+                }, status=400)
+            
+            # Get files before deletion
+            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values_list('fileURL', flat=True)
+            
+            with transaction.atomic():
+                # Delete files from Supabase storage
+                for file_url in files:
+                    path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                    if path_match:
+                        path = path_match.group(1)
+                        delete_storage_file('agency', path)
+                        print(f"✅ Deleted file: {path}")
+                
+                # Delete database records (files will cascade)
+                deleted_count = agency_kyc.delete()[0]
+                print(f"✅ Deleted {deleted_count} database records")
+            
+            return {
+                "success": True,
+                "message": f"Successfully deleted agency KYC {kyc_id}",
+                "filesDeleted": len(files),
+                "kycType": "AGENCY"
+            }
+        
+        else:
+            # Delete user KYC
+            user_kyc = kyc.objects.filter(kycID=kyc_id).first()
+            
+            if not user_kyc:
+                return Response({"error": "KYC not found"}, status=404)
+            
+            # Safety check: only delete if rejected
+            if user_kyc.kyc_status != "Rejected":
+                return Response({
+                    "error": f"Cannot delete KYC with status '{user_kyc.kyc_status}'. Only 'Rejected' KYC can be deleted."
+                }, status=400)
+            
+            # Get files before deletion
+            files = kycFiles.objects.filter(kycID=user_kyc).values_list('fileURL', flat=True)
+            
+            with transaction.atomic():
+                # Delete files from Supabase storage
+                for file_url in files:
+                    path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                    if path_match:
+                        path = path_match.group(1)
+                        delete_storage_file('kyc-docs', path)
+                        print(f"✅ Deleted file: {path}")
+                
+                # Delete database records (files will cascade)
+                deleted_count = user_kyc.delete()[0]
+                print(f"✅ Deleted {deleted_count} database records")
+            
+            return {
+                "success": True,
+                "message": f"Successfully deleted user KYC {kyc_id}",
+                "filesDeleted": len(files),
+                "kycType": "USER"
+            }
+    
+    except Exception as e:
+        print(f"❌ Error deleting KYC: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
 
 
 @router.post("/kyc/create-agency", auth=cookie_auth)
@@ -810,6 +1131,11 @@ def approve_backjob(request, dispute_id: int):
         )
         print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
         
+        # Unarchive conversation so it appears in Active tab
+        from profiles.conversation_service import unarchive_conversation
+        unarchive_result = unarchive_conversation(conversation)
+        print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+        
         return {
             "success": True,
             "message": "Backjob approved and assigned to worker/agency",
@@ -929,6 +1255,11 @@ def reject_backjob(request, dispute_id: int):
                 messageType=Message.MessageType.SYSTEM
             )
             print(f"📝 Added backjob rejection message to conversation {conversation.conversationID}")
+            
+            # Auto-archive conversation since backjob was denied
+            from profiles.conversation_service import archive_conversation
+            archive_result = archive_conversation(conversation)
+            print(f"📦 {archive_result.get('message', 'Conversation archived after backjob denial')}")
         
         return {
             "success": True,
@@ -1214,6 +1545,49 @@ def release_escrow_payment(request, transaction_id: int):
         return result
     except Exception as e:
         print(f"❌ Error in release_escrow_payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/payments/release-pending/{job_id}", auth=cookie_auth)
+def admin_release_pending_payment(request, job_id: int):
+    """
+    Admin-only: Force release pending payment for a job (skips 7-day buffer).
+    Transfers from pendingEarnings to balance immediately.
+    """
+    try:
+        from accounts.models import Job
+        from jobs.payment_buffer_service import release_pending_payment
+        
+        # Get the job
+        job = Job.objects.select_related(
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK'
+        ).get(jobID=job_id)
+        
+        # Check if already released
+        if job.paymentReleasedToWorker:
+            return {"success": False, "error": "Payment already released for this job"}
+        
+        # Force release (bypasses date check and backjob check)
+        result = release_pending_payment(job, force=True)
+        
+        if result['success']:
+            print(f"✅ Admin {request.auth.email} force-released payment for job #{job_id}: ₱{result.get('amount', 0)}")
+            return {
+                "success": True,
+                "message": f"Payment released successfully",
+                "amount": float(result.get('amount', 0)),
+                "job_id": job_id
+            }
+        else:
+            return {"success": False, "error": result.get('error', 'Unknown error')}
+            
+    except Job.DoesNotExist:
+        return {"success": False, "error": f"Job #{job_id} not found"}
+    except Exception as e:
+        print(f"❌ Error in admin_release_pending_payment: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1920,6 +2294,8 @@ def get_support_tickets(
     category: Optional[str] = None,
     assigned_to: Optional[int] = None,
     search: Optional[str] = None,
+    ticket_type: Optional[str] = None,
+    agency_id: Optional[int] = None,
 ):
     """Get paginated list of support tickets with filters."""
     try:
@@ -1931,6 +2307,8 @@ def get_support_tickets(
             category=category,
             assigned_to=assigned_to,
             search=search,
+            ticket_type=ticket_type,
+            agency_id=agency_id,
         )
     except Exception as e:
         print(f"Error in get_support_tickets: {str(e)}")
@@ -2602,6 +2980,79 @@ def get_certification_history_endpoint(request, cert_id: int):
         return {"success": True, "data": {"history": history}}
     except Exception as e:
         print(f"❌ Error fetching certification history: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
+# ============================================================
+# RATE LIMIT MANAGEMENT
+# ============================================================
+
+@router.post("/rate-limits/clear", auth=cookie_auth)
+def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_address: Optional[str] = None):
+    """
+    Clear rate limit caches (admin only).
+    
+    Parameters:
+    - category: Specific category to clear (auth, api_read, api_write, upload, payment)
+    - ip_address: Specific IP to clear (hashed format)
+    - If both None: clears ALL rate limits
+    """
+    from django.core.cache import cache
+    
+    cleared_count = 0
+    
+    try:
+        if category and ip_address:
+            # Clear specific category for specific IP
+            from iayos_project.rate_limiting import get_rate_limit_key
+            key = get_rate_limit_key(category, ip_address)
+            if cache.delete(key):
+                cleared_count = 1
+                print(f"✅ Cleared rate limit: {category} for {ip_address}")
+        elif category:
+            # Clear all IPs for specific category
+            pattern = f"rl:{category}:*"
+            if hasattr(cache, 'delete_pattern'):
+                cleared_count = cache.delete_pattern(pattern)
+            else:
+                # Fallback for non-Redis cache backends
+                keys = cache.keys(pattern) if hasattr(cache, 'keys') else []
+                for key in keys:
+                    cache.delete(key)
+                cleared_count = len(keys)
+            print(f"✅ Cleared {cleared_count} rate limit keys for category: {category}")
+        elif ip_address:
+            # Clear all categories for specific IP
+            categories = ['auth', 'password_reset', 'api_write', 'api_read', 'upload', 'payment']
+            for cat in categories:
+                from iayos_project.rate_limiting import get_rate_limit_key
+                key = get_rate_limit_key(cat, ip_address)
+                if cache.delete(key):
+                    cleared_count += 1
+            print(f"✅ Cleared {cleared_count} rate limit keys for IP: {ip_address}")
+        else:
+            # Clear ALL rate limits
+            pattern = "rl:*"
+            if hasattr(cache, 'delete_pattern'):
+                cleared_count = cache.delete_pattern(pattern)
+            else:
+                # Fallback for non-Redis cache backends
+                keys = cache.keys(pattern) if hasattr(cache, 'keys') else []
+                for key in keys:
+                    cache.delete(key)
+                cleared_count = len(keys)
+            print(f"✅ Cleared ALL rate limits ({cleared_count} keys)")
+        
+        return {
+            "success": True,
+            "message": f"Cleared {cleared_count} rate limit cache entries",
+            "cleared_count": cleared_count
+        }
+    
+    except Exception as e:
+        print(f"❌ Error clearing rate limits: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)

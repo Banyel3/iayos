@@ -1,0 +1,107 @@
+### KYC User Submitted Data Admin Endpoints Test
+### Tests for individual and agency KYC extracted/confirmed data display
+
+@baseUrl = http://localhost:8000
+@adminEmail = admin@iayos.com
+@adminPassword = admin123
+
+### ============================
+### AUTHENTICATION
+### ============================
+
+# @name adminLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### ============================
+### INDIVIDUAL KYC EXTRACTED DATA
+### ============================
+
+# @name getIndividualKYCExtractedData
+# Get extracted data for individual KYC record
+# Replace {kycId} with actual KYC ID
+GET {{baseUrl}}/api/adminpanel/kyc/1/extracted-data
+Cookie: auth={{adminLogin.response.headers.Set-Cookie}}
+
+### Test with different KYC IDs
+# @name getKYCExtractedData2
+GET {{baseUrl}}/api/adminpanel/kyc/2/extracted-data
+Cookie: auth={{adminLogin.response.headers.Set-Cookie}}
+
+### ============================
+### AGENCY KYC EXTRACTED DATA (NEW)
+### ============================
+
+# @name getAgencyKYCExtractedData
+# Get extracted data for agency KYC record
+# Replace {agencyKycId} with actual Agency KYC ID
+GET {{baseUrl}}/api/adminpanel/kyc/agency/1/extracted-data
+Cookie: auth={{adminLogin.response.headers.Set-Cookie}}
+
+### Test with different Agency KYC IDs
+# @name getAgencyKYCExtractedData2
+GET {{baseUrl}}/api/adminpanel/kyc/agency/2/extracted-data
+Cookie: auth={{adminLogin.response.headers.Set-Cookie}}
+
+### ============================
+### ERROR CASES
+### ============================
+
+# @name getKYCExtractedDataNotFound
+# Should return 404 for non-existent KYC
+GET {{baseUrl}}/api/adminpanel/kyc/99999/extracted-data
+Cookie: auth={{adminLogin.response.headers.Set-Cookie}}
+
+# @name getAgencyKYCExtractedDataNotFound
+# Should return 404 for non-existent Agency KYC
+GET {{baseUrl}}/api/adminpanel/kyc/agency/99999/extracted-data
+Cookie: auth={{adminLogin.response.headers.Set-Cookie}}
+
+### ============================
+### EXPECTED RESPONSE FORMAT
+### ============================
+
+# Individual KYC Expected Response:
+# {
+#   "success": true,
+#   "kyc_id": 1,
+#   "has_extracted_data": true,
+#   "extraction_status": "CONFIRMED",
+#   "overall_confidence": 0.85,
+#   "comparison": {
+#     "full_name": { "extracted": "...", "confirmed": "...", "confidence": 0.9, "was_edited": false },
+#     "birth_date": { "extracted": "...", "confirmed": "...", "confidence": 0.8, "was_edited": true },
+#     ...
+#   },
+#   "user_edited_fields": ["birth_date", "address"],
+#   "extracted_at": "2026-02-01T10:30:00Z",
+#   "confirmed_at": "2026-02-01T11:00:00Z"
+# }
+
+# Agency KYC Expected Response:
+# {
+#   "success": true,
+#   "kyc_id": 1,
+#   "has_extracted_data": true,
+#   "extraction_status": "CONFIRMED",
+#   "overall_confidence": 0.78,
+#   "confirmed": {
+#     "business_name": "ABC Services",
+#     "business_type": "SOLE_PROPRIETORSHIP",
+#     "business_address": "123 Main St, Zamboanga City",
+#     "permit_number": "BP-2024-001",
+#     "dti_number": "DTI-12345",
+#     "tin": "123-456-789",
+#     "rep_full_name": "Juan Dela Cruz",
+#     "rep_id_number": "ID-12345",
+#     ...
+#   },
+#   "user_edited_fields": ["business_address"],
+#   "extracted_at": "2026-02-01T10:30:00Z",
+#   "confirmed_at": "2026-02-01T11:00:00Z"
+# }

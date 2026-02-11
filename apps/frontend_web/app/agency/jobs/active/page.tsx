@@ -15,12 +15,18 @@ import {
   Eye,
   Briefcase,
 } from "lucide-react";
+import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
+import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
 
 interface ActiveJob {
   jobID: number;
   title: string;
   description: string;
   budget: number;
+  payment_model?: 'PROJECT' | 'DAILY';
+  daily_rate_agreed?: number;
+  duration_days?: number;
+  total_days_worked?: number;
   status: string;
   urgency: string;
   client: { name: string; email: string };
@@ -249,9 +255,21 @@ export default function ActiveJobsPage() {
                   <div className="p-1.5 bg-green-100 rounded">
                     <DollarSign className="text-green-600" size={16} />
                   </div>
-                  <span className="text-gray-700 font-medium">
-                    ₱{job.budget.toLocaleString()}
-                  </span>
+                  <div>
+                    <span className="text-gray-700 font-medium">
+                      <JobBudgetDisplay
+                        budget={job.budget}
+                        paymentModel={job.payment_model}
+                        dailyRate={job.daily_rate_agreed}
+                        durationDays={job.duration_days}
+                      />
+                    </span>
+                    {job.payment_model && (
+                      <div className="mt-1">
+                        <PaymentModelBadge paymentModel={job.payment_model} />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <div className="p-1.5 bg-blue-100 rounded">

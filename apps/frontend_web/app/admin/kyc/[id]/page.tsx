@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -22,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import KYCExtractedDataComparison from "@/components/admin/KYCExtractedDataComparison";
+import UserSubmittedDataSection from "@/components/admin/UserSubmittedDataSection";
 
 interface KYCRecord {
   id: string;
@@ -332,7 +334,7 @@ export default function KYCDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to approve KYC");
+        throw new Error(getErrorMessage(errorData, "Failed to approve KYC"));
       }
 
       toast.success("KYC approved successfully");
@@ -378,7 +380,7 @@ export default function KYCDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to reject KYC");
+        throw new Error(getErrorMessage(errorData, "Failed to reject KYC"));
       }
 
       toast.success("KYC rejected");
@@ -584,6 +586,12 @@ export default function KYCDetailPage() {
               )}
             </div>
 
+            {/* User Submitted Data Section - for admin to compare with documents */}
+            <UserSubmittedDataSection
+              kycId={parseInt(record.id.replace("kyc_", "").replace("agency_", ""))}
+              isAgency={record.userType === "agency"}
+            />
+
             {/* Review Information */}
             {(record.reviewedBy || record.rejectionReason) && (
               <div className="border-t pt-6">
@@ -755,14 +763,6 @@ export default function KYCDetailPage() {
               </dl>
             </CardContent>
           </Card>
-
-          {/* AI Extracted Data Comparison */}
-          {record.userType !== "agency" && (
-            <KYCExtractedDataComparison
-              kycId={parseInt(record.id.replace("kyc_", ""))}
-              isAgency={false}
-            />
-          )}
         </div>
       </div>
 

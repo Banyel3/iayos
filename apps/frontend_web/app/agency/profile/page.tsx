@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Building2,
   Mail,
@@ -243,7 +244,7 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error adding payment method:", error);
-      toast.error("An error occurred");
+      toast.error(getErrorMessage(error, "Failed to add payment method"));
     } finally {
       setIsAddingPaymentMethod(false);
     }
@@ -275,7 +276,7 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error deleting payment method:", error);
-      toast.error("An error occurred");
+      toast.error(getErrorMessage(error, "Failed to remove payment method"));
     }
   };
 
@@ -298,7 +299,9 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error setting primary payment method:", error);
-      toast.error("An error occurred");
+      toast.error(
+        getErrorMessage(error, "Failed to set primary payment method"),
+      );
     }
   };
 
@@ -360,7 +363,7 @@ export default function AgencyProfilePage() {
         await fetchProfile();
       } else {
         const error = await res.json();
-        toast.error(error.error || "Failed to update profile");
+        toast.error(getErrorMessage(error, "Failed to update profile"));
       }
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -519,9 +522,13 @@ export default function AgencyProfilePage() {
                   <p className="font-semibold">
                     ₱
                     {transactions
-                      .filter(
-                        (t: Transaction) =>
-                          t.type === "DEPOSIT" || t.type === "PAYMENT_RECEIVED",
+                      .filter((t: Transaction) =>
+                        [
+                          "DEPOSIT",
+                          "EARNING",
+                          "PENDING_EARNING",
+                          "REFUND",
+                        ].includes(t.type),
                       )
                       .reduce(
                         (sum: number, t: Transaction) => sum + t.amount,
@@ -1142,7 +1149,7 @@ export default function AgencyProfilePage() {
 
                   setIsWithdrawing(true);
                   try {
-                    // Use agency-specific withdrawal endpoint (with Xendit)
+                    // Use agency-specific withdrawal endpoint
                     const res = await fetch(
                       `${API_BASE}/api/agency/wallet/withdraw`,
                       {
@@ -1184,7 +1191,9 @@ export default function AgencyProfilePage() {
                     }
                   } catch (error) {
                     console.error("Withdrawal error:", error);
-                    toast.error("An error occurred");
+                    toast.error(
+                      getErrorMessage(error, "Failed to request withdrawal"),
+                    );
                   } finally {
                     setIsWithdrawing(false);
                   }

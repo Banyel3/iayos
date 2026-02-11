@@ -3,6 +3,7 @@
 // Ported from React Native mobile app
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 const API_BASE_URL = API_BASE;
@@ -53,7 +54,7 @@ export function useConversations(
   return useQuery({
     queryKey: ["conversations", filter],
     queryFn: async (): Promise<ConversationsResponse> => {
-      const url = `${API_BASE_URL}/api/profiles/conversations?filter=${filter}`;
+      const url = `${API_BASE_URL}/profiles/conversations?filter=${filter}`;
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -127,7 +128,7 @@ export function useArchiveConversation() {
 
       // Call backend toggle archive endpoint
       const response = await fetch(
-        `${API_BASE_URL}/api/profiles/conversations/${conversationId}/toggle-archive`,
+        `${API_BASE_URL}/profiles/conversations/${conversationId}/toggle-archive`,
         {
           method: "POST",
           credentials: "include",
@@ -136,7 +137,7 @@ export function useArchiveConversation() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to toggle archive status");
+        throw new Error(getErrorMessage(errorData, "Failed to toggle archive status"));
       }
 
       const data = await response.json();

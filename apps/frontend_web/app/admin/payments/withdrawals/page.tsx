@@ -23,6 +23,7 @@ import {
   CreditCard,
   Smartphone,
 } from "lucide-react";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface WithdrawalRequest {
   id: string;
@@ -75,6 +76,11 @@ interface ApproveModalState {
   userName: string;
   amount: number;
 }
+
+// Helper to get transaction ID safely
+const getTransactionId = (w: WithdrawalRequest): string => {
+  return w.id || String(w.transaction_id || "");
+};
 
 export default function WithdrawalsPage() {
   const mainClass = useMainContentClass("flex-1 p-8");
@@ -184,8 +190,8 @@ export default function WithdrawalsPage() {
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  const getPaymentMethodIcon = (type: string) => {
-    switch (type) {
+  const getPaymentMethodIcon = (type: string | undefined) => {
+    switch (type ?? "") {
       case "GCASH":
         return <Phone className="h-4 w-4" />;
       case "BANK":
@@ -203,8 +209,8 @@ export default function WithdrawalsPage() {
     }
   };
 
-  const getPaymentMethodBadge = (type: string) => {
-    switch (type) {
+  const getPaymentMethodBadge = (type: string | undefined) => {
+    switch (type ?? "") {
       case "GCASH":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
@@ -286,7 +292,7 @@ export default function WithdrawalsPage() {
     setApproveNotes("");
     setApproveModal({
       isOpen: true,
-      transactionId: withdrawal.id || withdrawal.transaction_id,
+      transactionId: withdrawal.id || withdrawal.transaction_id || null,
       userName: withdrawal.user?.name || withdrawal.user_name || "",
       amount: withdrawal.amount,
     });
@@ -353,9 +359,7 @@ export default function WithdrawalsPage() {
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("An error occurred");
-    } finally {
-      setApproving(false);
+      alert(getErrorMessage(error, "Failed to approve withdrawal"));
     }
   };
 
@@ -403,7 +407,7 @@ export default function WithdrawalsPage() {
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("An error occurred");
+      alert(getErrorMessage(error, "Failed to reject withdrawal"));
     }
   };
 
@@ -744,7 +748,7 @@ export default function WithdrawalsPage() {
                             <Button
                               onClick={() =>
                                 handleReject(
-                                  withdrawal.id || withdrawal.transaction_id,
+                                  withdrawal.id || withdrawal.transaction_id || "",
                                 )
                               }
                               className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"

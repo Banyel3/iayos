@@ -54,7 +54,7 @@ export default function SettingsPage() {
     },
     {
       title: "Payment Gateways",
-      description: "Configure Xendit, GCash, and bank transfer payment methods",
+      description: "Configure PayMongo, GCash, and bank transfer payment methods",
       icon: CreditCard,
       color: "from-indigo-500 to-indigo-600",
       iconBg: "bg-indigo-100",

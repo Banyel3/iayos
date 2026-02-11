@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Card,
   CardContent,
@@ -21,9 +22,23 @@ import {
   ChevronDown,
   ChevronUp,
   Image as ImageIcon,
+  Brain,
+  Loader2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { useToast } from "@/components/ui/toast";
+import UserSubmittedDataSection from "@/components/admin/UserSubmittedDataSection";
+
+// Preset rejection reasons for quick selection
+const REJECTION_PRESETS = [
+  { id: "blurry", label: "📷 Blurry/Unreadable", reason: "The uploaded document is blurry or unreadable. Please upload a clearer image." },
+  { id: "wrong_doc", label: "📄 Wrong Document", reason: "The uploaded document does not match the required document type. Please upload the correct document." },
+  { id: "expired", label: "⏰ Expired Document", reason: "The uploaded document has expired. Please upload a valid, non-expired document." },
+  { id: "name_mismatch", label: "👤 Name Mismatch", reason: "The name on the document does not match your registered name. Please verify and resubmit." },
+  { id: "altered", label: "⚠️ Document Altered", reason: "The document appears to have been altered or tampered with. Please upload an original, unaltered document." },
+  { id: "incomplete", label: "📋 Incomplete Info", reason: "Important information is missing or cut off in the document. Please upload a complete image showing all required details." },
+  { id: "custom", label: "✏️ Custom Reason", reason: "" },
+];
 
 interface PendingKYC {
   id: string;
@@ -50,6 +65,7 @@ interface KYCFiles {
 export default function PendingKYCPage() {
   const [pendingKYC, setPendingKYC] = useState<PendingKYC[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<
     "all" | "high" | "medium" | "low"
@@ -63,6 +79,13 @@ export default function PendingKYCPage() {
   const [expandedRecords, setExpandedRecords] = useState<
     Record<string, boolean>
   >({}); // Track which records are expanded
+  
+  // Rejection modal state
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingRecord, setRejectingRecord] = useState<{ id: string; userType: string; userName: string } | null>(null);
+  const [selectedRejectionPreset, setSelectedRejectionPreset] = useState<string>("blurry");
+  const [customRejectionReason, setCustomRejectionReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
   const [imageLoadingStates, setImageLoadingStates] = useState<
     Record<string, boolean>
   >({});
@@ -144,13 +167,30 @@ export default function PendingKYCPage() {
       </div>
     );
   };
-  const fetchPendingKYC = async () => {
+  const fetchPendingKYC = async (retryAttempt = 0) => {
+    const MAX_RETRIES = 2;
     setIsLoading(true);
+    setFetchError(null);
     try {
+      // Add timeout to prevent hanging on slow responses
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      if (retryAttempt > 0) {
+        showToast({
+          type: "info",
+          title: "Retrying...",
+          message: `Attempt ${retryAttempt + 1} of ${MAX_RETRIES + 1}`,
+          duration: 2000,
+        });
+      }
+
       const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
         method: "GET",
         credentials: "include",
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         // Handle specific HTTP errors
@@ -288,8 +328,35 @@ export default function PendingKYCPage() {
     } catch (error) {
       console.error("❌ Error fetching pending KYC:", error);
 
-      // Handle network errors
-      if (error instanceof TypeError && error.message.includes("fetch")) {
+      // Auto-retry on timeout or network errors
+      const isAbortError = error instanceof DOMException && error.name === "AbortError";
+      const isNetworkError = error instanceof TypeError && error.message.includes("fetch");
+
+      if ((isAbortError || isNetworkError) && retryAttempt < MAX_RETRIES) {
+        // Wait 2 seconds then retry
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return fetchPendingKYC(retryAttempt + 1);
+      }
+
+      // Set error state for retry button
+      const errorMsg = isAbortError
+        ? "Request timed out. The server may be slow or unavailable."
+        : isNetworkError
+          ? "Unable to connect to the server. Please check your internet connection."
+          : error instanceof Error
+            ? error.message
+            : "An unexpected error occurred.";
+      setFetchError(errorMsg);
+
+      // Handle specific errors with toasts
+      if (isAbortError) {
+        showToast({
+          type: "error",
+          title: "Request Timed Out",
+          message: "The server took too long to respond. Click Retry to try again.",
+          duration: 6000,
+        });
+      } else if (isNetworkError) {
         showToast({
           type: "error",
           title: "Network Error",
@@ -304,7 +371,6 @@ export default function PendingKYCPage() {
         !error.message.includes("not found") &&
         !error.message.includes("Server error")
       ) {
-        // Only show generic error if we haven't already shown a specific one
         showToast({
           type: "error",
           title: "Failed to Load KYC Requests",
@@ -421,7 +487,7 @@ export default function PendingKYCPage() {
           .catch(() => ({ error: "Unknown error" }));
         console.error("❌ Backend error:", errorData);
         throw new Error(
-          `Failed to fetch signed URLs: ${errorData.error || response.statusText}`,
+          `Failed to fetch signed URLs: ${getErrorMessage(errorData, response.statusText)}`,
         );
       }
 
@@ -638,6 +704,43 @@ export default function PendingKYCPage() {
         duration: 5000,
       });
     }
+  };
+
+  // Open rejection modal with preset options
+  const openRejectModal = (record: PendingKYC) => {
+    setRejectingRecord({ id: record.id, userType: record.userType, userName: record.userName });
+    setSelectedRejectionPreset("blurry");
+    setCustomRejectionReason("");
+    setShowRejectModal(true);
+  };
+
+  // Submit rejection with selected reason
+  const submitRejection = async () => {
+    if (!rejectingRecord) return;
+    
+    setIsRejecting(true);
+    
+    const preset = REJECTION_PRESETS.find(p => p.id === selectedRejectionPreset);
+    const reason = selectedRejectionPreset === "custom" 
+      ? customRejectionReason.trim()
+      : preset?.reason || "Documents did not meet verification requirements";
+    
+    if (selectedRejectionPreset === "custom" && !customRejectionReason.trim()) {
+      showToast({
+        type: "error",
+        title: "Reason Required",
+        message: "Please enter a custom rejection reason.",
+        duration: 3000,
+      });
+      setIsRejecting(false);
+      return;
+    }
+    
+    await handleRejectKYC(rejectingRecord.id, rejectingRecord.userType, reason);
+    
+    setIsRejecting(false);
+    setShowRejectModal(false);
+    setRejectingRecord(null);
   };
 
   const filteredRecords = pendingKYC.filter((record) => {
@@ -895,15 +998,26 @@ export default function PendingKYCPage() {
                     <FileText className="w-16 h-16 text-gray-400" />
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        No Pending Reviews
+                        {fetchError ? "Failed to Load KYC Data" : "No Pending Reviews"}
                       </h3>
                       <p className="text-muted-foreground">
-                        {searchTerm ||
-                          priorityFilter !== "all" ||
-                          typeFilter !== "all"
-                          ? "No KYC submissions match your filters"
-                          : "All KYC submissions have been reviewed"}
+                        {fetchError
+                          ? fetchError
+                          : searchTerm ||
+                              priorityFilter !== "all" ||
+                              typeFilter !== "all"
+                            ? "No KYC submissions match your filters"
+                            : "All KYC submissions have been reviewed"}
                       </p>
+                      {fetchError && (
+                        <Button
+                          className="mt-4"
+                          onClick={() => fetchPendingKYC()}
+                        >
+                          <Loader2 className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+                          Retry
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1015,9 +1129,7 @@ export default function PendingKYCPage() {
                             variant="outline"
                             size="sm"
                             className="border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={() =>
-                              handleRejectKYC(record.id, record.userType)
-                            }
+                            onClick={() => openRejectModal(record)}
                           >
                             <XCircle className="w-4 h-4 mr-1" />
                             Reject
@@ -1029,127 +1141,143 @@ export default function PendingKYCPage() {
                     {/* Expandable KYC Files Section */}
                     {expandedRecords[record.id] && kycFilesMap[record.id] && (
                       <div className="mt-6 pt-6 border-t bg-gray-50 -mx-6 -mb-6 px-6 pb-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <h4 className="text-lg font-bold text-gray-800 flex items-center">
-                            <ImageIcon className="w-6 h-6 mr-2 text-blue-600" />
-                            Submitted Documents
-                          </h4>
-                        </div>
-                        {record.userType === "agency" ? (
-                          // Agency KYC: show all relevant agency-specific documents in a grid
-                          <div className="grid grid-cols-2 gap-6">
-                            {/* Business Permit */}
-                            {kycFilesMap[record.id].clearanceLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].clearanceLink}
-                                label="Business Permit"
-                                recordId={record.id}
-                                additionalInfo={
-                                  kycFilesMap[record.id].clearanceType
-                                }
-                              />
-                            )}
-                            {/* Rep ID Front */}
-                            {kycFilesMap[record.id].frontIDLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].frontIDLink}
-                                label="Representative ID (Front)"
-                                recordId={record.id}
-                                additionalInfo={kycFilesMap[record.id].idType}
-                              />
-                            )}
-                            {/* Rep ID Back */}
-                            {kycFilesMap[record.id].backIDLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].backIDLink}
-                                label="Representative ID (Back)"
-                                recordId={record.id}
-                                additionalInfo={kycFilesMap[record.id].idType}
-                              />
-                            )}
-                            {/* Address Proof */}
-                            {kycFilesMap[record.id].addressProofLink && (
-                              <KYCDocumentImage
-                                url={
-                                  kycFilesMap[record.id].addressProofLink || ""
-                                }
-                                label="Address Proof"
-                                recordId={record.id}
-                              />
-                            )}
-                            {/* Authorization Letter */}
-                            {kycFilesMap[record.id].selfieLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].selfieLink}
-                                label="Authorization Letter"
-                                recordId={record.id}
-                              />
-                            )}
-                            {/* If no docs, show empty state */}
-                            {!kycFilesMap[record.id].clearanceLink &&
-                              !kycFilesMap[record.id].frontIDLink &&
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Left Column: Document Images */}
+                          <div>
+                            <div className="flex items-center justify-between mb-6">
+                              <h4 className="text-lg font-bold text-gray-800 flex items-center">
+                                <ImageIcon className="w-6 h-6 mr-2 text-blue-600" />
+                                Submitted Documents
+                              </h4>
+                            </div>
+                            {record.userType === "agency" ? (
+                              // Agency KYC: show all relevant agency-specific documents in a grid
+                              <div className="grid grid-cols-2 gap-4">
+                                {/* Business Permit */}
+                                {kycFilesMap[record.id].clearanceLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].clearanceLink}
+                                    label="Business Permit"
+                                    recordId={record.id}
+                                    additionalInfo={
+                                      kycFilesMap[record.id].clearanceType
+                                    }
+                                  />
+                                )}
+                                {/* Rep ID Front */}
+                                {kycFilesMap[record.id].frontIDLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].frontIDLink}
+                                    label="Representative ID (Front)"
+                                    recordId={record.id}
+                                    additionalInfo={kycFilesMap[record.id].idType}
+                                  />
+                                )}
+                                {/* Rep ID Back */}
+                                {kycFilesMap[record.id].backIDLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].backIDLink}
+                                    label="Representative ID (Back)"
+                                    recordId={record.id}
+                                    additionalInfo={kycFilesMap[record.id].idType}
+                                  />
+                                )}
+                                {/* Address Proof */}
+                                {kycFilesMap[record.id].addressProofLink && (
+                                  <KYCDocumentImage
+                                    url={
+                                      kycFilesMap[record.id].addressProofLink || ""
+                                    }
+                                    label="Address Proof"
+                                    recordId={record.id}
+                                  />
+                                )}
+                                {/* Authorization Letter */}
+                                {kycFilesMap[record.id].selfieLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].selfieLink}
+                                    label="Authorization Letter"
+                                    recordId={record.id}
+                                  />
+                                )}
+                                {/* If no docs, show empty state */}
+                                {!kycFilesMap[record.id].clearanceLink &&
+                                  !kycFilesMap[record.id].frontIDLink &&
+                                  !kycFilesMap[record.id].backIDLink &&
+                                  !kycFilesMap[record.id].addressProofLink &&
+                                  !kycFilesMap[record.id].selfieLink && (
+                                    <div className="col-span-2 text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                                      <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
+                                      <p className="text-gray-600 font-medium">
+                                        No documents found for this KYC submission
+                                      </p>
+                                    </div>
+                                  )}
+                              </div>
+                            ) : !kycFilesMap[record.id].frontIDLink &&
                               !kycFilesMap[record.id].backIDLink &&
-                              !kycFilesMap[record.id].addressProofLink &&
-                              !kycFilesMap[record.id].selfieLink && (
-                                <div className="col-span-2 text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                                  <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
-                                  <p className="text-gray-600 font-medium">
-                                    No documents found for this KYC submission
-                                  </p>
-                                </div>
-                              )}
-                          </div>
-                        ) : !kycFilesMap[record.id].frontIDLink &&
-                          !kycFilesMap[record.id].backIDLink &&
-                          !kycFilesMap[record.id].clearanceLink &&
-                          !kycFilesMap[record.id].selfieLink ? (
-                          <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                            <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
-                            <p className="text-gray-600 font-medium">
-                              No documents found for this KYC submission
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-6">
-                            {/* Front ID */}
-                            {kycFilesMap[record.id].frontIDLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].frontIDLink}
-                                label="Front ID"
-                                recordId={record.id}
-                                additionalInfo={kycFilesMap[record.id].idType}
-                              />
-                            )}
-                            {/* Back ID */}
-                            {kycFilesMap[record.id].backIDLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].backIDLink}
-                                label="Back ID"
-                                recordId={record.id}
-                                additionalInfo={kycFilesMap[record.id].idType}
-                              />
-                            )}
-                            {/* Clearance */}
-                            {kycFilesMap[record.id].clearanceLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].clearanceLink}
-                                label="Clearance Document"
-                                recordId={record.id}
-                                additionalInfo={
-                                  kycFilesMap[record.id].clearanceType
-                                }
-                              />
-                            )}
-                            {/* Selfie */}
-                            {kycFilesMap[record.id].selfieLink && (
-                              <KYCDocumentImage
-                                url={kycFilesMap[record.id].selfieLink}
-                                label="Selfie with ID"
-                                recordId={record.id}
-                              />
+                              !kycFilesMap[record.id].clearanceLink &&
+                              !kycFilesMap[record.id].selfieLink ? (
+                              <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                                <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
+                                <p className="text-gray-600 font-medium">
+                                  No documents found for this KYC submission
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-4">
+                                {/* Front ID */}
+                                {kycFilesMap[record.id].frontIDLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].frontIDLink}
+                                    label="Front ID"
+                                    recordId={record.id}
+                                    additionalInfo={kycFilesMap[record.id].idType}
+                                  />
+                                )}
+                                {/* Back ID */}
+                                {kycFilesMap[record.id].backIDLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].backIDLink}
+                                    label="Back ID"
+                                    recordId={record.id}
+                                    additionalInfo={kycFilesMap[record.id].idType}
+                                  />
+                                )}
+                                {/* Clearance */}
+                                {kycFilesMap[record.id].clearanceLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].clearanceLink}
+                                    label="Clearance Document"
+                                    recordId={record.id}
+                                    additionalInfo={
+                                      kycFilesMap[record.id].clearanceType
+                                    }
+                                  />
+                                )}
+                                {/* Selfie */}
+                                {kycFilesMap[record.id].selfieLink && (
+                                  <KYCDocumentImage
+                                    url={kycFilesMap[record.id].selfieLink}
+                                    label="Selfie with ID"
+                                    recordId={record.id}
+                                  />
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                          
+                          {/* Right Column: User Submitted Data */}
+                          <div>
+                            <div className="flex items-center justify-between mb-6">
+                              <h4 className="text-lg font-bold text-gray-800 flex items-center">
+                                <FileText className="w-6 h-6 mr-2 text-blue-600" />
+                                User Submitted Data
+                              </h4>
+                            </div>
+                            <UserSubmittedDataSection kycId={parseInt(record.id)} isAgency={record.userType === "agency"} />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -1159,6 +1287,110 @@ export default function PendingKYCPage() {
           </div>
         </div>
       </main>
+
+      {/* Rejection Modal with Quick-Select Options */}
+      {showRejectModal && rejectingRecord && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <CardTitle className="text-red-600 flex items-center gap-2">
+                <XCircle className="w-5 h-5" />
+                Reject KYC Verification
+              </CardTitle>
+              <CardDescription>
+                Rejecting KYC for <span className="font-semibold">{rejectingRecord.userName}</span>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a reason for rejection. The user will receive a notification with this message.
+              </p>
+              
+              {/* Quick-Select Preset Options */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Rejection Reason</label>
+                <div className="grid gap-2">
+                  {REJECTION_PRESETS.map((preset) => (
+                    <label
+                      key={preset.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        selectedRejectionPreset === preset.id
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-200 hover:border-red-300 hover:bg-red-50/50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="rejectionPreset"
+                        value={preset.id}
+                        checked={selectedRejectionPreset === preset.id}
+                        onChange={() => setSelectedRejectionPreset(preset.id)}
+                        className="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium">{preset.label}</span>
+                        {preset.reason && preset.id !== "custom" && (
+                          <p className="text-xs text-muted-foreground mt-1">{preset.reason}</p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Custom Reason Text Area - Only shown when "Custom" is selected */}
+              {selectedRejectionPreset === "custom" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-red-600">
+                    Custom Rejection Reason *
+                  </label>
+                  <textarea
+                    value={customRejectionReason}
+                    onChange={(e) => setCustomRejectionReason(e.target.value)}
+                    placeholder="Enter a custom rejection reason..."
+                    className="w-full rounded-lg border-2 border-red-200 p-3 text-sm resize-none h-24 focus:border-red-400 focus:ring-red-400"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This message will be sent to the user as their rejection notification.
+                  </p>
+                </div>
+              )}
+              
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectingRecord(null);
+                  }}
+                  disabled={isRejecting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={submitRejection}
+                  disabled={isRejecting || (selectedRejectionPreset === "custom" && !customRejectionReason.trim())}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {isRejecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Rejecting...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reject KYC
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

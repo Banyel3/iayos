@@ -1,5 +1,4 @@
 // lib/utils/image-utils.ts
-import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 export interface CompressionOptions {
@@ -17,6 +16,21 @@ export interface CompressedImage {
 }
 
 /**
+ * Get file size from URI using fetch
+ * (Replaces deprecated FileSystem.getInfoAsync for size checking)
+ */
+const getFileSize = async (uri: string): Promise<number> => {
+  try {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return blob.size;
+  } catch (error) {
+    console.warn("[ImageUtils] Failed to get file size, assuming 0:", error);
+    return 0;
+  }
+};
+
+/**
  * Compress image to reduce file size
  */
 export const compressImage = async (
@@ -31,10 +45,8 @@ export const compressImage = async (
   } = options ?? {};
 
   try {
-    // Get original file info
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    const originalSize =
-      fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
+    // Get original file size
+    const originalSize = await getFileSize(uri);
 
     // If already small enough (<2MB), skip heavy compression
     if (originalSize < 2 * 1024 * 1024) {
@@ -44,11 +56,7 @@ export const compressImage = async (
         format: format === "jpeg" ? SaveFormat.JPEG : SaveFormat.PNG,
       });
 
-      const compressedInfo = await FileSystem.getInfoAsync(manipResult.uri);
-      const compressedSize =
-        compressedInfo.exists && "size" in compressedInfo
-          ? compressedInfo.size
-          : originalSize;
+      const compressedSize = await getFileSize(manipResult.uri);
 
       return {
         uri: manipResult.uri,
@@ -75,11 +83,7 @@ export const compressImage = async (
       }
     );
 
-    const compressedInfo = await FileSystem.getInfoAsync(manipResult.uri);
-    const compressedSize =
-      compressedInfo.exists && "size" in compressedInfo
-        ? compressedInfo.size
-        : originalSize;
+    const compressedSize = await getFileSize(manipResult.uri);
 
     return {
       uri: manipResult.uri,
@@ -90,8 +94,7 @@ export const compressImage = async (
   } catch (error) {
     console.error("Image compression error:", error);
     // Return original if compression fails
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    const size = fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
+    const size = await getFileSize(uri);
 
     return {
       uri,
@@ -178,10 +181,8 @@ export const compressForKYC = async (uri: string): Promise<CompressedImage> => {
   const KYC_TARGET_SIZE = 1 * 1024 * 1024; // 1MB target
 
   try {
-    // Get original file info
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    const originalSize =
-      fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
+    // Get original file size
+    const originalSize = await getFileSize(uri);
 
     console.log(`[KYC Compress] Original size: ${formatFileSize(originalSize)}`);
 
@@ -192,11 +193,7 @@ export const compressForKYC = async (uri: string): Promise<CompressedImage> => {
         format: SaveFormat.JPEG,
       });
 
-      const compressedInfo = await FileSystem.getInfoAsync(result.uri);
-      const compressedSize =
-        compressedInfo.exists && "size" in compressedInfo
-          ? compressedInfo.size
-          : originalSize;
+      const compressedSize = await getFileSize(result.uri);
 
       console.log(`[KYC Compress] Light compression: ${formatFileSize(compressedSize)}`);
 
@@ -225,11 +222,7 @@ export const compressForKYC = async (uri: string): Promise<CompressedImage> => {
       }
     );
 
-    const compressedInfo = await FileSystem.getInfoAsync(result.uri);
-    const compressedSize =
-      compressedInfo.exists && "size" in compressedInfo
-        ? compressedInfo.size
-        : originalSize;
+    const compressedSize = await getFileSize(result.uri);
 
     const ratio = calculateCompressionRatio(originalSize, compressedSize);
     console.log(`[KYC Compress] Heavy compression: ${formatFileSize(compressedSize)} (${ratio}% reduction)`);
@@ -243,8 +236,7 @@ export const compressForKYC = async (uri: string): Promise<CompressedImage> => {
   } catch (error) {
     console.error("[KYC Compress] Error:", error);
     // Return original if compression fails
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    const size = fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
+    const size = await getFileSize(uri);
 
     return {
       uri,

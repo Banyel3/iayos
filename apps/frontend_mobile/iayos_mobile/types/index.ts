@@ -52,6 +52,13 @@ export interface Job {
     profileImg?: string;
   };
   specializations?: Specialization[];
+  // Daily payment model fields
+  payment_model?: "PROJECT" | "DAILY";
+  daily_rate_agreed?: number;
+  duration_days?: number;
+  daily_escrow_total?: number;
+  actual_start_date?: string;
+  total_days_worked?: number;
 }
 
 export interface JobPhoto {
@@ -150,6 +157,7 @@ export interface RegisterPayload {
   password: string;
   confirmPassword: string;
   street_address: string;
+  barangay: string;
   city: string;
   province: string;
   postal_code: string;

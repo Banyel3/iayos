@@ -2,10 +2,9 @@
   "expo": {
     "name": "iayos_mobile",
     "slug": "iayos_mobile",
-    "version": "1.4.0",
-    "projectId": "9aefe802-18a0-41ab-9d65-c112999529f8",
+    "version": "3.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/android-icon-foreground.png",
     "scheme": "iayosmobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -40,6 +39,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -58,12 +65,27 @@
           "color": "#007AFF",
           "mode": "production"
         }
+      ],
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "iAyos needs camera access to capture your ID documents for verification."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     },
+    "updates": {
+      "enabled": true,
+      "url": "https://u.expo.dev/24252bfc-2034-404b-bc64-1bf5a808c55c",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
+    "runtimeVersion": "2.0",
     "extra": {
       "router": {},
       "eas": {

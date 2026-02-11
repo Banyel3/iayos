@@ -2,7 +2,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from .models import Conversation, Message, Profile
+from .models import Conversation, ConversationParticipant, Message, Profile
 from accounts.models import Job, JobReview, Agency
 
 User = get_user_model()
@@ -186,14 +186,26 @@ class InboxConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_user_info(self):
-        """Get current user's profile information"""
+        """Get current user's profile information (supports dual profiles)"""
         try:
-            profile = Profile.objects.get(accountFK=self.user)
+            # Handle dual-profile users by checking profile_type from JWT
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            
+            if profile:
+                return {
+                    'id': profile.profileID,
+                    'name': f"{profile.firstName} {profile.lastName}"
+                }
             return {
-                'id': profile.profileID,
-                'name': f"{profile.firstName} {profile.lastName}"
+                'id': 0,
+                'name': 'Unknown'
             }
-        except Profile.DoesNotExist:
+        except Exception as e:
+            print(f"[InboxWS] Error in get_user_info: {str(e)}")
             return {
                 'id': 0,
                 'name': 'Unknown'
@@ -201,9 +213,16 @@ class InboxConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_user_profile(self):
+        """Get user profile (supports dual profiles)"""
         try:
-            return Profile.objects.get(accountFK=self.user)
-        except Profile.DoesNotExist:
+            # Handle dual-profile users by checking profile_type from JWT
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                return Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                return Profile.objects.filter(accountFK=self.user).first()
+        except Exception as e:
+            print(f"[InboxWS] Error in get_user_profile: {str(e)}")
             return None
 
     @database_sync_to_async
@@ -222,13 +241,25 @@ class InboxConsumer(AsyncWebsocketConsumer):
             
             # Check for Profile-based conversations (client or worker)
             try:
-                profile = Profile.objects.get(accountFK=self.user)
-                conversations = Conversation.objects.filter(
-                    client=profile
-                ) | Conversation.objects.filter(
-                    worker=profile
-                )
-            except Profile.DoesNotExist:
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if profile:
+                    conversations = Conversation.objects.filter(
+                        client=profile
+                    ) | Conversation.objects.filter(
+                        worker=profile
+                    )
+                    # Also include conversations where user is a ConversationParticipant (team/group jobs)
+                    participant_conv_ids = ConversationParticipant.objects.filter(
+                        profile=profile
+                    ).values_list('conversation_id', flat=True)
+                    if participant_conv_ids:
+                        participant_convs = Conversation.objects.filter(conversationID__in=participant_conv_ids)
+                        conversations = conversations | participant_convs
+            except Exception:
                 pass
             
             # Check for Agency-based conversations (directly via agency field)
@@ -257,15 +288,28 @@ class InboxConsumer(AsyncWebsocketConsumer):
             
             # Check Profile-based access (client or worker)
             try:
-                profile = Profile.objects.get(accountFK=self.user)
-                if conversation.client.profileID == profile.profileID:
-                    print(f"[InboxWS] Client access granted for conv {conversation_id}")
-                    return True
-                if conversation.worker and conversation.worker.profileID == profile.profileID:
-                    print(f"[InboxWS] Worker access granted for conv {conversation_id}")
-                    return True
-            except Profile.DoesNotExist:
-                pass
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if profile:
+                    if conversation.client and conversation.client.profileID == profile.profileID:
+                        print(f"[InboxWS] Client access granted for conv {conversation_id}")
+                        return True
+                    if conversation.worker and conversation.worker.profileID == profile.profileID:
+                        print(f"[InboxWS] Worker access granted for conv {conversation_id}")
+                        return True
+                    # Check ConversationParticipant for team/group jobs
+                    is_participant = ConversationParticipant.objects.filter(
+                        conversation=conversation,
+                        profile=profile
+                    ).exists()
+                    if is_participant:
+                        print(f"[InboxWS] Participant access granted for conv {conversation_id}")
+                        return True
+            except Exception as e:
+                print(f"[InboxWS] Error checking profile access for conv {conversation_id}: {e}")
             
             # Check Agency-based access (directly via agency field)
             try:
@@ -276,7 +320,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
             except Agency.DoesNotExist:
                 pass
             
-            print(f"[InboxWS] Access DENIED for conv {conversation_id}")
+            print(f"[InboxWS] Access DENIED for conv {conversation_id} (user={self.user.email}, client={getattr(conversation.client, 'profileID', None)}, worker={getattr(conversation.worker, 'profileID', None) if conversation.worker else None})")
             return False
         except Conversation.DoesNotExist as e:
             print(f"[InboxWS] ERROR: Conversation {conversation_id} not found")
@@ -292,8 +336,15 @@ class InboxConsumer(AsyncWebsocketConsumer):
             profile = None
             agency = None
             try:
-                profile = Profile.objects.get(accountFK=self.user)
-                print(f"[InboxWS] ✅ Sender profile: {profile.profileID}")
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if profile:
+                    print(f"[InboxWS] ✅ Sender profile: {profile.profileID}")
+                else:
+                    raise Profile.DoesNotExist
             except Profile.DoesNotExist:
                 # For agency users without profile, get their agency
                 print(f"[InboxWS] ⚠️ No profile for user {self.user.email}, checking if agency...")
@@ -372,7 +423,13 @@ class InboxConsumer(AsyncWebsocketConsumer):
             my_role = 'UNKNOWN'
             
             try:
-                profile = Profile.objects.get(accountFK=self.user)
+                profile_type = getattr(self.user, 'profile_type', None)
+                if profile_type:
+                    profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+                else:
+                    profile = Profile.objects.filter(accountFK=self.user).first()
+                if not profile:
+                    raise Profile.DoesNotExist
                 if conversation.client == profile:
                     conversation.unreadCountClient = 0
                     is_client = True
@@ -544,20 +601,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def verify_conversation_access(self):
         try:
             print(f"[WebSocket] Checking access for user: {self.user}")
-            profile = Profile.objects.get(accountFK=self.user)
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            if not profile:
+                print(f"[WebSocket] ERROR: Profile not found for user {self.user}")
+                return False
             print(f"[WebSocket] Found profile: {profile.profileID}")
             
             conversation = Conversation.objects.get(conversationID=self.conversation_id)
             print(f"[WebSocket] Found conversation: {conversation.conversationID}")
-            print(f"[WebSocket] Client: {conversation.client.profileID}, Worker: {conversation.worker.profileID}")
+            print(f"[WebSocket] Client: {conversation.client.profileID}, Worker: {conversation.worker.profileID if conversation.worker else 'None'}")
             
             has_access = (conversation.client.profileID == profile.profileID or 
-                         conversation.worker.profileID == profile.profileID)
+                         (conversation.worker and conversation.worker.profileID == profile.profileID))
             print(f"[WebSocket] Access result: {has_access}")
             return has_access
-        except Profile.DoesNotExist:
-            print(f"[WebSocket] ERROR: Profile not found for user {self.user}")
-            return False
         except Conversation.DoesNotExist:
             print(f"[WebSocket] ERROR: Conversation {self.conversation_id} not found")
             return False
@@ -569,7 +630,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def save_message(self, message_text, message_type):
         try:
             print(f"[WebSocket] 🔍 Looking up profile for user: {self.user.email}")
-            profile = Profile.objects.get(accountFK=self.user)
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            if not profile:
+                raise Profile.DoesNotExist(f"No profile found for user {self.user.email}")
             print(f"[WebSocket] ✅ Found profile: {profile.profileID}")
             
             print(f"[WebSocket] 🔍 Looking up conversation: {self.conversation_id}")
@@ -653,7 +720,13 @@ class JobStatusConsumer(AsyncWebsocketConsumer):
             from accounts.models import Job
             from profiles.models import ClientProfile, WorkerProfile
             
-            profile = Profile.objects.get(accountFK=self.user)
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+            if not profile:
+                raise Profile.DoesNotExist(f"No profile found for user {self.user}")
             job = Job.objects.select_related('clientID__profileID', 'assignedWorkerID__profileID').get(jobID=self.job_id)
             
             # Check if user is the client or assigned worker
@@ -674,3 +747,249 @@ class JobStatusConsumer(AsyncWebsocketConsumer):
             import traceback
             traceback.print_exc()
             return False
+
+
+class CallConsumer(AsyncWebsocketConsumer):
+    """
+    WebSocket consumer for voice call signaling.
+    Handles call initiation, acceptance, rejection, and termination.
+    Uses Agora for actual voice transmission; this handles signaling only.
+    """
+    
+    # Call timeout in seconds (auto-end if not answered)
+    CALL_TIMEOUT = 30
+    
+    async def connect(self):
+        self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
+        self.call_group_name = f'call_{self.conversation_id}'
+        self.user = self.scope.get('user')
+        
+        print(f"[CallWS] Connection attempt for conversation {self.conversation_id}")
+        
+        if not self.user or not self.user.is_authenticated:
+            print(f"[CallWS] REJECTED: User not authenticated")
+            await self.close()
+            return
+        
+        # Verify user has access to this conversation
+        has_access = await self.verify_conversation_access()
+        if not has_access:
+            print(f"[CallWS] REJECTED: User does not have access to conversation")
+            await self.close()
+            return
+        
+        # Join the call signaling group
+        await self.channel_layer.group_add(self.call_group_name, self.channel_name)
+        await self.accept()
+        
+        print(f"[CallWS] ✅ Connection accepted for user {self.user.email}")
+    
+    async def disconnect(self, close_code):
+        if hasattr(self, 'call_group_name'):
+            await self.channel_layer.group_discard(self.call_group_name, self.channel_name)
+            print(f"[CallWS] Disconnected from call group {self.call_group_name}")
+    
+    async def receive(self, text_data):
+        """Handle incoming call signaling messages"""
+        try:
+            print(f"[CallWS] 📩 Received: {text_data}")
+            data = json.loads(text_data)
+            action = data.get('action')
+            
+            if action == 'initiate':
+                await self.handle_call_initiate(data)
+            elif action == 'accept':
+                await self.handle_call_accept(data)
+            elif action == 'reject':
+                await self.handle_call_reject(data)
+            elif action == 'end':
+                await self.handle_call_end(data)
+            elif action == 'busy':
+                await self.handle_call_busy(data)
+            else:
+                print(f"[CallWS] Unknown action: {action}")
+        except Exception as e:
+            print(f"[CallWS] ❌ Error in receive: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    async def handle_call_initiate(self, data):
+        """Handle call initiation - broadcast to other participant"""
+        caller_name = await self.get_user_name()
+        
+        # Broadcast call invitation to the group
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'incoming',
+                'caller_id': self.user.id,
+                'caller_name': caller_name,
+                'conversation_id': self.conversation_id,
+                'channel_name': data.get('channel_name', f'iayos_call_{self.conversation_id}'),
+            }
+        )
+        
+        print(f"[CallWS] 📞 Call initiated by {caller_name} in conversation {self.conversation_id}")
+    
+    async def handle_call_accept(self, data):
+        """Handle call acceptance"""
+        user_name = await self.get_user_name()
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'accepted',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        print(f"[CallWS] ✅ Call accepted by {user_name}")
+    
+    async def handle_call_reject(self, data):
+        """Handle call rejection"""
+        user_name = await self.get_user_name()
+        reason = data.get('reason', 'declined')
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'rejected',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'reason': reason,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        # Create system message for missed/rejected call
+        await self.create_call_system_message(f"📞 Missed call from {user_name}")
+        
+        print(f"[CallWS] ❌ Call rejected by {user_name}: {reason}")
+    
+    async def handle_call_end(self, data):
+        """Handle call termination"""
+        user_name = await self.get_user_name()
+        duration = data.get('duration', 0)
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'ended',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'duration': duration,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        # Create system message for completed call
+        if duration > 0:
+            duration_str = self.format_duration(duration)
+            await self.create_call_system_message(f"📞 Voice call • {duration_str}")
+        
+        print(f"[CallWS] 📵 Call ended by {user_name}, duration: {duration}s")
+    
+    async def handle_call_busy(self, data):
+        """Handle busy signal (user already in a call)"""
+        user_name = await self.get_user_name()
+        
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_event',
+                'event': 'busy',
+                'user_id': self.user.id,
+                'user_name': user_name,
+                'conversation_id': self.conversation_id,
+            }
+        )
+        
+        print(f"[CallWS] 📵 {user_name} is busy")
+    
+    async def call_event(self, event):
+        """Send call event to WebSocket client"""
+        # Don't send event back to the sender (except for 'incoming' which should go to receiver)
+        if event['event'] == 'incoming' and event.get('caller_id') == self.user.id:
+            return  # Don't send incoming event to the caller
+        
+        await self.send(text_data=json.dumps({
+            'type': 'call_event',
+            'event': event['event'],
+            'data': {
+                'caller_id': event.get('caller_id'),
+                'caller_name': event.get('caller_name'),
+                'user_id': event.get('user_id'),
+                'user_name': event.get('user_name'),
+                'conversation_id': event.get('conversation_id'),
+                'channel_name': event.get('channel_name'),
+                'reason': event.get('reason'),
+                'duration': event.get('duration'),
+            }
+        }))
+    
+    @staticmethod
+    def format_duration(seconds: int) -> str:
+        """Format call duration as mm:ss or hh:mm:ss"""
+        if seconds < 3600:
+            return f"{seconds // 60}:{seconds % 60:02d}"
+        return f"{seconds // 3600}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
+    
+    @database_sync_to_async
+    def verify_conversation_access(self):
+        """Verify user has access to this conversation"""
+        try:
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            profile = Profile.objects.filter(accountFK=self.user).first()
+            
+            if not profile:
+                return False
+            
+            # Check if user is client or worker
+            is_client = conversation.client and conversation.client.profileID == profile.profileID
+            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+            
+            # Check ConversationParticipant for team jobs
+            from .models import ConversationParticipant
+            is_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=profile
+            ).exists()
+            
+            return is_client or is_worker or is_participant
+        except Conversation.DoesNotExist:
+            return False
+        except Exception as e:
+            print(f"[CallWS] Error verifying access: {str(e)}")
+            return False
+    
+    @database_sync_to_async
+    def get_user_name(self):
+        """Get the user's display name"""
+        try:
+            profile = Profile.objects.filter(accountFK=self.user).first()
+            if profile:
+                return f"{profile.firstName} {profile.lastName}".strip() or self.user.email
+            return self.user.email
+        except Exception:
+            return self.user.email
+    
+    @database_sync_to_async
+    def create_call_system_message(self, text: str):
+        """Create a system message in the conversation for call events"""
+        try:
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            Message.objects.create(
+                conversationID=conversation,
+                sender=None,  # System message
+                messageText=text,
+                messageType='SYSTEM'
+            )
+            print(f"[CallWS] Created system message: {text}")
+        except Exception as e:
+            print(f"[CallWS] Error creating system message: {str(e)}")

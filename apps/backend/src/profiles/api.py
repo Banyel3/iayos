@@ -799,9 +799,21 @@ def get_conversations(request, filter: str = "all"):
         print(f"📋 Profile Type: {user_profile.profileType}")
         print(f"🎫 JWT Profile Type: {profile_type}")
         
-        # Get 1:1 conversations where user is client or worker
+        # Check if user is an agency owner
+        from accounts.models import Agency
+        user_agency = Agency.objects.filter(accountFK=request.auth).first()
+        
+        # Get 1:1 conversations where user is client, worker, OR agency owner
+        one_on_one_filters = Q(client=user_profile) | Q(worker=user_profile)
+        
+        # CRITICAL: Add agency filter if user owns an agency
+        # This ensures agency users only see conversations for their agency, not personal conversations
+        if user_agency:
+            one_on_one_filters |= Q(agency=user_agency)
+            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyID})")
+        
         one_on_one_query = Conversation.objects.filter(
-            Q(client=user_profile) | Q(worker=user_profile),
+            one_on_one_filters,
             conversation_type='ONE_ON_ONE'
         )
         
@@ -840,6 +852,45 @@ def get_conversations(request, filter: str = "all"):
                     (Q(worker=user_profile) & Q(archivedByWorker=True))
                 )) |
                 (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=archived_team_ids))
+            )
+        elif filter == "active":
+            # Show conversations where work has been agreed upon:
+            # 1. Jobs IN_PROGRESS (work started)
+            # 2. Jobs ACTIVE with worker/agency assigned (agreed but not started)
+            # 3. Jobs with active backjob (UNDER_REVIEW dispute - conversation reopened)
+            archived_team_ids = ConversationParticipant.objects.filter(
+                profile=user_profile,
+                is_archived=True
+            ).values_list('conversation_id', flat=True)
+            
+            conversations_query = conversations_query.filter(
+                # Exclude archived conversations
+                (Q(conversation_type='ONE_ON_ONE') & (
+                    (Q(client=user_profile) & Q(archivedByClient=False)) |
+                    (Q(worker=user_profile) & Q(archivedByWorker=False))
+                )) |
+                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
+            ).filter(
+                # Active = agreed to work OR in progress OR backjob
+                Q(relatedJobPosting__status='IN_PROGRESS') |  # Work in progress
+                Q(  # Agreed but not started (regular job with worker assigned)
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__assignedWorkerID__isnull=False
+                ) |
+                Q(  # Agreed but not started (agency job with employee assigned)
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__assignedEmployeeID__isnull=False
+                ) |
+                Q(  # Team job with at least one worker assigned
+                    relatedJobPosting__status='ACTIVE',
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__skill_slots__workers_assigned__gt=0
+                ) |
+                Q(  # Backjob approved - conversation reopened
+                    status='ACTIVE',
+                    relatedJobPosting__status='COMPLETED',
+                    relatedJobPosting__disputes__status='UNDER_REVIEW'
+                )
             )
         else:
             # For 'all' and 'unread', exclude archived conversations
@@ -1327,11 +1378,11 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 print(f"   System message: {msg.messageText[:50]}...")
             elif msg.sender is None:
-                # This is an agency message
+                # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
-                sender_name = conversation.agency.businessName if conversation.agency else "Agency"
+                sender_name = msg.senderAgency.businessName if msg.senderAgency else (conversation.agency.businessName if conversation.agency else "Agency")
                 sender_avatar = "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
-                print(f"   Message from Agency: is_mine={is_mine}")
+                print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
                 # Regular message from a Profile
                 is_mine = msg.sender == user_profile
@@ -1342,9 +1393,15 @@ def get_conversation_messages(request, conversation_id: int):
             # Get attachments for this message
             attachments = []
             for attachment in msg.attachments.all():
+                file_url = attachment.fileURL
+                # If it's a storage path (not a full URL), generate fresh signed URL
+                if file_url and not file_url.startswith('http'):
+                    from iayos_project.utils import get_signed_url
+                    signed = get_signed_url('iayos_files', file_url, expires_in=3600)
+                    file_url = signed if signed else make_absolute_url(file_url)
                 attachments.append({
                     "attachment_id": attachment.attachmentID,
-                    "file_url": make_absolute_url(attachment.fileURL),
+                    "file_url": file_url,
                     "file_name": attachment.fileName,
                     "file_size": attachment.fileSize,
                     "file_type": attachment.fileType,
@@ -1369,7 +1426,13 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Check review status for this job
         from accounts.models import JobReview
-        worker_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+        # For direct workers, use assignedWorkerID; for agency jobs, use agency's account
+        if job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+        elif job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        else:
+            worker_account = None
         client_account = job.clientID.profileID.accountFK
         
         worker_reviewed = False
@@ -1462,7 +1525,7 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Build other_participant_info - handle agency case
         if other_participant:
-            other_participant_info = get_participant_info(other_participant, job.title)
+            other_participant_info = get_participant_info(profile=other_participant, job_title=job.title)
         elif other_agency:
             # Client viewing agency conversation - show agency info
             other_participant_info = {
@@ -1512,6 +1575,13 @@ def get_conversation_messages(request, conversation_id: int):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": assignment.isPrimaryContact,
                     "status": assignment.status,
+                    # PROJECT job workflow tracking (mirrors DAILY job DailyAttendance workflow)
+                    "dispatched": getattr(assignment, 'dispatched', False),
+                    "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
+                    "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
+                    "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
+                    "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
+                    "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
                 })
             
             # Fallback to legacy if no M2M assignments
@@ -1524,6 +1594,13 @@ def get_conversation_messages(request, conversation_id: int):
                     "rating": float(emp.rating) if emp.rating else None,
                     "isPrimaryContact": True,
                     "status": "ASSIGNED",
+                    # Legacy single-employee - no workflow tracking
+                    "dispatched": False,
+                    "dispatchedAt": None,
+                    "clientConfirmedArrival": False,
+                    "clientConfirmedArrivalAt": None,
+                    "agencyMarkedComplete": False,
+                    "agencyMarkedCompleteAt": None,
                 })
         
         # Get ML prediction for estimated completion time
@@ -1649,6 +1726,64 @@ def get_conversation_messages(request, conversation_id: int):
                 "remaining_days": remaining_days,
             }
 
+        # Get today's attendance for daily-rate jobs (DAILY payment model)
+        attendance_today = []
+        if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
+            from accounts.models import DailyAttendance
+            today = timezone.now().date()
+            
+            # Query attendance records for today
+            attendance_records = DailyAttendance.objects.filter(
+                jobID=job,
+                date=today
+            ).select_related(
+                'workerID__profileID',  # Freelance worker
+                'employeeID',  # Agency employee
+                'assignmentID__workerID__profileID'  # Team worker
+            )
+            
+            for record in attendance_records:
+                # Determine worker info based on worker type
+                worker_name = "Unknown Worker"
+                worker_avatar = None
+                worker_id = None
+                
+                if record.workerID:  # Freelance worker
+                    profile = record.workerID.profileID
+                    worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
+                    worker_avatar = profile.profileImg
+                    worker_id = record.workerID_id
+                elif record.employeeID:  # Agency employee
+                    worker_name = record.employeeID.name or "Employee"
+                    worker_avatar = record.employeeID.avatar
+                    worker_id = record.employeeID.employeeID
+                elif record.assignmentID:  # Team worker (via JobWorkerAssignment)
+                    profile = record.assignmentID.workerID.profileID
+                    worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
+                    worker_avatar = profile.profileImg
+                    worker_id = record.assignmentID.workerID_id
+                
+                attendance_today.append({
+                    "attendance_id": record.attendanceID,
+                    "worker_id": worker_id,
+                    "worker_name": worker_name,
+                    "worker_avatar": worker_avatar,
+                    "date": record.date.isoformat(),
+                    "time_in": record.time_in.isoformat() if record.time_in else None,
+                    "time_out": record.time_out.isoformat() if record.time_out else None,
+                    "status": record.status,
+                    "is_dispatched": record.status == "DISPATCHED",  # True if employee is on the way (not yet arrived)
+                    "worker_confirmed": record.worker_confirmed,
+                    "worker_confirmed_at": record.worker_confirmed_at.isoformat() if record.worker_confirmed_at else None,
+                    "client_confirmed": record.client_confirmed,
+                    "client_confirmed_at": record.client_confirmed_at.isoformat() if record.client_confirmed_at else None,
+                    "amount_earned": float(record.amount_earned) if record.amount_earned else 0.0,
+                    "payment_processed": record.payment_processed,
+                    "notes": record.notes or "",
+                })
+            
+            print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1656,6 +1791,9 @@ def get_conversation_messages(request, conversation_id: int):
                 "id": job.jobID,
                 "title": job.title,
                 "status": job.status,
+                "payment_model": getattr(job, 'payment_model', 'PROJECT'),  # PROJECT or DAILY
+                "daily_rate": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
                 "budget": float(job.budget),
                 "location": job.location,
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
@@ -1685,7 +1823,8 @@ def get_conversation_messages(request, conversation_id: int):
             "my_role": my_role,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages),
-            "backjob": backjob_info
+            "backjob": backjob_info,
+            "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
         }
         
     except Exception as e:
@@ -1703,22 +1842,32 @@ def send_message(request, data: SendMessageSchema):
     """
     Send a new message within an existing job conversation.
     Conversations are created when job applications are accepted.
+    Supports both Profile-based users (workers/clients) and Agency users.
     """
     try:
-        # Get sender's profile
+        # Get sender's profile OR agency (mirrors InboxConsumer.save_message pattern)
+        sender_profile = None
+        sender_agency = None
         try:
             sender_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
+            # No profile found - check if this is an agency user
+            from accounts.models import Agency
+            try:
+                sender_agency = Agency.objects.get(accountFK=request.auth)
+                print(f"[MOBILE] Agency sender: {sender_agency.agencyId} ({sender_agency.businessName})")
+            except Agency.DoesNotExist:
+                return Response(
+                    {"error": "No profile or agency found for this account"},
+                    status=400
+                )
         
         # Get the conversation
         try:
             conversation = Conversation.objects.select_related(
                 'client',
                 'worker',
+                'agency',
                 'relatedJobPosting'
             ).get(conversationID=data.conversation_id)
         except Conversation.DoesNotExist:
@@ -1728,38 +1877,53 @@ def send_message(request, data: SendMessageSchema):
             )
         
         # Verify sender is a participant
-        # For regular conversations, check client/worker fields
-        is_client = conversation.client == sender_profile
-        is_worker = conversation.worker == sender_profile
+        is_client = sender_profile and conversation.client == sender_profile
+        is_worker = sender_profile and conversation.worker == sender_profile
         
         # For team conversations, also check ConversationParticipant table
         is_team_participant = False
-        if conversation.conversation_type == 'TEAM_GROUP':
+        if sender_profile and conversation.conversation_type == 'TEAM_GROUP':
             from profiles.models import ConversationParticipant
             is_team_participant = ConversationParticipant.objects.filter(
                 conversation=conversation,
                 profile=sender_profile
             ).exists()
         
-        if not (is_client or is_worker or is_team_participant):
+        # Check agency-based access (conversation.agency field)
+        is_agency = (
+            sender_agency is not None
+            and conversation.agency is not None
+            and conversation.agency.agencyId == sender_agency.agencyId
+        )
+        
+        if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
             )
         
-        # Create the message
+        # Create the message (sender=None for agency, senderAgency=None for profile)
         message = Message.objects.create(
             conversationID=conversation,
             sender=sender_profile,
+            senderAgency=sender_agency,
             messageText=data.message_text,
             messageType=data.message_type or "TEXT"
         )
+        
+        # Determine sender name
+        if sender_profile:
+            sender_name = f"{sender_profile.firstName} {sender_profile.lastName}"
+        elif sender_agency:
+            sender_name = sender_agency.businessName or "Agency"
+        else:
+            sender_name = "Unknown"
         
         return {
             "success": True,
             "message": {
                 "conversation_id": conversation.conversationID,
-                "sender_name": f"{sender_profile.firstName} {sender_profile.lastName}",
+                "sender_name": sender_name,
                 "message_text": message.messageText,
                 "message_type": message.messageType,
                 "created_at": message.createdAt.isoformat(),
@@ -1781,20 +1945,27 @@ def send_message(request, data: SendMessageSchema):
 def mark_messages_as_read(request, data: MarkAsReadSchema):
     """
     Mark messages in a job conversation as read.
+    Supports both Profile-based users and Agency users.
     """
     try:
-        # Get user's profile
+        # Get user's profile OR agency
+        user_profile = None
+        user_agency = None
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
+            from accounts.models import Agency
+            try:
+                user_agency = Agency.objects.get(accountFK=request.auth)
+            except Agency.DoesNotExist:
+                return Response(
+                    {"error": "No profile or agency found for this account"},
+                    status=400
+                )
         
         # Get the conversation
         try:
-            conversation = Conversation.objects.get(conversationID=data.conversation_id)
+            conversation = Conversation.objects.select_related('agency').get(conversationID=data.conversation_id)
         except Conversation.DoesNotExist:
             return Response(
                 {"error": "Conversation not found"},
@@ -1802,24 +1973,36 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
             )
         
         # Verify user is a participant
-        is_client = conversation.client == user_profile
-        is_worker = conversation.worker == user_profile
+        is_client = user_profile and conversation.client == user_profile
+        is_worker = user_profile and conversation.worker == user_profile
+        is_agency = (
+            user_agency is not None
+            and conversation.agency is not None
+            and conversation.agency.agencyId == user_agency.agencyId
+        )
         
-        if not (is_client or is_worker):
+        if not (is_client or is_worker or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
             )
         
-        # Determine the other participant
-        other_participant = conversation.worker if is_client else conversation.client
-        
-        # Mark messages as read
-        query = Message.objects.filter(
-            conversationID=conversation,
-            sender=other_participant,
-            isRead=False
-        )
+        # Mark messages as read - for agency users, mark all messages not sent by agency
+        if is_agency:
+            # Agency user: mark all messages from non-agency senders as read
+            query = Message.objects.filter(
+                conversationID=conversation,
+                senderAgency__isnull=True,
+                isRead=False
+            )
+        else:
+            # Profile user: mark messages from the other participant
+            other_participant = conversation.worker if is_client else conversation.client
+            query = Message.objects.filter(
+                conversationID=conversation,
+                sender=other_participant,
+                isRead=False
+            )
         
         if data.message_id:
             # Mark up to specific message
@@ -1830,7 +2013,10 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         # Reset unread count
         if is_client:
             conversation.unreadCountClient = 0
-        else:
+        elif is_worker:
+            conversation.unreadCountWorker = 0
+        # Agency users - reset client unread (agency acts as the service provider side)
+        elif is_agency:
             conversation.unreadCountWorker = 0
         conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
         
@@ -2050,8 +2236,8 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
             if isinstance(upload_response, dict) and 'error' in upload_response:
                 raise Exception(f"Upload failed: {upload_response['error']}")
 
-            # Get public URL
-            public_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+            # Store the storage path (NOT the signed URL) - we'll generate signed URLs on fetch
+            # This ensures URLs don't expire since we generate fresh ones each time
 
             # Create IMAGE type message
             message = Message.objects.create(
@@ -2061,12 +2247,16 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
                 messageType="IMAGE"
             )
 
-            # Create message attachment record
+            # Create message attachment record - store the storage PATH, not signed URL
             MessageAttachment.objects.create(
                 messageID=message,
-                fileURL=public_url,
+                fileURL=storage_path,  # Store path like "chat/conversation_1/images/message_xxx.jpg"
                 fileType="IMAGE"
             )
+            
+            # Generate signed URL for immediate response
+            from iayos_project.utils import get_signed_url
+            public_url = get_signed_url('iayos_files', storage_path, expires_in=3600) or storage_path
 
             print(f"✅ Chat image uploaded: {public_url}")
 
@@ -2099,3 +2289,74 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
 
 #endregion
 
+
+#region VOICE CALLING ENDPOINTS
+
+@router.post("/call/token", auth=dual_auth)
+def get_call_token(request, conversation_id: int):
+    """
+    Generate an Agora RTC token for voice calling within a conversation.
+    
+    The token is valid for 1 hour and allows the user to join the call channel.
+    Channel name is derived from conversation_id to ensure unique channels per conversation.
+    
+    Args:
+        conversation_id: The conversation ID to initiate call in
+    
+    Returns:
+        {
+            "token": "007...",
+            "channel_name": "iayos_call_123",
+            "uid": 456,
+            "app_id": "abc123..."
+        }
+    """
+    try:
+        from .agora_token import generate_call_token
+        from .models import Conversation
+        
+        user = request.auth
+        user_id = user.id
+        
+        # Verify user has access to this conversation
+        try:
+            conversation = Conversation.objects.get(conversationID=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response({"error": "Conversation not found"}, status=404)
+        
+        # Check if user is a participant
+        profile = Profile.objects.filter(accountFK=user).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        is_client = conversation.client and conversation.client.profileID == profile.profileID
+        is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+        
+        # Also check ConversationParticipant for team jobs
+        from .models import ConversationParticipant
+        is_participant = ConversationParticipant.objects.filter(
+            conversation=conversation,
+            profile=profile
+        ).exists()
+        
+        if not (is_client or is_worker or is_participant):
+            return Response({"error": "You are not a participant in this conversation"}, status=403)
+        
+        # Generate token
+        token_data = generate_call_token(conversation_id, user_id)
+        
+        print(f"[Call Token] Generated for user {user_id} in conversation {conversation_id}")
+        
+        return token_data
+        
+    except ValueError as e:
+        print(f"❌ Agora configuration error: {str(e)}")
+        return Response({"error": "Voice calling is not configured"}, status=500)
+    except Exception as e:
+        print(f"❌ Error generating call token: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to generate call token: {str(e)}"}, status=500)
+
+
+#endregion

@@ -1,0 +1,86 @@
+### Test my-backjobs endpoint (route ordering fix)
+### This test verifies that /api/jobs/my-backjobs is correctly matched
+### instead of being parsed as /api/jobs/{job_id} with "my-backjobs" as int
+
+### Variables
+@baseUrl = http://localhost:8000
+@workerEmail = worker@example.com
+@workerPassword = password123
+@agencyEmail = agency@example.com
+@agencyPassword = password123
+
+### ============================================
+### AUTHENTICATION - Get JWT Token
+### ============================================
+
+### Login as Worker
+# @name workerLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{workerEmail}}",
+  "password": "{{workerPassword}}"
+}
+
+### Store worker token
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### Login as Agency
+# @name agencyLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{agencyEmail}}",
+  "password": "{{agencyPassword}}"
+}
+
+### Store agency token
+@agencyToken = {{agencyLogin.response.body.access_token}}
+
+### ============================================
+### MY-BACKJOBS ENDPOINT TESTS
+### ============================================
+
+### Test 1: Fetch my-backjobs as worker (should NOT return 422 int_parsing error)
+### EXPECTED: 200 OK with { backjobs: [], total: 0 } or actual backjobs data
+### PREVIOUSLY: 422 Unprocessable Entity (int_parsing error on "my-backjobs")
+GET {{baseUrl}}/api/jobs/my-backjobs
+Authorization: Bearer {{workerToken}}
+
+### Test 2: Fetch my-backjobs as agency
+### EXPECTED: 200 OK with agency's backjobs
+GET {{baseUrl}}/api/jobs/my-backjobs
+Authorization: Bearer {{agencyToken}}
+
+### Test 3: Fetch my-backjobs with status filter
+### EXPECTED: 200 OK with filtered backjobs
+GET {{baseUrl}}/api/jobs/my-backjobs?status=UNDER_REVIEW
+Authorization: Bearer {{workerToken}}
+
+### Test 4: Fetch my-backjobs without auth (should fail)
+### EXPECTED: 401 Unauthorized
+GET {{baseUrl}}/api/jobs/my-backjobs
+
+### ============================================
+### VERIFY REGULAR JOB_ID ROUTE STILL WORKS
+### ============================================
+
+### Test 5: Fetch job by ID (verify /{job_id} route still works)
+### Replace 1 with an actual job ID from your database
+### EXPECTED: 200 OK with job details or 404 if not found
+GET {{baseUrl}}/api/jobs/1
+Cookie: sessionid=your_session_cookie_here
+
+### ============================================
+### ROUTE ORDERING VERIFICATION
+### ============================================
+
+### Test 6: This should NOT match /{job_id} route
+### The string "my-backjobs" should match the literal route, not be parsed as int
+### If this returns 422 with int_parsing error, the fix failed
+GET {{baseUrl}}/api/jobs/my-backjobs
+Authorization: Bearer {{workerToken}}
+# Expected: 200 OK
+# NOT Expected: {"detail": [{"type": "int_parsing", "loc": ["path", "job_id"]}]}

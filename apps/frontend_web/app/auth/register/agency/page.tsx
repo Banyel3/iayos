@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
+import { useBarangays } from "@/lib/hooks/useLocations";
 
 // Agency registration form schema
 const agencyFormSchema = z
@@ -43,6 +44,9 @@ const agencyFormSchema = z
       .string()
       .min(5, "Street address must be at least 5 characters")
       .max(255, "Street address must be less than 255 characters"),
+    barangay: z
+      .string()
+      .min(1, "Barangay is required"),
     city: z
       .string()
       .min(2, "City must be at least 2 characters")
@@ -75,6 +79,7 @@ const AgencyRegister = () => {
       password: "",
       confirmPassword: "",
       street_address: "",
+      barangay: "",
       city: "Zamboanga City",
       province: "Zamboanga del Sur",
       postal_code: "7000",
@@ -87,6 +92,10 @@ const AgencyRegister = () => {
   const [rateLimitTime, setRateLimitTime] = useState(0);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  
+  // Fetch barangays for Zamboanga City (cityID = 1)
+  const { data: barangays, isLoading: barangaysLoading } = useBarangays(1);
+  
   // State for resend verification email functionality
   const [verificationData, setVerificationData] = useState<{
     email: string;
@@ -251,6 +260,7 @@ const AgencyRegister = () => {
       email: values.email || "",
       password: values.password || "",
       street_address: values.street_address || "",
+      barangay: values.barangay || "",
       city: values.city || "Zamboanga City",
       province: values.province || "Zamboanga del Sur",
       postal_code: values.postal_code || "7000",
@@ -817,6 +827,37 @@ const AgencyRegister = () => {
                                   className="h-12"
                                   {...field}
                                 />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={agencyForm.control}
+                          name="barangay"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Barangay
+                                <span className="text-red-500 ml-1">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <select
+                                  className="w-full h-12 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                  disabled={barangaysLoading}
+                                >
+                                  <option value="">
+                                    {barangaysLoading ? "Loading barangays..." : "Select a barangay"}
+                                  </option>
+                                  {barangays?.map((barangay) => (
+                                    <option key={barangay.barangayID} value={barangay.name}>
+                                      {barangay.name}
+                                    </option>
+                                  ))}
+                                </select>
                               </FormControl>
                               <FormMessage className="font-inter text-xs text-red-500" />
                             </FormItem>

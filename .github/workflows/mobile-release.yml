@@ -5,16 +5,7 @@ permissions:
   packages: write # Required for package operations
 
 on:
-  # Automatic trigger on mobile code changes
-  push:
-    branches:
-      - main
-      - dev
-    paths:
-      - "apps/frontend_mobile/iayos_mobile/**"
-      - "!apps/frontend_mobile/iayos_mobile/**/*.md"
-
-  # Manual trigger for on-demand releases
+  # Manual trigger only - no automatic deployments
   workflow_dispatch:
     inputs:
       version_type:
@@ -174,14 +165,14 @@ jobs:
           esac
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          
+
           # Check if this tag already exists and keep incrementing until we find an unused one
           cd ${{ github.workspace }}
           git fetch --tags
-          
+
           TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}"
           TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
-          
+
           MAX_INCREMENT=10
           INCREMENT=0
           while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
@@ -196,13 +187,13 @@ jobs:
               exit 1
             fi
           done
-          
+
           if [ $INCREMENT -gt 0 ]; then
             echo "✅ Found unused version: $NEW_VERSION (incremented $INCREMENT times)"
           fi
-          
+
           cd ${{ env.MOBILE_DIR }}
-          
+
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
@@ -225,53 +216,37 @@ jobs:
         run: npm ci
 
       # ============================================
-      # LOCAL BUILD SETUP (No EAS Cloud Credits!)
+      # EAS CLOUD BUILD (Uses resourceClass: large)
       # ============================================
-      
-      - name: Setup Java JDK 17
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
 
-      - name: Setup Android SDK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708  # Latest stable
-          
-      - name: Accept Android Licenses
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install Android Build Tools
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
-
-      - name: Build Android APK (Local - No EAS Credits!)
+      - name: Build Android APK (EAS Cloud Build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           BUILD_PROFILE="production"
-          
-          echo "🏗️ LOCAL BUILD with profile: $BUILD_PROFILE"
-          echo "✅ No EAS cloud credits consumed - building locally!"
-          
+
+          echo "🏗️ EAS CLOUD BUILD with profile: $BUILD_PROFILE"
+          echo "☁️ Building on EAS servers with resourceClass: large (16GB RAM)"
           echo "📦 Production build - ready for app store distribution"
-          
-          # Run local build (outputs APK directly, no cloud needed!)
-          # The --local flag builds on this runner instead of EAS servers
-          eas build --platform android --profile $BUILD_PROFILE --local --non-interactive --output=./build-output.apk
-          
-          # Rename to versioned filename
-          mv ./build-output.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
-          
-          echo "✅ Local build complete!"
+
+          # Build on EAS cloud (no --local flag, no metaspace errors!)
+          # Uses resourceClass: large from eas.json (16GB RAM runners)
+          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
+
+          # Download the built APK
+          echo "📥 Downloading built APK from EAS..."
+          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            echo "❌ Failed to get build URL from EAS"
+            exit 1
+          fi
+
+          curl -L --fail --retry 3 -o ./iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+
+          echo "✅ Cloud build complete!"
           ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
       - name: Download APK from EAS (if using latest build)
@@ -284,13 +259,13 @@ jobs:
           echo "   Local builds are not uploaded to Expo and cannot be reused."
           echo "   If you've been using local builds, you need to build fresh."
           echo ""
-          
+
           # Get build info
           BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
           BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
           BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // empty')
           BUILD_DATE=$(echo "$BUILD_INFO" | jq -r '.[0].createdAt // empty')
-          
+
           if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
             echo "❌ No existing EAS cloud build found!"
             echo ""
@@ -300,16 +275,16 @@ jobs:
             echo ""
             exit 1
           fi
-          
+
           echo "📦 Found EAS build:"
           echo "   Status: $BUILD_STATUS"
           echo "   Date: $BUILD_DATE"
           echo "   URL: $BUILD_URL"
           echo ""
-          
+
           echo "Downloading APK from: $BUILD_URL"
           curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
-          
+
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
@@ -358,27 +333,27 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
+
           # Use the version that was already verified to not have an existing tag
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
           TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          
+
           echo "📦 Version: $NEW_VERSION"
           echo "🏷️ Tag: $TAG_NAME"
-          
+
           echo "final_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          
+
           # Sync with remote first
           echo "🔄 Syncing with remote before committing..."
           git fetch origin ${{ github.ref_name }}
           git reset --hard origin/${{ github.ref_name }}
-          
+
           # Apply version changes
           cd ${{ env.MOBILE_DIR }}
-          
+
           npm version $NEW_VERSION --no-git-tag-version --allow-same-version
-          
+
           # Update app.json version
           node -e "
             const fs = require('fs');
@@ -386,12 +361,12 @@ jobs:
             appJson.expo.version = '$NEW_VERSION';
             fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
           "
-          
+
           cd -
-          
+
           # Now commit and push
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
-          
+
           # Check if there are changes to commit
           if git diff --cached --quiet; then
             echo "ℹ️ No version changes to commit (already at $NEW_VERSION)"
@@ -424,6 +399,27 @@ jobs:
             fi
           fi
 
+      - name: Extract Changelog
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.local_build != 'true'
+        id: changelog
+        run: |
+          echo "Extracting changelog for version ${{ steps.commit_version.outputs.final_version }}"
+          
+          # Make script executable
+          chmod +x .github/scripts/extract-changelog.sh
+          
+          # Extract changelog content
+          CHANGELOG_OUTPUT=$(./.github/scripts/extract-changelog.sh "${{ steps.commit_version.outputs.final_version }}")
+          
+          # Output to GitHub Actions (multiline)
+          echo "changelog_notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Show extracted content in logs
+          echo "📝 Changelog content extracted:"
+          echo "$CHANGELOG_OUTPUT"
+
       - name: Create Release
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.local_build != 'true'
         uses: softprops/action-gh-release@v2
@@ -446,8 +442,11 @@ jobs:
             - ✅ Production deployment
             - ✅ End users
 
-            ### Changes
-            See commit history for detailed changes.
+            ### What's Changed
+            ${{ steps.changelog.outputs.changelog_notes }}
+
+            ---
+            📖 [View Full Changelog](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/apps/frontend_mobile/iayos_mobile/CHANGELOG.md)
 
             ### Installation
             Download the APK file below and install on your Android device.
@@ -460,6 +459,52 @@ jobs:
           prerelease: ${{ github.event.inputs.is_prerelease == 'true' || github.ref_name != 'main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update DigitalOcean Mobile Version
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.ref_name == 'main'
+        env:
+          DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
+          DO_APP_ID: ${{ secrets.DO_APP_ID }}
+          NEW_VERSION: ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}
+        run: |
+          echo "📱 Updating DigitalOcean mobile version to $NEW_VERSION..."
+
+          # Get current app spec
+          echo "📋 Fetching current app spec..."
+          CURRENT_SPEC=$(curl -s -X GET "https://api.digitalocean.com/v2/apps/$DO_APP_ID" \
+            -H "Authorization: Bearer $DO_API_TOKEN" \
+            -H "Content-Type: application/json")
+
+          # Extract and update the spec with new mobile version env vars
+          # Using jq to properly update the env vars
+          UPDATED_SPEC=$(echo "$CURRENT_SPEC" | jq --arg version "$NEW_VERSION" '
+            .app.spec.services[0].envs = (
+              [.app.spec.services[0].envs[] | select(.key != "MOBILE_CURRENT_VERSION" and .key != "MOBILE_MIN_VERSION")] +
+              [{"key": "MOBILE_CURRENT_VERSION", "value": $version, "scope": "RUN_AND_BUILD_TIME", "type": "GENERAL"},
+               {"key": "MOBILE_MIN_VERSION", "value": $version, "scope": "RUN_AND_BUILD_TIME", "type": "GENERAL"}]
+            ) | .app.spec'
+          )
+
+          # Update the app with new spec
+          echo "🔄 Updating app with new mobile version env vars..."
+          UPDATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "https://api.digitalocean.com/v2/apps/$DO_APP_ID" \
+            -H "Authorization: Bearer $DO_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"spec\": $UPDATED_SPEC}")
+
+          UPDATE_HTTP_CODE=$(echo "$UPDATE_RESPONSE" | tail -n1)
+          UPDATE_BODY=$(echo "$UPDATE_RESPONSE" | head -n-1)
+
+          if [ "$UPDATE_HTTP_CODE" -eq 200 ]; then
+            echo "✅ MOBILE_CURRENT_VERSION updated to $NEW_VERSION"
+            echo "✅ MOBILE_MIN_VERSION updated to $NEW_VERSION"
+            echo "🚀 DigitalOcean will automatically redeploy with new env vars!"
+            echo "🔗 Monitor at: https://cloud.digitalocean.com/apps/$DO_APP_ID"
+          else
+            echo "❌ Failed to update DigitalOcean app (HTTP $UPDATE_HTTP_CODE)"
+            echo "Response: $UPDATE_BODY"
+            echo "::warning::DigitalOcean update failed. You may need to manually update the env vars."
+          fi
 
       - name: Summary
         if: always()

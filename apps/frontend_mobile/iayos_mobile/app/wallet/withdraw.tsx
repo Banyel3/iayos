@@ -3,12 +3,12 @@
  *
  * Features:
  * - Amount input with validation (min ₱100)
- * - Payment account selection (GCash, Bank, PayPal)
+ * - Payment account selection (GCash, Bank, PayPal, Visa, GrabPay, Maya)
  * - Balance check and display
  * - Optional notes field
- * - Payment receipt display
  * - Immediate balance deduction
  * - Success confirmation with transaction details
+ * - Manual processing (admin processes withdrawals within 1-3 business days)
  */
 
 import React, { useState, useEffect } from "react";
@@ -25,7 +25,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { WebView } from "react-native-webview";
 import { useRouter } from "expo-router";
 import {
   Colors,
@@ -37,6 +36,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useWallet, useWithdraw } from "@/lib/hooks/useWallet";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
@@ -60,8 +60,7 @@ interface WithdrawResponse {
   transaction_id: number;
   new_balance: number;
   message?: string;
-  receipt_url?: string; // Shows payment receipt/order summary
-  test_mode?: boolean;
+  withdrawal_request_id?: string;
   amount?: number;
 }
 
@@ -71,8 +70,6 @@ export default function WithdrawScreen() {
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
-  const [webViewLoading, setWebViewLoading] = useState(true);
 
   // Fetch wallet balance
   const { data: walletData, isLoading: walletLoading } = useWallet();
@@ -83,7 +80,7 @@ export default function WithdrawScreen() {
       queryKey: ["payment-methods"],
       queryFn: async () => {
         const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-        if (!response.ok) throw new Error("Failed to fetch payment methods");
+        if (!response.ok) throw new Error(await response.text() || "Failed to fetch payment methods");
         const data = (await response.json()) as PaymentMethodsResponse;
         return data;
       },
@@ -216,30 +213,25 @@ export default function WithdrawScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
             try {
-              const result = (await withdrawMutation.mutateAsync({
+              await withdrawMutation.mutateAsync({
                 amount: amountNum,
                 payment_method_id: selectedMethodId,
                 notes: notes || undefined,
-              })) as { receipt_url?: string };
+              });
 
               Haptics.notificationAsync(
                 Haptics.NotificationFeedbackType.Success,
               );
 
-              // If there's a receipt URL, show it in WebView first
-              if (result.receipt_url) {
-                setReceiptUrl(result.receipt_url);
-              } else {
-                // No receipt URL, show success modal directly
-                setShowSuccess(true);
-                setTimeout(() => {
-                  router.back();
-                }, 2000);
-              }
-            } catch (error: any) {
+              // Show success modal directly (manual processing, no receipt URL)
+              setShowSuccess(true);
+              setTimeout(() => {
+                router.back();
+              }, 2000);
+            } catch (error: unknown) {
               Alert.alert(
                 "Withdrawal Failed",
-                error.message || "An error occurred",
+                getErrorMessage(error, "An error occurred"),
               );
             }
           },
@@ -259,71 +251,8 @@ export default function WithdrawScreen() {
     );
   }
 
-  // Show payment receipt in WebView
-  if (receiptUrl) {
-    const withdrawResult = withdrawMutation.data as WithdrawResponse;
-
-    return (
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              setReceiptUrl(null);
-              setShowSuccess(true);
-            }}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Withdrawal Receipt</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        {/* WebView Loading Indicator */}
-        {webViewLoading && (
-          <View style={styles.webViewLoadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading receipt...</Text>
-          </View>
-        )}
-
-        {/* Payment Receipt WebView */}
-        <WebView
-          source={{ uri: receiptUrl }}
-          style={[styles.webView, webViewLoading && { opacity: 0 }]}
-          onLoadStart={() => setWebViewLoading(true)}
-          onLoadEnd={() => setWebViewLoading(false)}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-        />
-
-        {/* Done Button Footer */}
-        <View style={styles.webViewFooter}>
-          <View style={styles.successBadge}>
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color={Colors.success}
-            />
-            <Text style={styles.successBadgeText}>
-              ₱{amountNum.toFixed(2)} withdrawal processed
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.doneButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.doneButtonText}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   if (showSuccess) {
     const withdrawResult = withdrawMutation.data as WithdrawResponse;
-    const isTestMode = withdrawResult?.test_mode;
 
     return (
       <SafeAreaView style={styles.container}>
@@ -335,9 +264,7 @@ export default function WithdrawScreen() {
               color={Colors.success}
             />
           </View>
-          <Text style={styles.successTitle}>
-            {isTestMode ? "Withdrawal Simulated!" : "Withdrawal Successful!"}
-          </Text>
+          <Text style={styles.successTitle}>Withdrawal Submitted!</Text>
 
           {/* Receipt Card */}
           <View style={styles.receiptCard}>
@@ -360,7 +287,7 @@ export default function WithdrawScreen() {
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>To</Text>
               <Text style={styles.receiptValue}>
-                {selectedMethod?.account_name || "GCash"}
+                {selectedMethod?.account_name || "Account"}
               </Text>
             </View>
 
@@ -375,12 +302,12 @@ export default function WithdrawScreen() {
               <Text style={styles.receiptLabel}>Status</Text>
               <View style={styles.statusBadge}>
                 <Ionicons
-                  name="checkmark-circle"
+                  name="time-outline"
                   size={14}
-                  color={Colors.success}
+                  color={Colors.warning}
                 />
-                <Text style={styles.statusText}>
-                  {isTestMode ? "Simulated" : "Completed"}
+                <Text style={[styles.statusText, { color: Colors.warning }]}>
+                  Processing
                 </Text>
               </View>
             </View>
@@ -402,15 +329,13 @@ export default function WithdrawScreen() {
             </View>
           </View>
 
-          {isTestMode && (
-            <View style={styles.testModeBanner}>
-              <Ionicons name="flask-outline" size={16} color={Colors.warning} />
-              <Text style={styles.testModeText}>
-                Test Mode: In production, funds would be sent to your GCash
-                account within 1-3 business days.
-              </Text>
-            </View>
-          )}
+          {/* Processing Info Banner */}
+          <View style={styles.processingInfoBanner}>
+            <Ionicons name="information-circle" size={16} color="#2563eb" />
+            <Text style={styles.processingInfoText}>
+              Your withdrawal will be processed within 1-3 business days. You'll receive the funds via your selected payment method.
+            </Text>
+          </View>
 
           <TouchableOpacity
             style={styles.doneButton}
@@ -1140,59 +1065,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.medium,
-    color: Colors.success,
-  },
-  testModeBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FFF3E0",
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-    width: "100%",
-  },
-  testModeText: {
-    flex: 1,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.warning,
-    lineHeight: 20,
-  },
-  webView: {
-    flex: 1,
-  },
-  webViewLoadingContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: Colors.background,
-    zIndex: 10,
-  },
-  webViewFooter: {
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    ...Shadows.medium,
-  },
-  successBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    backgroundColor: "#E8F5E9",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
-  },
-  successBadgeText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semiBold,
     color: Colors.success,
   },
   doneButton: {

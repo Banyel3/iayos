@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +75,27 @@ export default function AgencyBackjobDetailPage({
 }: {
   params: { id: string };
 }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
+            <p className="text-gray-500">Loading backjob details...</p>
+          </div>
+        </div>
+      }
+    >
+      <AgencyBackjobDetailContent params={params} />
+    </Suspense>
+  );
+}
+
+function AgencyBackjobDetailContent({
+  params,
+}: {
+  params: { id: string };
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId");
@@ -104,20 +127,21 @@ export default function AgencyBackjobDetailPage({
         setBackjob(data);
       }
 
-      // Fetch job details
-      const jobResponse = await fetch(`${API_BASE}/api/jobs/${jobId}`, {
+      // Fetch job details via agency endpoint
+      const jobResponse = await fetch(`${API_BASE}/api/agency/jobs/${jobId}`, {
         credentials: "include",
       });
       if (jobResponse.ok) {
-        const jobData = await jobResponse.json();
+        const jobResult = await jobResponse.json();
+        const jobData = jobResult.job || jobResult;
         setJob({
           id: jobData.jobID || jobData.id,
           title: jobData.title,
           description: jobData.description,
           budget: parseFloat(jobData.budget),
           location: jobData.location,
-          category: jobData.categoryID?.name || jobData.category || "Unknown",
-          client: jobData.clientID?.profileID || null,
+          category: jobData.category?.name || "Unknown",
+          client: jobData.client || null,
         });
       }
     } catch (error) {
@@ -151,19 +175,26 @@ export default function AgencyBackjobDetailPage({
         setCompletionNotes("");
         // Refresh data
         await fetchBackjobDetails();
-        alert(
+        toast.success(
           "Backjob marked as complete! Client will be notified to verify and approve.",
         );
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to mark backjob complete");
+        toast.error(getErrorMessage(error, "Failed to mark backjob complete"));
       }
     } catch (error) {
       console.error("Error marking backjob complete:", error);
-      alert("Failed to mark backjob complete");
+      toast.error("Failed to mark backjob complete");
     } finally {
       setIsCompleting(false);
     }
+  };
+
+  const statusClassMap: Record<string, { border: string; bg: string; text: string; badge: string }> = {
+    blue:  { border: "border-l-blue-500",  bg: "bg-blue-100",  text: "text-blue-600",  badge: "bg-blue-100 text-blue-700" },
+    amber: { border: "border-l-amber-500", bg: "bg-amber-100", text: "text-amber-600", badge: "bg-amber-100 text-amber-700" },
+    green: { border: "border-l-green-500", bg: "bg-green-100", text: "text-green-600", badge: "bg-green-100 text-green-700" },
+    gray:  { border: "border-l-gray-500",  bg: "bg-gray-100",  text: "text-gray-600",  badge: "bg-gray-100 text-gray-700" },
   };
 
   const getStatusInfo = (status: string) => {
@@ -304,20 +335,20 @@ export default function AgencyBackjobDetailPage({
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Status Card */}
-          <Card className={`border-l-4 border-l-${statusInfo.color}-500`}>
+          <Card className={`border-l-4 ${statusClassMap[statusInfo.color]?.border || 'border-l-gray-500'}`}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2 bg-${statusInfo.color}-100 rounded-full`}
+                    className={`p-2 ${statusClassMap[statusInfo.color]?.bg || 'bg-gray-100'} rounded-full`}
                   >
                     <StatusIcon
-                      className={`w-5 h-5 text-${statusInfo.color}-600`}
+                      className={`w-5 h-5 ${statusClassMap[statusInfo.color]?.text || 'text-gray-600'}`}
                     />
                   </div>
                   <div>
                     <Badge
-                      className={`bg-${statusInfo.color}-100 text-${statusInfo.color}-700`}
+                      className={statusClassMap[statusInfo.color]?.badge || 'bg-gray-100 text-gray-700'}
                     >
                       {statusInfo.label}
                     </Badge>
@@ -583,7 +614,7 @@ export default function AgencyBackjobDetailPage({
               Cancel
             </Button>
             <Button
-              onClick={handleCompleteBackjob}
+              onClick={handleMarkBackjobComplete}
               disabled={isCompleting}
               className="bg-green-600 hover:bg-green-700"
             >

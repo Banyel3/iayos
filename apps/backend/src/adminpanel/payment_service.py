@@ -1232,9 +1232,9 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
                     'phone': job.assignedWorkerID.profileID.contactNum if job.assignedWorkerID else 'N/A'
                 } if worker else None,
                 'agency': {
-                    'id': agency.agencyID,
-                    'name': agency.agencyName,
-                    'email': agency.ownerFK.email if agency.ownerFK else 'N/A'
+                    'id': agency.agencyId,
+                    'name': agency.businessName,
+                    'email': agency.accountFK.email if agency.accountFK else 'N/A'
                 } if agency else None,
                 'evidence_images': evidence_images,
                 'transactions': [
@@ -1978,8 +1978,8 @@ def process_withdrawal_approval(
                 log_action(
                     admin=admin,
                     action='APPROVE_WITHDRAWAL',
-                    target_type='Transaction',
-                    target_id=transaction_id,
+                    entity_type='Transaction',
+                    entity_id=str(transaction_id),
                     details={
                         'amount': float(transaction.amount),
                         'user': user_name,
@@ -2036,8 +2036,8 @@ def process_withdrawal_approval(
                 log_action(
                     admin=admin,
                     action='REJECT_WITHDRAWAL',
-                    target_type='Transaction',
-                    target_id=transaction_id,
+                    entity_type='Transaction',
+                    entity_id=str(transaction_id),
                     details={
                         'amount': float(transaction.amount),
                         'user': user_name,

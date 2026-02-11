@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface KYCRecord {
   id: string;
@@ -146,7 +147,7 @@ export default function KYCManagementPage() {
       setKycRecords(transformedRecords);
     } catch (err: any) {
       console.error("Error fetching KYC data:", err);
-      setError(err.message || "An error occurred while fetching KYC data");
+      setError(getErrorMessage(err, "Failed to fetch KYC data"));
     } finally {
       setLoading(false);
     }

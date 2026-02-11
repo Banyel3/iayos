@@ -115,7 +115,12 @@ export default function TicketDetailPage() {
       const data = await response.json();
 
       if (data.success) {
-        setTicket(data.ticket);
+        // Merge messages from root level into ticket object
+        const ticketWithMessages = {
+          ...data.ticket,
+          messages: data.messages || [],
+        };
+        setTicket(ticketWithMessages);
         setNewSubject(data.ticket.subject);
       }
     } catch (error) {
@@ -454,7 +459,7 @@ export default function TicketDetailPage() {
                       size="sm"
                       className="w-full"
                       onClick={() =>
-                        router.push(`/admin/users/${ticket.user_id}`)
+                        router.push(`/admin/users/${ticket.user_profile_type?.toLowerCase()}s/${ticket.user_id}`)
                       }
                     >
                       View Profile

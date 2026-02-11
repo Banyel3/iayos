@@ -256,8 +256,13 @@ RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.
 # Give appuser ownership of working directory
 RUN chown -R appuser:appgroup /app
 
-# Setup cron job for payment buffer release (runs every hour)
+# Setup cron jobs for automated backend tasks
+# 1. Payment buffer release: Every hour at minute 0
+# 2. Friday auto-withdrawal: 10:00 AM Philippines (02:00 UTC) on Fridays
+# 3. ML price model retraining: Every Sunday at 3:00 AM Philippines (19:00 UTC Saturday)
 RUN echo "0 * * * * cd /app/apps/backend/src && /usr/local/bin/python manage.py release_pending_payments >> /var/log/cron.log 2>&1" > /etc/cron.d/payment-release \
+    && echo "0 2 * * 5 cd /app/apps/backend/src && /usr/local/bin/python manage.py process_auto_withdrawals >> /var/log/cron.log 2>&1" >> /etc/cron.d/payment-release \
+    && echo "0 19 * * 6 cd /app/apps/backend/src && /usr/local/bin/python manage.py train_price_budget >> /var/log/cron.log 2>&1" >> /etc/cron.d/payment-release \
     && chmod 0644 /etc/cron.d/payment-release \
     && crontab /etc/cron.d/payment-release \
     && touch /var/log/cron.log \

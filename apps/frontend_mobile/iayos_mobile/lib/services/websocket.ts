@@ -1,6 +1,7 @@
 // WebSocket Service for Real-Time Chat
 // Manages WebSocket connection with auto-reconnect and heartbeat
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { WS_BASE_URL } from "../api/config";
 
 type MessageHandler = (data: any) => void;
@@ -55,8 +56,8 @@ class WebSocketService {
   }
 
   // Connect to WebSocket
-  connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+  async connect(): Promise<void> {
+    return new Promise(async (resolve, reject) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         console.log("[WebSocket] Already connected");
         resolve();
@@ -68,15 +69,26 @@ class WebSocketService {
         return;
       }
 
-      console.log(`[WebSocket] Connecting to ${this.url}...`);
+      // Get JWT token from AsyncStorage for authentication
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
+        console.error("[WebSocket] No access token found, cannot connect");
+        this.connectionState = "error";
+        reject(new Error("Not authenticated"));
+        return;
+      }
+
+      // Append token to WebSocket URL for backend authentication
+      const wsUrl = `${this.url}?token=${token}`;
+      console.log(`[WebSocket] Connecting to ${wsUrl.replace(token, "XXX...")}`);
       this.connectionState = "connecting";
       this.isIntentionalClose = false;
 
       try {
-        this.ws = new WebSocket(this.url);
+        this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log("[WebSocket] ✅ Connected successfully");
+          console.log("[WebSocket] ✅ Connected successfully to", this.url);
           this.connectionState = "connected";
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
@@ -95,14 +107,15 @@ class WebSocketService {
           }
         };
 
-        this.ws.onerror = (error) => {
-          console.error("[WebSocket] ❌ Error:", error);
+        this.ws.onerror = (error: any) => {
+          console.error("[WebSocket] ❌ Error:", error?.message || error);
+          console.warn(`[WebSocket] Connection state was: ${this.connectionState}, URL: ${this.url}`);
           this.connectionState = "error";
           reject(error);
         };
 
         this.ws.onclose = (event) => {
-          console.log(`[WebSocket] Connection closed (code: ${event.code})`);
+          console.warn(`[WebSocket] Connection closed - code: ${event.code}, reason: ${event.reason || 'none'}, clean: ${event.wasClean}`);
           this.connectionState = "disconnected";
           this.stopHeartbeat();
           this.notifyDisconnectionHandlers();
@@ -155,7 +168,9 @@ class WebSocketService {
     type: "TEXT" | "IMAGE" = "TEXT"
   ): boolean {
     if (!this.isConnected()) {
-      console.warn("[WebSocket] ⚠️ Not connected, cannot send message");
+      console.warn(
+        `[WebSocket] ⚠️ Not connected (state: ${this.connectionState}), falling back to HTTP for conversation ${conversationId}`
+      );
       return false;
     }
 
@@ -168,11 +183,14 @@ class WebSocketService {
 
       this.ws!.send(JSON.stringify(payload));
       console.log(
-        `[WebSocket] 📤 Message sent to conversation ${conversationId}`
+        `[WebSocket] 📤 Message sent via WS to conversation ${conversationId}`
       );
       return true;
     } catch (error) {
-      console.error("[WebSocket] ❌ Failed to send message:", error);
+      console.error(
+        `[WebSocket] ❌ WS send failed for conversation ${conversationId}, will fall back to HTTP:`,
+        error
+      );
       return false;
     }
   }

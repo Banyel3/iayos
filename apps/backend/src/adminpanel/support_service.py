@@ -35,11 +35,17 @@ def get_tickets(
     category: Optional[str] = None,
     assigned_to: Optional[int] = None,
     search: Optional[str] = None,
+    ticket_type: Optional[str] = None,
+    agency_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Get paginated list of support tickets with filters.
+    
+    Args:
+        ticket_type: Filter by 'individual' or 'agency'
+        agency_id: Filter by specific agency ID
     """
-    queryset = SupportTicket.objects.select_related('userFK', 'assignedTo').all()
+    queryset = SupportTicket.objects.select_related('userFK', 'assignedTo', 'agencyFK').all()
     
     # Apply filters
     if status and status != 'all':
@@ -50,6 +56,10 @@ def get_tickets(
         queryset = queryset.filter(category=category)
     if assigned_to:
         queryset = queryset.filter(assignedTo_id=assigned_to)
+    if ticket_type and ticket_type != 'all':
+        queryset = queryset.filter(ticketType=ticket_type)
+    if agency_id:
+        queryset = queryset.filter(agencyFK_id=agency_id)
     if search:
         queryset = queryset.filter(
             Q(subject__icontains=search) |
@@ -73,6 +83,9 @@ def get_tickets(
                 'category': t.category,
                 'priority': t.priority,
                 'status': t.status,
+                'ticket_type': t.ticketType,
+                'agency_id': str(t.agencyFK_id) if t.agencyFK_id else None,
+                'agency_name': t.agencyFK.businessName if t.agencyFK else None,
                 'assigned_to': str(t.assignedTo_id) if t.assignedTo else None,
                 'assigned_to_name': t.assignedTo.email.split('@')[0] if t.assignedTo else None,
                 'created_at': t.createdAt.isoformat(),

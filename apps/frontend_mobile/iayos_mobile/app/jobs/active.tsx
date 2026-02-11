@@ -86,13 +86,8 @@ export default function ActiveJobsScreen() {
   };
 
   const handleJobPress = (job: ActiveJob) => {
-    // Team jobs go to main job detail (has full team support)
-    // Regular jobs go to active job detail (has completion workflow)
-    if (job.is_team_job) {
-      router.push(`/jobs/${job.id}` as any);
-    } else {
-      router.push(`/jobs/active/${job.id}` as any);
-    }
+    // All jobs now go to main job detail (completion workflow in conversation)
+    router.push(`/jobs/${job.id}` as any);
   };
 
   const getStatusInfo = (job: ActiveJob) => {
@@ -359,6 +354,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  listContainer: {
+    padding: 16,
   },
   header: {
     flexDirection: "row",

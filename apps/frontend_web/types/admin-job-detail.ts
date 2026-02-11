@@ -3,11 +3,16 @@
 export interface JobTimeline {
   job_posted: string;
   worker_assigned: string | null;
+  worker_name: string | null;
   start_initiated: string | null;
   worker_arrived: string | null;
-  worker_completed: string | null;
+  worker_marked_complete: string | null;
+  completion_photos: string[];
+  completion_notes: string | null;
   client_confirmed: string | null;
-  reviews_submitted: string | null;
+  client_reviewed: string | null;
+  worker_reviewed: string | null;
+  reviews_complete: boolean;
 }
 
 export interface JobPhoto {

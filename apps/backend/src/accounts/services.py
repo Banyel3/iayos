@@ -75,6 +75,7 @@ def create_account_individ(data):
         email=data.email,
         password=data.password,
         street_address=data.street_address,
+        barangay=data.barangay,
         city=data.city,
         province=data.province,
         postal_code=data.postal_code,
@@ -149,6 +150,11 @@ def create_account_agency(data):
     profile = Agency.objects.create(
         accountFK=user,
         businessName=data.businessName,
+        street_address=data.street_address,
+        barangay=data.barangay,
+        city=data.city,
+        province=data.province,
+        postal_code=data.postal_code,
         businessDesc=""  # Provide empty string for required field
     )
 
@@ -214,7 +220,7 @@ def generateCookie(user, profile_type=None):
         'user_id': user.accountID,
         'email': user.email,
         'profile_type': profile_type,  # Include profile type in JWT
-        'exp': now + timedelta(hours=1),  # Access token: 1 hour
+        'exp': now + settings.JWT_ACCESS_TOKEN_LIFETIME,  # From settings (default: 1 hour)
         'iat': now
     }
 
@@ -222,7 +228,7 @@ def generateCookie(user, profile_type=None):
         'user_id': user.accountID,
         'email': user.email,
         'profile_type': profile_type,  # Include profile type in JWT
-        'exp': now + timedelta(days=7),  # Refresh token: 7 days
+        'exp': now + settings.JWT_REFRESH_TOKEN_LIFETIME,  # From settings (default: 7 days)
         'iat': now
     }
 
@@ -427,11 +433,12 @@ def refresh_token(expired_token):
         # Get the user
         user = Accounts.objects.get(accountID=payload['user_id'])
 
-        # Create new access token
+        # Create new access token (preserve profile_type from refresh token)
         access_payload = {
             'user_id': user.accountID,
             'email': user.email,
-            'exp': timezone.now() + timedelta(minutes=60),  # 1 hour
+            'profile_type': payload.get('profile_type'),
+            'exp': timezone.now() + settings.JWT_ACCESS_TOKEN_LIFETIME,
             'iat': timezone.now(),
         }
 
@@ -446,6 +453,7 @@ def refresh_token(expired_token):
             httponly=True,
             secure=is_production,
             samesite='Lax',
+            max_age=int(settings.JWT_ACCESS_TOKEN_LIFETIME.total_seconds()),
             domain=cookie_domain,
         )
         return response
@@ -663,10 +671,23 @@ def assign_role(data):
         print(f"❌ Error assigning role: {str(e)}")
         raise ValueError(f"Failed to assign role: {str(e)}")
 
-def upload_kyc_document(payload, frontID, backID, clearance, selfie):
+def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None):
+    """
+    Upload KYC documents to storage and create database records.
+    
+    Args:
+        payload: KYC upload schema with accountID, IDType, clearanceType
+        frontID, backID, clearance, selfie: File objects
+        skip_ai_verification: If True (default), skip AI verification since 
+                              per-step validation already happened via /validate-document.
+                              Set to False to run full AI verification during upload.
+        extracted_id_data: User-confirmed ID extraction data from per-step /extract-id endpoint
+        extracted_clearance_data: User-confirmed clearance extraction data from per-step /extract-clearance endpoint
+    """
     try:
         print(f"🔍 Starting KYC document upload for accountID: {payload.accountID}")
         print(f"   IDType: {payload.IDType}, ClearanceType: {payload.clearanceType}")
+        print(f"   skip_ai_verification: {skip_ai_verification}")
         
         user = Accounts.objects.get(accountID=payload.accountID)
         print(f"✅ User found: {user.email}")
@@ -802,40 +823,47 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             elif key == 'SELFIE':
                 document_type_for_verification = 'SELFIE'
 
-            # Run AI verification on the document
-            print(f"🤖 Running AI verification for {key} (type: {document_type_for_verification})...")
+            # Run AI verification on the document (only if not skipped)
+            verification_result = None
+            should_reject = False
             
-            try:
-                verification_result = verify_kyc_document(
-                    file_data=file_data,
-                    document_type=document_type_for_verification,
-                    file_name=unique_filename
-                )
-                verification_results.append({
-                    "key": key,
-                    "result": verification_result
-                })
+            if skip_ai_verification:
+                # Skip AI - per-step validation already validated via /validate-document
+                print(f"⏭️  Skipping AI verification for {key} (per-step validation already done)")
+            else:
+                print(f"🤖 Running AI verification for {key} (type: {document_type_for_verification})...")
                 
-                # Check if this document should be auto-rejected
-                should_reject, rejection_message = should_auto_reject(verification_result)
-                
-                if should_reject:
-                    any_failed = True
-                    failure_messages.append(f"{key}: {rejection_message}")
-                    print(f"❌ AI Verification FAILED for {key}: {rejection_message}")
-                else:
-                    print(f"✅ AI Verification PASSED for {key}: confidence={verification_result.confidence_score:.2f}")
-                
-            except Exception as ve:
-                print(f"⚠️  AI Verification ERROR for {key}: {str(ve)}")
-                # Don't fail the upload, just log warning
-                verification_result = None
-                verification_results.append({
-                    "key": key,
-                    "result": None,
-                    "error": str(ve)
-                })
-                should_reject = False  # Default to not rejecting on error
+                try:
+                    verification_result = verify_kyc_document(
+                        file_data=file_data,
+                        document_type=document_type_for_verification,
+                        file_name=unique_filename
+                    )
+                    verification_results.append({
+                        "key": key,
+                        "result": verification_result
+                    })
+                    
+                    # Check if this document should be auto-rejected
+                    should_reject, rejection_message = should_auto_reject(verification_result)
+                    
+                    if should_reject:
+                        any_failed = True
+                        failure_messages.append(f"{key}: {rejection_message}")
+                        print(f"❌ AI Verification FAILED for {key}: {rejection_message}")
+                    else:
+                        print(f"✅ AI Verification PASSED for {key}: confidence={verification_result.confidence_score:.2f}")
+                    
+                except Exception as ve:
+                    print(f"⚠️  AI Verification ERROR for {key}: {str(ve)}")
+                    # Don't fail the upload, just log warning
+                    verification_result = None
+                    verification_results.append({
+                        "key": key,
+                        "result": None,
+                        "error": str(ve)
+                    })
+                    should_reject = False  # Default to not rejecting on error
 
             print(f"💾 Creating kycFiles record: idType={id_type}, fileURL={file_url}")
             
@@ -881,9 +909,12 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
 
         # ============================================
         # FACE MATCHING: Compare selfie with ID photo
+        # (Skipped if skip_ai_verification=True)
         # ============================================
         face_match_result = None
-        if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
+        if skip_ai_verification:
+            print("⏭️  Skipping face matching (per-step validation already done)")
+        elif 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
             print("🔍 Starting face matching between ID and selfie...")
             try:
                 face_match_result = verify_face_match(
@@ -923,7 +954,8 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             print(f"⏭️  Skipping face matching - missing: {', '.join(missing)}")
 
         # If any document failed AI verification, set KYC status to REJECTED
-        if any_failed:
+        # (Only applies when skip_ai_verification=False)
+        if any_failed and not skip_ai_verification:
             kyc_record.kyc_status = 'REJECTED'
             # Format rejection messages in a user-friendly way with bullet points
             formatted_reasons = "\n".join([f"• {msg}" for msg in failure_messages])
@@ -948,18 +980,93 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         if saved_files_count != len(uploaded_files):
             print(f"⚠️  WARNING: Mismatch between uploaded ({len(uploaded_files)}) and saved ({saved_files_count}) files!")
 
-        # Trigger KYC extraction to populate auto-fill data
-        try:
-            from .kyc_extraction_service import trigger_kyc_extraction_after_upload
-            print("🚀 [KYC UPLOAD] Triggering auto-fill extraction...")
-            trigger_kyc_extraction_after_upload(kyc_record, face_match_result=face_match_result)
-            print("✅ [KYC UPLOAD] Auto-fill extraction triggered successfully")
-        except Exception as ext_error:
-            print(f"❌ [KYC UPLOAD] KYC extraction failed: {str(ext_error)}")
-            print(f"   Error type: {type(ext_error).__name__}")
-            import traceback
-            print(f"   Traceback:\n{traceback.format_exc()}")
-            # Don't fail KYC upload if extraction fails - admin can still verify manually
+        # Store user-confirmed extraction data directly (from per-step /extract-id and /extract-clearance)
+        # This replaces the old trigger_kyc_extraction_after_upload() which re-extracted from OCR
+        if extracted_id_data or extracted_clearance_data:
+            try:
+                from .models import KYCExtractedData
+                print(f"💾 [KYC UPLOAD] Storing user-confirmed extraction data...")
+                
+                extracted, created = KYCExtractedData.objects.get_or_create(
+                    kycID=kyc_record,
+                    defaults={'extraction_status': 'CONFIRMED'}
+                )
+                
+                # Store ID extraction data
+                if extracted_id_data:
+                    if isinstance(extracted_id_data, str):
+                        import json
+                        extracted_id_data = json.loads(extracted_id_data)
+                    
+                    # Map frontend field names to model fields
+                    field_mapping = {
+                        'full_name': 'extracted_full_name',
+                        'fullName': 'extracted_full_name',
+                        'first_name': 'extracted_first_name',
+                        'firstName': 'extracted_first_name',
+                        'last_name': 'extracted_last_name',
+                        'lastName': 'extracted_last_name',
+                        'middle_name': 'extracted_middle_name',
+                        'middleName': 'extracted_middle_name',
+                        'id_number': 'extracted_id_number',
+                        'idNumber': 'extracted_id_number',
+                        'birth_date': 'extracted_birth_date',
+                        'birthDate': 'extracted_birth_date',
+                        'date_of_birth': 'extracted_birth_date',
+                        'address': 'extracted_address',
+                        'sex': 'extracted_sex',
+                        'gender': 'extracted_sex',
+                    }
+                    
+                    for frontend_key, model_field in field_mapping.items():
+                        if frontend_key in extracted_id_data:
+                            value = extracted_id_data[frontend_key]
+                            # Handle nested objects with 'value' key
+                            if isinstance(value, dict) and 'value' in value:
+                                value = value['value']
+                            if value:
+                                setattr(extracted, model_field, value)
+                                print(f"   📝 Set {model_field} = '{value[:50] if isinstance(value, str) and len(value) > 50 else value}'")
+                
+                # Store clearance extraction data
+                if extracted_clearance_data:
+                    if isinstance(extracted_clearance_data, str):
+                        import json
+                        extracted_clearance_data = json.loads(extracted_clearance_data)
+                    
+                    clearance_mapping = {
+                        'clearance_number': 'extracted_clearance_number',
+                        'clearanceNumber': 'extracted_clearance_number',
+                        'nbi_number': 'extracted_clearance_number',
+                        'nbiNumber': 'extracted_clearance_number',
+                        'issue_date': 'extracted_clearance_issue_date',
+                        'issueDate': 'extracted_clearance_issue_date',
+                        'valid_until': 'extracted_clearance_validity_date',
+                        'validUntil': 'extracted_clearance_validity_date',
+                        'expiry_date': 'extracted_clearance_validity_date',
+                        'expiryDate': 'extracted_clearance_validity_date',
+                    }
+                    
+                    for frontend_key, model_field in clearance_mapping.items():
+                        if frontend_key in extracted_clearance_data:
+                            value = extracted_clearance_data[frontend_key]
+                            if isinstance(value, dict) and 'value' in value:
+                                value = value['value']
+                            if value:
+                                setattr(extracted, model_field, value)
+                                print(f"   📝 Set {model_field} = '{value}'")
+                
+                extracted.extraction_status = 'CONFIRMED'
+                extracted.save()
+                print(f"✅ [KYC UPLOAD] User-confirmed data stored to KYCExtractedData")
+                
+            except Exception as ext_error:
+                print(f"⚠️ [KYC UPLOAD] Failed to store extraction data: {str(ext_error)}")
+                import traceback
+                traceback.print_exc()
+                # Don't fail upload - admin can still verify manually
+        else:
+            print(f"ℹ️ [KYC UPLOAD] No extraction data provided - admin will extract manually")
 
         return {
             "message": "KYC documents uploaded successfully",
@@ -1047,7 +1154,7 @@ def get_pending_kyc_submissions():
         raise ValueError(f"Failed to fetch pending KYC: {str(e)}")
 
 
-def get_user_notifications(user_account_id, limit=50, unread_only=False):
+def get_user_notifications(user_account_id, limit=50, unread_only=False, profile_type=None):
     """
     Fetch notifications for a specific user.
     
@@ -1055,14 +1162,27 @@ def get_user_notifications(user_account_id, limit=50, unread_only=False):
         user_account_id: The account ID of the user
         limit: Maximum number of notifications to return (default 50)
         unread_only: If True, only return unread notifications
+        profile_type: Filter by profile type (WORKER or CLIENT). 
+                     If None, returns notifications with null profile_type only (account-level).
+                     If provided, returns notifications for that profile type AND null profile_type.
         
     Returns:
         List of notification dictionaries
     """
     from .models import Notification
+    from django.db.models import Q
     
     try:
         queryset = Notification.objects.filter(accountFK__accountID=user_account_id)
+        
+        # Filter by profile_type: show notifications for the specific profile + account-level (null)
+        if profile_type:
+            queryset = queryset.filter(
+                Q(profile_type=profile_type) | Q(profile_type__isnull=True)
+            )
+        else:
+            # If no profile_type provided, only show account-level notifications
+            queryset = queryset.filter(profile_type__isnull=True)
         
         if unread_only:
             queryset = queryset.filter(isRead=False)
@@ -1080,6 +1200,7 @@ def get_user_notifications(user_account_id, limit=50, unread_only=False):
                 "createdAt": notif.createdAt.isoformat(),
                 "readAt": notif.readAt.isoformat() if notif.readAt else None,
                 "relatedKYCLogID": notif.relatedKYCLogID,
+                "profileType": notif.profile_type,
             })
         
         return notifications
@@ -1152,23 +1273,38 @@ def mark_all_notifications_as_read(user_account_id):
         raise
 
 
-def get_unread_notification_count(user_account_id):
+def get_unread_notification_count(user_account_id, profile_type=None):
     """
     Get the count of unread notifications for a user.
 
     Args:
         user_account_id: The account ID of the user
+        profile_type: Filter by profile type (WORKER or CLIENT).
+                     If None, counts only account-level notifications.
+                     If provided, counts profile-specific + account-level notifications.
 
     Returns:
         Integer count of unread notifications
     """
     from .models import Notification
+    from django.db.models import Q
 
     try:
-        count = Notification.objects.filter(
+        queryset = Notification.objects.filter(
             accountFK__accountID=user_account_id,
             isRead=False
-        ).count()
+        )
+        
+        # Filter by profile_type: count notifications for the specific profile + account-level (null)
+        if profile_type:
+            queryset = queryset.filter(
+                Q(profile_type=profile_type) | Q(profile_type__isnull=True)
+            )
+        else:
+            # If no profile_type provided, only count account-level notifications
+            queryset = queryset.filter(profile_type__isnull=True)
+        
+        count = queryset.count()
 
         return count
 

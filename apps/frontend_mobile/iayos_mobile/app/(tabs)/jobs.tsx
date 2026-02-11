@@ -654,7 +654,7 @@ export default function JobsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="jobs-screen">
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -673,6 +673,7 @@ export default function JobsScreen() {
                 style={styles.iconButton}
                 onPress={() => router.push("/jobs/my-backjobs" as any)}
                 activeOpacity={0.7}
+                testID="jobs-backjobs-button"
               >
                 <View>
                   <Ionicons
@@ -694,6 +695,7 @@ export default function JobsScreen() {
               style={styles.iconButton}
               onPress={() => router.push("/jobs/search" as any)}
               activeOpacity={0.7}
+              testID="jobs-search-button"
             >
               <Ionicons
                 name="search-outline"
@@ -705,6 +707,7 @@ export default function JobsScreen() {
               style={styles.iconButton}
               onPress={() => router.push("/jobs/saved" as any)}
               activeOpacity={0.7}
+              testID="jobs-saved-button"
             >
               <Ionicons name="heart-outline" size={22} color={Colors.error} />
             </TouchableOpacity>
@@ -714,6 +717,7 @@ export default function JobsScreen() {
                 style={styles.postJobButton}
                 onPress={() => setShowJobTypeModal(true)}
                 activeOpacity={0.7}
+                testID="jobs-post-job-button"
               >
                 <Ionicons name="add" size={18} color={Colors.white} />
                 <Text style={styles.postJobButtonText}>Post</Text>
@@ -729,6 +733,7 @@ export default function JobsScreen() {
               style={[styles.tab, activeTab === "open" && styles.tabActive]}
               onPress={() => setActiveTab("open")}
               activeOpacity={0.7}
+              testID="jobs-tab-open"
             >
               <Text
                 style={[
@@ -746,6 +751,7 @@ export default function JobsScreen() {
               style={[styles.tab, activeTab === "pending" && styles.tabActive]}
               onPress={() => setActiveTab("pending")}
               activeOpacity={0.7}
+              testID="jobs-tab-pending"
             >
               <Text
                 style={[
@@ -763,6 +769,7 @@ export default function JobsScreen() {
               style={[styles.tab, activeTab === "requests" && styles.tabActive]}
               onPress={() => setActiveTab("requests")}
               activeOpacity={0.7}
+              testID="jobs-tab-requests"
             >
               <Text
                 style={[
@@ -783,6 +790,7 @@ export default function JobsScreen() {
               ]}
               onPress={() => setActiveTab("applications")}
               activeOpacity={0.7}
+              testID="jobs-tab-applications"
             >
               <Text
                 style={[
@@ -799,6 +807,7 @@ export default function JobsScreen() {
             style={[styles.tab, activeTab === "inProgress" && styles.tabActive]}
             onPress={() => setActiveTab("inProgress")}
             activeOpacity={0.7}
+            testID="jobs-tab-in-progress"
           >
             <Text
               style={[
@@ -814,6 +823,7 @@ export default function JobsScreen() {
             style={[styles.tab, activeTab === "past" && styles.tabActive]}
             onPress={() => setActiveTab("past")}
             activeOpacity={0.7}
+            testID="jobs-tab-past"
           >
             <Text
               style={[
@@ -1183,6 +1193,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  listContainer: {
+    padding: 16,
   },
   header: {
     flexDirection: "row",

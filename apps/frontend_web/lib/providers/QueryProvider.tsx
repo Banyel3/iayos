@@ -43,7 +43,7 @@ export default function QueryProvider({
             refetchOnMount: "always", // Always refetch but show cached data first
             refetchOnReconnect: true,
             // This is the key: use cached data while refetching
-            placeholderData: (previousData) => previousData,
+            placeholderData: (previousData: unknown) => previousData,
           },
         },
       })

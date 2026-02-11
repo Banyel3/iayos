@@ -27,6 +27,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   useWorkerProfileScore,
@@ -115,7 +116,7 @@ const WorkerDetailSkeleton = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)")}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -320,7 +321,7 @@ export default function WorkerDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)")}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -334,7 +335,7 @@ export default function WorkerDetailScreen() {
           />
           <Text style={styles.errorText}>Failed to load worker details</Text>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)")}
             style={styles.retryButton}
           >
             <Text style={styles.retryText}>Go Back</Text>
@@ -360,7 +361,7 @@ export default function WorkerDetailScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)")}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

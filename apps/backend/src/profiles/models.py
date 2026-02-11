@@ -511,7 +511,8 @@ class MessageAttachment(models.Model):
         related_name='attachments'
     )
     
-    fileURL = models.CharField(max_length=255)
+    # Increased from 255 to 1024 to support signed URLs with tokens
+    fileURL = models.CharField(max_length=1024)
     fileName = models.CharField(max_length=255, null=True, blank=True)
     fileSize = models.IntegerField(null=True, blank=True)  # Size in bytes
     fileType = models.CharField(max_length=50, null=True, blank=True)  # MIME type

@@ -90,6 +90,7 @@ class CookieJWTAuth:
                 new_access_payload = {
                     'user_id': user.accountID,
                     'email': user.email,
+                    'profile_type': refresh_payload.get('profile_type'),
                     'exp': datetime.utcnow() + timedelta(hours=1),
                     'iat': datetime.utcnow(),
                 }

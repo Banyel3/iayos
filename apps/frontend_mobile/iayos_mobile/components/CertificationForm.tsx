@@ -34,6 +34,7 @@ import {
   type CreateCertificationRequest,
   type UpdateCertificationRequest,
 } from "@/lib/hooks/useCertifications";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 // ===== TYPES =====
@@ -68,7 +69,7 @@ function validateForm(
   name: string,
   organization: string,
   issueDate: Date,
-  expiryDate: Date | null
+  expiryDate: Date | null,
 ): FormErrors {
   const errors: FormErrors = {};
 
@@ -108,7 +109,7 @@ export default function CertificationForm({
   const createCertification = useCreateCertification();
   const updateCertification = useUpdateCertification();
 
-  // Fetch worker's skills using the dedicated endpoint
+  // Fetch user's current skills (only show skills they've added to profile)
   interface MySkillsResponse {
     success: boolean;
     data: Array<{
@@ -126,19 +127,20 @@ export default function CertificationForm({
     isLoading: skillsLoading,
     error: skillsError,
   } = useQuery({
-    queryKey: ["my-skills"],
+    queryKey: ["my-skills-for-cert"],
     queryFn: async () => {
       console.log(
-        "🔍 [CertificationForm] Fetching skills from:",
-        ENDPOINTS.MY_SKILLS
+        "🔍 [CertificationForm] Fetching my skills from:",
+        ENDPOINTS.MY_SKILLS,
       );
       const response = await apiRequest(ENDPOINTS.MY_SKILLS);
       console.log("🔍 [CertificationForm] Response status:", response.status);
-      if (!response.ok) throw new Error("Failed to fetch skills");
+      if (!response.ok)
+        throw new Error((await response.text()) || "Failed to fetch skills");
       const data = await response.json();
       console.log(
-        "🔍 [CertificationForm] Skills response:",
-        JSON.stringify(data, null, 2)
+        "🔍 [CertificationForm] My skills response:",
+        JSON.stringify(data, null, 2),
       );
       return data as MySkillsResponse;
     },
@@ -149,7 +151,7 @@ export default function CertificationForm({
     id: s.id, // This is specializationID, used to link certification
     specializationId: s.id,
     name: s.name,
-    experienceYears: s.experienceYears,
+    experienceYears: s.experienceYears || 0,
     certificationCount: 0,
   }));
 
@@ -157,6 +159,10 @@ export default function CertificationForm({
   console.log("🔍 [CertificationForm] Mapped skills array:", skills);
   console.log("🔍 [CertificationForm] skillsLoading:", skillsLoading);
   console.log("🔍 [CertificationForm] skillsError:", skillsError);
+  console.log(
+    "🔍 [CertificationForm] No skills?",
+    skills.length === 0 ? "Add skills in profile first" : "",
+  );
 
   // Skill picker modal state
   const [showSkillPicker, setShowSkillPicker] = useState(false);
@@ -236,7 +242,7 @@ export default function CertificationForm({
       name,
       organization,
       issueDate,
-      hasExpiry ? expiryDate : null
+      hasExpiry ? expiryDate : null,
     );
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
@@ -271,20 +277,20 @@ export default function CertificationForm({
             Alert.alert("Success", "Certification updated successfully");
             onClose();
           },
-          onError: (error: Error) => {
+          onError: (error: unknown) => {
             Alert.alert(
               "Error",
-              error.message || "Failed to update certification"
+              getErrorMessage(error, "Failed to update certification"),
             );
           },
-        }
+        },
       );
     } else {
       // Create mode
       if (selectedSkillId <= 0) {
         Alert.alert(
           "Skill Required",
-          "Please select a skill for this certification"
+          "Please select a skill for this certification",
         );
         return;
       }
@@ -316,8 +322,11 @@ export default function CertificationForm({
           resetForm();
           onClose();
         },
-        onError: (error: Error) => {
-          Alert.alert("Error", error.message || "Failed to add certification");
+        onError: (error: unknown) => {
+          Alert.alert(
+            "Error",
+            getErrorMessage(error, "Failed to add certification"),
+          );
         },
       });
     }
@@ -339,7 +348,7 @@ export default function CertificationForm({
               onClose();
             },
           },
-        ]
+        ],
       );
     } else {
       onClose();

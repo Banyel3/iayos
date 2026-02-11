@@ -53,6 +53,10 @@ env:
   API_URL: "https://api.iayos.online"
   # App package name (must match app.json and build.gradle)
   APP_ID: "com.devante.iayos"
+  # Test database connection (set in GitHub Secrets)
+  # This tells the backend to use the test database instead of production
+  # Database name MUST contain "test" for cleanup endpoint to work
+  DATABASE_TEST_URL: ${{ secrets.DATABASE_TEST_URL }}
 
 jobs:
   maestro-tests:

@@ -236,6 +236,40 @@ class PayMongoService(PaymentProviderInterface):
             metadata={"payment_type": "wallet_deposit"}
         )
     
+    # TODO: REMOVE FOR PROD - Testing only GCash direct payment
+    # This method bypasses QR PH and redirects directly to GCash app
+    # Use this when QR PH doesn't work in PayMongo test mode
+    def create_gcash_direct_payment(
+        self,
+        amount: float,
+        user_email: str,
+        user_name: str,
+        transaction_id: int,
+        description: str = None,
+        success_url: str = None,
+        failure_url: str = None
+    ) -> Dict[str, Any]:
+        """
+        TODO: REMOVE FOR PROD - Testing only
+        Create direct GCash payment for testing deposits.
+        Unlike QR PH, this redirects directly to GCash app/web.
+        Only available when TESTING=true in environment.
+        """
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        
+        return self.create_checkout_session(
+            amount=amount,
+            currency="PHP",
+            description=description or f"Wallet Deposit (Card) - ₱{amount}",
+            user_email=user_email,
+            user_name=user_name,
+            transaction_id=transaction_id,
+            payment_methods=["card"],  # Card payment - works in PayMongo test mode
+            success_url=success_url or f"{frontend_url}/dashboard/profile?payment=success",
+            failure_url=failure_url or f"{frontend_url}/dashboard/profile?payment=failed",
+            metadata={"payment_type": "wallet_deposit", "method": "card"}
+        )
+    
     def create_escrow_payment(
         self,
         amount: float,

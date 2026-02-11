@@ -2,18 +2,18 @@
 Payment Provider Abstraction Layer
 ===================================
 Provides a unified interface for payment gateway operations.
-Currently supports: PayMongo (primary), Xendit (legacy)
+
+Primary Provider: PayMongo
+Deprecated: Xendit (kept for legacy webhook handling only)
+
+NOTE: As of February 2026, PayMongo is the only active payment provider.
+Xendit support is deprecated and maintained only for processing historical
+transaction webhooks. Do not use Xendit for new transactions.
 
 This abstraction allows:
-1. Easy switching between payment providers via config
-2. Consistent API across all payment flows
-3. Clean separation of payment logic from business logic
-4. Graceful migration from Xendit to PayMongo
-
-Configuration:
-    Set PAYMENT_PROVIDER in settings.py or .env:
-    - "paymongo" (default, recommended)
-    - "xendit" (legacy, for rollback)
+1. Consistent API across all payment flows
+2. Clean separation of payment logic from business logic
+3. Legacy webhook handling for historical Xendit transactions
 """
 
 from abc import ABC, abstractmethod
@@ -170,22 +170,14 @@ class PaymentProviderInterface(ABC):
 
 def get_payment_provider() -> PaymentProviderInterface:
     """
-    Factory function to get the configured payment provider.
+    Factory function to get the payment provider.
     
-    Reads PAYMENT_PROVIDER from settings, defaults to 'paymongo'.
+    Returns PayMongo as the only active provider.
+    Xendit is deprecated and only used for legacy webhook processing.
     """
-    provider_name = getattr(settings, 'PAYMENT_PROVIDER', 'paymongo').lower()
-    
-    if provider_name == 'paymongo':
-        from .paymongo_service import PayMongoService
-        return PayMongoService()
-    elif provider_name == 'xendit':
-        from .xendit_provider import XenditProvider
-        return XenditProvider()
-    else:
-        logger.warning(f"Unknown payment provider '{provider_name}', falling back to PayMongo")
-        from .paymongo_service import PayMongoService
-        return PayMongoService()
+    # Always use PayMongo for new transactions
+    from .paymongo_service import PayMongoService
+    return PayMongoService()
 
 
 # Status mapping constants for consistent status handling

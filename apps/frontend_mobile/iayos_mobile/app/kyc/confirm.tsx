@@ -164,7 +164,6 @@ export default function KYCConfirmScreen() {
     extractedFields,
     getFieldValue,
     getFieldConfidence,
-    getConfidenceColor,
     isLoading: autofillLoading,
     isError,
     error,

@@ -330,6 +330,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] =
     useState<number>(0);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [adminUser, setAdminUser] = useState<{ name: string; email: string; role: string } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
@@ -444,6 +445,34 @@ export default function Sidebar({ className }: SidebarProps) {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Fetch admin user info on mount
+  useEffect(() => {
+    const fetchAdminUser = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/accounts/me`, {
+          credentials: "include",
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setAdminUser({
+              name: data.user.first_name && data.user.last_name 
+                ? `${data.user.first_name} ${data.user.last_name}`
+                : data.user.email?.split('@')[0] || 'Admin',
+              email: data.user.email || '',
+              role: data.user.is_superuser ? 'Super Admin' : 'Administrator',
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching admin user:", error);
+      }
+    };
+
+    fetchAdminUser();
   }, []);
 
   // Update navigation with dynamic KYC and Certifications counts
@@ -679,7 +708,9 @@ export default function Sidebar({ className }: SidebarProps) {
               {item.children && isExpanded && !collapsed && (
                 <div className="mt-1 ml-6 space-y-1 animate-in slide-in-from-top-2 fade-in duration-300">
                   {item.children.map((child) => {
-                    const isChildActiveItem = pathname.startsWith(child.href);
+                    const isChildActiveItem = child.href === item.children![0]?.href && item.children!.length > 1
+                      ? pathname === child.href
+                      : pathname.startsWith(child.href);
                     const ChildIcon = child.icon;
 
                     return (
@@ -725,14 +756,14 @@ export default function Sidebar({ className }: SidebarProps) {
         >
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-              VC
+              {adminUser?.name ? adminUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
             </div>
             {!collapsed && (
               <div className="text-left">
                 <div className="text-sm font-medium text-gray-700">
-                  Vaniel Cornelio
+                  {adminUser?.name || 'Admin User'}
                 </div>
-                <div className="text-xs text-gray-500">Administrator</div>
+                <div className="text-xs text-gray-500">{adminUser?.role || 'Administrator'}</div>
               </div>
             )}
           </div>

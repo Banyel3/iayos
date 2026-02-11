@@ -194,8 +194,9 @@ def create_team_job(
             description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
         )
     
-    # Note: Team group conversation is created when job STARTS (not when posted)
-    # This follows the single-job pattern where conversation is created at work start
+    # NOTE: Conversation is NOT created here. It will be created automatically
+    # when all skill slots are filled (in accept_team_application) or when the
+    # client force-starts the job (in start_team_job).
     
     return {
         'success': True,
@@ -872,6 +873,35 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             'error': f'{incomplete_count} worker(s) have not yet marked their work as complete'
         }
     
+    # ==========================================================================
+    # CRITICAL: Pre-validate wallet balance BEFORE marking job as complete
+    # This prevents the bug where job is marked COMPLETED but payment fails
+    # ==========================================================================
+    payment_method_upper = (payment_method or 'WALLET').upper()
+    
+    if payment_method_upper == 'WALLET':
+        from accounts.models import Wallet
+        from decimal import Decimal
+        
+        # Get or create wallet for client
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=client_user,
+            defaults={'balance': Decimal('0')}
+        )
+        
+        # Calculate remaining payment (50% of budget)
+        remaining_amount = job.budget * Decimal('0.5')
+        
+        # Check if client has sufficient balance BEFORE proceeding
+        if wallet.balance < remaining_amount:
+            print(f"❌ [TeamJob] Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
+            return {
+                'success': False,
+                'error': f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} but only have ₱{wallet.balance:,.2f}. Please deposit more funds or choose CASH payment.'
+            }
+        
+        print(f"✅ [TeamJob] Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
+    
     # Mark job as completed
     old_status = job.status
     job.status = 'COMPLETED'
@@ -897,6 +927,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             conversation.status = Conversation.ConversationStatus.COMPLETED
             conversation.save()
             print(f"✅ Team conversation {conversation.conversationID} closed for completed team job {job_id}")
+            
+            # Auto-archive if both parties have reviewed
+            from profiles.conversation_service import archive_conversation, should_auto_archive
+            if should_auto_archive(conversation):
+                archive_result = archive_conversation(conversation)
+                print(f"📦 {archive_result.get('message', 'Team conversation auto-archived')}")
     except Exception as e:
         print(f"⚠️ Failed to close team conversation: {str(e)}")
     

@@ -49,6 +49,8 @@ interface AssignEmployeesModalProps {
     primaryContactId: number,
     notes: string,
   ) => Promise<void>;
+  maxEmployees?: number; // Limit number of employees that can be selected (default: unlimited)
+  isPendingInvite?: boolean; // True if this is part of accepting a pending invite
 }
 
 export default function AssignEmployeesModal({
@@ -57,6 +59,8 @@ export default function AssignEmployeesModal({
   job,
   employees,
   onAssign,
+  maxEmployees,
+  isPendingInvite = false,
 }: AssignEmployeesModalProps) {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<number>>(
     new Set(),
@@ -116,6 +120,18 @@ export default function AssignEmployeesModal({
           setPrimaryContactId(remaining.length > 0 ? remaining[0] : null);
         }
       } else {
+        // Check if we've hit the max limit
+        if (maxEmployees && newSet.size >= maxEmployees) {
+          // If limit is 1, just replace the selection
+          if (maxEmployees === 1) {
+            newSet.clear();
+            newSet.add(employeeId);
+            setPrimaryContactId(employeeId);
+            return newSet;
+          }
+          // Otherwise, don't add more
+          return prev;
+        }
         newSet.add(employeeId);
         // If this is the first selection, make them primary contact
         if (newSet.size === 1) {
@@ -184,9 +200,18 @@ export default function AssignEmployeesModal({
           <div>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <Users className="text-blue-600" size={24} />
-              Assign Team to Job
+              {isPendingInvite 
+                ? (maxEmployees === 1 ? "Accept Invite & Assign Employee" : "Accept Invite & Assign Team")
+                : (maxEmployees === 1 ? "Assign Employee" : "Assign Team to Job")}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">{job?.title}</p>
+            <p className="text-sm text-gray-600 mt-1">
+              {job?.title}
+              {maxEmployees === 1 && (
+                <span className="ml-2 text-orange-600 font-medium">
+                  (Single employee only)
+                </span>
+              )}
+            </p>
           </div>
           <button
             onClick={onClose}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -52,11 +53,17 @@ export default function FinancialReports() {
                   <option value="this_quarter">This Quarter</option>
                   <option value="this_year">This Year</option>
                 </select>
-                <Button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20">
+                <Button
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20"
+                  onClick={() => toast.info("Refresh coming soon", { description: "Real-time data refresh will be available once financial analytics backend is implemented." })}
+                >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
-                <Button className="bg-white text-purple-600 hover:bg-gray-100">
+                <Button
+                  className="bg-white text-purple-600 hover:bg-gray-100"
+                  onClick={() => toast.info("Export coming soon", { description: "Report export will be available once financial analytics backend is implemented." })}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Export Report
                 </Button>

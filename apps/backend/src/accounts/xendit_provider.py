@@ -1,11 +1,14 @@
-"""
-Xendit Payment Provider Adapter
-===============================
-Wraps existing XenditService to implement PaymentProviderInterface.
-Allows seamless switching between PayMongo and Xendit via config.
+\"\"\"
+[DEPRECATED] Xendit Payment Provider Adapter
+=============================================
+This adapter is DEPRECATED as of February 2026.
+PayMongo is now the only active payment provider.
 
-This is a thin adapter that delegates to the existing XenditService.
-"""
+This file is kept ONLY for backward compatibility.
+Do not use for new transactions.
+
+Wraps existing XenditService to implement PaymentProviderInterface.
+\"\"\"
 
 from typing import Dict, Any, Optional, List
 import logging

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,17 +24,20 @@ import {
 } from "../../constants/theme";
 import {
   useWalletDeposit,
+  useWalletDepositGCash,
   useWalletBalance,
   formatCurrency,
   WalletDepositResponse,
 } from "../../lib/hooks/usePayments";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
+import { ENDPOINTS } from "../../lib/api/config";
 
 /**
  * Wallet Deposit Screen
  *
- * Allows users to deposit funds to wallet via QR PH:
+ * Allows users to deposit funds to wallet via QR PH or GCash Direct (testing):
  * - Enter deposit amount
+ * - Select payment method (QR PH or GCash Direct in testing mode)
  * - Create PayMongo checkout session
  * - Display WebView for payment (QR code shown)
  * - Option to download/share QR code for mobile users
@@ -43,6 +46,9 @@ import WalletBalanceCard from "../../components/WalletBalanceCard";
  *
  * Route params: amount (optional)
  */
+
+// Payment method type
+type PaymentMethod = "qrph" | "gcash";
 
 export default function WalletDepositScreen() {
   const router = useRouter();
@@ -55,8 +61,31 @@ export default function WalletDepositScreen() {
   const [pendingDeposit, setPendingDeposit] = useState<number | null>(null);
   const [webViewHandled, setWebViewHandled] = useState(false);
 
+  // TODO: REMOVE FOR PROD - Testing mode for GCash direct
+  const [isTestingMode, setIsTestingMode] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<PaymentMethod>("qrph");
+
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
+  // TODO: REMOVE FOR PROD - GCash direct deposit for testing
+  const depositGCashMutation = useWalletDepositGCash();
+
+  // Fetch config to check if testing mode is enabled
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch(ENDPOINTS.MOBILE_CONFIG);
+        if (response.ok) {
+          const config = await response.json();
+          setIsTestingMode(config.testing === true);
+        }
+      } catch (error) {
+        console.log("Failed to fetch mobile config:", error);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   // Preset amounts
   const presetAmounts = [100, 200, 500, 1000, 2000, 5000];
@@ -137,10 +166,17 @@ export default function WalletDepositScreen() {
 
     try {
       setIsProcessing(true);
-      // QR PH payment - no payment method selection needed
-      const response = await depositMutation.mutateAsync({
-        amount,
-      });
+
+      // TODO: REMOVE FOR PROD - Use GCash direct in testing mode if selected
+      let response: WalletDepositResponse;
+      if (isTestingMode && selectedPaymentMethod === "gcash") {
+        // GCash Direct checkout - testing only
+        response = await depositGCashMutation.mutateAsync({ amount });
+      } else {
+        // QR PH payment - standard flow
+        response = await depositMutation.mutateAsync({ amount });
+      }
+
       const invoiceUrl = getInvoiceUrl(response);
       setPendingDeposit(amount);
       setAmountError(null);
@@ -232,6 +268,69 @@ export default function WalletDepositScreen() {
         [{ text: "OK" }],
       );
     }
+  };
+
+  // Intercept navigation requests BEFORE they load to catch success/failure redirects
+  const handleShouldStartLoadWithRequest = (request: any): boolean => {
+    const url = request.url as string;
+
+    if (!url || webViewHandled) {
+      return true;
+    }
+
+    const isSuccess =
+      url.includes("payment=success") ||
+      url.includes("/payment/success") ||
+      url.includes("/callback/success") ||
+      url.includes("?status=success");
+    const isFailure =
+      url.includes("payment=failed") ||
+      url.includes("/payment/failed") ||
+      url.includes("/callback/failed") ||
+      url.includes("?status=failed");
+
+    if (isSuccess) {
+      // Prevent loading the redirect URL - close WebView instead
+      setWebViewHandled(true);
+      setIsProcessing(false);
+      setXenditUrl(null);
+      const amountLabel = pendingDeposit
+        ? formatCurrency(pendingDeposit)
+        : "Your deposit";
+      setPendingDeposit(null);
+
+      Alert.alert(
+        "Deposit Successful",
+        `${amountLabel} is being processed. Your balance will refresh shortly.`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              refetchBalance();
+              router.back();
+            },
+          },
+        ],
+      );
+      return false; // Don't load the URL
+    }
+
+    if (isFailure) {
+      // Prevent loading the redirect URL - close WebView instead
+      setWebViewHandled(true);
+      setIsProcessing(false);
+      setXenditUrl(null);
+      setPendingDeposit(null);
+
+      Alert.alert(
+        "Deposit Failed",
+        "Your deposit could not be processed. Please try again.",
+        [{ text: "OK" }],
+      );
+      return false; // Don't load the URL
+    }
+
+    return true; // Allow all other URLs to load normally
   };
 
   const handleCancel = () => {
@@ -346,6 +445,7 @@ export default function WalletDepositScreen() {
         <WebView
           source={{ uri: xenditUrl }}
           onNavigationStateChange={handleWebViewNavigationStateChange}
+          onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.webViewLoading}>
@@ -435,21 +535,136 @@ export default function WalletDepositScreen() {
           </View>
         </View>
 
-        {/* QR PH Payment Info */}
+        {/* TODO: REMOVE FOR PROD - Payment Method Selector (Testing Mode Only) */}
+        {isTestingMode && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Payment Method</Text>
+            <Text style={styles.sectionSubtitle}>
+              🧪 Testing Mode - Choose payment method
+            </Text>
+
+            <View style={styles.paymentMethodContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethodButton,
+                  selectedPaymentMethod === "qrph" &&
+                    styles.paymentMethodButtonActive,
+                ]}
+                onPress={() => setSelectedPaymentMethod("qrph")}
+              >
+                <Ionicons
+                  name="qr-code"
+                  size={24}
+                  color={
+                    selectedPaymentMethod === "qrph"
+                      ? Colors.white
+                      : Colors.textPrimary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.paymentMethodText,
+                    selectedPaymentMethod === "qrph" &&
+                      styles.paymentMethodTextActive,
+                  ]}
+                >
+                  QR PH
+                </Text>
+                <Text
+                  style={[
+                    styles.paymentMethodSubtext,
+                    selectedPaymentMethod === "qrph" &&
+                      styles.paymentMethodSubtextActive,
+                  ]}
+                >
+                  Any banking app
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethodButton,
+                  selectedPaymentMethod === "gcash" &&
+                    styles.paymentMethodButtonActive,
+                ]}
+                onPress={() => setSelectedPaymentMethod("gcash")}
+              >
+                <Ionicons
+                  name="wallet"
+                  size={24}
+                  color={
+                    selectedPaymentMethod === "gcash"
+                      ? Colors.white
+                      : Colors.textPrimary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.paymentMethodText,
+                    selectedPaymentMethod === "gcash" &&
+                      styles.paymentMethodTextActive,
+                  ]}
+                >
+                  Direct Deposit
+                </Text>
+                <Text
+                  style={[
+                    styles.paymentMethodSubtext,
+                    selectedPaymentMethod === "gcash" &&
+                      styles.paymentMethodSubtextActive,
+                  ]}
+                >
+                  Test Only - Instant
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Payment Info Card - Dynamic based on selected method */}
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons name="qr-code" size={24} color={Colors.primary} />
-            <Text style={styles.infoTitle}>QR PH Payment</Text>
+            <Ionicons
+              name={selectedPaymentMethod === "gcash" ? "wallet" : "qr-code"}
+              size={24}
+              color={Colors.primary}
+            />
+            <Text style={styles.infoTitle}>
+              {selectedPaymentMethod === "gcash"
+                ? "Direct Test Deposit"
+                : "QR PH Payment"}
+            </Text>
           </View>
-          <Text style={styles.infoText}>
-            You'll be shown a QR code that you can scan with any Philippine
-            banking app (GCash, Maya, BPI, BDO, UnionBank, etc.) to complete
-            your deposit.
-          </Text>
-          <Text style={[styles.infoText, { marginTop: Spacing.sm }]}>
-            Since you're on your phone, you can save or share the QR code to
-            scan from another device.
-          </Text>
+          {selectedPaymentMethod === "gcash" ? (
+            <>
+              <Text style={styles.infoText}>
+                🧪 <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
+                Funds will be added to your wallet instantly without any payment
+                gateway. No real money is involved.
+              </Text>
+              <Text
+                style={[
+                  styles.infoText,
+                  { marginTop: Spacing.sm, color: Colors.warning },
+                ]}
+              >
+                ⚠️ This option is for testing only and will be removed in
+                production.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.infoText}>
+                You'll be shown a QR code that you can scan with any Philippine
+                banking app (GCash, Maya, BPI, BDO, UnionBank, etc.) to complete
+                your deposit.
+              </Text>
+              <Text style={[styles.infoText, { marginTop: Spacing.sm }]}>
+                Since you're on your phone, you can save or share the QR code to
+                scan from another device.
+              </Text>
+            </>
+          )}
         </View>
 
         {/* Deposit Button */}
@@ -690,5 +905,40 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
+  },
+  // TODO: REMOVE FOR PROD - Payment method selector styles
+  paymentMethodContainer: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  paymentMethodButton: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: Colors.border,
+    gap: Spacing.xs,
+  },
+  paymentMethodButtonActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  paymentMethodText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold as any,
+    color: Colors.textPrimary,
+  },
+  paymentMethodTextActive: {
+    color: Colors.white,
+  },
+  paymentMethodSubtext: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+  },
+  paymentMethodSubtextActive: {
+    color: Colors.white,
+    opacity: 0.8,
   },
 });

@@ -2,18 +2,28 @@
 
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
+import { Badge } from "@/components/ui/badge";
+import {
+  PendingInviteCard,
+  RejectReasonModal,
+  SkillSlotAssignmentModal,
+} from "@/components/agency";
 import AssignEmployeesModal from "@/components/agency/AssignEmployeesModal";
+import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
+import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
 import {
   Loader2,
   AlertCircle,
   Mail,
   UserPlus,
   CheckCircle,
+  Users,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { JobSkillSlot, SlotAssignment } from "@/types/agency-team-jobs";
 
 interface Employee {
   employeeId: number;
@@ -23,6 +33,7 @@ interface Employee {
   rating: number;
   totalJobsCompleted: number;
   isActive: boolean;
+  specializations?: string[]; // List of specialization names (strings from backend)
 }
 
 const normalizeEmployee = (employee: any): Employee => {
@@ -54,6 +65,8 @@ const normalizeEmployee = (employee: any): Employee => {
         : typeof employee?.is_active === "boolean"
           ? employee.is_active
           : true,
+    specializations:
+      employee?.specializations ?? employee?.specialization_ids ?? [],
   };
 };
 
@@ -66,6 +79,12 @@ interface Job {
     name: string;
   } | null;
   budget: number;
+  payment_model?: "PROJECT" | "DAILY";
+  daily_rate_agreed?: number;
+  duration_days?: number;
+  actual_start_date?: string;
+  total_days_worked?: number;
+  daily_escrow_total?: number;
   location: string;
   urgency: string;
   status: string;
@@ -79,6 +98,9 @@ interface Job {
     employeeId: number;
     name: string;
   };
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
   client: {
     id: number;
     name: string;
@@ -106,6 +128,7 @@ export default function AgencyJobsPage() {
   const [cancelledJobs, setCancelledJobs] = useState<Job[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -116,6 +139,14 @@ export default function AgencyJobsPage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedJobForAssignment, setSelectedJobForAssignment] =
     useState<Job | null>(null);
+  // Team job skill slots state
+  const [skillSlotModalOpen, setSkillSlotModalOpen] = useState(false);
+  const [selectedJobSkillSlots, setSelectedJobSkillSlots] = useState<
+    JobSkillSlot[]
+  >([]);
+  const [loadingSkillSlots, setLoadingSkillSlots] = useState(false);
+  // Pending invite acceptance flow - true when accepting pending invite (not just assigning to accepted job)
+  const [isPendingInviteFlow, setIsPendingInviteFlow] = useState(false);
   const hasFetched = React.useRef(false);
 
   // Fetch jobs based on active tab
@@ -124,12 +155,19 @@ export default function AgencyJobsPage() {
     if (hasFetched.current) return;
     hasFetched.current = true;
 
-    fetchPendingInvites();
-    fetchAcceptedJobs();
-    fetchInProgressJobs();
-    fetchCompletedJobs();
-    fetchCancelledJobs();
-    fetchEmployees();
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchPendingInvites(false),
+        fetchAcceptedJobs(false),
+        fetchInProgressJobs(false),
+        fetchCompletedJobs(false),
+        fetchCancelledJobs(false),
+        fetchEmployees(),
+      ]);
+      setLoading(false);
+    };
+    loadAll();
   }, []);
 
   // Refetch when tab changes
@@ -137,21 +175,21 @@ export default function AgencyJobsPage() {
     if (!hasFetched.current) return; // Don't fetch on initial mount
 
     if (activeTab === "invites") {
-      fetchPendingInvites();
+      fetchPendingInvites(true);
     } else if (activeTab === "accepted") {
-      fetchAcceptedJobs();
+      fetchAcceptedJobs(true);
     } else if (activeTab === "inProgress") {
-      fetchInProgressJobs();
+      fetchInProgressJobs(true);
     } else if (activeTab === "completed") {
-      fetchCompletedJobs();
+      fetchCompletedJobs(true);
     } else if (activeTab === "cancelled") {
-      fetchCancelledJobs();
+      fetchCancelledJobs(true);
     }
   }, [activeTab]);
 
-  const fetchPendingInvites = async () => {
+  const fetchPendingInvites = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       setError(null);
 
       const response = await fetch(
@@ -178,74 +216,46 @@ export default function AgencyJobsPage() {
         err instanceof Error ? err.message : "Failed to load pending invites",
       );
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchAcceptedJobs = async () => {
+  const fetchAcceptedJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       setError(null);
 
-      // Fetch both ACTIVE and IN_PROGRESS jobs - we'll filter by employee assignment
-      const [activeResponse, inProgressResponse] = await Promise.all([
-        fetch(
-          `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
-          {
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
-        fetch(`${apiUrl}/api/agency/jobs?status=IN_PROGRESS`, {
+      // Fetch only ACTIVE jobs with ACCEPTED invite status
+      // Once employees are assigned, job status changes to IN_PROGRESS and moves to "In Progress" tab
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
+        {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-        }),
-      ]);
+        },
+      );
 
-      if (!activeResponse.ok) {
+      if (!response.ok) {
         throw new Error(
-          `Failed to fetch accepted jobs: ${activeResponse.statusText}`,
+          `Failed to fetch accepted jobs: ${response.statusText}`,
         );
       }
 
-      const activeData = await activeResponse.json();
-      const inProgressData = inProgressResponse.ok
-        ? await inProgressResponse.json()
-        : { jobs: [] };
-
-      // Accepted = ACTIVE jobs without employees + IN_PROGRESS jobs without employees
-      // (IN_PROGRESS without employees is a data inconsistency we need to handle)
-      const unassignedActiveJobs = (activeData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID,
-      );
-      const unassignedInProgressJobs = (inProgressData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID,
-      );
-
-      // Combine and deduplicate by jobID
-      const allUnassigned = [
-        ...unassignedActiveJobs,
-        ...unassignedInProgressJobs,
-      ];
-      const uniqueJobs = allUnassigned.filter(
-        (job, index, self) =>
-          index === self.findIndex((j) => j.jobID === job.jobID),
-      );
-
-      setAcceptedJobs(uniqueJobs);
+      const data = await response.json();
+      setAcceptedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
       setError(
         err instanceof Error ? err.message : "Failed to load accepted jobs",
       );
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchInProgressJobs = async () => {
+  const fetchInProgressJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       const response = await fetch(
         `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
@@ -263,22 +273,18 @@ export default function AgencyJobsPage() {
       }
 
       const data = await response.json();
-      // Only show IN_PROGRESS jobs that have an assigned employee
-      // Jobs without employees should appear in Accepted tab instead
-      const jobsWithEmployees = (data.jobs || []).filter(
-        (job: Job) => job.assignedEmployeeID,
-      );
-      setInProgressJobs(jobsWithEmployees);
+      // Backend already filters by status=IN_PROGRESS, trust the backend
+      setInProgressJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchCompletedJobs = async () => {
+  const fetchCompletedJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       const response = await fetch(
         `${API_BASE}/api/agency/jobs?status=COMPLETED`,
         {
@@ -300,13 +306,13 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching completed jobs:", err);
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
-  const fetchCancelledJobs = async () => {
+  const fetchCancelledJobs = async (showTabLoading = false) => {
     try {
-      setLoading(true);
+      if (showTabLoading) setTabLoading(true);
       const response = await fetch(
         `${API_BASE}/api/agency/jobs?status=CANCELLED`,
         {
@@ -328,7 +334,7 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching cancelled jobs:", err);
     } finally {
-      setLoading(false);
+      if (showTabLoading) setTabLoading(false);
     }
   };
 
@@ -355,9 +361,38 @@ export default function AgencyJobsPage() {
     }
   };
 
-  const handleAcceptInvite = async (jobId: number) => {
+  // Fetch skill slots for a team job
+  const fetchSkillSlots = async (jobId: number): Promise<JobSkillSlot[]> => {
     try {
-      setAccepting(jobId);
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${jobId}/skill-slots`,
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch skill slots");
+      }
+      const data = await response.json();
+      return data.skill_slots || [];
+    } catch (error) {
+      console.error("Error fetching skill slots:", error);
+      return [];
+    }
+  };
+
+  const handleAcceptInvite = async (jobId: number) => {
+    // Find the job from pending invites
+    const job = pendingInvites.find((j) => j.jobID === jobId);
+    if (!job) {
+      setError("Job not found");
+      return;
+    }
+
+    // NEW FLOW: Just accept the invite, don't assign employees here
+    // Employee assignment happens in the "Accepted" tab
+    try {
       setError(null);
       setSuccessMessage(null);
 
@@ -374,7 +409,10 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMessage = errorData.error || "Failed to accept invitation";
+        const errorMessage = getErrorMessage(
+          errorData,
+          "Failed to accept invitation",
+        );
 
         // Provide user-friendly message for payment-related errors
         if (errorMessage.includes("escrow payment")) {
@@ -387,31 +425,60 @@ export default function AgencyJobsPage() {
         throw new Error(errorMessage);
       }
 
-      const result = await response.json();
-
-      // Show success message
+      // Success - show message and refresh lists
       setSuccessMessage(
-        result.message ||
-          "Invitation accepted successfully! Job is now active.",
+        `Invitation accepted for "${job.title}"! Go to the Accepted tab to assign employees.`,
       );
-
-      // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: "smooth" });
 
-      // Remove from pending invites list and refresh accepted jobs
-      setPendingInvites((prevInvites) =>
-        prevInvites.filter((job) => job.jobID !== jobId),
-      );
+      // Remove from pending invites
+      setPendingInvites((prev) => prev.filter((j) => j.jobID !== jobId));
+
+      // Refresh accepted jobs list
       await fetchAcceptedJobs();
+
+      // Switch to Accepted tab so user can assign employees
+      setActiveTab("accepted");
     } catch (err) {
       console.error("Error accepting invitation:", err);
       setError(
         err instanceof Error ? err.message : "Failed to accept invitation",
       );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } finally {
-      setAccepting(null);
     }
+  };
+
+  // Helper to accept invite then assign employees (for pending invite flow)
+  const acceptInviteAndAssign = async (jobId: number) => {
+    const response = await fetch(
+      `${API_BASE}/api/agency/jobs/${jobId}/accept`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = getErrorMessage(
+        errorData,
+        "Failed to accept invitation",
+      );
+
+      // Provide user-friendly message for payment-related errors
+      if (errorMessage.includes("escrow payment")) {
+        throw new Error(
+          "This job invitation cannot be accepted yet. The client has not completed the payment. " +
+            "Please wait for the client to complete their GCash/payment transaction.",
+        );
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
   };
 
   const handleRejectInviteClick = (job: Job) => {
@@ -440,7 +507,9 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to reject invitation");
+        throw new Error(
+          getErrorMessage(errorData, "Failed to reject invitation"),
+        );
       }
 
       const result = await response.json();
@@ -475,6 +544,11 @@ export default function AgencyJobsPage() {
     if (!selectedJobForAssignment) return;
     if (!employeeIds || employeeIds.length === 0) {
       throw new Error("No employees selected");
+    }
+
+    // Enforce single employee for non-team jobs
+    if (!selectedJobForAssignment.is_team_job && employeeIds.length > 1) {
+      throw new Error("Non-team jobs can only have 1 employee assigned");
     }
 
     try {
@@ -531,22 +605,105 @@ export default function AgencyJobsPage() {
       // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: "smooth" });
 
-      // Refresh accepted and in-progress jobs lists (job moves from accepted to in-progress)
+      // Refresh job lists
       await fetchAcceptedJobs();
       await fetchInProgressJobs();
 
-      // Close modal
+      // Close modal and reset state
       setAssignModalOpen(false);
       setSelectedJobForAssignment(null);
+      setIsPendingInviteFlow(false);
     } catch (err) {
       console.error("Error assigning employees:", err);
       throw err; // Re-throw to let modal handle error display
     }
   };
 
-  const handleOpenAssignModal = (job: Job) => {
+  // Handle opening assign modal - decides between regular or skill slot modal (for accepted jobs)
+  const handleOpenAssignModal = async (job: Job) => {
     setSelectedJobForAssignment(job);
-    setAssignModalOpen(true);
+    setIsPendingInviteFlow(false); // This is for accepted jobs, not pending invites
+
+    // Check if this is a team job with skill slots
+    if (job.is_team_job) {
+      setLoadingSkillSlots(true);
+      try {
+        const slots = await fetchSkillSlots(job.jobID);
+        if (slots.length > 0) {
+          setSelectedJobSkillSlots(slots);
+          setSkillSlotModalOpen(true);
+        } else {
+          // No skill slots defined, fallback to regular modal
+          setAssignModalOpen(true);
+        }
+      } catch (error) {
+        console.error("Error loading skill slots:", error);
+        // Fallback to regular modal
+        setAssignModalOpen(true);
+      } finally {
+        setLoadingSkillSlots(false);
+      }
+    } else {
+      // Regular single-employee job
+      setAssignModalOpen(true);
+    }
+  };
+
+  // Handle assigning employees to skill slots (team jobs)
+  const handleAssignToSlots = async (
+    assignments: SlotAssignment[],
+    primaryContactId: number | null,
+  ) => {
+    if (!selectedJobForAssignment) return;
+
+    try {
+      setError(null);
+      setSuccessMessage(null);
+
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees-to-slots`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignments,
+            primary_contact_employee_id: primaryContactId,
+          }),
+        },
+      );
+
+      const responseData = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const errorMessage =
+          responseData?.error ||
+          responseData?.message ||
+          `Failed to assign employees (HTTP ${response.status})`;
+        throw new Error(errorMessage);
+      }
+
+      // Show success message
+      const count = assignments.length;
+      setSuccessMessage(
+        `${count} worker${count > 1 ? "s" : ""} successfully assigned to skill slots for "${selectedJobForAssignment.title}"! Job is now In Progress.`,
+      );
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // Refresh job lists
+      await fetchAcceptedJobs();
+      await fetchInProgressJobs();
+
+      // Close modal and reset state
+      setSkillSlotModalOpen(false);
+      setSelectedJobForAssignment(null);
+      setSelectedJobSkillSlots([]);
+      setIsPendingInviteFlow(false);
+    } catch (err) {
+      console.error("Error assigning to slots:", err);
+      throw err;
+    }
   };
 
   // Loading state
@@ -731,8 +888,16 @@ export default function AgencyJobsPage() {
           </Alert>
         )}
 
+        {/* Tab Loading Indicator */}
+        {tabLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            <span className="ml-2 text-sm text-gray-500">Refreshing...</span>
+          </div>
+        )}
+
         {/* Tab Content */}
-        {activeTab === "invites" && (
+        {!tabLoading && activeTab === "invites" && (
           <>
             {pendingInvites.length === 0 ? (
               <Card>
@@ -770,7 +935,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "accepted" && (
+        {!tabLoading && activeTab === "accepted" && (
           <>
             {acceptedJobs.length === 0 ? (
               <Card>
@@ -801,10 +966,19 @@ export default function AgencyJobsPage() {
                   >
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-green-600 transition-colors">
-                            {job.title}
-                          </h3>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors">
+                              {job.title}
+                            </h3>
+                            {job.is_team_job && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                <Users size={12} className="mr-1" />
+                                Team Job ({job.total_workers_assigned || 0}/
+                                {job.total_workers_needed || 0})
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-gray-600 mb-3">
                             {job.description}
                           </p>
@@ -815,8 +989,19 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -857,17 +1042,77 @@ export default function AgencyJobsPage() {
                             </span>
                           </div>
                         </div>
-                      ) : (
+                      ) : job.is_team_job &&
+                        (job.total_workers_assigned || 0) > 0 ? (
+                        <div className="space-y-2">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Users className="text-blue-600" size={20} />
+                                <span className="text-blue-800 font-medium">
+                                  {job.total_workers_assigned}/
+                                  {job.total_workers_needed} employees assigned
+                                </span>
+                              </div>
+                              <div className="w-24 bg-blue-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full"
+                                  style={{
+                                    width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          {(job.total_workers_assigned || 0) <
+                            (job.total_workers_needed || 0) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAssignModal(job);
+                              }}
+                              disabled={loadingSkillSlots}
+                              className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                            >
+                              {loadingSkillSlots ? (
+                                <Loader2 size={18} className="animate-spin" />
+                              ) : (
+                                <Users size={18} />
+                              )}
+                              <span>Assign More Employees to Slots</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : job.status === "ACTIVE" ? (
                         <button
                           onClick={(e) => {
-                            e.stopPropagation(); // Prevent card click from navigating
+                            e.stopPropagation();
                             handleOpenAssignModal(job);
                           }}
-                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                          disabled={loadingSkillSlots}
+                          className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
+                            job.is_team_job
+                              ? "bg-purple-600 text-white hover:bg-purple-700"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                          }`}
                         >
-                          <UserPlus size={18} />
-                          <span>Assign Employee</span>
+                          {loadingSkillSlots ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : job.is_team_job ? (
+                            <Users size={18} />
+                          ) : (
+                            <UserPlus size={18} />
+                          )}
+                          <span>
+                            {job.is_team_job
+                              ? `Assign Employees to ${job.total_workers_needed || 0} Skill Slots`
+                              : "Assign Employee"}
+                          </span>
                         </button>
+                      ) : (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm">
+                          ⚠️ Job is already in progress. Check the &quot;In Progress&quot; tab.
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -877,7 +1122,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "inProgress" && (
+        {!tabLoading && activeTab === "inProgress" && (
           <>
             {inProgressJobs.length === 0 ? (
               <Card>
@@ -921,8 +1166,19 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -965,7 +1221,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "completed" && (
+        {!tabLoading && activeTab === "completed" && (
           <>
             {completedJobs.length === 0 ? (
               <Card>
@@ -1009,8 +1265,19 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -1050,7 +1317,7 @@ export default function AgencyJobsPage() {
           </>
         )}
 
-        {activeTab === "cancelled" && (
+        {!tabLoading && activeTab === "cancelled" && (
           <>
             {cancelledJobs.length === 0 ? (
               <Card>
@@ -1094,8 +1361,19 @@ export default function AgencyJobsPage() {
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
                           <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
+                            <JobBudgetDisplay
+                              budget={job.budget}
+                              paymentModel={job.payment_model}
+                              dailyRate={job.daily_rate_agreed}
+                              durationDays={job.duration_days}
+                            />
                           </p>
+                          {job.payment_model && (
+                            <PaymentModelBadge
+                              paymentModel={job.payment_model}
+                              className="mt-1"
+                            />
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">
@@ -1147,17 +1425,38 @@ export default function AgencyJobsPage() {
         jobTitle={selectedJobForReject?.title || ""}
       />
 
-      {/* Assign Employees Modal (Multi-Employee Support) */}
+      {/* Assign Employees Modal (Multi-Employee Support - Regular Jobs) */}
       {selectedJobForAssignment && (
         <AssignEmployeesModal
           isOpen={assignModalOpen}
           onClose={() => {
             setAssignModalOpen(false);
             setSelectedJobForAssignment(null);
+            setIsPendingInviteFlow(false);
           }}
           job={selectedJobForAssignment}
           employees={employees}
           onAssign={handleAssignEmployees}
+          maxEmployees={selectedJobForAssignment.is_team_job ? undefined : 1}
+          isPendingInvite={isPendingInviteFlow}
+        />
+      )}
+
+      {/* Skill Slot Assignment Modal (Team Jobs with Skill Requirements) */}
+      {selectedJobForAssignment && selectedJobSkillSlots.length > 0 && (
+        <SkillSlotAssignmentModal
+          isOpen={skillSlotModalOpen}
+          onClose={() => {
+            setSkillSlotModalOpen(false);
+            setSelectedJobForAssignment(null);
+            setSelectedJobSkillSlots([]);
+            setIsPendingInviteFlow(false);
+          }}
+          job={selectedJobForAssignment}
+          employees={employees}
+          skillSlots={selectedJobSkillSlots}
+          onAssign={handleAssignToSlots}
+          isPendingInvite={isPendingInviteFlow}
         />
       )}
     </div>

@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 
 type MessageInputProps = {
-  onSend: (text: string) => void;
+  onSend: (text: string) => Promise<boolean | void> | void;
   onImagePress?: () => void;
   isSending?: boolean;
   placeholder?: string;
@@ -29,10 +29,16 @@ export default function MessageInput({
 }: MessageInputProps) {
   const [text, setText] = useState("");
 
-  const handleSend = () => {
-    if (text.trim() && !isSending) {
-      onSend(text.trim());
-      setText("");
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (trimmed && !isSending) {
+      try {
+        await onSend(trimmed);
+        // Only clear text after successful send
+        setText("");
+      } catch {
+        // Keep text in input so user can retry
+      }
     }
   };
 

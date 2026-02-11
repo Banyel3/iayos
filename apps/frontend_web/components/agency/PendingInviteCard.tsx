@@ -5,6 +5,7 @@ import {
   Calendar,
   MapPin,
   User,
+  Users,
   DollarSign,
   Clock,
   AlertTriangle,
@@ -12,6 +13,7 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Wrench,
 } from "lucide-react";
 
 interface Client {
@@ -24,6 +26,16 @@ interface Client {
 interface Category {
   id: number;
   name: string;
+}
+
+interface SkillSlot {
+  skill_slot_id: number;
+  specialization_id: number;
+  specialization_name: string;
+  workers_needed: number;
+  budget_allocated: number;
+  skill_level_required: string;
+  status: string;
 }
 
 interface PendingInviteJob {
@@ -43,6 +55,12 @@ interface PendingInviteJob {
   createdAt: string;
   updatedAt: string;
   inviteStatus?: string;
+  // Team job fields
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
+  team_fill_percentage?: number;
+  skill_slots?: SkillSlot[];
 }
 
 interface PendingInviteCardProps {
@@ -84,10 +102,16 @@ export default function PendingInviteCard({
       <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b border-blue-200">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-2">
+            <div className="flex items-center flex-wrap gap-2 mb-2">
               <span className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
                 DIRECT INVITE
               </span>
+              {job.is_team_job && (
+                <span className="px-3 py-1 bg-purple-600 text-white text-xs font-semibold rounded-full flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  TEAM JOB ({job.total_workers_needed} workers)
+                </span>
+              )}
               {job.category && (
                 <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
                   {job.category.name}
@@ -229,6 +253,45 @@ export default function PendingInviteCard({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Skill Slots for Team Jobs */}
+        {job.is_team_job && job.skill_slots && job.skill_slots.length > 0 && (
+          <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+            <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+              <Users className="h-5 w-5 text-purple-600 mr-2" />
+              Required Workers ({job.total_workers_needed} total)
+            </h4>
+            <div className="space-y-2">
+              {job.skill_slots.map((slot) => (
+                <div
+                  key={slot.skill_slot_id}
+                  className="flex items-center justify-between p-2 bg-white rounded border border-purple-100"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Wrench className="h-4 w-4 text-purple-500" />
+                    <span className="font-medium text-gray-800">
+                      {slot.specialization_name}
+                    </span>
+                    <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-100 rounded">
+                      {slot.skill_level_required}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm text-gray-600">
+                      {slot.workers_needed} worker{slot.workers_needed > 1 ? "s" : ""}
+                    </span>
+                    <span className="text-sm font-semibold text-purple-600">
+                      ₱{slot.budget_allocated.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-purple-700">
+              💡 You&apos;ll need to assign employees to each skill slot after accepting.
+            </p>
           </div>
         )}
 

@@ -1,21 +1,11 @@
 // Push Notifications Service
 // Handle local and push notifications for chat messages
+// NOTE: Notification handler is configured in notificationService.ts to avoid duplicate handlers
 
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 
 export type NotificationData = {
   conversationId: number;

@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 // ===== TYPES =====
 
@@ -79,7 +80,9 @@ export function useMaterials() {
     queryFn: async (): Promise<Material[]> => {
       const response = await apiRequest(ENDPOINTS.MATERIALS);
       if (!response.ok) {
-        throw new Error("Failed to fetch materials");
+        const errorText = await response.text().catch(() => "Unknown error");
+        console.error(`[Materials] API Error ${response.status}: ${errorText}`);
+        throw new Error(`Failed to fetch materials (${response.status})`);
       }
       const result = await response.json();
       return Array.isArray(result) ? result.map(mapMaterialResponse) : [];
@@ -143,9 +146,7 @@ export function useCreateMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(
-          error.message || error.error || "Failed to create material"
-        );
+        throw new Error(getErrorMessage(error, "Failed to create material"));
       }
 
       const result = await response.json();
@@ -253,7 +254,7 @@ export function useUpdateMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to update material");
+        throw new Error(getErrorMessage(error, "Failed to update material"));
       }
 
       return response.json();
@@ -283,17 +284,20 @@ export function useToggleMaterialAvailability() {
       id: number;
       isAvailable: boolean;
     }) => {
+      // Backend expects FormData with snake_case field names
+      const formData = new FormData();
+      formData.append("is_available", isAvailable.toString());
+
       const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isAvailable }),
+        body: formData,
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to toggle availability");
+        throw new Error(
+          getErrorMessage(error, "Failed to toggle availability"),
+        );
       }
 
       return response.json();
@@ -322,7 +326,7 @@ export function useDeleteMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to delete material");
+        throw new Error(getErrorMessage(error, "Failed to delete material"));
       }
 
       return response.json();
@@ -355,7 +359,7 @@ export function formatPrice(price: number): string {
 export function formatPricePerUnit(
   price: number,
   unit: string,
-  quantity?: number
+  quantity?: number,
 ): string {
   const quantityLabel =
     typeof quantity === "number" && !Number.isNaN(quantity)

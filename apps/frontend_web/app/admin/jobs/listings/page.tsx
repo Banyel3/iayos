@@ -25,6 +25,7 @@ import {
   FileText,
 } from "lucide-react";
 import Link from "next/link";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
 interface Category {
   id: number;
@@ -129,7 +130,7 @@ export default function JobListingsPage() {
       }
     } catch (error) {
       console.error("Error deleting job:", error);
-      alert("An error occurred while deleting the job");
+      alert(getErrorMessage(error, "Failed to delete job"));
     }
   };
 

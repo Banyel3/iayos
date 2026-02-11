@@ -70,10 +70,11 @@ PRODUCTION_HOSTS = [
     'www.iayos.online',        # www subdomain
 ]
 
-# Merge with production hosts
-for host in PRODUCTION_HOSTS:
-    if host not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(host)
+# DigitalOcean App Platform uses dynamic internal IPs (100.127.x.x range)
+# for health check probes. Since we're behind DO's load balancer which
+# validates the Host header, it's safe to allow all hosts.
+# The load balancer only forwards requests with valid Host headers.
+ALLOWED_HOSTS = ['*']
 
 # Fallback for development
 if not ALLOWED_HOSTS:
@@ -82,6 +83,15 @@ if not ALLOWED_HOSTS:
     else:
         print("⚠ ALLOWED_HOSTS not set - using production defaults")
         ALLOWED_HOSTS = PRODUCTION_HOSTS.copy()
+
+
+# ============================================================================
+# FILE UPLOAD LIMITS
+# ============================================================================
+# Allow up to 15MB for KYC document uploads (phone cameras produce large images)
+# This prevents ASGI streaming issues with Daphne
+DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 
 
 # Application definition
@@ -139,10 +149,24 @@ APP_VERSION = os.environ.get('APP_VERSION', '1.0.0')
 
 # Logging configuration
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+
+# Feature Flags
+# TESTING mode enables additional payment methods for testing (e.g., direct GCash)
+# Set to 'true' in development/staging environments
+TESTING = os.environ.get('TESTING', 'false').lower() == 'true'
 JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
 
 # Rate limiting
 RATE_LIMIT_DISABLED = os.environ.get('RATE_LIMIT_DISABLED', 'false').lower() == 'true'
+
+# ============================================================================
+# MOBILE APP VERSION CONFIGURATION
+# ============================================================================
+# Used for in-app update prompts and download page
+MOBILE_MIN_VERSION = os.environ.get('MOBILE_MIN_VERSION', '1.8.11')  # Minimum supported version
+MOBILE_CURRENT_VERSION = os.environ.get('MOBILE_CURRENT_VERSION', '1.8.11')  # Latest version
+MOBILE_FORCE_UPDATE = os.environ.get('MOBILE_FORCE_UPDATE', 'true').lower() == 'true'  # Block app until updated
+MOBILE_DOWNLOAD_URL = os.environ.get('MOBILE_DOWNLOAD_URL', 'https://github.com/Banyel3/iayos/releases/latest')
 
 # Query caching
 QUERY_CACHE_DISABLED = os.environ.get('QUERY_CACHE_DISABLED', 'false').lower() == 'true'
@@ -267,15 +291,25 @@ WSGI_APPLICATION = 'iayos_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Toggle between local PostgreSQL and Neon cloud database
-USE_LOCAL_DB = os.getenv("USE_LOCAL_DB", "false").lower() == "true"
-
 # Connection pooling settings
 DB_CONN_MAX_AGE = int(os.getenv("DB_CONN_MAX_AGE", "60"))  # Persistent connections for 60 seconds
 DB_CONN_HEALTH_CHECKS = os.getenv("DB_CONN_HEALTH_CHECKS", "true").lower() == "true"
 
-if USE_LOCAL_DB:
-    # Local PostgreSQL - no SSL required, with connection pooling
+# Priority 1: Use test database if DATABASE_TEST_URL is set (for E2E tests)
+TEST_DB_URL = os.getenv("DATABASE_TEST_URL")
+if TEST_DB_URL:
+    print("🧪 Using TEST database from DATABASE_TEST_URL")
+    DATABASES = {
+        'default': dj_database_url.parse(
+            TEST_DB_URL,
+            conn_max_age=DB_CONN_MAX_AGE,
+            conn_health_checks=DB_CONN_HEALTH_CHECKS,
+            ssl_require=True,
+        )
+    }
+# Priority 2: Use local database if USE_LOCAL_DB is set
+elif os.getenv("USE_LOCAL_DB", "false").lower() == "true":
+    print("🏠 Using LOCAL database from DATABASE_URL_LOCAL")
     DATABASES = {
         'default': dj_database_url.parse(
             os.getenv("DATABASE_URL_LOCAL", "postgresql://iayos_user:iayos_local_pass@postgres:5432/iayos_db"),
@@ -284,8 +318,9 @@ if USE_LOCAL_DB:
             ssl_require=False,
         )
     }
+# Priority 3: Use production database from DATABASE_URL (default)
 else:
-    # Neon Cloud PostgreSQL - SSL required, with connection pooling
+    print("🌐 Using PRODUCTION database from DATABASE_URL")
     DATABASES = {
         'default': dj_database_url.parse(
             os.getenv("DATABASE_URL"),
@@ -350,11 +385,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# Cookie settings for cross-origin localhost development
-SESSION_COOKIE_SECURE = False  # For development (must be False for http://localhost)
-CSRF_COOKIE_SECURE = False     # For development (must be False for http://localhost)
-SESSION_COOKIE_SAMESITE = None  # Allow cross-origin cookies on localhost
-CSRF_COOKIE_SAMESITE = None     # Allow cross-origin cookies on localhost
+# Cookie settings - environment-aware (secure in production, permissive in dev)
+SESSION_COOKIE_SECURE = not DEBUG      # True for HTTPS in production
+CSRF_COOKIE_SECURE = not DEBUG         # True for HTTPS in production
+SESSION_COOKIE_SAMESITE = 'Lax' if not DEBUG else None  # Lax in production, None for dev
+CSRF_COOKIE_SAMESITE = 'Lax' if not DEBUG else None     # Lax in production, None for dev
 SESSION_COOKIE_DOMAIN = None    # Use default domain
 CSRF_COOKIE_HTTPONLY = False    # Allow JavaScript to read CSRF token
 

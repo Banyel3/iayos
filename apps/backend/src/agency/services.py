@@ -1,9 +1,10 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
 from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview
 from iayos_project.utils import upload_agency_doc
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
 import uuid
 import os
 import math
@@ -538,9 +539,14 @@ def get_agency_employees(account_id):
             result.append({
                 "id": emp.employeeID,
                 "employeeId": emp.employeeID,  # Frontend expects this field name
-                "name": emp.name,
+                "firstName": emp.firstName,
+                "middleName": emp.middleName,
+                "lastName": emp.lastName,
+                "fullName": emp.fullName,
+                "name": emp.name,  # Legacy field
                 "email": emp.email,
-                "role": emp.role,
+                "specializations": emp.get_specializations_list(),
+                "role": emp.role,  # Legacy field
                 "avatar": emp.avatar,
                 "rating": final_rating,
                 # Agency Phase 2 performance fields
@@ -560,30 +566,53 @@ def get_agency_employees(account_id):
         raise ValueError("User not found")
 
 
-def add_agency_employee(account_id, name, email, role, avatar=None, rating=None):
-    """Add a new employee to an agency."""
+def add_agency_employee(account_id, firstName, lastName, email, specializations, middleName="", avatar=None, rating=None):
+    """Add a new employee to an agency with name breakdown and multi-specializations."""
+    import json
     try:
         user = Accounts.objects.get(accountID=account_id)
         
-        # Validate role is provided
-        if not role or not role.strip():
-            raise ValueError("Role/specialization is required")
+        # Validate specializations (must be non-empty list)
+        if not specializations or not isinstance(specializations, list) or len(specializations) == 0:
+            raise ValueError("At least one specialization is required")
+        
+        # Validate names
+        if not firstName or not firstName.strip():
+            raise ValueError("First name is required")
+        if not lastName or not lastName.strip():
+            raise ValueError("Last name is required")
+        
+        # Compute full name for legacy field
+        name_parts = [firstName.strip()]
+        if middleName and middleName.strip():
+            name_parts.append(middleName.strip())
+        name_parts.append(lastName.strip())
+        full_name = " ".join(name_parts)
         
         # Create the employee
         employee = AgencyEmployee.objects.create(
             agency=user,
-            name=name,
+            firstName=firstName.strip(),
+            middleName=(middleName or "").strip(),
+            lastName=lastName.strip(),
+            name=full_name,  # Legacy field
             email=email,
-            role=role,
+            specializations=json.dumps(specializations),
+            role=specializations[0] if specializations else "",  # Legacy field - first specialization
             avatar=avatar,
             rating=rating
         )
         
         return {
             "id": employee.employeeID,
-            "name": employee.name,
+            "firstName": employee.firstName,
+            "middleName": employee.middleName,
+            "lastName": employee.lastName,
+            "fullName": employee.fullName,
+            "name": employee.name,  # Legacy
             "email": employee.email,
-            "role": employee.role,
+            "specializations": employee.get_specializations_list(),
+            "role": employee.role,  # Legacy
             "avatar": employee.avatar,
             "rating": float(employee.rating) if employee.rating else None,
             # Agency Phase 2 performance fields (defaults for new employees)
@@ -598,6 +627,78 @@ def add_agency_employee(account_id, name, email, role, avatar=None, rating=None)
         }
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
+
+
+def update_agency_employee(account_id, employee_id, firstName=None, lastName=None, middleName=None, email=None, specializations=None, avatar=None, isActive=None):
+    """Update an existing agency employee."""
+    import json
+    try:
+        user = Accounts.objects.get(accountID=account_id)
+        employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+        
+        # Update fields if provided
+        if firstName is not None:
+            if not firstName.strip():
+                raise ValueError("First name cannot be empty")
+            employee.firstName = firstName.strip()
+        
+        if lastName is not None:
+            if not lastName.strip():
+                raise ValueError("Last name cannot be empty")
+            employee.lastName = lastName.strip()
+        
+        if middleName is not None:
+            employee.middleName = middleName.strip()
+        
+        if email is not None:
+            employee.email = email
+        
+        if specializations is not None:
+            if not isinstance(specializations, list) or len(specializations) == 0:
+                raise ValueError("At least one specialization is required")
+            employee.specializations = json.dumps(specializations)
+            employee.role = specializations[0]  # Legacy field
+        
+        if avatar is not None:
+            employee.avatar = avatar
+        
+        if isActive is not None:
+            employee.isActive = isActive
+        
+        # Update legacy name field
+        name_parts = [employee.firstName]
+        if employee.middleName:
+            name_parts.append(employee.middleName)
+        name_parts.append(employee.lastName)
+        employee.name = " ".join(filter(None, name_parts))
+        
+        employee.save()
+        
+        return {
+            "id": employee.employeeID,
+            "firstName": employee.firstName,
+            "middleName": employee.middleName,
+            "lastName": employee.lastName,
+            "fullName": employee.fullName,
+            "name": employee.name,
+            "email": employee.email,
+            "specializations": employee.get_specializations_list(),
+            "role": employee.role,
+            "avatar": employee.avatar,
+            "rating": float(employee.rating) if employee.rating else None,
+            "employeeOfTheMonth": employee.employeeOfTheMonth,
+            "employeeOfTheMonthDate": str(employee.employeeOfTheMonthDate) if employee.employeeOfTheMonthDate else None,
+            "employeeOfTheMonthReason": employee.employeeOfTheMonthReason,
+            "lastRatingUpdate": str(employee.lastRatingUpdate) if employee.lastRatingUpdate else None,
+            "totalJobsCompleted": employee.totalJobsCompleted,
+            "totalEarnings": float(employee.totalEarnings),
+            "isActive": employee.isActive,
+            "message": "Employee updated successfully"
+        }
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+    except AgencyEmployee.DoesNotExist:
+        raise ValueError("Employee not found")
 
 
 def remove_agency_employee(account_id, employee_id):
@@ -652,11 +753,33 @@ def get_agency_profile(account_id):
         total_employees = employees.count()
         avg_employee_rating = employees.aggregate(avg_rating=Avg('rating'))['avg_rating']
         
-        # TODO: Get jobs statistics when jobs model is implemented
-        # For now, return placeholder values
-        total_jobs = 0
-        active_jobs = 0
-        completed_jobs = 0
+        # Get real job statistics for this agency
+        try:
+            from accounts.models import Agency, Job
+            agency = Agency.objects.get(accountFK=user)
+            
+            # Query jobs assigned to this agency
+            agency_jobs = Job.objects.filter(assignedAgencyFK=agency)
+            total_jobs = agency_jobs.count()
+            active_jobs = agency_jobs.filter(status='IN_PROGRESS').count()
+            completed_jobs = agency_jobs.filter(status='COMPLETED').count()
+            cancelled_jobs = agency_jobs.filter(status='CANCELLED').count()
+            
+            # Calculate total revenue from completed jobs
+            total_revenue = agency_jobs.filter(status='COMPLETED').aggregate(
+                total=Sum('budget')
+            )['total'] or Decimal('0.00')
+            
+            # Get average rating from reviews (using employee ratings as proxy for now)
+            average_rating = float(avg_employee_rating) if avg_employee_rating else 0.0
+            
+        except Agency.DoesNotExist:
+            total_jobs = 0
+            active_jobs = 0
+            completed_jobs = 0
+            cancelled_jobs = 0
+            total_revenue = Decimal('0.00')
+            average_rating = 0.0
         
         # Get account info
         email = user.email
@@ -677,6 +800,9 @@ def get_agency_profile(account_id):
                 "total_jobs": total_jobs,
                 "active_jobs": active_jobs,
                 "completed_jobs": completed_jobs,
+                "cancelled_jobs": cancelled_jobs,
+                "total_revenue": float(total_revenue),
+                "average_rating": average_rating,
             },
             "created_at": created_at,
         }
@@ -786,6 +912,9 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
             'clientID__profileID',
             'categoryID',
             'assignedEmployeeID'
+        ).prefetch_related(
+            'skill_slots',
+            'skill_slots__specializationID'
         ).order_by('-createdAt')[offset:offset + limit]
         
         # Format response
@@ -803,6 +932,20 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                     'email': job.assignedEmployeeID.email,
                     'role': job.assignedEmployeeID.role,
                 }
+            
+            # Build skill slots data for team jobs
+            skill_slots_data = []
+            if job.is_team_job:
+                for slot in job.skill_slots.all():
+                    skill_slots_data.append({
+                        'skill_slot_id': slot.skillSlotID,
+                        'specialization_id': slot.specializationID.specializationID,
+                        'specialization_name': slot.specializationID.specializationName,
+                        'workers_needed': slot.workers_needed,
+                        'budget_allocated': float(slot.budget_allocated) if slot.budget_allocated else 0,
+                        'skill_level_required': slot.skill_level_required,
+                        'status': slot.status,
+                    })
             
             jobs_data.append({
                 'jobID': job.jobID,
@@ -822,6 +965,23 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                 'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
                 'assignedEmployee': assigned_employee,
                 'inviteStatus': job.inviteStatus,
+                # Daily payment model fields
+                'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+                'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+                'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+                'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
+                # Team job fields
+                'is_team_job': job.is_team_job,
+                'total_workers_needed': job.total_workers_needed,
+                'total_workers_assigned': job.total_workers_assigned,
+                'team_fill_percentage': job.team_fill_percentage,
+                'skill_slots': skill_slots_data,
+                # Workflow tracking fields
+                'clientConfirmedWorkStarted': job.clientConfirmedWorkStarted,
+                'workerMarkedComplete': job.workerMarkedComplete,
+                'clientMarkedComplete': job.clientMarkedComplete,
                 'client': {
                     'id': client_profile.accountFK.accountID,
                     'name': f"{client_profile.firstName} {client_profile.lastName}",
@@ -967,12 +1127,26 @@ def get_agency_job_detail(account_id, job_id):
             'expectedDuration': job.expectedDuration,
             'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
             'materialsNeeded': materials_needed,
+            # Daily payment model fields
+            'payment_model': getattr(job, 'payment_model', 'PROJECT'),
+            'daily_rate_agreed': float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+            'duration_days': job.duration_days if hasattr(job, 'duration_days') else None,
+            'actual_start_date': job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
+            'total_days_worked': job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+            'daily_escrow_total': float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
             'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
             'assignedEmployee': assigned_employee,  # Legacy single employee
             'assignedEmployees': assigned_employees,  # NEW: All assigned employees
             'employeeAssignedAt': job.employeeAssignedAt.isoformat() if job.employeeAssignedAt else None,
             'assignmentNotes': job.assignmentNotes,
             'inviteStatus': job.inviteStatus,
+            # Workflow tracking fields
+            'clientConfirmedWorkStarted': job.clientConfirmedWorkStarted,
+            'workerMarkedComplete': job.workerMarkedComplete,
+            'clientMarkedComplete': job.clientMarkedComplete,
+            # Completion data
+            'completionNotes': job.completionNotes if hasattr(job, 'completionNotes') else '',
+            'photos': [photo.photoURL for photo in job.photos.all()] if hasattr(job, 'photos') else [],
             'client': {
                 'id': client_profile.accountFK.accountID,
                 'name': f"{client_profile.firstName} {client_profile.lastName}",
@@ -1282,6 +1456,11 @@ def assign_job_to_employee(
     if not employee.isActive:
         raise ValueError(f"Employee {employee.name} is not active")
 
+    # Check if employee is already working on another job
+    conflicting_job = validate_employee_not_working(employee, exclude_job=job)
+    if conflicting_job:
+        raise ValueError(f"Employee {employee.name} is already working on '{conflicting_job}'. They must complete it before being assigned to a new job.")
+
     # Assign job to employee (atomic transaction)
     with transaction.atomic():
         previous_status = job.status
@@ -1417,6 +1596,47 @@ def unassign_job_from_employee(
     }
 
 
+def validate_employee_not_working(employee, exclude_job=None):
+    """
+    Check if an employee is already working on an active job.
+    Returns the conflicting job title if busy, or None if available.
+    
+    Checks both legacy (Job.assignedEmployeeID) and M2M (JobEmployeeAssignment) paths.
+    
+    Args:
+        employee: AgencyEmployee instance
+        exclude_job: Optional Job instance to exclude (for re-checking within same job)
+    
+    Returns:
+        str (conflicting job title) if employee is busy, None if available
+    """
+    from accounts.models import Job, JobEmployeeAssignment
+    
+    # Check legacy path: Job.assignedEmployeeID
+    legacy_query = Job.objects.filter(
+        assignedEmployeeID=employee,
+        status__in=['ASSIGNED', 'IN_PROGRESS']
+    )
+    if exclude_job:
+        legacy_query = legacy_query.exclude(jobID=exclude_job.jobID)
+    legacy_job = legacy_query.first()
+    if legacy_job:
+        return legacy_job.title
+    
+    # Check M2M path: JobEmployeeAssignment
+    m2m_query = JobEmployeeAssignment.objects.filter(
+        employee=employee,
+        status__in=['ASSIGNED', 'IN_PROGRESS']
+    ).select_related('job')
+    if exclude_job:
+        m2m_query = m2m_query.exclude(job_id=exclude_job.jobID)
+    m2m_assignment = m2m_query.first()
+    if m2m_assignment:
+        return m2m_assignment.job.title
+    
+    return None
+
+
 def get_employee_workload(agency_account, employee_id: int) -> dict:
     """
     Get current workload for an employee (for assignment decisions)
@@ -1424,7 +1644,7 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
     Returns:
         dict with active jobs count, in-progress count, availability status
     """
-    from accounts.models import Job
+    from accounts.models import Job, JobEmployeeAssignment
 
     try:
         agency = AgencyProfile.objects.get(accountFK=agency_account)
@@ -1439,20 +1659,38 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
     except AgencyEmployee.DoesNotExist:
         raise ValueError(f"Employee {employee_id} not found")
 
-    # Count active and in-progress jobs
-    active_jobs = Job.objects.filter(
+    # Count legacy path (Job.assignedEmployeeID)
+    legacy_assigned = Job.objects.filter(
         assignedEmployeeID=employee,
         status='ASSIGNED'
     ).count()
 
-    in_progress_jobs = Job.objects.filter(
+    legacy_in_progress = Job.objects.filter(
         assignedEmployeeID=employee,
         status='IN_PROGRESS'
     ).count()
 
+    # Count M2M path (JobEmployeeAssignment) - exclude jobs already counted via legacy FK
+    legacy_job_ids = Job.objects.filter(
+        assignedEmployeeID=employee,
+        status__in=['ASSIGNED', 'IN_PROGRESS']
+    ).values_list('jobID', flat=True)
+
+    m2m_assigned = JobEmployeeAssignment.objects.filter(
+        employee=employee,
+        status='ASSIGNED'
+    ).exclude(job_id__in=legacy_job_ids).count()
+
+    m2m_in_progress = JobEmployeeAssignment.objects.filter(
+        employee=employee,
+        status='IN_PROGRESS'
+    ).exclude(job_id__in=legacy_job_ids).count()
+
+    active_jobs = legacy_assigned + m2m_assigned
+    in_progress_jobs = legacy_in_progress + m2m_in_progress
     total_active = active_jobs + in_progress_jobs
 
-    # Determine availability (simple logic for now)
+    # Determine availability
     if not employee.isActive:
         availability = 'INACTIVE'
     elif total_active >= 3:
@@ -1555,6 +1793,12 @@ def assign_employees_to_job(
     if inactive_employees:
         names = ', '.join(emp.name for emp in inactive_employees)
         raise ValueError(f"The following employees are not active: {names}")
+    
+    # Check if any employees are already working on OTHER jobs
+    for emp in employees:
+        conflicting_job = validate_employee_not_working(emp, exclude_job=job)
+        if conflicting_job:
+            raise ValueError(f"Employee {emp.name} is already working on '{conflicting_job}'. They must complete it before being assigned to a new job.")
     
     # Check for already assigned employees
     existing_assignments = JobEmployeeAssignment.objects.filter(
@@ -1999,3 +2243,315 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
     
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
+
+
+def get_revenue_trends(account_id, weeks=12):
+    """
+    Get weekly revenue and job completion trends for the agency.
+    
+    Args:
+        account_id: The agency account ID
+        weeks: Number of weeks to fetch (default: 12 = ~3 months)
+    
+    Returns:
+        List of weekly data points with date, revenue, and jobs completed
+    """
+    try:
+        from accounts.models import Agency
+        from django.db.models.functions import TruncWeek
+        
+        user = Accounts.objects.get(accountID=account_id)
+        
+        # Get agency record
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return []
+        
+        # Calculate date range
+        end_date = timezone.now()
+        start_date = end_date - timedelta(weeks=weeks)
+        
+        # Query completed jobs grouped by week
+        weekly_data = Job.objects.filter(
+            assignedAgencyFK=agency,
+            status='COMPLETED',
+            completedAt__gte=start_date,
+            completedAt__lte=end_date
+        ).annotate(
+            week=TruncWeek('completedAt')
+        ).values('week').annotate(
+            revenue=Sum('budget'),
+            jobs=Count('jobID')
+        ).order_by('week')
+        
+        # Convert to list with proper formatting
+        trends = []
+        for entry in weekly_data:
+            trends.append({
+                "date": entry['week'].strftime('%Y-%m-%d') if entry['week'] else None,
+                "revenue": float(entry['revenue'] or 0),
+                "jobs": entry['jobs'] or 0
+            })
+        
+        # Fill in missing weeks with zeros
+        all_weeks = []
+        current = start_date
+        while current <= end_date:
+            week_start = current - timedelta(days=current.weekday())
+            week_str = week_start.strftime('%Y-%m-%d')
+            
+            # Find matching data or use zeros
+            existing = next((t for t in trends if t['date'] == week_str), None)
+            if existing:
+                all_weeks.append(existing)
+            else:
+                all_weeks.append({
+                    "date": week_str,
+                    "revenue": 0,
+                    "jobs": 0
+                })
+            current += timedelta(weeks=1)
+        
+        return all_weeks
+        
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+
+
+def assign_employees_to_slots(
+    agency_account,
+    job_id: int,
+    assignments: list,
+    primary_contact_employee_id: int = None
+) -> dict:
+    """
+    Assign agency employees to specific skill slots for multi-employee INVITE jobs.
+    
+    Args:
+        agency_account: The authenticated agency account
+        job_id: ID of the job
+        assignments: List of {skill_slot_id, employee_id} dictionaries
+        primary_contact_employee_id: Employee to be team lead (optional)
+    
+    Returns:
+        dict with success status and assignment details
+        
+    Rules:
+        - All slots must be fully assigned before job can start
+        - Employees must have the specialization matching the slot (strict matching)
+        - Each employee can only be assigned to one slot per job
+    """
+    from accounts.models import Job, JobSkillSlot, JobEmployeeAssignment, Notification, JobLog, Specializations
+    from profiles.models import Conversation
+    from .models import AgencyEmployee
+    from django.utils import timezone
+    from django.db import transaction
+    import json
+    
+    print(f"📋 assign_employees_to_slots service called: job_id={job_id}, assignments={len(assignments)}")
+    
+    # Get agency
+    try:
+        agency = AgencyProfile.objects.get(accountFK=agency_account)
+        print(f"   Found agency: {agency.businessName}")
+    except AgencyProfile.DoesNotExist:
+        print(f"   ❌ Agency not found for account {agency_account}")
+        return {'success': False, 'error': 'Agency account not found'}
+    
+    # Get job
+    try:
+        job = Job.objects.select_related('assignedAgencyFK', 'clientID__profileID__accountFK').get(jobID=job_id)
+        print(f"   Found job: {job.title}, status={job.status}, inviteStatus={job.inviteStatus}")
+    except Job.DoesNotExist:
+        print(f"   ❌ Job {job_id} not found")
+        return {'success': False, 'error': f'Job {job_id} not found'}
+    
+    # Verify job belongs to this agency
+    if job.assignedAgencyFK != agency:
+        print(f"   ❌ Job not assigned to this agency (assigned to {job.assignedAgencyFK})")
+        return {'success': False, 'error': 'This job is not assigned to your agency'}
+    
+    # Verify it's a multi-employee job
+    if not job.is_team_job:
+        print(f"   ❌ Not a team job")
+        return {'success': False, 'error': 'This is not a multi-employee job. Use regular employee assignment.'}
+    
+    # Verify job is in correct status (ACTIVE with ACCEPTED invite)
+    if job.inviteStatus != 'ACCEPTED':
+        print(f"   ❌ Job invite not accepted yet (current: {job.inviteStatus})")
+        return {'success': False, 'error': 'Job invite must be accepted before assigning employees'}
+    
+    # Get all skill slots for this job
+    skill_slots = {slot.skillSlotID: slot for slot in job.skill_slots.select_related('specializationID').all()}
+    if not skill_slots:
+        return {'success': False, 'error': 'No skill slots found for this job'}
+    
+    # Validate assignments
+    if not assignments or len(assignments) == 0:
+        return {'success': False, 'error': 'At least one assignment is required'}
+    
+    # Track assignments per slot
+    slot_assignments = {slot_id: [] for slot_id in skill_slots.keys()}
+    employee_ids_used = set()
+    
+    with transaction.atomic():
+        for assignment_data in assignments:
+            slot_id = assignment_data.get('skill_slot_id')
+            employee_id = assignment_data.get('employee_id')
+            
+            # Validate slot exists
+            if slot_id not in skill_slots:
+                return {'success': False, 'error': f'Invalid skill_slot_id: {slot_id}'}
+            
+            slot = skill_slots[slot_id]
+            
+            # Validate employee exists and belongs to agency
+            try:
+                employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=agency_account)
+            except AgencyEmployee.DoesNotExist:
+                return {'success': False, 'error': f'Employee {employee_id} not found or not in your agency'}
+            
+            if not employee.isActive:
+                return {'success': False, 'error': f'Employee {employee.fullName} is not active'}
+            
+            # Check if employee is already working on another job
+            conflicting_job = validate_employee_not_working(employee, exclude_job=job)
+            if conflicting_job:
+                return {'success': False, 'error': f'Employee {employee.fullName} is already working on "{conflicting_job}". They must complete it before being assigned to a new job.'}
+            
+            # Strict specialization matching
+            employee_specs = employee.get_specializations_list()
+            required_spec_name = slot.specializationID.specializationName
+            
+            if required_spec_name not in employee_specs:
+                return {
+                    'success': False, 
+                    'error': f'Employee {employee.fullName} does not have required specialization: {required_spec_name}. Employee has: {", ".join(employee_specs) or "none"}'
+                }
+            
+            # Check employee not already assigned to another slot in this job
+            if employee_id in employee_ids_used:
+                return {'success': False, 'error': f'Employee {employee.fullName} is already assigned to another slot in this job'}
+            
+            employee_ids_used.add(employee_id)
+            slot_assignments[slot_id].append({
+                'employee': employee,
+                'employee_id': employee_id
+            })
+        
+        # Verify all slots are fully filled
+        for slot_id, slot in skill_slots.items():
+            assigned_count = len(slot_assignments[slot_id])
+            if assigned_count < slot.workers_needed:
+                return {
+                    'success': False,
+                    'error': f'Slot "{slot.specializationID.specializationName}" requires {slot.workers_needed} worker(s), but only {assigned_count} assigned. All slots must be fully assigned.'
+                }
+            if assigned_count > slot.workers_needed:
+                return {
+                    'success': False,
+                    'error': f'Slot "{slot.specializationID.specializationName}" only needs {slot.workers_needed} worker(s), but {assigned_count} assigned.'
+                }
+        
+        # All validations passed - create assignments
+        created_assignments = []
+        for slot_id, employees_data in slot_assignments.items():
+            slot = skill_slots[slot_id]
+            for emp_data in employees_data:
+                employee = emp_data['employee']
+                is_primary = (primary_contact_employee_id == employee.employeeID)
+                
+                assignment = JobEmployeeAssignment.objects.create(
+                    job=job,
+                    employee=employee,
+                    skill_slot=slot,
+                    assignedBy=agency_account,
+                    isPrimaryContact=is_primary,
+                    status='ASSIGNED',
+                    notes=f'Assigned to {slot.specializationID.specializationName} slot'
+                )
+                created_assignments.append({
+                    'assignment_id': assignment.assignmentID,
+                    'employee_id': employee.employeeID,
+                    'employee_name': employee.fullName,
+                    'slot_id': slot_id,
+                    'specialization': slot.specializationID.specializationName,
+                    'is_primary_contact': is_primary
+                })
+            
+            # Update slot status
+            slot.status = 'FILLED'
+            slot.save()
+        
+        # Update job status to IN_PROGRESS (all slots filled)
+        old_status = job.status
+        job.status = 'IN_PROGRESS'
+        job.employeeAssignedAt = timezone.now()
+        
+        # Also set legacy assignedEmployeeID to primary contact for backward compatibility
+        # (matches pattern from assign_employees_to_job)
+        try:
+            primary_employee = AgencyEmployee.objects.get(employeeID=primary_contact_employee_id, agency=agency_account)
+            job.assignedEmployeeID = primary_employee
+        except AgencyEmployee.DoesNotExist:
+            pass  # Shouldn't happen - already validated above
+        
+        job.save()
+        
+        # Create group conversation if not exists
+        conversation, created = Conversation.objects.get_or_create(
+            relatedJobPosting=job,
+            defaults={
+                'client': job.clientID.profileID,
+                'worker': None,  # Agency job - no individual worker
+                'status': Conversation.ConversationStatus.ACTIVE
+            }
+        )
+        if created:
+            print(f"✅ Created group conversation {conversation.conversationID} for multi-employee job")
+        
+        # Create job log
+        JobLog.objects.create(
+            jobID=job,
+            notes=f"Multi-employee assignment complete: {len(created_assignments)} employees assigned to {len(skill_slots)} skill slots by agency '{agency.businessName}'",
+            changedBy=agency_account,
+            oldStatus=old_status,
+            newStatus='IN_PROGRESS'
+        )
+        
+        # Send notification to client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType='AGENCY_TEAM_ASSIGNED',
+            title=f'Team Assigned to Your Job',
+            message=f'{agency.businessName} has assigned {len(created_assignments)} team members to "{job.title}". Work can now begin!',
+            relatedJobID=job.jobID
+        )
+        
+        # Send notification to each assigned employee
+        for emp_data in created_assignments:
+            try:
+                employee = AgencyEmployee.objects.get(employeeID=emp_data['employee_id'])
+                employee_account = getattr(employee, 'accountFK', None)
+                if employee_account:
+                    Notification.objects.create(
+                        accountFK=employee_account,
+                        notificationType='JOB_ASSIGNED',
+                        title=f'New Job Assignment: {job.title}',
+                        message=f'You have been assigned to work on "{job.title}" as {emp_data["specialization"]}.',
+                        relatedJobID=job.jobID
+                    )
+            except Exception:
+                pass  # Employee may not have account
+        
+        return {
+            'success': True,
+            'message': f'Successfully assigned {len(created_assignments)} employees to {len(skill_slots)} skill slots',
+            'job_id': job.jobID,
+            'job_status': 'IN_PROGRESS',
+            'conversation_id': conversation.conversationID,
+            'assignments': created_assignments,
+            'total_employees': len(created_assignments),
+            'total_slots': len(skill_slots)
+        }

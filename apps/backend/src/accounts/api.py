@@ -402,13 +402,21 @@ def upload_kyc(request):
         backID = request.FILES.get("backID")
         clearance = request.FILES.get("clearance")
         selfie = request.FILES.get("selfie")
+        
+        # Get user-confirmed extraction data from per-step OCR
+        extracted_id_data = request.POST.get("extracted_id_data")
+        extracted_clearance_data = request.POST.get("extracted_clearance_data")
 
         payload = KYCUploadSchema(
             accountID=accountID,
             IDType=IDType,
             clearanceType=clearanceType
         )
-        result = upload_kyc_document(payload, frontID, backID, clearance, selfie)
+        result = upload_kyc_document(
+            payload, frontID, backID, clearance, selfie,
+            extracted_id_data=extracted_id_data,
+            extracted_clearance_data=extracted_clearance_data
+        )
         return result
     except ValueError as e:
         print(f"❌ ValueError in KYC upload: {str(e)}")
@@ -427,6 +435,11 @@ def validate_kyc_document(request):
     Checks resolution, blur, and face detection (for ID/selfie).
     Does NOT run OCR - that happens on final submission.
     
+    OPTIMIZATIONS (matching Agency KYC performance):
+    - Redis caching: Same file hash returns cached result (10 min TTL)
+    - Fast path for BACKID/CLEARANCE: skip face service initialization
+    - Fallback: Accept for manual review if Face API unavailable
+    
     NOTE: This endpoint is for INDIVIDUAL/MOBILE KYC only.
     Agency KYC uses /api/agency/kyc/validate-document with different document types.
     
@@ -438,6 +451,8 @@ def validate_kyc_document(request):
     - valid: boolean - whether document passes validation
     - error: string - user-friendly error message if invalid
     - details: object - validation details
+    - cached: boolean - whether result was from cache
+    - file_hash: string - SHA-256 hash of file (for debugging)
     """
     try:
         file = request.FILES.get("file")
@@ -455,24 +470,99 @@ def validate_kyc_document(request):
         if document_type not in valid_types:
             return {"valid": False, "error": f"Invalid document_type for individual KYC. Must be one of: {', '.join(valid_types)}", "details": {}}
         
-        print(f"🔍 [VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
+        print(f"🔍 [MOBILE VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
         
         # Read file data
         file_data = file.read()
         
-        # Determine if face detection is required
+        # ============================================
+        # OPTIMIZATION 1: Redis Cache Check
+        # Same file hash returns cached result instantly
+        # ============================================
+        from agency.validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
+        
+        file_hash = generate_file_hash(file_data)
+        cache_key = f"mobile_{document_type}"  # Prefix to distinguish from agency cache
+        
+        cached_result = get_cached_validation(file_hash, cache_key)
+        if cached_result:
+            print(f"   ⚡ [CACHE HIT] Returning cached validation for {document_type}")
+            return {
+                "valid": cached_result.get('ai_status') != 'FAILED',
+                "error": cached_result.get('ai_rejection_message'),
+                "details": cached_result,
+                "file_hash": file_hash,
+                "cached": True
+            }
+        
+        # ============================================
+        # OPTIMIZATION 2: Fast path for non-face documents
+        # BACKID and CLEARANCE don't need face detection
+        # Skip face service initialization entirely
+        # ============================================
+        from accounts.document_verification_service import DocumentVerificationService
+        
         # Face required for: Front ID (has photo), Selfie
         # Face NOT required for: Back ID (usually no photo), Clearance (certificate)
         require_face = document_type in ["FRONTID", "SELFIE"]
         
-        # Run quick validation
-        from accounts.document_verification_service import DocumentVerificationService
-        verifier = DocumentVerificationService()
-        result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+        # Use skip_face_service=True for documents that don't need face detection
+        # This avoids Face API cold start delays
+        skip_face = document_type in ["BACKID", "CLEARANCE"]
         
-        print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
-        
-        return result
+        try:
+            verifier = DocumentVerificationService(skip_face_service=skip_face)
+            result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+            
+            print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
+            
+            # Cache successful validation result (10 min TTL via validation_cache default)
+            validation_data = {
+                'ai_status': 'PASSED' if result['valid'] else 'FAILED',
+                'ai_rejection_message': result.get('error'),
+                'quality_score': result.get('details', {}).get('quality_score', 0),
+                'resolution': result.get('details', {}).get('resolution', ''),
+                'warnings': result.get('details', {}).get('warnings', []),
+                'face_detection_skipped': result.get('details', {}).get('face_detection_skipped', False),
+                'needs_manual_review': result.get('details', {}).get('needs_manual_review', False),
+            }
+            cache_validation_result(file_hash, cache_key, validation_data)
+            
+            # Add file_hash and cached flag to result
+            result['file_hash'] = file_hash
+            result['cached'] = False
+            return result
+            
+        except Exception as service_error:
+            # ============================================
+            # OPTIMIZATION 3: Fallback - Accept for manual review
+            # If Face API or verification service fails, accept document
+            # for manual review rather than blocking user
+            # ============================================
+            print(f"   ⚠️ Service error, accepting for manual review: {service_error}")
+            
+            fallback_result = {
+                "valid": True,
+                "error": None,
+                "details": {
+                    "skipped": True,
+                    "reason": "Validation service temporarily unavailable - document accepted for manual review",
+                    "needs_manual_review": True
+                },
+                "file_hash": file_hash,
+                "cached": False
+            }
+            
+            # Cache fallback result too
+            validation_data = {
+                'ai_status': 'PASSED',
+                'ai_rejection_message': None,
+                'needs_manual_review': True,
+                'skipped': True,
+            }
+            cache_validation_result(file_hash, cache_key, validation_data)
+            
+            return fallback_result
         
     except Exception as e:
         print(f"❌ Exception in document validation: {str(e)}")
@@ -538,6 +628,358 @@ def get_kyc_status_endpoint(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch KYC status"}
+
+
+# =============================================================================
+# KYC PER-STEP OCR EXTRACTION ENDPOINTS (Mobile KYC Enhancement)
+# =============================================================================
+
+@router.post("/kyc/extract-id", auth=dual_auth)
+def extract_id_from_ocr(request):
+    """
+    Extract ID-related fields from uploaded ID image via OCR.
+    
+    Called AFTER document validation passes in Step 2.
+    Returns 5 key editable fields with confidence scores.
+    
+    Request: multipart/form-data with:
+    - id_front: ID front image (required)
+    - id_type: ID type (NATIONALID, DRIVERSLICENSE, PASSPORT, UMID, PHILHEALTH)
+    
+    Response:
+    - success: bool
+    - fields: dict with extracted fields (full_name, id_number, birth_date, address, sex)
+    - confidence: float (0-1) overall OCR quality
+    
+    NOTE: Always returns JSON (never HTTP 500) - graceful fallback if OCR fails.
+    """
+    from django.utils import timezone
+    
+    # Get id_type early for consistent error responses
+    id_type = request.POST.get("id_type", "NATIONALID")
+    
+    # Define empty fields template for fallback responses
+    def get_empty_fields():
+        return {
+            "full_name": {"value": "", "confidence": 0, "editable": True},
+            "id_number": {"value": "", "confidence": 0, "editable": True},
+            "birth_date": {"value": "", "confidence": 0, "editable": True},
+            "address": {"value": "", "confidence": 0, "editable": True},
+            "sex": {"value": "", "confidence": 0, "editable": True}
+        }
+    
+    try:
+        from .kyc_extraction_parser import get_kyc_parser
+        from .document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        
+        user = request.auth
+        print(f"📝 [EXTRACT-ID] Starting extraction for user: {user.email}")
+        
+        id_front = request.FILES.get("id_front")
+        
+        if not id_front:
+            return {
+                "success": False,
+                "has_extraction": False,
+                "error": "ID front image is required",
+                "error_code": "MISSING_FILE",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        
+        print(f"   📄 [EXTRACT-ID] Processing {id_type} ({id_front.size} bytes)")
+        
+        # Read image bytes
+        id_front.seek(0)
+        id_bytes = id_front.read()
+        
+        # Initialize OCR service (skip face detection for faster extraction)
+        try:
+            doc_service = DocumentVerificationService(skip_face_service=True)
+            id_img = Image.open(io.BytesIO(id_bytes))
+            ocr_result = doc_service._extract_text(id_img)
+            ocr_text = ocr_result.get("text", "")
+            ocr_confidence = ocr_result.get("confidence", 0)
+        except Exception as ocr_error:
+            print(f"   ⚠️ [EXTRACT-ID] OCR failed: {ocr_error}")
+            # Return graceful fallback - let user fill manually
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "OCR extraction temporarily unavailable. Please fill in your details manually.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat(),
+                "ocr_error": True
+            }
+        
+        print(f"   🔍 [EXTRACT-ID] OCR result: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
+        
+        if not ocr_text or len(ocr_text) < 10:
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not extract text from image. Please ensure the ID is clear and well-lit.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        
+        # Parse OCR text using KYC parser
+        try:
+            parser = get_kyc_parser()
+            parsed_data = parser.parse_ocr_text(ocr_text, id_type.upper())
+            
+            # Return 5 key fields for user editing
+            fields = {
+                "full_name": {
+                    "value": parsed_data.full_name.value or "",
+                    "confidence": parsed_data.full_name.confidence,
+                    "editable": True
+                },
+                "id_number": {
+                    "value": parsed_data.id_number.value or "",
+                    "confidence": parsed_data.id_number.confidence,
+                    "editable": True
+                },
+                "birth_date": {
+                    "value": parsed_data.birth_date.value or "",
+                    "confidence": parsed_data.birth_date.confidence,
+                    "editable": True
+                },
+                "address": {
+                    "value": parsed_data.address.value or "",
+                    "confidence": parsed_data.address.confidence,
+                    "editable": True
+                },
+                "sex": {
+                    "value": parsed_data.sex.value or "",
+                    "confidence": parsed_data.sex.confidence,
+                    "editable": True
+                }
+            }
+            
+            print(f"✅ [EXTRACT-ID] Extracted: name='{fields['full_name']['value'][:30]}...', id={fields['id_number']['value']}")
+            
+            return {
+                "success": True,
+                "has_extraction": True,
+                "fields": fields,
+                "confidence": parsed_data.overall_confidence,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        except Exception as parse_error:
+            print(f"   ⚠️ [EXTRACT-ID] Parser failed: {parse_error}")
+            # Return graceful fallback with empty fields
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not parse extracted text. Please fill in your details manually.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "id_type": id_type,
+                "extracted_at": timezone.now().isoformat(),
+                "parse_error": True
+            }
+        
+    except Exception as e:
+        print(f"❌ [EXTRACT-ID] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # ALWAYS return JSON - never HTTP 500
+        # This prevents Render proxy from returning HTML error pages
+        return {
+            "success": True,
+            "has_extraction": False,
+            "message": "Extraction failed. Please fill in your details manually.",
+            "fields": get_empty_fields(),
+            "confidence": 0,
+            "id_type": id_type,
+            "extracted_at": timezone.now().isoformat(),
+            "error": str(e)
+        }
+
+
+@router.post("/kyc/extract-clearance", auth=dual_auth)
+def extract_clearance_from_ocr(request):
+    """
+    Extract clearance-related fields from uploaded clearance image via OCR.
+    
+    Called AFTER document validation passes in Step 3.
+    Returns 5 key editable fields with confidence scores.
+    
+    Request: multipart/form-data with:
+    - clearance: Clearance image (required)
+    - clearance_type: Clearance type (NBI or POLICE)
+    
+    Response:
+    - success: bool
+    - fields: dict with extracted fields (clearance_number, holder_name, issue_date, validity_date, clearance_type)
+    - confidence: float (0-1) overall OCR quality
+    
+    NOTE: Always returns JSON (never HTTP 500) - graceful fallback if OCR fails.
+    """
+    from django.utils import timezone
+    
+    # Get clearance_type early for error responses
+    clearance_type = request.POST.get("clearance_type", "NBI")
+    
+    # Define empty fields template for fallback responses
+    def get_empty_fields():
+        return {
+            "clearance_number": {"value": "", "confidence": 0, "editable": True},
+            "holder_name": {"value": "", "confidence": 0, "editable": True},
+            "issue_date": {"value": "", "confidence": 0, "editable": True},
+            "validity_date": {"value": "", "confidence": 0, "editable": True},
+            "clearance_type": {"value": clearance_type, "confidence": 1.0, "editable": False}
+        }
+    
+    try:
+        from .kyc_extraction_parser import get_kyc_parser
+        from .document_verification_service import DocumentVerificationService
+        from PIL import Image
+        import io
+        
+        user = request.auth
+        print(f"📝 [EXTRACT-CLEARANCE] Starting extraction for user: {user.email}")
+        
+        clearance = request.FILES.get("clearance")
+        
+        if not clearance:
+            return {
+                "success": False, 
+                "has_extraction": False,
+                "error": "Clearance image is required",
+                "error_code": "MISSING_FILE",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        
+        print(f"   📄 [EXTRACT-CLEARANCE] Processing {clearance_type} ({clearance.size} bytes)")
+        
+        # Read image bytes
+        clearance.seek(0)
+        clearance_bytes = clearance.read()
+        
+        # Initialize OCR service
+        try:
+            doc_service = DocumentVerificationService(skip_face_service=True)
+            clearance_img = Image.open(io.BytesIO(clearance_bytes))
+            ocr_result = doc_service._extract_text(clearance_img)
+            ocr_text = ocr_result.get("text", "")
+            ocr_confidence = ocr_result.get("confidence", 0)
+        except Exception as ocr_error:
+            print(f"   ⚠️ [EXTRACT-CLEARANCE] OCR failed: {ocr_error}")
+            # Return graceful fallback - let user fill manually
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "OCR extraction temporarily unavailable. Please fill in your details manually.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat(),
+                "ocr_error": True
+            }
+        
+        print(f"   🔍 [EXTRACT-CLEARANCE] OCR result: {len(ocr_text)} chars, confidence={ocr_confidence:.2f}")
+        
+        if not ocr_text or len(ocr_text) < 10:
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not extract text from image. Please ensure the clearance is clear and well-lit.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        
+        # Parse OCR text - use clearance-specific parsing
+        try:
+            parser = get_kyc_parser()
+            
+            # Extract clearance-specific fields from OCR text
+            clearance_fields = parser.parse_clearance_text(ocr_text, clearance_type.upper())
+            
+            # Return 5 key fields for user editing
+            fields = {
+                "clearance_number": {
+                    "value": clearance_fields.get("clearance_number", ""),
+                    "confidence": clearance_fields.get("clearance_number_confidence", 0),
+                    "editable": True
+                },
+                "holder_name": {
+                    "value": clearance_fields.get("holder_name", ""),
+                    "confidence": clearance_fields.get("holder_name_confidence", 0),
+                    "editable": True
+                },
+                "issue_date": {
+                    "value": clearance_fields.get("issue_date", ""),
+                    "confidence": clearance_fields.get("issue_date_confidence", 0),
+                    "editable": True
+                },
+                "validity_date": {
+                    "value": clearance_fields.get("validity_date", ""),
+                    "confidence": clearance_fields.get("validity_date_confidence", 0),
+                    "editable": True
+                },
+                "clearance_type": {
+                    "value": clearance_type,
+                    "confidence": 1.0,  # User selected, so 100% confident
+                    "editable": False
+                }
+            }
+            
+            print(f"✅ [EXTRACT-CLEARANCE] Extracted: name='{fields['holder_name']['value']}', number={fields['clearance_number']['value']}")
+            
+            return {
+                "success": True,
+                "has_extraction": True,
+                "fields": fields,
+                "confidence": clearance_fields.get("overall_confidence", 0),
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat()
+            }
+        except Exception as parse_error:
+            print(f"   ⚠️ [EXTRACT-CLEARANCE] Parser failed: {parse_error}")
+            # Return graceful fallback with empty fields
+            return {
+                "success": True,
+                "has_extraction": False,
+                "message": "Could not parse extracted text. Please fill in your details manually.",
+                "fields": get_empty_fields(),
+                "confidence": 0,
+                "clearance_type": clearance_type,
+                "extracted_at": timezone.now().isoformat(),
+                "parse_error": True
+            }
+        
+    except Exception as e:
+        print(f"❌ [EXTRACT-CLEARANCE] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # ALWAYS return JSON - never HTTP 500
+        # This prevents Render proxy from returning HTML error pages
+        return {
+            "success": True,
+            "has_extraction": False,
+            "message": "Extraction failed. Please fill in your details manually.",
+            "fields": get_empty_fields(),
+            "confidence": 0,
+            "clearance_type": clearance_type,
+            "extracted_at": timezone.now().isoformat(),
+            "error": str(e)
+        }
 
 
 # =============================================================================
@@ -1042,6 +1484,7 @@ def get_kyc_comparison_data(request):
 def get_notifications(request, limit: int = 50, unread_only: bool = False):
     """
     Get notifications for the authenticated user.
+    Filters by profile_type from JWT token to show profile-specific notifications.
     
     Query params:
     - limit: Maximum number of notifications to return (default 50)
@@ -1051,7 +1494,9 @@ def get_notifications(request, limit: int = 50, unread_only: bool = False):
         from .services import get_user_notifications
         
         user = request.auth
-        notifications = get_user_notifications(user.accountID, limit, unread_only)
+        # Get profile_type from JWT token for dual-profile filtering
+        profile_type = getattr(user, 'profile_type', None)
+        notifications = get_user_notifications(user.accountID, limit, unread_only, profile_type)
         
         return {
             "success": True,
@@ -1116,13 +1561,16 @@ def mark_all_notifications_read(request):
 def get_unread_count(request):
     """
     Get the count of unread notifications for the authenticated user.
+    Filters by profile_type from JWT token to count profile-specific notifications.
     Supports both mobile (Bearer token) and web (cookie) authentication.
     """
     try:
         from .services import get_unread_notification_count
 
         user = request.auth
-        count = get_unread_notification_count(user.accountID)
+        # Get profile_type from JWT token for dual-profile filtering
+        profile_type = getattr(user, 'profile_type', None)
+        count = get_unread_notification_count(user.accountID, profile_type)
 
         return {"success": True, "unread_count": count}
 
@@ -1967,8 +2415,12 @@ def get_wallet_transactions(request):
 @router.post("/wallet/webhook", auth=None)  # No auth for webhooks
 def xendit_webhook(request):
     """
-    Handle Xendit payment webhook callbacks
-    This endpoint is called by Xendit when payment status changes
+    [DEPRECATED] Handle Xendit payment webhook callbacks.
+    
+    This endpoint is kept for processing historical Xendit transactions.
+    New transactions use PayMongo via /wallet/paymongo-webhook.
+    
+    This endpoint is called by Xendit when payment status changes.
     """
     try:
         from .models import Transaction
@@ -2084,9 +2536,13 @@ def xendit_webhook(request):
 @router.post("/wallet/disbursement-webhook", auth=None)  # No auth for webhooks
 def xendit_disbursement_webhook(request):
     """
-    Handle Xendit disbursement/payout webhook callbacks
-    This endpoint is called by Xendit when a disbursement status changes
-    Used for withdrawal processing (both agency and worker withdrawals)
+    [DEPRECATED] Handle Xendit disbursement/payout webhook callbacks.
+    
+    This endpoint is kept for processing historical Xendit disbursements.
+    New payouts use PayMongo.
+    
+    This endpoint is called by Xendit when a disbursement status changes.
+    Used for withdrawal processing (both agency and worker withdrawals).
     """
     try:
         from .models import Transaction, Wallet
@@ -2612,7 +3068,7 @@ def check_payment_status(request, transaction_id: int):
     """
     try:
         from .models import Transaction
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         
         # Get transaction
         try:
@@ -2636,14 +3092,15 @@ def check_payment_status(request, transaction_id: int):
                 "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None
             }
         
-        # If still pending, check with Xendit
+        # If still pending, check with payment provider
         if transaction.xenditInvoiceID:
-            xendit_status = XenditService.get_invoice_status(transaction.xenditInvoiceID)
+            payment_provider = get_payment_provider()
+            provider_status = payment_provider.get_payment_status(transaction.xenditInvoiceID)
             
             return {
                 "success": True,
                 "status": transaction.status,
-                "xendit_status": xendit_status.get('status'),
+                "provider_status": provider_status.get('status'),
                 "payment_url": transaction.invoiceURL,
                 "amount": float(transaction.amount)
             }
@@ -3257,7 +3714,7 @@ def get_worker_materials_public(request, worker_id: int, category_id: Optional[i
 # PORTFOLIO ENDPOINTS
 # ===========================
 
-@router.post("/worker/portfolio", auth=cookie_auth, response=PortfolioItemResponse)
+@router.post("/worker/portfolio", auth=dual_auth, response=PortfolioItemResponse)
 def upload_portfolio_endpoint(
     request,
     image: UploadedFile = File(...),
@@ -3306,7 +3763,7 @@ def upload_portfolio_endpoint(
         )
 
 
-@router.get("/worker/portfolio", auth=cookie_auth, response=list[PortfolioItemSchema])
+@router.get("/worker/portfolio", auth=dual_auth, response=list[PortfolioItemSchema])
 def list_portfolio_endpoint(request):
     """
     List all worker's portfolio images ordered by display_order.
@@ -3336,7 +3793,7 @@ def list_portfolio_endpoint(request):
         )
 
 
-@router.put("/worker/portfolio/{portfolio_id}/caption", auth=cookie_auth, response=PortfolioItemResponse)
+@router.put("/worker/portfolio/{portfolio_id}/caption", auth=dual_auth, response=PortfolioItemResponse)
 def update_portfolio_caption_endpoint(request, portfolio_id: int, payload: UpdatePortfolioCaptionRequest):
     """
     Update caption for a portfolio image.
@@ -3381,7 +3838,7 @@ def update_portfolio_caption_endpoint(request, portfolio_id: int, payload: Updat
         )
 
 
-@router.put("/worker/portfolio/reorder", auth=cookie_auth)
+@router.put("/worker/portfolio/reorder", auth=dual_auth)
 def reorder_portfolio_endpoint(request, payload: ReorderPortfolioRequest):
     """
     Reorder portfolio images by providing list of portfolio IDs in desired order.
@@ -3421,7 +3878,7 @@ def reorder_portfolio_endpoint(request, payload: ReorderPortfolioRequest):
         )
 
 
-@router.delete("/worker/portfolio/{portfolio_id}", auth=cookie_auth)
+@router.delete("/worker/portfolio/{portfolio_id}", auth=dual_auth)
 def delete_portfolio_endpoint(request, portfolio_id: int):
     """
     Delete a portfolio image.
@@ -3641,6 +4098,185 @@ def report_review_endpoint(request, review_id: int, payload: ReportReviewRequest
             {"error": "Failed to report review"},
             status=500
         )
+
+#endregion
+
+
+#region EARNINGS ENDPOINTS
+# ===========================================================================
+# EARNINGS ENDPOINTS - Worker/Agency Earnings Summary (Web API)
+# ===========================================================================
+
+@router.get("/earnings/summary", auth=dual_auth)
+def get_earnings_summary(request):
+    """
+    Get earnings summary for the current worker/agency.
+    Includes total earnings, pending earnings, and completed jobs count.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum, Count
+    from django.utils import timezone
+    from .models import Profile, WorkerProfile, Wallet, Job, Transaction
+    
+    try:
+        print(f"💵 [WEB] Getting earnings summary for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+        
+        if not profile or profile.profileType != 'WORKER':
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        # Get wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
+        )
+        
+        # Get completed jobs count
+        completed_jobs = Job.objects.filter(
+            assignedWorkerID=worker_profile,
+            status='COMPLETED'
+        ).count()
+        
+        # Get total earnings from transactions
+        total_earnings = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING'],
+            status='COMPLETED'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Get this month's earnings
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        this_month_earnings = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING'],
+            status='COMPLETED',
+            createdAt__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        return {
+            "success": True,
+            "earnings": {
+                "total_earnings": float(total_earnings),
+                "pending_earnings": float(wallet.pendingEarnings),
+                "available_balance": float(wallet.balance),
+                "this_month_earnings": float(this_month_earnings),
+                "completed_jobs_count": completed_jobs
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [WEB] Earnings summary error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get earnings summary: {str(e)}"}, status=500)
+
+
+@router.get("/earnings/history", auth=dual_auth)
+def get_earnings_history(request, page: int = 1, limit: int = 20):
+    """
+    Get earnings history for the current worker/agency.
+    Shows all earning transactions with job details.
+    """
+    from django.core.paginator import Paginator
+    from .models import Profile, WorkerProfile, Wallet, Transaction
+    
+    try:
+        print(f"📊 [WEB] Getting earnings history for {request.auth.email}")
+        
+        # Get profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+        
+        if not profile or profile.profileType != 'WORKER':
+            return Response({"error": "Worker profile not found"}, status=403)
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return {
+                "success": True,
+                "earnings": [],
+                "total": 0,
+                "page": page,
+                "total_pages": 0
+            }
+        
+        # Get earning transactions
+        queryset = Transaction.objects.filter(
+            walletID=wallet,
+            transactionType__in=['EARNING', 'PENDING_EARNING']
+        ).select_related('relatedJobPosting').order_by('-createdAt')
+        
+        paginator = Paginator(queryset, limit)
+        if page < 1:
+            page = 1
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            page = paginator.num_pages
+        
+        earnings_page = paginator.get_page(page)
+        
+        earnings_data = []
+        for txn in earnings_page:
+            earning = {
+                "id": txn.transactionID,
+                "amount": float(txn.amount),
+                "status": txn.status,
+                "type": txn.transactionType,
+                "description": txn.description,
+                "created_at": txn.createdAt.isoformat() if txn.createdAt else None,
+            }
+            
+            if txn.relatedJobPosting:
+                earning["job"] = {
+                    "id": txn.relatedJobPosting.jobID,
+                    "title": txn.relatedJobPosting.title,
+                    "budget": float(txn.relatedJobPosting.budget)
+                }
+            
+            earnings_data.append(earning)
+        
+        return {
+            "success": True,
+            "earnings": earnings_data,
+            "total": paginator.count,
+            "page": page,
+            "total_pages": paginator.num_pages
+        }
+        
+    except Exception as e:
+        print(f"❌ [WEB] Earnings history error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get earnings history: {str(e)}"}, status=500)
 
 #endregion
 

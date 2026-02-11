@@ -3,6 +3,7 @@
 // Uses agency-specific API endpoints
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
 // Types
@@ -19,6 +20,9 @@ export type AgencyConversationJob = {
   clientReviewed: boolean;
   assignedEmployeeId: number | null;
   assignedEmployeeName: string | null;
+  payment_model?: "PROJECT" | "DAILY"; // Daily payment vs project payment
+  daily_rate_agreed?: number; // Per worker per day rate
+  duration_days?: number; // Expected duration
 };
 
 export type AgencyConversationParticipant = {
@@ -52,6 +56,13 @@ export type AssignedEmployee = {
   rating: number | null;
   isPrimaryContact: boolean;
   status: string;
+  // PROJECT job workflow tracking
+  dispatched?: boolean;
+  dispatchedAt?: string | null;
+  clientConfirmedArrival?: boolean;
+  clientConfirmedArrivalAt?: string | null;
+  agencyMarkedComplete?: boolean;
+  agencyMarkedCompleteAt?: string | null;
 };
 
 // Backjob info returned from conversations API
@@ -120,10 +131,10 @@ export type AgencyConversationDetail = {
 
 /**
  * Fetch all agency conversations
- * @param filter - 'all', 'unread', or 'archived' (default: 'all')
+ * @param filter - 'active', 'unread', or 'archived' (default: 'active')
  */
 export function useAgencyConversations(
-  filter: "all" | "unread" | "archived" = "all",
+  filter: "active" | "unread" | "archived" = "active",
 ) {
   return useQuery({
     queryKey: ["agency-conversations", filter],
@@ -152,7 +163,8 @@ export function useAgencyConversations(
  * Search agency conversations by client name or job title
  */
 export function useAgencyConversationSearch(searchQuery: string) {
-  const { data: conversationsData, isLoading } = useAgencyConversations("all");
+  const { data: conversationsData, isLoading } =
+    useAgencyConversations("active");
 
   const filteredConversations =
     conversationsData?.conversations.filter((conv) => {
@@ -279,6 +291,39 @@ export function useAgencyArchiveConversation() {
 }
 
 /**
+ * Upload a completion photo for a job (agency/worker action)
+ */
+export function useUploadCompletionPhoto() {
+  return useMutation({
+    mutationFn: async ({ jobId, file }: { jobId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${jobId}/upload-completion-photo`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(
+            error,
+            `Failed to upload photo: ${response.statusText}`,
+          ),
+        );
+      }
+
+      return response.json();
+    },
+  });
+}
+
+/**
  * Mark a job as complete (agency/worker action)
  */
 export function useAgencyMarkComplete() {
@@ -307,7 +352,10 @@ export function useAgencyMarkComplete() {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          error.error || `Failed to mark complete: ${response.statusText}`,
+          getErrorMessage(
+            error,
+            `Failed to mark complete: ${response.statusText}`,
+          ),
         );
       }
 
@@ -330,11 +378,17 @@ export function useAgencySubmitReview() {
   return useMutation({
     mutationFn: async ({
       jobId,
-      rating,
+      rating_quality,
+      rating_communication,
+      rating_punctuality,
+      rating_professionalism,
       reviewText,
     }: {
       jobId: number;
-      rating: number;
+      rating_quality: number;
+      rating_communication: number;
+      rating_punctuality: number;
+      rating_professionalism: number;
       reviewText: string;
     }) => {
       const response = await fetch(`${API_BASE}/api/jobs/${jobId}/review`, {
@@ -342,15 +396,21 @@ export function useAgencySubmitReview() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rating,
-          review_text: reviewText,
+          rating_quality,
+          rating_communication,
+          rating_punctuality,
+          rating_professionalism,
+          message: reviewText,
         }),
       });
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(
-          error.error || `Failed to submit review: ${response.statusText}`,
+          getErrorMessage(
+            error,
+            `Failed to submit review: ${response.statusText}`,
+          ),
         );
       }
 
@@ -368,7 +428,7 @@ export function useAgencySubmitReview() {
  * Get unread count across all agency conversations
  */
 export function useAgencyUnreadCount() {
-  const { data } = useAgencyConversations("all");
+  const { data } = useAgencyConversations("active");
 
   const unreadCount =
     data?.conversations.reduce((acc, conv) => acc + conv.unread_count, 0) || 0;

@@ -33,6 +33,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useWallet, PendingEarningItem } from "@/lib/hooks/useWallet";
 import { useTransactions } from "@/lib/hooks/useTransactions";
 import TransactionCard from "@/components/TransactionCard";
@@ -128,7 +129,7 @@ export default function WalletScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

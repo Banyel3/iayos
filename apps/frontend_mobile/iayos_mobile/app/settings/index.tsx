@@ -290,7 +290,7 @@ export default function SettingsScreen() {
           icon="lock-closed-outline"
           title="Data & Privacy"
           subtitle="Manage your data and privacy settings"
-          onPress={() => navigateTo('/settings/privacy')}
+          onPress={() => navigateTo('/legal/privacy')}
           showChevron
         />
       </View>

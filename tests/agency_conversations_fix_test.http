@@ -1,0 +1,38 @@
+### Test Agency Conversations Endpoint (Bug Fix Verification)
+### Purpose: Verify that agencies only see conversations for jobs assigned to them
+### Bug Fix: Changed filter from assignedEmployeeID__agency to assignedAgencyFK
+
+@baseUrl = https://api.iayos.online
+@agencyEmail = agency@test.iayos.com
+@agencyPassword = Test1234!
+
+### 1. Login as Agency
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{agencyEmail}}",
+  "password": "{{agencyPassword}}"
+}
+
+### 2. Get Agency Conversations (All)
+### Expected: Only conversations for jobs assigned to THIS agency
+### Should NOT show conversations from other agencies
+GET {{baseUrl}}/api/agency/conversations?filter=all
+Cookie: authToken={{login.response.body.token}}
+
+### 3. Get Agency Conversations (Unread Only)
+GET {{baseUrl}}/api/agency/conversations?filter=unread
+Cookie: authToken={{login.response.body.token}}
+
+### 4. Get Agency Conversations (Archived)
+GET {{baseUrl}}/api/agency/conversations?filter=archived
+Cookie: authToken={{login.response.body.token}}
+
+### Verification Checklist:
+### ✅ Response contains only conversations where:
+###    - relatedJobPosting.assignedAgencyFK matches logged-in agency
+###    - OR agency is in worker role for INVITE jobs
+### ✅ Response does NOT contain conversations from other agencies
+### ✅ No 500 errors or syntax errors
+### ✅ All conversation objects have proper job and client details

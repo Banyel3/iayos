@@ -142,7 +142,7 @@ export const useImageUpload = () => {
 
           // Configure and send request
           xhr.open("POST", fullEndpoint);
-          xhr.timeout = 60000; // 60 second timeout
+          xhr.timeout = 120000; // 2 minute timeout (increased for slow networks)
           xhr.setRequestHeader("Accept", "application/json");
 
           // Add Authorization header for authenticated uploads
@@ -288,7 +288,7 @@ export const useMultiImageUpload = () => {
 
             // Configure and send request
             xhr.open("POST", fullEndpoint);
-            xhr.timeout = 60000;
+            xhr.timeout = 120000; // 2 minute timeout (increased for slow networks)
             xhr.setRequestHeader("Accept", "application/json");
 
             // Add Authorization header
