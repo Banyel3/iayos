@@ -2878,6 +2878,7 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     flex: 1,
+    flexBasis: 0,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.white,
