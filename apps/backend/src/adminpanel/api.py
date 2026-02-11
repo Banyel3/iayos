@@ -1155,10 +1155,10 @@ def approve_backjob(request, dispute_id: int):
                 print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
         
         except Exception as e:
-            print(f"❌ Error in approve-backjob workflow: {str(e)}")
+            print(f"❌ Error managing conversation for backjob: {str(e)}")
             import traceback
             traceback.print_exc()
-            return {"success": False, "error": f"Failed to approve backjob: {str(e)}"}
+            # Don't return error - conversation issue shouldn't block backjob approval
         
         return {
             "success": True,
