@@ -38,7 +38,6 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
-  useWorkerCompleteAssignment,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -727,9 +726,6 @@ export default function JobDetailScreen() {
     }, [queryClient])
   );
 
-  // Team job completion mutations
-  const workerCompleteAssignment = useWorkerCompleteAssignment();
-
   // Team job applications (for clients)
   const { data: teamApplicationsData } = useTeamJobApplications(
     parseInt(id),
@@ -828,29 +824,6 @@ export default function JobDetailScreen() {
           setEstimatedDuration("");
         },
       },
-    );
-  };
-
-  const handleWorkerCompleteAssignment = () => {
-    if (!currentWorkerAssignment) return;
-
-    Alert.alert(
-      "Mark Complete",
-      "Are you sure you want to mark your assignment as complete?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Complete",
-          style: "default",
-          onPress: () => {
-            workerCompleteAssignment.mutate({
-              jobId: parseInt(id),
-              assignmentId: currentWorkerAssignment.assignment_id,
-              completionNotes: completionNotes || undefined,
-            });
-          },
-        },
-      ],
     );
   };
 
@@ -1614,29 +1587,7 @@ export default function JobDetailScreen() {
                   Slot: {currentWorkerAssignment.specialization_name}
                 </Text>
 
-                {!currentWorkerAssignment.worker_marked_complete ? (
-                  <TouchableOpacity
-                    style={styles.completeAssignmentButton}
-                    onPress={handleWorkerCompleteAssignment}
-                    disabled={workerCompleteAssignment.isPending}
-                    activeOpacity={0.8}
-                  >
-                    {workerCompleteAssignment.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="checkmark-done"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.completeAssignmentButtonText}>
-                          Mark My Work Complete
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                ) : (
+                {currentWorkerAssignment.worker_marked_complete ? (
                   <View style={styles.completedBadge}>
                     <Ionicons
                       name="checkmark-circle"
@@ -1645,6 +1596,13 @@ export default function JobDetailScreen() {
                     />
                     <Text style={styles.completedBadgeText}>
                       Marked Complete - Awaiting Client Approval
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 }}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: "500" }}>
+                      Go to conversation to manage job progress
                     </Text>
                   </View>
                 )}
