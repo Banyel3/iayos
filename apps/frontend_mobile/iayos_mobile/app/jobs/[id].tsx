@@ -1207,6 +1207,7 @@ export default function JobDetailScreen() {
               )}
             </View>
           </View>
+          <View style={styles.verticalDivider} />
           <View style={styles.detailCard}>
             <Ionicons
               name="location-outline"
@@ -2881,10 +2882,13 @@ const styles = StyleSheet.create({
     flexBasis: 0,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    ...Shadows.small,
+    paddingVertical: Spacing.sm,
+  },
+  verticalDivider: {
+    width: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.sm,
+    height: "100%",
   },
   detailContent: {
     marginLeft: Spacing.sm,
