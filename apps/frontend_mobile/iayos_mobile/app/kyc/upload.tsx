@@ -3,7 +3,7 @@
 // Updated: Per-step OCR extraction with dedicated verification steps
 // Updated: Uses expo-camera via /kyc/camera screen for real-time overlay guide
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -137,6 +137,9 @@ export default function KYCUploadScreen() {
   const [clearanceError, setClearanceError] = useState<string | null>(null);
   const [selfieError, setSelfieError] = useState<string | null>(null);
 
+  // Track if we just successfully submitted in this session to prevent duplicate alerts
+  const hasJustSubmittedRef = useRef(false);
+
   // Camera guide modal removed - now using /kyc/camera screen with built-in overlay
 
   // Computed: is ANY validation in progress?
@@ -148,6 +151,9 @@ export default function KYCUploadScreen() {
 
   // Redirect if KYC already submitted and pending (not rejected)
   useEffect(() => {
+    // If we just submitted in this session, don't show the "already submitted" alert
+    if (hasJustSubmittedRef.current) return;
+
     if (!kycLoading && hasSubmittedKYC && isPending) {
       Alert.alert(
         "KYC Already Submitted",
@@ -843,6 +849,7 @@ export default function KYCUploadScreen() {
 
       // SUCCESS: Invalidate KYC status cache so banner and status page update immediately
       // Force refetch by setting staleTime to 0 temporarily
+      hasJustSubmittedRef.current = true;
       queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
       // Also invalidate auto-fill cache to trigger extraction data fetch
       queryClient.invalidateQueries({ queryKey: ["kycAutofill"] });
