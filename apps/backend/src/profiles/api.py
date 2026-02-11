@@ -1,7 +1,7 @@
 from ninja import Router, File
 from ninja.files import UploadedFile
 from ninja.responses import Response
-from accounts.authentication import cookie_auth, dual_auth
+from accounts.authentication import cookie_auth, dual_auth, require_kyc
 from accounts.models import Wallet, Transaction, Profile
 from .schemas import (
     DepositFundsSchema,
@@ -69,6 +69,7 @@ def list_products(request):
 
 # Delete a product/material by ID for the authenticated worker
 @router.delete("/profile/products/{product_id}", auth=cookie_auth)
+@require_kyc
 def delete_product(request, product_id: int):
     """
     Delete a product/material by ID for the authenticated worker's profile.
@@ -85,6 +86,7 @@ def delete_product(request, product_id: int):
         return Response({"error": "Failed to delete product"}, status=500)
 
 @router.post("/profile/products/add", response=ProductSchema, auth=cookie_auth)
+@require_kyc
 def add_product(request, data: ProductCreateSchema):
     """
     Add a product to the authenticated worker's profile.
@@ -188,6 +190,7 @@ def get_wallet_balance(request):
 
 
 @router.post("/wallet/deposit", auth=cookie_auth)
+@require_kyc
 def deposit_funds(request, data: DepositFundsSchema):
     """
     Create a payment invoice for wallet deposit.
@@ -304,6 +307,7 @@ def deposit_funds(request, data: DepositFundsSchema):
 
 
 @router.post("/wallet/withdraw", auth=cookie_auth)
+@require_kyc
 def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = ""):
     """
     Withdraw funds from wallet via PayMongo/Xendit disbursement.
@@ -584,6 +588,7 @@ def xendit_webhook(request):
 
 
 @router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)
+@require_kyc
 def simulate_payment_completion(request, transaction_id: int):
     """
     DEVELOPMENT ONLY: Manually complete a payment for testing
@@ -1838,6 +1843,7 @@ def get_conversation_messages(request, conversation_id: int):
 
 
 @router.post("/chat/messages", auth=dual_auth)
+@require_kyc
 def send_message(request, data: SendMessageSchema):
     """
     Send a new message within an existing job conversation.
@@ -2139,6 +2145,7 @@ def toggle_conversation_archive(request, conversation_id: int):
 
 
 @router.post("/chat/{conversation_id}/upload-image", auth=dual_auth)
+@require_kyc
 def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(...)):
     """
     Upload an image to a chat conversation.
@@ -2293,6 +2300,7 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
 #region VOICE CALLING ENDPOINTS
 
 @router.post("/call/token", auth=dual_auth)
+@require_kyc
 def get_call_token(request, conversation_id: int):
     """
     Generate an Agora RTC token for voice calling within a conversation.
