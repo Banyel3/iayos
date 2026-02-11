@@ -736,6 +736,22 @@ export const apiRequest = async (
         `[API][DEBUG] Response: ${resp.status} ${resp.statusText} from ${url} (${elapsedMs}ms)`,
       );
     }
+
+    // Intercept KYC_REQUIRED 403 responses and emit global event
+    if (resp.status === 403) {
+      try {
+        const cloned = resp.clone();
+        const body = await cloned.json() as any;
+        if (body?.error_code === "KYC_REQUIRED") {
+          console.warn(`[API] KYC_REQUIRED from ${url}`);
+          const { DeviceEventEmitter } = require("react-native");
+          DeviceEventEmitter.emit("KYC_REQUIRED");
+        }
+      } catch (_) {
+        // Ignore parse errors – not a KYC response
+      }
+    }
+
     return resp;
   } catch (err: any) {
     const elapsedMs = Date.now() - startedAt;

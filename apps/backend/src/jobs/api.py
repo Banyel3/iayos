@@ -2,7 +2,7 @@ import json
 from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
-from accounts.authentication import cookie_auth, jwt_auth, dual_auth
+from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
 from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
@@ -70,6 +70,7 @@ def broadcast_job_status_update(job_id, update_data):
 
 
 @router.post("/create", auth=jwt_auth, response=JobPostingResponseSchema)
+@require_kyc
 def create_job_posting(request, data: CreateJobPostingSchema):
     """
     Create a new job posting
@@ -409,6 +410,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
 
 
 @router.post("/create-mobile", auth=jwt_auth, response=JobPostingResponseSchema)
+@require_kyc
 def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
     """
     Create a new job posting from mobile app with optional direct worker/agency assignment
@@ -1732,6 +1734,7 @@ def get_job_posting(request, job_id: int):
 
 
 @router.patch("/{job_id}/cancel", auth=cookie_auth)
+@require_kyc
 def cancel_job_posting(request, job_id: int):
     """
     Cancel a job posting (update status to CANCELLED)
@@ -1986,6 +1989,7 @@ def get_job_applications(request, job_id: int):
 
 
 @router.post("/{job_id}/apply", auth=cookie_auth)
+@require_kyc
 def apply_for_job(request, job_id: int, data: JobApplicationSchema):
     """
     Submit an application for a job posting
@@ -2152,6 +2156,7 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
 
 
 @router.post("/{job_id}/applications/{application_id}/accept", auth=cookie_auth)
+@require_kyc
 def accept_application(request, job_id: int, application_id: int):
     """
     Accept a job application
@@ -2461,6 +2466,7 @@ def accept_application(request, job_id: int, application_id: int):
 
 
 @router.post("/{job_id}/applications/{application_id}/reject", auth=cookie_auth)
+@require_kyc
 def reject_application(request, job_id: int, application_id: int):
     """
     Reject a job application
@@ -2559,6 +2565,7 @@ def reject_application(request, job_id: int, application_id: int):
 
 
 @router.post("/{job_id}/reject-invite", auth=dual_auth)
+@require_kyc
 def reject_job_invite_worker(request, job_id: int, reason: str | None = None):
     """
     Worker rejects a job invitation
@@ -2692,6 +2699,7 @@ def reject_job_invite_worker(request, job_id: int, reason: str | None = None):
 
 
 @router.post("/{job_id}/accept-invite", auth=dual_auth)
+@require_kyc
 def accept_job_invite_worker(request, job_id: int):
     """
     Worker accepts a job invitation
@@ -2814,6 +2822,7 @@ def accept_job_invite_worker(request, job_id: int):
 #region JOB IMAGE UPLOAD
 
 @router.post("/{job_id}/upload-image", auth=cookie_auth)
+@require_kyc
 def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # type: ignore[misc]
     """
     Upload image for a job posting to Supabase storage.
@@ -2921,6 +2930,7 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
 
 
 @router.post("/{job_id}/upload-completion-photo", auth=dual_auth)
+@require_kyc
 def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...)):  # type: ignore[misc]
     """
     Upload completion photo for a job (Worker or Agency action).
@@ -3080,6 +3090,7 @@ def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...
 
 
 @router.post("/{job_id}/confirm-work-started", auth=dual_auth)
+@require_kyc
 def client_confirm_work_started(request, job_id: int):
     """
     Client confirms that worker has arrived and begun work
@@ -3188,6 +3199,7 @@ def client_confirm_work_started(request, job_id: int):
 
 
 @router.post("/{job_id}/mark-complete", auth=dual_auth)
+@require_kyc
 def worker_mark_job_complete(request, job_id: int):
     """
     Worker or Agency marks the job as complete (phase 1 of two-phase completion)
@@ -3405,6 +3417,7 @@ def worker_mark_job_complete(request, job_id: int):
 
 
 @router.post("/{job_id}/approve-completion", auth=dual_auth)
+@require_kyc
 def client_approve_job_completion(
     request,
     job_id: int,
@@ -3919,6 +3932,7 @@ def client_approve_job_completion(
 
 
 @router.post("/{job_id}/upload-cash-proof", auth=cookie_auth)
+@require_kyc
 def upload_cash_payment_proof(request, job_id: int):
     """
     Upload proof of cash payment for final 50% payment
@@ -4031,6 +4045,7 @@ def upload_cash_payment_proof(request, job_id: int):
 
 
 @router.post("/{job_id}/review", auth=dual_auth)
+@require_kyc
 def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
     """
     Submit a review for a completed job
@@ -4664,6 +4679,7 @@ def check_user_review_status(request, job_id: int):
 
 
 @router.post("/{job_id}/confirm-final-payment", auth=cookie_auth)
+@require_kyc
 def confirm_final_payment(request, job_id: int):
     """
     Confirm that the final 50% payment has been completed
@@ -4765,6 +4781,7 @@ def confirm_final_payment(request, job_id: int):
 #region INVITE Job Creation (Direct Hiring for Agencies/Workers)
 
 @router.post("/create-invite", auth=cookie_auth)
+@require_kyc
 def create_invite_job(
     request,
     title: str,
@@ -5195,6 +5212,7 @@ def get_my_invite_jobs(request, invite_status: str | None = None, page: int = 1,
 #region Backjob Endpoints
 
 @router.post("/{job_id}/request-backjob", auth=dual_auth)
+@require_kyc
 def request_backjob(request, job_id: int, reason: str = Form(...), description: str = Form(...), terms_accepted: bool = Form(...), images: List[UploadedFile] = File(default=None)):
     """
     Client requests a backjob (rework) on a completed job.
@@ -5445,6 +5463,7 @@ def get_backjob_status(request, job_id: int):
 
 
 @router.post("/{job_id}/backjob/confirm-started", auth=dual_auth)
+@require_kyc
 def confirm_backjob_started(request, job_id: int):
     """
     Client confirms that worker has arrived and started the backjob work.
@@ -5546,6 +5565,7 @@ def confirm_backjob_started(request, job_id: int):
 
 
 @router.post("/{job_id}/backjob/mark-complete", auth=dual_auth)
+@require_kyc
 def mark_backjob_complete(request, job_id: int):
     """
     Worker/Agency marks the backjob as complete.
@@ -5660,6 +5680,7 @@ def mark_backjob_complete(request, job_id: int):
 
 
 @router.post("/{job_id}/backjob/approve-completion", auth=dual_auth)
+@require_kyc
 def approve_backjob_completion(request, job_id: int):
     """
     Client confirms the backjob is complete and satisfactory.
@@ -5780,6 +5801,7 @@ def approve_backjob_completion(request, job_id: int):
 
 
 @router.post("/{job_id}/complete-backjob", auth=dual_auth)
+@require_kyc
 def complete_backjob(request, job_id: int, notes: str = Form(default="")):
     """
     DEPRECATED: Use the new 3-phase backjob workflow instead:
@@ -5812,6 +5834,7 @@ from jobs.team_job_services import (
 
 
 @router.post("/team/create", auth=dual_auth)
+@require_kyc
 def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
     """
     Create a new team job with multiple skill slot requirements.
@@ -5892,6 +5915,7 @@ def get_team_job_detail_endpoint(request, job_id: int):
 
 
 @router.post("/team/{job_id}/apply", auth=dual_auth)
+@require_kyc
 def apply_to_team_job_endpoint(request, job_id: int, payload: TeamJobApplicationSchema):
     """
     Apply to a specific skill slot in a team job.
@@ -5931,6 +5955,7 @@ def apply_to_team_job_endpoint(request, job_id: int, payload: TeamJobApplication
 
 
 @router.post("/team/{job_id}/applications/{application_id}/accept", auth=dual_auth)
+@require_kyc
 def accept_team_application_endpoint(request, job_id: int, application_id: int):
     """
     Client accepts a worker's application to a team job skill slot.
@@ -5959,6 +5984,7 @@ def accept_team_application_endpoint(request, job_id: int, application_id: int):
 
 
 @router.post("/team/{job_id}/applications/{application_id}/reject", auth=dual_auth)
+@require_kyc
 def reject_team_application_endpoint(request, job_id: int, application_id: int, payload: dict = None):
     """
     Client rejects a worker's application to a team job skill slot.
@@ -5990,6 +6016,7 @@ def reject_team_application_endpoint(request, job_id: int, application_id: int, 
 
 
 @router.post("/team/{job_id}/start", auth=dual_auth)
+@require_kyc
 def start_team_job_endpoint(request, job_id: int, payload: TeamJobStartSchema = None):
     """
     Start a team job.
@@ -6020,6 +6047,7 @@ def start_team_job_endpoint(request, job_id: int, payload: TeamJobStartSchema = 
 
 
 @router.post("/team/assignments/{assignment_id}/complete", auth=dual_auth)
+@require_kyc
 def worker_complete_assignment_endpoint(request, assignment_id: int, payload: TeamWorkerCompletionSchema = None):
     """
     Worker marks their individual assignment as complete in a team job.
@@ -6101,6 +6129,7 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
 
 
 @router.post("/{job_id}/team/confirm-arrival/{assignment_id}", auth=dual_auth)
+@require_kyc
 def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: int):
     """
     Client confirms a team worker has arrived at the job site.
@@ -6121,6 +6150,7 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
 
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
+@require_kyc
 def approve_team_job_completion(request, job_id: int, payment_method: str = Form('WALLET')):
     """
     Client approves team job completion after all workers have marked complete.
@@ -6141,6 +6171,7 @@ def approve_team_job_completion(request, job_id: int, payment_method: str = Form
 
 
 @router.post("/{job_id}/team/worker-complete/{assignment_id}", auth=dual_auth)
+@require_kyc
 def worker_mark_team_complete(request, job_id: int, assignment_id: int, notes: str = None):
     """
     Worker marks their individual assignment as complete in a team job.
@@ -6530,6 +6561,7 @@ def get_job_payment_timeline(request, job_id: int):
 # =============================================================================
 
 @router.post("/{job_id}/daily/attendance", auth=dual_auth)
+@require_kyc
 def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
     """
     Log attendance for a day of work on a daily-rate job.
@@ -6630,6 +6662,7 @@ def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
 
 
 @router.post("/{job_id}/daily/attendance/{attendance_id}/confirm-worker", auth=dual_auth)
+@require_kyc
 def confirm_attendance_worker(request, job_id: int, attendance_id: int):
     """
     Worker confirms their attendance for a specific day.
@@ -6655,6 +6688,7 @@ def confirm_attendance_worker(request, job_id: int, attendance_id: int):
 
 
 @router.post("/{job_id}/daily/attendance/{attendance_id}/confirm-client", auth=dual_auth)
+@require_kyc
 def confirm_attendance_client(request, job_id: int, attendance_id: int, data: dict = None):
     """
     Client confirms attendance for a worker's day.
@@ -6693,6 +6727,7 @@ def confirm_attendance_client(request, job_id: int, attendance_id: int, data: di
 
 
 @router.post("/{job_id}/daily/attendance/{attendance_id}/verify-arrival", auth=dual_auth)
+@require_kyc
 def verify_employee_arrival(request, job_id: int, attendance_id: int):
     """
     Client verifies that a dispatched employee has arrived.
@@ -6757,6 +6792,7 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
 
 
 @router.post("/{job_id}/daily/attendance/{attendance_id}/mark-checkout", auth=dual_auth)
+@require_kyc
 def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
     """
     Client marks an employee as checked out for the day.
@@ -6911,6 +6947,7 @@ def get_daily_job_summary(request, job_id: int):
 
 
 @router.post("/{job_id}/daily/extension", auth=dual_auth)
+@require_kyc
 def request_daily_extension(request, job_id: int, data: RequestExtensionSchema):
     """
     Request an extension for a daily job.
@@ -6967,6 +7004,7 @@ def request_daily_extension(request, job_id: int, data: RequestExtensionSchema):
 
 
 @router.post("/{job_id}/daily/extension/{extension_id}/approve", auth=dual_auth)
+@require_kyc
 def approve_daily_extension(request, job_id: int, extension_id: int):
     """
     Approve an extension request.
@@ -7044,6 +7082,7 @@ def get_daily_extensions(request, job_id: int):
 
 
 @router.post("/{job_id}/daily/rate-change", auth=dual_auth)
+@require_kyc
 def request_rate_change(request, job_id: int, data: RequestRateChangeSchema):
     """
     Request a rate change for a daily job.
@@ -7112,6 +7151,7 @@ def request_rate_change(request, job_id: int, data: RequestRateChangeSchema):
 
 
 @router.post("/{job_id}/daily/rate-change/{change_id}/approve", auth=dual_auth)
+@require_kyc
 def approve_rate_change(request, job_id: int, change_id: int):
     """
     Approve a rate change request.
@@ -7191,6 +7231,7 @@ def get_rate_changes(request, job_id: int):
 
 
 @router.post("/{job_id}/daily/cancel", auth=dual_auth)
+@require_kyc
 def cancel_daily_job(request, job_id: int, data: CancelDailyJobSchema):
     """
     Cancel remaining days of a daily job.
@@ -7303,6 +7344,7 @@ def get_daily_escrow_estimate(request, job_id: int = None, daily_rate: float = N
 
 
 @router.post("/{job_id}/employees/{employee_id}/confirm-arrival-project", auth=dual_auth)
+@require_kyc
 def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
     """
     Client confirms that a dispatched agency employee has arrived.
@@ -7407,6 +7449,7 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
 
 
 @router.post("/{job_id}/approve-agency-project", auth=dual_auth)
+@require_kyc
 def approve_agency_project_job(
     request,
     job_id: int,
