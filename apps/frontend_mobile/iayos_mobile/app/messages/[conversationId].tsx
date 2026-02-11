@@ -2224,6 +2224,9 @@ export default function ChatScreen() {
                       <Text style={styles.waitingButtonText}>
                         Waiting for client to confirm work started...
                       </Text>
+                      <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4 }}>
+                        💬 You can still send messages while waiting
+                      </Text>
                     </View>
                   )}
 

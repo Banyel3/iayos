@@ -518,7 +518,7 @@ export default function CreateJobScreen() {
             },
             {
               text: "Back to Home",
-              onPress: () => router.replace("/"),
+              onPress: () => router.replace("/(tabs)"),
             },
           ],
         );
