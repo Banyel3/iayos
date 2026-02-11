@@ -69,48 +69,71 @@ def create_account_individ(data):
     if age < 18:
         raise ValueError("You must be at least 18 years old to register")
 
+    # Wrap the entire registration in a transaction to ensure consistency
+    from django.db import transaction
+    
+    with transaction.atomic():
+        # 3️⃣ Create Accounts user
+        user = Accounts.objects.create_user(
+            email=data.email,
+            password=data.password,
+            street_address=data.street_address,
+            barangay=data.barangay,
+            city=data.city,
+            province=data.province,
+            postal_code=data.postal_code,
+            country=data.country
+            
+        )
 
-    # 3️⃣ Create Accounts user
-    user = Accounts.objects.create_user(
-        email=data.email,
-        password=data.password,
-        street_address=data.street_address,
-        barangay=data.barangay,
-        city=data.city,
-        province=data.province,
-        postal_code=data.postal_code,
-        country=data.country
+        # Generate 6-digit OTP for email verification (5-minute expiry)
+        otp_code = generate_otp()
+        user.email_otp = otp_code
+        user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+        user.email_otp_attempts = 0
         
-    )
+        # Keep legacy token fields for backward compatibility (can be removed later)
+        verifyToken = uuid.uuid4()
+        strVerifyToken = str(verifyToken)
+        hashed_token = hashlib.sha256(strVerifyToken.encode("utf-8")).hexdigest()
+        user.verifyToken = hashed_token
+        user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)
+        user.save()
 
-    # Generate 6-digit OTP for email verification (5-minute expiry)
-    otp_code = generate_otp()
-    user.email_otp = otp_code
-    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
-    user.email_otp_attempts = 0
-    
-    # Keep legacy token fields for backward compatibility (can be removed later)
-    verifyToken = uuid.uuid4()
-    strVerifyToken = str(verifyToken)
-    hashed_token = hashlib.sha256(strVerifyToken.encode("utf-8")).hexdigest()
-    user.verifyToken = hashed_token
-    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)
-    user.save()
+        # 4️⃣ Create Profile with profileType (defaults to CLIENT if not specified)
+        profile_type = getattr(data, 'profileType', None) or 'CLIENT'
+        print(f"📝 Creating profile with type: {profile_type}")
+        
+        profile = Profile.objects.create(
+            accountFK=user,
+            firstName=data.firstName,
+            middleName=data.middleName,
+            lastName=data.lastName,
+            contactNum=data.contactNum,
+            birthDate=birth_date,
+            profileType=profile_type,
+            profileImg=None  # NULL until user uploads a profile picture
+        )
 
-    # 4️⃣ Create Profile with profileType (defaults to CLIENT if not specified)
-    profile_type = getattr(data, 'profileType', None) or 'CLIENT'
-    print(f"📝 Creating profile with type: {profile_type}")
-    
-    profile = Profile.objects.create(
-        accountFK=user,
-        firstName=data.firstName,
-        middleName=data.middleName,
-        lastName=data.lastName,
-        contactNum=data.contactNum,
-        birthDate=birth_date,
-        profileType=profile_type,
-        profileImg=None  # NULL until user uploads a profile picture
-    )
+        # 5️⃣ Create WorkerProfile or ClientProfile immediately
+        from .models import WorkerProfile, ClientProfile
+        if profile_type == Profile.ProfileType.WORKER:
+            WorkerProfile.objects.create(
+                profileID=profile,
+                description='',
+                workerRating=0,
+                totalEarningGross=0.00,
+                availability_status='OFFLINE'
+            )
+            print(f"✅ Auto-created WorkerProfile during registration for {user.email}")
+        elif profile_type == Profile.ProfileType.CLIENT:
+            ClientProfile.objects.create(
+                profileID=profile,
+                description='',
+                totalJobsPosted=0,
+                clientRating=0
+            )
+            print(f"✅ Auto-created ClientProfile during registration for {user.email}")
 
     # Return OTP for email sending (frontend will trigger email)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
@@ -524,7 +547,20 @@ def fetch_currentUser(accountID, profile_type=None):
             if profile.profileType == "WORKER":
                 try:
                     from .models import WorkerProfile, workerSpecialization, WorkerCertification
-                    worker_profile = WorkerProfile.objects.get(profileID=profile)
+                    # Auto-repair: Get or create WorkerProfile if it's missing
+                    worker_profile, created = WorkerProfile.objects.get_or_create(
+                        profileID=profile,
+                        defaults={
+                            'description': '',
+                            'workerRating': 0,
+                            'totalEarningGross': 0.00,
+                            'availability_status': 'OFFLINE'
+                        }
+                    )
+                    
+                    if created:
+                        print(f"   🔧 Auto-repaired: Created missing WorkerProfile for profile {profile.profileID}")
+                    
                     profile_data["workerProfileId"] = worker_profile.id  # WorkerProfile primary key
                     profile_data["bio"] = worker_profile.bio or ""
                     profile_data["hourlyRate"] = float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None

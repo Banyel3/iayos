@@ -655,7 +655,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     is_team_job=is_team_job,
                     payment_model=payment_model,
                     daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
-                    duration_days=data.duration_days if payment_model == "DAILY" else None
+                    duration_days=data.duration_days if payment_model == "DAILY" else None,
+                    # ML Enhancement Fields
+                    job_scope=data.job_scope if data.job_scope else "MODERATE_PROJECT",
+                    skill_level_required=data.skill_level_required if data.skill_level_required else "INTERMEDIATE",
+                    work_environment=data.work_environment if data.work_environment else "INDOOR"
                 )
                 
                 print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'}, is_team_job: {is_team_job})")
@@ -5880,7 +5884,10 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             urgency=payload.urgency or 'MEDIUM',
             preferred_start_date=payload.preferred_start_date,
             materials_needed=payload.materials_needed,
-            payment_method=payload.payment_method or 'WALLET'
+            payment_method=payload.payment_method or 'WALLET',
+            job_scope=payload.job_scope or 'MODERATE_PROJECT',
+            skill_level_required=payload.skill_level_required or 'INTERMEDIATE',
+            work_environment=payload.work_environment or 'INDOOR'
         )
         
         if not result.get('success'):

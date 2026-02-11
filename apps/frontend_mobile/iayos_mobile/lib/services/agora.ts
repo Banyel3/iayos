@@ -4,8 +4,13 @@
  * Manages the Agora RTC engine for voice calls.
  * Provides singleton access to the engine instance and
  * handles initialization, joining/leaving channels, and audio controls.
+ * 
+ * ⚠️ TEMPORARILY DISABLED - Agora native module requires development build
+ * TODO: Re-enable when creating production build with expo-dev-client
  */
 
+// TEMPORARILY COMMENTED OUT - Requires native build
+/*
 import {
   createAgoraRtcEngine,
   ChannelProfileType,
@@ -16,7 +21,65 @@ import {
   ConnectionStateType,
   ConnectionChangedReasonType,
 } from "react-native-agora";
+*/
 import { Platform, PermissionsAndroid, Alert } from "react-native";
+
+// Temporary type stubs for development
+type IRtcEngine = any;
+type IRtcEngineEventHandler = any;
+type ConnectionStateType = number;
+type ConnectionChangedReasonType = number;
+type RtcConnection = any;
+
+const ConnectionStateType = {
+  ConnectionStateConnecting: 2,
+  ConnectionStateConnected: 3,
+  ConnectionStateFailed: 5,
+};
+
+const ChannelProfileType = {
+  ChannelProfileCommunication: 0,
+};
+
+const ClientRoleType = {
+  ClientRoleBroadcaster: 1,
+};
+
+// Stub function - will not work until native build is created
+const createAgoraRtcEngine = (): any => {
+  console.warn('[Agora] Native module disabled - requires development build');
+  
+  const noop = () => {};
+  const asyncNoop = async () => {};
+
+  // Return a no-op engine stub so calls like `this.engine.initialize(...)`
+  // do not crash when the native module is unavailable.
+  const stubEngine: IRtcEngine = {
+    // Core lifecycle
+    initialize: asyncNoop,
+    release: noop,
+
+    // Event handling
+    registerEventHandler: noop,
+    unregisterEventHandler: noop,
+
+    // Channel operations
+    joinChannel: asyncNoop,
+    leaveChannel: asyncNoop,
+
+    // Audio controls
+    muteLocalAudioStream: noop,
+    enableAudio: noop,
+    disableAudio: noop,
+    enableLocalAudio: noop,
+    setEnableSpeakerphone: noop,
+    setChannelProfile: noop,
+    setClientRole: noop,
+    setDefaultAudioRouteToSpeakerphone: noop,
+  } as any;
+
+  return stubEngine;
+};
 
 export interface CallState {
   isInitialized: boolean;

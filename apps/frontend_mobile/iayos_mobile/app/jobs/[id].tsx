@@ -110,13 +110,18 @@ interface JobDetail {
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
   budget_allocation_type?:
-    | "EQUAL_PER_SKILL"
-    | "EQUAL_PER_WORKER"
-    | "MANUAL"
-    | "SKILL_WEIGHTED";
+  | "EQUAL_PER_SKILL"
+  | "EQUAL_PER_WORKER"
+  | "MANUAL"
+  | "SKILL_WEIGHTED";
   team_fill_percentage?: number;
   total_workers_needed?: number;
   total_workers_assigned?: number;
+  // Missing fields
+  preferred_start_date?: string;
+  payment_model?: "PROJECT" | "DAILY";
+  daily_rate?: number;
+  duration_days?: number;
 }
 
 interface JobApplication {
@@ -257,6 +262,10 @@ export default function JobDetailScreen() {
         skill_slots_count: jobData.skill_slots?.length || 0,
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
+        payment_model: jobData.payment_model,
+        daily_rate_agreed: jobData.daily_rate_agreed,
+        budget: jobData.budget,
+        duration_days: jobData.duration_days,
       });
 
       const mapReview = (reviewData: any): JobReviewSummary => ({
@@ -321,13 +330,13 @@ export default function JobDetailScreen() {
           : null,
         reviews: jobData.reviews
           ? {
-              clientToWorker: jobData.reviews.client_to_worker
-                ? mapReview(jobData.reviews.client_to_worker)
-                : undefined,
-              workerToClient: jobData.reviews.worker_to_client
-                ? mapReview(jobData.reviews.worker_to_client)
-                : undefined,
-            }
+            clientToWorker: jobData.reviews.client_to_worker
+              ? mapReview(jobData.reviews.client_to_worker)
+              : undefined,
+            workerToClient: jobData.reviews.worker_to_client
+              ? mapReview(jobData.reviews.worker_to_client)
+              : undefined,
+          }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
         // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
@@ -346,6 +355,19 @@ export default function JobDetailScreen() {
         team_fill_percentage: jobData.team_fill_percentage,
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
+        // Missing fields mapping
+        preferred_start_date: jobData.preferred_start_date,
+        payment_model:
+          jobData.payment_model ||
+          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
+        daily_rate:
+          jobData.daily_rate_agreed ??
+          (jobData.payment_model === "DAILY" &&
+            jobData.budget &&
+            jobData.duration_days
+            ? jobData.budget / jobData.duration_days
+            : undefined),
+        duration_days: jobData.duration_days,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -1122,6 +1144,18 @@ export default function JobDetailScreen() {
                 : job.category}
             </Text>
           </View>
+          <View style={styles.jobMetaRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={Colors.primary}
+            />
+            <Text style={styles.jobStartDate}>
+              {job.preferred_start_date
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                : `Posted ${job.postedAt}`}
+            </Text>
+          </View>
 
           {/* Team Job Header Badge - Prominent indicator at top */}
           {isTeamJob && (
@@ -1145,10 +1179,20 @@ export default function JobDetailScreen() {
           )}
         </View>
 
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Job Description</Text>
+          <Text style={styles.description}>{job.description}</Text>
+        </View>
+
         {/* Budget & Location */}
         <View style={styles.detailsSection}>
           <View style={styles.detailCard}>
-            <Ionicons name="cash-outline" size={24} color={Colors.primary} />
+            <Ionicons
+              name={job.payment_model === "DAILY" ? "time-outline" : "cash-outline"}
+              size={24}
+              color={Colors.primary}
+            />
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Budget</Text>
               <Text style={styles.detailValue}>{job.budget}</Text>
@@ -1162,6 +1206,7 @@ export default function JobDetailScreen() {
               )}
             </View>
           </View>
+          <View style={styles.verticalDivider} />
           <View style={styles.detailCard}>
             <Ionicons
               name="location-outline"
@@ -1275,22 +1320,33 @@ export default function JobDetailScreen() {
           </View>
         </View>
 
-        {/* ML Estimated Completion Time */}
-        {(isLoading ||
-          (job.estimatedCompletion && job.status !== "COMPLETED")) && (
+        {/* Materials Needed */}
+        {job.materialsNeeded && job.materialsNeeded.length > 0 && (
           <View style={styles.section}>
-            <EstimatedTimeCard
-              prediction={job?.estimatedCompletion || null}
-              isLoading={isLoading}
-            />
+            <Text style={styles.sectionTitle}>Materials Needed</Text>
+            {job.materialsNeeded.map((material, index) => (
+              <View key={index} style={styles.listItem}>
+                <Ionicons
+                  name="construct-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+                <Text style={styles.listItemText}>{material}</Text>
+              </View>
+            ))}
           </View>
         )}
 
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{job.description}</Text>
-        </View>
+        {/* ML Estimated Completion Time */}
+        {(isLoading ||
+          (job.estimatedCompletion && job.status !== "COMPLETED")) && (
+            <View style={styles.section}>
+              <EstimatedTimeCard
+                prediction={job?.estimatedCompletion || null}
+                isLoading={isLoading}
+              />
+            </View>
+          )}
 
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
@@ -1327,23 +1383,6 @@ export default function JobDetailScreen() {
                 </View>
               ))}
             </View>
-          </View>
-        )}
-
-        {/* Materials Needed */}
-        {job.materialsNeeded && job.materialsNeeded.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Materials Needed</Text>
-            {job.materialsNeeded.map((material, index) => (
-              <View key={index} style={styles.listItem}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color={Colors.primary}
-                />
-                <Text style={styles.listItemText}>{material}</Text>
-              </View>
-            ))}
           </View>
         )}
 
@@ -1610,7 +1649,7 @@ export default function JobDetailScreen() {
                     color={Colors.success}
                   />
                   <Text style={styles.assignmentCardTitle}>
-                    You're Assigned!
+                    You&apos;re Assigned!
                   </Text>
                 </View>
                 <Text style={styles.assignmentCardSubtitle}>
@@ -1793,7 +1832,7 @@ export default function JobDetailScreen() {
                   <Text style={styles.inviteActionTitle}>Job Invitation</Text>
                 </View>
                 <Text style={styles.inviteActionText}>
-                  You've been invited to work on this job. Review the details
+                  You&apos;ve been invited to work on this job. Review the details
                   and decide whether to accept or decline.
                 </Text>
                 <View style={styles.inviteActionButtons}>
@@ -1920,11 +1959,11 @@ export default function JobDetailScreen() {
                           style={[
                             styles.applicationStatusBadge,
                             application.status === "PENDING" &&
-                              styles.statusPending,
+                            styles.statusPending,
                             application.status === "ACCEPTED" &&
-                              styles.statusAccepted,
+                            styles.statusAccepted,
                             application.status === "REJECTED" &&
-                              styles.statusRejected,
+                            styles.statusRejected,
                           ]}
                         >
                           <Text style={styles.applicationStatusText}>
@@ -2083,8 +2122,8 @@ export default function JobDetailScreen() {
 
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
-        job.status === "IN_PROGRESS" ||
-        job.status === "COMPLETED" ? (
+          job.status === "IN_PROGRESS" ||
+          job.status === "COMPLETED" ? (
           <>
             {/* Client Section - clickable for workers */}
             <View style={styles.section}>
@@ -2373,7 +2412,7 @@ export default function JobDetailScreen() {
               style={[
                 styles.applyButton,
                 (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonDisabled,
+                styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
@@ -2383,7 +2422,7 @@ export default function JobDetailScreen() {
                 style={[
                   styles.applyButtonText,
                   (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonTextDisabled,
+                  styles.applyButtonTextDisabled,
                 ]}
               >
                 {!user?.kycVerified
@@ -2857,8 +2896,8 @@ const styles = StyleSheet.create({
   },
   jobTitle: {
     flex: 1,
-    fontSize: Typography.fontSize.xl,
-    fontWeight: "700",
+    fontSize: 28, // Made larger as requested
+    fontWeight: "800",
     color: Colors.textPrimary,
     marginRight: Spacing.md,
   },
@@ -2887,12 +2926,16 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     flex: 1,
+    flexBasis: 0,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    ...Shadows.small,
+    paddingVertical: Spacing.sm,
+  },
+  verticalDivider: {
+    width: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.sm,
+    height: "100%",
   },
   detailContent: {
     marginLeft: Spacing.sm,
@@ -2907,6 +2950,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  detailSubValue: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    fontWeight: "500",
   },
   section: {
     padding: Spacing.lg,
@@ -3036,6 +3085,12 @@ const styles = StyleSheet.create({
   postedTime: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  // Job Details
+  jobStartDate: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary,
+    fontWeight: "700",
   },
   tapToViewHint: {
     fontSize: Typography.fontSize.xs,

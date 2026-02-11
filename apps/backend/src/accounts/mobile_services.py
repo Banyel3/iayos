@@ -2111,8 +2111,9 @@ def upload_profile_image_mobile(user, image_file):
             }
 
         # Update profile with new image URL
-        profile.profileImg = image_url
-        profile.save()
+        # Update ALL profiles for this user with the new image URL (consistency for dual roles)
+        updated_count = Profile.objects.filter(accountFK=user).update(profileImg=image_url)
+        print(f"✅ Updated {updated_count} profiles with new image URL for user {user.email}")
 
         return {
             'success': True,

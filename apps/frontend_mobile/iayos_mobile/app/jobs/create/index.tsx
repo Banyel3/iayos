@@ -85,6 +85,8 @@ interface CreateJobRequest {
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
+  // Materials needed (array of names)
+  materials_needed?: string[];
 }
 
 // Skill slot for multi-employee agency hiring
@@ -136,6 +138,8 @@ export default function CreateJobScreen() {
   const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">("PROJECT");
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
+  const [manualMaterials, setManualMaterials] = useState<string[]>([]);
+  const [materialInput, setMaterialInput] = useState("");
 
   // Skill slots for worker requirements (unified model for all job types)
   // Category is derived from the first skill slot's specialization
@@ -184,7 +188,7 @@ export default function CreateJobScreen() {
       return 0;
     }
   }, [paymentModel, budget, dailyRate, durationDays]);
-  
+
   const hasInsufficientBalance = walletBalance < requiredDownpayment;
   const shortfallAmount = requiredDownpayment - walletBalance;
 
@@ -215,6 +219,33 @@ export default function CreateJobScreen() {
 
   // Debounce timer ref for price prediction
   const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch categories
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const response = await fetchJson<{ categories: Category[] }>(
+        ENDPOINTS.GET_CATEGORIES,
+      );
+      return response.categories || [];
+    },
+  });
+
+  const categories = categoriesData || [];
+
+  // Derive category from first skill slot (universal for all job types)
+  const primaryCategoryId = React.useMemo(() => {
+    return skillSlots[0]?.specialization_id ?? null;
+  }, [skillSlots]);
+
+  const primaryCategory = React.useMemo(() => {
+    if (!primaryCategoryId || !categories) return null;
+    return categories.find((c) => c.id === primaryCategoryId) ?? null;
+  }, [primaryCategoryId, categories]);
+
+  // Category always derived from the first skill slot
+  const effectiveCategoryId = primaryCategoryId;
+  const effectiveCategory = primaryCategory;
 
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
@@ -332,18 +363,6 @@ export default function CreateJobScreen() {
     return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
   }, [skillSlots]);
 
-  // Fetch categories - MUST be defined BEFORE getSpecializationName callback
-  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => {
-      const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES,
-      );
-      return response.categories || [];
-    },
-  });
-
-  const categories = categoriesData || [];
 
   // Fetch worker details (including skills) when hiring a specific worker
   interface WorkerSkill {
@@ -352,7 +371,7 @@ export default function CreateJobScreen() {
     experience_years: number;
     certification_count: number;
   }
-  
+
   interface WorkerDetailResponse {
     success: boolean;
     data?: {
@@ -408,19 +427,6 @@ export default function CreateJobScreen() {
     }
   }, [workerId, workerDetailsData, categories, skillSlots.length]);
 
-  // Derive category from first skill slot (universal for all job types)
-  const primaryCategoryId = React.useMemo(() => {
-    return skillSlots[0]?.specialization_id ?? null;
-  }, [skillSlots]);
-
-  const primaryCategory = React.useMemo(() => {
-    if (!primaryCategoryId || !categories) return null;
-    return categories.find((c) => c.id === primaryCategoryId) ?? null;
-  }, [primaryCategoryId, categories]);
-
-  // Category always derived from the first skill slot
-  const effectiveCategoryId = primaryCategoryId;
-  const effectiveCategory = primaryCategory;
 
   const getSpecializationName = useCallback(
     (specId: number) => {
@@ -519,7 +525,7 @@ export default function CreateJobScreen() {
         Alert.alert(
           "Success!",
           data.message ||
-            "Job request created successfully. The worker/agency will be notified.",
+          "Job request created successfully. The worker/agency will be notified.",
           [
             {
               text: "View Job",
@@ -622,8 +628,8 @@ export default function CreateJobScreen() {
 
     // Check wallet balance
     if (hasInsufficientBalance) {
-      const paymentDesc = paymentModel === "PROJECT" 
-        ? "50% downpayment" 
+      const paymentDesc = paymentModel === "PROJECT"
+        ? "50% downpayment"
         : "100% escrow (daily rate × days)";
       Alert.alert(
         "Insufficient Wallet Balance",
@@ -662,12 +668,31 @@ export default function CreateJobScreen() {
       payment_model: paymentModel,
     };
 
+    // Materials needed - map selected IDs to names + add manual materials
+    const combinedMaterials = [
+      ...manualMaterials,
+      ...(selectedMaterials.length > 0
+        ? workerMaterials
+          .filter((m) => selectedMaterials.includes(m.id))
+          .map((m) => m.name)
+        : [])
+    ];
+    
+    if (combinedMaterials.length > 0) {
+      jobData.materials_needed = combinedMaterials;
+    }
+
+    // Add payment model specific fields
     // Add payment model specific fields
     if (paymentModel === "PROJECT") {
       jobData.budget = parseFloat(budget);
     } else {
-      jobData.daily_rate = parseFloat(dailyRate);
-      jobData.duration_days = parseInt(durationDays);
+      const rate = parseFloat(dailyRate);
+      const days = parseInt(durationDays);
+      jobData.daily_rate = rate;
+      jobData.duration_days = days;
+      // Also set budget as total estimated cost (rate * days) to ensure backend saves a value
+      jobData.budget = rate * days;
     }
 
     // Add worker or agency ID if provided
@@ -794,53 +819,53 @@ export default function CreateJobScreen() {
                             </Text>
                             <TouchableOpacity
                               onPress={() => removeSkillSlot(index)}
-                                style={styles.removeSlotBtn}
-                              >
-                                <Ionicons
-                                  name="close-circle"
-                                  size={24}
-                                  color={Colors.error}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                            <View style={styles.slotDetails}>
-                              <View style={styles.slotBadge}>
-                                <Ionicons
-                                  name="people"
-                                  size={14}
-                                  color={Colors.primary}
-                                />
-                                <Text style={styles.slotBadgeText}>
-                                  {slot.workers_needed} worker
-                                  {slot.workers_needed !== 1 ? "s" : ""}
-                                </Text>
-                              </View>
-                              <View
-                                style={[
-                                  styles.slotBadge,
-                                  styles.slotBadgeSkill,
-                                ]}
-                              >
-                                <Text style={styles.slotBadgeText}>
-                                  {slot.skill_level_required === "ENTRY"
-                                    ? "🌱 Entry"
-                                    : slot.skill_level_required ===
-                                        "INTERMEDIATE"
-                                      ? "⭐ Intermediate"
-                                      : "👑 Expert"}
-                                </Text>
-                              </View>
-                            </View>
-                            {slot.notes && (
-                              <Text style={styles.slotNotes}>{slot.notes}</Text>
-                            )}
+                              style={styles.removeSlotBtn}
+                            >
+                              <Ionicons
+                                name="close-circle"
+                                size={24}
+                                color={Colors.error}
+                              />
+                            </TouchableOpacity>
                           </View>
-                        ))}
-                      </>
-                    )}
+                          <View style={styles.slotDetails}>
+                            <View style={styles.slotBadge}>
+                              <Ionicons
+                                name="people"
+                                size={14}
+                                color={Colors.primary}
+                              />
+                              <Text style={styles.slotBadgeText}>
+                                {slot.workers_needed} worker
+                                {slot.workers_needed !== 1 ? "s" : ""}
+                              </Text>
+                            </View>
+                            <View
+                              style={[
+                                styles.slotBadge,
+                                styles.slotBadgeSkill,
+                              ]}
+                            >
+                              <Text style={styles.slotBadgeText}>
+                                {slot.skill_level_required === "ENTRY"
+                                  ? "🌱 Entry"
+                                  : slot.skill_level_required ===
+                                      "INTERMEDIATE"
+                                    ? "⭐ Intermediate"
+                                    : "👑 Expert"}
+                              </Text>
+                            </View>
+                          </View>
+                          {slot.notes && (
+                            <Text style={styles.slotNotes}>{slot.notes}</Text>
+                          )}
+                        </View>
+                      ))}
+                    </>
+                  )}
 
-                    {/* Add Worker Button - hidden for non-agency after 1 slot */}
-                    {(!!agencyId || skillSlots.length === 0) && (
+                  {/* Add Worker Button - hidden for non-agency after 1 slot */}
+                  {(!!agencyId || skillSlots.length === 0) && (
                     <TouchableOpacity
                       style={styles.addSlotBtn}
                       onPress={() => setShowAddSlotModal(true)}
@@ -854,9 +879,9 @@ export default function CreateJobScreen() {
                         {agencyId ? 'Add Worker Requirement' : 'Select Worker Type'}
                       </Text>
                     </TouchableOpacity>
-                    )}
-                  </View>
-              </View>
+                  )}
+                </View>
+            </View>
 
             {/* Budget Section */}
             <View style={styles.section}>
@@ -877,10 +902,10 @@ export default function CreateJobScreen() {
                       style={[
                         styles.optionButtonText,
                         paymentModel === "PROJECT" &&
-                          styles.optionButtonTextActive,
+                        styles.optionButtonTextActive,
                       ]}
                     >
-                      💼 Fixed Budget
+                      Fixed Budget
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -894,10 +919,10 @@ export default function CreateJobScreen() {
                       style={[
                         styles.optionButtonText,
                         paymentModel === "DAILY" &&
-                          styles.optionButtonTextActive,
+                        styles.optionButtonTextActive,
                       ]}
                     >
-                      📅 Daily Rate
+                      Daily Rate
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -912,33 +937,33 @@ export default function CreateJobScreen() {
               {paymentModel === "PROJECT" && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Total Budget (₱) *</Text>
-                <View
-                  style={[
-                    styles.budgetInput,
-                    !effectiveCategoryId && styles.inputDisabled,
-                  ]}
-                >
-                  <Text style={styles.currencySymbol}>₱</Text>
-                  <TextInput
-                    style={styles.budgetTextInput}
-                    placeholder={
-                      effectiveCategoryId ? "0.00" : "Add a worker requirement first"
-                    }
-                    value={budget}
-                    onChangeText={setBudget}
-                    keyboardType="decimal-pad"
-                    placeholderTextColor={Colors.textHint}
-                    editable={!!effectiveCategoryId}
-                  />
+                  <View
+                    style={[
+                      styles.budgetInput,
+                      !effectiveCategoryId && styles.inputDisabled,
+                    ]}
+                  >
+                    <Text style={styles.currencySymbol}>₱</Text>
+                    <TextInput
+                      style={styles.budgetTextInput}
+                      placeholder={
+                        effectiveCategoryId ? "0.00" : "Add a worker requirement first"
+                      }
+                      value={budget}
+                      onChangeText={setBudget}
+                      keyboardType="decimal-pad"
+                      placeholderTextColor={Colors.textHint}
+                      editable={!!effectiveCategoryId}
+                    />
+                  </View>
+                  <Text style={styles.hint}>
+                    {effectiveCategory && effectiveCategory.minimum_rate > 0
+                      ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
+                      : effectiveCategoryId
+                        ? "This is what the worker will receive"
+                        : "Add a worker requirement first"}
+                  </Text>
                 </View>
-                <Text style={styles.hint}>
-                  {effectiveCategory && effectiveCategory.minimum_rate > 0
-                    ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
-                    : effectiveCategoryId
-                      ? "This is what the worker will receive"
-                      : "Add a worker requirement first"}
-                </Text>
-              </View>
               )}
 
               {/* Daily Rate Fields */}
@@ -1243,7 +1268,7 @@ export default function CreateJobScreen() {
                           style={[
                             styles.barangayItemText,
                             barangay === item.name &&
-                              styles.barangayItemTextSelected,
+                            styles.barangayItemTextSelected,
                           ]}
                         >
                           {item.name}
@@ -1307,7 +1332,7 @@ export default function CreateJobScreen() {
                               style={[
                                 styles.categoryChip,
                                 newSlotSpecializationId === category.id &&
-                                  styles.categoryChipActive,
+                                styles.categoryChipActive,
                               ]}
                               onPress={() =>
                                 setNewSlotSpecializationId(category.id)
@@ -1317,7 +1342,7 @@ export default function CreateJobScreen() {
                                 style={[
                                   styles.categoryChipText,
                                   newSlotSpecializationId === category.id &&
-                                    styles.categoryChipTextActive,
+                                  styles.categoryChipTextActive,
                                 ]}
                               >
                                 {category.name}
@@ -1371,7 +1396,7 @@ export default function CreateJobScreen() {
                               style={[
                                 styles.skillLevelBtn,
                                 newSlotSkillLevel === level &&
-                                  styles.skillLevelBtnActive,
+                                styles.skillLevelBtnActive,
                               ]}
                               onPress={() => setNewSlotSkillLevel(level)}
                             >
@@ -1379,14 +1404,14 @@ export default function CreateJobScreen() {
                                 style={[
                                   styles.skillLevelText,
                                   newSlotSkillLevel === level &&
-                                    styles.skillLevelTextActive,
+                                  styles.skillLevelTextActive,
                                 ]}
                               >
                                 {level === "ENTRY"
-                                  ? "🌱 Entry"
+                                  ? "Entry"
                                   : level === "INTERMEDIATE"
-                                    ? "⭐ Intermediate"
-                                    : "👑 Expert"}
+                                    ? "Intermediate"
+                                    : "Expert"}
                               </Text>
                             </TouchableOpacity>
                           ),
@@ -1416,7 +1441,7 @@ export default function CreateJobScreen() {
                     style={[
                       styles.addSlotConfirmBtn,
                       !newSlotSpecializationId &&
-                        styles.addSlotConfirmBtnDisabled,
+                      styles.addSlotConfirmBtnDisabled,
                     ]}
                     onPress={addSkillSlot}
                     disabled={!newSlotSpecializationId}
@@ -1444,14 +1469,14 @@ export default function CreateJobScreen() {
                         styles.urgencyButton,
                         urgency === level && styles.urgencyButtonActive,
                         urgency === level &&
-                          level === "LOW" &&
-                          styles.urgencyLow,
+                        level === "LOW" &&
+                        styles.urgencyLow,
                         urgency === level &&
-                          level === "MEDIUM" &&
-                          styles.urgencyMedium,
+                        level === "MEDIUM" &&
+                        styles.urgencyMedium,
                         urgency === level &&
-                          level === "HIGH" &&
-                          styles.urgencyHigh,
+                        level === "HIGH" &&
+                        styles.urgencyHigh,
                       ]}
                       onPress={() => setUrgency(level)}
                     >
@@ -1462,10 +1487,10 @@ export default function CreateJobScreen() {
                         ]}
                       >
                         {level === "LOW"
-                          ? "🟢 Low"
+                          ? "Low"
                           : level === "MEDIUM"
-                            ? "🟡 Medium"
-                            : "🔴 High"}
+                            ? "Medium"
+                            : "High"}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1531,9 +1556,9 @@ export default function CreateJobScreen() {
                 <View style={styles.urgencyRow}>
                   {(
                     [
-                      { value: "ENTRY", label: "🌱 Entry" },
-                      { value: "INTERMEDIATE", label: "⭐ Intermediate" },
-                      { value: "EXPERT", label: "👑 Expert" },
+                      { value: "ENTRY", label: "Entry" },
+                      { value: "INTERMEDIATE", label: "Intermediate" },
+                      { value: "EXPERT", label: "Expert" },
                     ] as const
                   ).map((level) => (
                     <TouchableOpacity
@@ -1548,7 +1573,7 @@ export default function CreateJobScreen() {
                         style={[
                           styles.urgencyText,
                           skillLevel === level.value &&
-                            styles.urgencyTextActive,
+                          styles.urgencyTextActive,
                         ]}
                       >
                         {level.label}
@@ -1564,9 +1589,9 @@ export default function CreateJobScreen() {
                 <View style={styles.urgencyRow}>
                   {(
                     [
-                      { value: "MINOR_REPAIR", label: "🔧 Minor" },
-                      { value: "MODERATE_PROJECT", label: "🛠️ Moderate" },
-                      { value: "MAJOR_RENOVATION", label: "🏗️ Major" },
+                      { value: "MINOR_REPAIR", label: "Minor" },
+                      { value: "MODERATE_PROJECT", label: "Moderate" },
+                      { value: "MAJOR_RENOVATION", label: "Major" },
                     ] as const
                   ).map((scope) => (
                     <TouchableOpacity
@@ -1596,9 +1621,9 @@ export default function CreateJobScreen() {
                 <View style={styles.urgencyRow}>
                   {(
                     [
-                      { value: "INDOOR", label: "🏠 Indoor" },
-                      { value: "OUTDOOR", label: "🌳 Outdoor" },
-                      { value: "BOTH", label: "🔄 Both" },
+                      { value: "INDOOR", label: "Indoor" },
+                      { value: "OUTDOOR", label: "Outdoor" },
+                      { value: "BOTH", label: "Both" },
                     ] as const
                   ).map((env) => (
                     <TouchableOpacity
@@ -1613,7 +1638,7 @@ export default function CreateJobScreen() {
                         style={[
                           styles.urgencyText,
                           workEnvironment === env.value &&
-                            styles.urgencyTextActive,
+                          styles.urgencyTextActive,
                         ]}
                       >
                         {env.label}
@@ -1624,17 +1649,62 @@ export default function CreateJobScreen() {
               </View>
             </View>
 
-            {/* Materials Section (only if worker selected) */}
-            {workerId && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🧰 Materials</Text>
+            {/* Materials Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🧰 Materials Needed (Optional)</Text>
+
+              {/* Manual Material Input */}
+              <View style={styles.materialInputRow}>
+                <TextInput
+                  style={styles.materialInput}
+                  placeholder="Add a material (e.g. 5 bags of cement)"
+                  value={materialInput}
+                  onChangeText={setMaterialInput}
+                  placeholderTextColor={Colors.textHint}
+                  onSubmitEditing={() => {
+                    if (materialInput.trim()) {
+                      setManualMaterials(prev => [...prev, materialInput.trim()]);
+                      setMaterialInput("");
+                    }
+                  }}
+                />
+                <TouchableOpacity
+                  style={styles.materialAddBtn}
+                  onPress={() => {
+                    if (materialInput.trim()) {
+                      setManualMaterials(prev => [...prev, materialInput.trim()]);
+                      setMaterialInput("");
+                    }
+                  }}
+                >
+                  <Ionicons name="add" size={24} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Manual Materials List */}
+              {manualMaterials.length > 0 && (
+                <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
+                  {manualMaterials.map((item, index) => (
+                    <View key={`manual-${index}`} style={styles.manualMaterialTag}>
+                      <Text style={styles.manualMaterialText}>{item}</Text>
+                      <TouchableOpacity
+                        onPress={() => setManualMaterials(prev => prev.filter((_, i) => i !== index))}
+                      >
+                        <Ionicons name="close-circle" size={18} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Worker Materials (if selected) */}
+              {workerId && (
                 <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Select from Worker's List:</Text>
                   {materialsLoading ? (
                     <View style={styles.loadingCategories}>
                       <ActivityIndicator size="small" color={Colors.primary} />
-                      <Text style={styles.loadingText}>
-                        Loading materials...
-                      </Text>
+                      <Text style={styles.loadingText}>Loading materials...</Text>
                     </View>
                   ) : workerMaterials.length > 0 ? (
                     <View style={styles.materialsContainer}>
@@ -1644,7 +1714,7 @@ export default function CreateJobScreen() {
                           style={[
                             styles.materialCard,
                             selectedMaterials.includes(material.id) &&
-                              styles.materialCardSelected,
+                            styles.materialCardSelected,
                           ]}
                           onPress={() => {
                             setSelectedMaterials((prev) =>
@@ -1656,50 +1726,34 @@ export default function CreateJobScreen() {
                         >
                           <View style={styles.materialCardContent}>
                             <View style={styles.materialInfo}>
-                              <Text style={styles.materialName}>
-                                {material.name}
-                              </Text>
+                              <Text style={styles.materialName}>{material.name}</Text>
                               {material.description && (
-                                <Text
-                                  style={styles.materialDesc}
-                                  numberOfLines={1}
-                                >
+                                <Text style={styles.materialDesc} numberOfLines={1}>
                                   {material.description}
                                 </Text>
                               )}
                               <Text style={styles.materialPrice}>
-                                ₱{material.price.toLocaleString()} /{" "}
-                                {material.priceUnit}
+                                ₱{material.price.toLocaleString()} / {material.priceUnit}
                               </Text>
                             </View>
-                            <View style={styles.materialCheckbox}>
+                            <View style={[
+                              styles.materialCheckbox,
+                              selectedMaterials.includes(material.id) && styles.materialCheckboxSelected
+                            ]}>
                               {selectedMaterials.includes(material.id) && (
-                                <Ionicons
-                                  name="checkmark"
-                                  size={20}
-                                  color={Colors.white}
-                                />
+                                <Ionicons name="checkmark" size={16} color={Colors.white} />
                               )}
                             </View>
                           </View>
-                          {!material.inStock && (
-                            <View style={styles.outOfStockBadge}>
-                              <Text style={styles.outOfStockText}>
-                                Out of Stock
-                              </Text>
-                            </View>
-                          )}
                         </TouchableOpacity>
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.hint}>
-                      This worker has no materials listed
-                    </Text>
+                    <Text style={styles.hint}>This worker has no materials listed</Text>
                   )}
                 </View>
-              </View>
-            )}
+              )}
+            </View>
 
             {/* Payment Method Section */}
             <View style={styles.section}>
@@ -1710,8 +1764,8 @@ export default function CreateJobScreen() {
                 style={[
                   styles.walletBalanceCard,
                   hasInsufficientBalance &&
-                    budget &&
-                    styles.walletBalanceCardWarning,
+                  budget &&
+                  styles.walletBalanceCardWarning,
                 ]}
               >
                 <View style={styles.walletBalanceHeader}>
@@ -1732,8 +1786,8 @@ export default function CreateJobScreen() {
                   style={[
                     styles.walletBalanceAmount,
                     hasInsufficientBalance &&
-                      budget &&
-                      styles.walletBalanceAmountWarning,
+                    budget &&
+                    styles.walletBalanceAmountWarning,
                   ]}
                 >
                   ₱{walletBalance.toFixed(2)}
@@ -1809,9 +1863,9 @@ export default function CreateJobScreen() {
                   <Text style={styles.infoText}>
                     {workerId || agencyId
                       ? // INVITE job - immediate deduction
-                        `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
+                      `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
                       : // LISTING job - reservation
-                        `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
+                      `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
                   </Text>
                 </View>
               </View>
@@ -2172,6 +2226,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  materialInputRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+    gap: 8,
+  },
+  materialInput: {
+    flex: 1,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  materialAddBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  manualMaterialTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.backgroundSecondary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 8,
+    justifyContent: "space-between",
+  },
+  manualMaterialText: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: 8,
+  },
+  materialCheckboxSelected: {
+    backgroundColor: Colors.primary,
   },
   materialInfo: {
     flex: 1,
