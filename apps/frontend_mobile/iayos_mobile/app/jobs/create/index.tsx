@@ -137,6 +137,8 @@ export default function CreateJobScreen() {
   const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">("PROJECT");
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
+  const [manualMaterials, setManualMaterials] = useState<string[]>([]);
+  const [materialInput, setMaterialInput] = useState("");
 
   // Skill slots for worker requirements (unified model for all job types)
   // Category is derived from the first skill slot's specialization
@@ -216,6 +218,33 @@ export default function CreateJobScreen() {
 
   // Debounce timer ref for price prediction
   const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch categories
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const response = await fetchJson<{ categories: Category[] }>(
+        ENDPOINTS.GET_CATEGORIES,
+      );
+      return response.categories || [];
+    },
+  });
+
+  const categories = categoriesData || [];
+
+  // Derive category from first skill slot (universal for all job types)
+  const primaryCategoryId = React.useMemo(() => {
+    return skillSlots[0]?.specialization_id ?? null;
+  }, [skillSlots]);
+
+  const primaryCategory = React.useMemo(() => {
+    if (!primaryCategoryId || !categories) return null;
+    return categories.find((c) => c.id === primaryCategoryId) ?? null;
+  }, [primaryCategoryId, categories]);
+
+  // Category always derived from the first skill slot
+  const effectiveCategoryId = primaryCategoryId;
+  const effectiveCategory = primaryCategory;
 
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
@@ -322,18 +351,6 @@ export default function CreateJobScreen() {
     return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
   }, [skillSlots]);
 
-  // Fetch categories - MUST be defined BEFORE getSpecializationName callback
-  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => {
-      const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES,
-      );
-      return response.categories || [];
-    },
-  });
-
-  const categories = categoriesData || [];
 
   // Fetch worker details (including skills) when hiring a specific worker
   interface WorkerSkill {
@@ -398,19 +415,6 @@ export default function CreateJobScreen() {
     }
   }, [workerId, workerDetailsData, categories, skillSlots.length]);
 
-  // Derive category from first skill slot (universal for all job types)
-  const primaryCategoryId = React.useMemo(() => {
-    return skillSlots[0]?.specialization_id ?? null;
-  }, [skillSlots]);
-
-  const primaryCategory = React.useMemo(() => {
-    if (!primaryCategoryId || !categories) return null;
-    return categories.find((c) => c.id === primaryCategoryId) ?? null;
-  }, [primaryCategoryId, categories]);
-
-  // Category always derived from the first skill slot
-  const effectiveCategoryId = primaryCategoryId;
-  const effectiveCategory = primaryCategory;
 
   const getSpecializationName = useCallback(
     (specId: number) => {
@@ -641,12 +645,22 @@ export default function CreateJobScreen() {
       work_environment: workEnvironment,
       // Payment model specific fields
       payment_model: paymentModel,
-      // Materials needed - map selected IDs to names
-      materials_needed: selectedMaterials.length > 0
-        ? workerMaterials
-          .filter((m) => selectedMaterials.includes(m.id))
-          .map((m) => m.name)
-        : undefined,
+      // Materials needed - map selected IDs to names + add manual materials
+      materials_needed: [
+        ...manualMaterials,
+        ...(selectedMaterials.length > 0
+          ? workerMaterials
+            .filter((m) => selectedMaterials.includes(m.id))
+            .map((m) => m.name)
+          : [])
+      ].length > 0 ? [
+        ...manualMaterials,
+        ...(selectedMaterials.length > 0
+          ? workerMaterials
+            .filter((m) => selectedMaterials.includes(m.id))
+            .map((m) => m.name)
+          : [])
+      ] : undefined,
     };
 
     // Add payment model specific fields
@@ -1610,17 +1624,62 @@ export default function CreateJobScreen() {
               </View>
             </View>
 
-            {/* Materials Section (only if worker selected) */}
-            {workerId && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🧰 Materials</Text>
+            {/* Materials Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🧰 Materials Needed (Optional)</Text>
+
+              {/* Manual Material Input */}
+              <View style={styles.materialInputRow}>
+                <TextInput
+                  style={styles.materialInput}
+                  placeholder="Add a material (e.g. 5 bags of cement)"
+                  value={materialInput}
+                  onChangeText={setMaterialInput}
+                  placeholderTextColor={Colors.textHint}
+                  onSubmitEditing={() => {
+                    if (materialInput.trim()) {
+                      setManualMaterials(prev => [...prev, materialInput.trim()]);
+                      setMaterialInput("");
+                    }
+                  }}
+                />
+                <TouchableOpacity
+                  style={styles.materialAddBtn}
+                  onPress={() => {
+                    if (materialInput.trim()) {
+                      setManualMaterials(prev => [...prev, materialInput.trim()]);
+                      setMaterialInput("");
+                    }
+                  }}
+                >
+                  <Ionicons name="add" size={24} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Manual Materials List */}
+              {manualMaterials.length > 0 && (
+                <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
+                  {manualMaterials.map((item, index) => (
+                    <View key={`manual-${index}`} style={styles.manualMaterialTag}>
+                      <Text style={styles.manualMaterialText}>{item}</Text>
+                      <TouchableOpacity
+                        onPress={() => setManualMaterials(prev => prev.filter((_, i) => i !== index))}
+                      >
+                        <Ionicons name="close-circle" size={18} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Worker Materials (if selected) */}
+              {workerId && (
                 <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Select from Worker's List:</Text>
                   {materialsLoading ? (
                     <View style={styles.loadingCategories}>
                       <ActivityIndicator size="small" color={Colors.primary} />
-                      <Text style={styles.loadingText}>
-                        Loading materials...
-                      </Text>
+                      <Text style={styles.loadingText}>Loading materials...</Text>
                     </View>
                   ) : workerMaterials.length > 0 ? (
                     <View style={styles.materialsContainer}>
@@ -1642,50 +1701,34 @@ export default function CreateJobScreen() {
                         >
                           <View style={styles.materialCardContent}>
                             <View style={styles.materialInfo}>
-                              <Text style={styles.materialName}>
-                                {material.name}
-                              </Text>
+                              <Text style={styles.materialName}>{material.name}</Text>
                               {material.description && (
-                                <Text
-                                  style={styles.materialDesc}
-                                  numberOfLines={1}
-                                >
+                                <Text style={styles.materialDesc} numberOfLines={1}>
                                   {material.description}
                                 </Text>
                               )}
                               <Text style={styles.materialPrice}>
-                                ₱{material.price.toLocaleString()} /{" "}
-                                {material.priceUnit}
+                                ₱{material.price.toLocaleString()} / {material.priceUnit}
                               </Text>
                             </View>
-                            <View style={styles.materialCheckbox}>
+                            <View style={[
+                              styles.materialCheckbox,
+                              selectedMaterials.includes(material.id) && styles.materialCheckboxSelected
+                            ]}>
                               {selectedMaterials.includes(material.id) && (
-                                <Ionicons
-                                  name="checkmark"
-                                  size={20}
-                                  color={Colors.white}
-                                />
+                                <Ionicons name="checkmark" size={16} color={Colors.white} />
                               )}
                             </View>
                           </View>
-                          {!material.inStock && (
-                            <View style={styles.outOfStockBadge}>
-                              <Text style={styles.outOfStockText}>
-                                Out of Stock
-                              </Text>
-                            </View>
-                          )}
                         </TouchableOpacity>
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.hint}>
-                      This worker has no materials listed
-                    </Text>
+                    <Text style={styles.hint}>This worker has no materials listed</Text>
                   )}
                 </View>
-              </View>
-            )}
+              )}
+            </View>
 
             {/* Payment Method Section */}
             <View style={styles.section}>
@@ -2158,6 +2201,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  materialInputRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+    gap: 8,
+  },
+  materialInput: {
+    flex: 1,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  materialAddBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  manualMaterialTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.backgroundSecondary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 8,
+    justifyContent: "space-between",
+  },
+  manualMaterialText: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: 8,
+  },
+  materialCheckboxSelected: {
+    backgroundColor: Colors.primary,
   },
   materialInfo: {
     flex: 1,
