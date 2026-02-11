@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import requests
-import json
 from datetime import datetime
 
 BASE_URL = 'http://localhost:8000/api'
