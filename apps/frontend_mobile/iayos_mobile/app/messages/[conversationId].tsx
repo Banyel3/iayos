@@ -1258,10 +1258,10 @@ export default function ChatScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Rate Button (Client & Worker) */}
+            {/* Rate Button (Client, Worker & Agency) */}
             {conversation.job.clientMarkedComplete &&
               !isConversationClosed &&
-              ((conversation.my_role === "WORKER" &&
+              ((conversation.my_role !== "CLIENT" &&
                 !conversation.job.workerReviewed) ||
                 (conversation.my_role === "CLIENT" &&
                   !(conversation.is_team_job
@@ -1290,9 +1290,11 @@ export default function ChatScreen() {
                       color: "#FBC02D",
                     }}
                   >
-                    {conversation.my_role === "WORKER"
-                      ? "Rate Client"
-                      : "Rate Worker"}
+                    {conversation.my_role === "CLIENT"
+                      ? conversation.is_agency_job
+                        ? "Rate Agency"
+                        : "Rate Worker"
+                      : "Rate Client"}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1820,9 +1822,9 @@ export default function ChatScreen() {
                     >
                       {conversation.job.paymentBuffer.is_payment_released
                         ? "✅ Payment Released"
-                        : conversation.my_role === "WORKER"
-                          ? `💰 ₱${(conversation.job.budget * 0.5).toLocaleString("en-PH", { minimumFractionDigits: 0 })} held ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d left` : " · releasing soon"}`
-                          : `⏳ ${conversation.job.paymentBuffer.buffer_days}-Day Hold ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining` : " · releasing soon"}`}
+                        : conversation.my_role !== "CLIENT"
+                          ? `₱${(conversation.job.budget * 0.5).toLocaleString("en-PH", { minimumFractionDigits: 0 })} held ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d left` : " · releasing soon"}`
+                          : `${conversation.job.paymentBuffer.buffer_days}-Day Hold ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining` : " · releasing soon"}`}
                     </Text>
                   ) : (
                     <Text style={styles.viewReceiptSubtitle}>
@@ -1856,8 +1858,13 @@ export default function ChatScreen() {
                 }
                 activeOpacity={0.8}
               >
-                <View style={styles.requestBackjobContent}>
-                  <View style={styles.requestBackjobIconContainer}>
+                <View style={[styles.requestBackjobContent, {
+                  backgroundColor: "#FFF3E0", // Orange background
+                  borderColor: "#FFE0B2", // Orange border
+                }]}>
+                  <View style={[styles.requestBackjobIconContainer, {
+                    backgroundColor: "#FFB74D", // Match orange icon container
+                  }]}>
                     <Ionicons
                       name="refresh-circle"
                       size={24}
@@ -1865,17 +1872,17 @@ export default function ChatScreen() {
                     />
                   </View>
                   <View style={styles.requestBackjobText}>
-                    <Text style={styles.requestBackjobTitle}>
+                    <Text style={[styles.requestBackjobTitle, { color: "#E65100" }]}>
                       Not satisfied with the work?
                     </Text>
-                    <Text style={styles.requestBackjobSubtitle}>
+                    <Text style={[styles.requestBackjobSubtitle, { color: "#EF6C00" }]}>
                       Tap here to request a backjob (rework)
                     </Text>
                   </View>
                   <Ionicons
                     name="chevron-forward"
                     size={20}
-                    color={Colors.primary}
+                    color="#EF6C00"
                   />
                 </View>
               </TouchableOpacity>
@@ -1891,7 +1898,7 @@ export default function ChatScreen() {
                 (conversation.is_team_job
                   ? conversation.all_team_workers_reviewed
                   : conversation.job.clientReviewed)) ||
-                (conversation.my_role === "WORKER" &&
+                (conversation.my_role !== "CLIENT" &&
                   conversation.job.workerReviewed) ? (
                 // User has already reviewed - show compact waiting banner
                 <View style={styles.reviewCompleteBanner}>
@@ -1908,7 +1915,7 @@ export default function ChatScreen() {
                   </Text>
                   {((conversation.my_role === "CLIENT" &&
                     !conversation.job.workerReviewed) ||
-                    (conversation.my_role === "WORKER" &&
+                    (conversation.my_role !== "CLIENT" &&
                       !conversation.job.clientReviewed)) && (
                       <View style={styles.reviewWaitingBadge}>
                         <Ionicons
@@ -1961,7 +1968,7 @@ export default function ChatScreen() {
                     (conversation.is_team_job
                       ? conversation.all_team_workers_reviewed
                       : conversation.job.clientReviewed)) ||
-                    (conversation.my_role === "WORKER" &&
+                    (conversation.my_role !== "CLIENT" &&
                       conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
                     <View style={styles.reviewWaitingContainer}>
@@ -1978,12 +1985,12 @@ export default function ChatScreen() {
                       </Text>
                       {((conversation.my_role === "CLIENT" &&
                         !conversation.job.workerReviewed) ||
-                        (conversation.my_role === "WORKER" &&
+                        (conversation.my_role !== "CLIENT" &&
                           !conversation.job.clientReviewed)) && (
                           <Text style={styles.reviewWaitingText}>
                             Waiting for{" "}
                             {conversation.my_role === "CLIENT"
-                              ? "workers"
+                              ? "worker"
                               : "client"}{" "}
                             to review...
                           </Text>
@@ -3603,24 +3610,25 @@ const styles = StyleSheet.create({
   },
   // Request Backjob Banner Styles (for clients to request rework)
   requestBackjobBanner: {
-    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    backgroundColor: "#FFF3E0", // Use orange palette as base style
     marginHorizontal: Spacing.md,
     marginTop: Spacing.sm,
     borderRadius: BorderRadius.medium,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: "#FFE0B2",
   },
   requestBackjobContent: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
     gap: Spacing.md,
+    borderRadius: BorderRadius.medium, // Ensure content respects border radius
   },
   requestBackjobIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: "#FFB74D", // Orange
     justifyContent: "center",
     alignItems: "center",
   },

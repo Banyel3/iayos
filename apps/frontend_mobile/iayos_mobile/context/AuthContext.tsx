@@ -164,6 +164,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Clear all cached data (AsyncStorage + React Query + CacheManager + WebSocket)
   const clearAllCaches = async () => {
+    // Log who called this function
+    console.log("🗑️ [CLEAR_CACHE] clearAllCaches called!");
+    console.log("🗑️ [CLEAR_CACHE] Stack trace:", new Error().stack);
+
     // Clear AsyncStorage auth keys
     const cacheKeys = [
       "cached_user",
@@ -171,29 +175,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       "access_token",
     ];
     await Promise.all(cacheKeys.map((key) => AsyncStorage.removeItem(key)));
+    console.log("🗑️ [CLEAR_CACHE] Removed AsyncStorage keys:", cacheKeys);
 
     // Clear React Query cache to prevent cross-user data leakage
     queryClient.clear();
+    console.log("🗑️ [CLEAR_CACHE] Cleared React Query cache");
 
     // Clear CacheManager cache (offline cache)
     await CacheManager.clearAll();
+    console.log("🗑️ [CLEAR_CACHE] Cleared CacheManager");
 
     // Reset WebSocket service (disconnect and clear handlers)
     websocketService.reset();
+    console.log("🗑️ [CLEAR_CACHE] Reset WebSocket service");
 
     console.log(
-      "🗑️ Cleared all caches (AsyncStorage + React Query + CacheManager + WebSocket)",
+      "🗑️ [CLEAR_CACHE] All caches cleared (AsyncStorage + React Query + CacheManager + WebSocket)",
     );
   };
 
   // Check authentication with server
-  const checkAuth = async (): Promise<boolean> => {
-    setIsLoading(true);
+  // silent: if true, don't set isLoading (for background refreshes)
+  const checkAuth = async (silent = false): Promise<boolean> => {
+    console.log(`🔄 [CHECK_AUTH] Starting auth check (silent: ${silent})...`);
+    if (!silent) {
+      setIsLoading(true);
+    }
     try {
+      console.log("🔄 [CHECK_AUTH] Calling API:", ENDPOINTS.ME);
       const response = await apiRequest(ENDPOINTS.ME);
+      console.log(`🔄 [CHECK_AUTH] Response status: ${response.status}, ok: ${response.ok}`);
 
       if (response.ok) {
         const userData = await response.json();
+        console.log("✅ [CHECK_AUTH] Auth successful, user data:", {
+          email: userData?.email,
+          profileType: userData?.profile_data?.profileType,
+        });
         setUser(userData);
 
         // Cache user data
@@ -204,19 +222,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             timestamp: Date.now(),
           }),
         );
+        console.log("✅ [CHECK_AUTH] User data cached successfully");
         return true;
-      } else {
+      } else if (response.status === 401) {
+        // ONLY logout on 401 Unauthorized (invalid/expired token)
+        console.log("🔐 [CHECK_AUTH] Token invalid (401), logging out");
         setUser(null);
         await clearAllCaches();
         return false;
+      } else {
+        // Other errors (network, 500, etc.) - keep cached session
+        console.warn(
+          `⚠️ [CHECK_AUTH] Auth check failed with status ${response.status}, keeping cached session`,
+        );
+        return false;
       }
     } catch (error) {
-      console.error("Auth check failed:", error);
-      setUser(null);
-      await clearAllCaches();
+      // Network errors - keep cached session
+      console.warn("⚠️ [CHECK_AUTH] Network error, keeping cached session:", error);
       return false;
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        console.log("🔄 [CHECK_AUTH] Setting isLoading to false");
+        setIsLoading(false);
+      }
     }
   };
 
@@ -233,11 +262,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
+        console.error("❌ Login failed response:", JSON.stringify(errorBody));
+
         const errorMessage =
           errorBody?.error ||
           errorBody?.message ||
           errorBody?.detail ||
-          "Login failed";
+          errorBody?.non_field_errors?.[0] || // Django: {non_field_errors: ["message"]}
+          (typeof errorBody === "string" ? errorBody : JSON.stringify(errorBody)) ||
+          "Login failed (unknown error)";
+
         console.error("❌ Login failed:", errorMessage);
         await clearAllCaches();
         throw new Error(errorMessage);
@@ -245,7 +279,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Parse login response - backend returns token with key "access"
       const loginData = await response.json();
-      const token = loginData?.access || loginData?.access_token || null;
+      console.log("✅ Login response data:", JSON.stringify(loginData));
+
+      // Handle potential wrapped response format (e.g. { data: { access: ... } })
+      const token =
+        loginData?.access ||
+        loginData?.access_token ||
+        loginData?.data?.access ||
+        loginData?.data?.access_token ||
+        null;
 
       if (!token) {
         console.error("❌ No access token in login response:", loginData);
@@ -294,14 +336,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("📡 [Register] Checking network connectivity...");
       const networkState = await checkNetworkConnectivity();
       console.log(`📡 [Register] Network: connected=${networkState.isConnected}, type=${networkState.type}`);
-      
+
       if (!networkState.isConnected) {
         throw new Error("No internet connection. Please check your network settings and try again.");
       }
-      
+
       console.log(`📡 [Register] API URL: ${getApiUrl()}`);
       console.log(`📡 [Register] Endpoint: ${ENDPOINTS.REGISTER}`);
-      
+
       const { confirmPassword, ...rest } = payload;
       const requestPayload = {
         ...rest,
@@ -511,43 +553,83 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Initialize auth on mount with E2E mode bypass and timeout
+  // Initialize auth on mount with offline-first approach
   // E2E_MODE: Skip auth check entirely so app becomes ready immediately for Detox
-  // Timeout: If backend is unreachable, app still becomes interactive
+  // Offline-first: Restore cached session immediately, then refresh in background
   useEffect(() => {
     let isMounted = true;
-    const AUTH_TIMEOUT_MS = 5000; // 5 seconds max for auth check (reduced for faster E2E)
     const isE2EMode = process.env.EXPO_PUBLIC_E2E_MODE === "true";
 
     const initializeAuth = async () => {
+      console.log("🚀 [INIT] Starting authentication initialization...");
+
       // E2E Mode: Skip auth check entirely - app becomes ready immediately
       if (isE2EMode) {
-        console.log("🧪 E2E Mode: Skipping auth check for Detox testing");
+        console.log("🧪 [INIT] E2E Mode: Skipping auth check for Detox testing");
         setIsLoading(false);
         return;
       }
 
-      // Create a timeout promise that resolves (not rejects) to allow app to continue
-      const timeoutPromise = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          if (isMounted) {
-            console.warn(
-              "⏰ Auth check timeout - continuing without authentication",
-            );
-            setIsLoading(false);
-          }
-          resolve();
-        }, AUTH_TIMEOUT_MS);
-      });
+      try {
+        // Step 1: Check for stored token
+        console.log("🔍 [INIT] Step 1: Checking for stored access_token...");
+        const token = await AsyncStorage.getItem("access_token");
+        console.log(`🔍 [INIT] Token found: ${token ? 'YES (length: ' + token.length + ')' : 'NO'}`);
 
-      // Race between auth check and timeout
-      await Promise.race([
-        checkAuth().catch((err) => {
-          console.warn("Auth check failed:", err);
-          if (isMounted) setIsLoading(false);
-        }),
-        timeoutPromise,
-      ]);
+        if (!token) {
+          // No token = not authenticated
+          console.log("🔐 [INIT] No stored token, user not authenticated");
+          setIsLoading(false);
+          return;
+        }
+
+        // Step 2: Load cached user data
+        console.log("🔍 [INIT] Step 2: Loading cached user data...");
+        const cachedUserJson = await AsyncStorage.getItem("cached_user");
+        console.log(`🔍 [INIT] Cached user found: ${cachedUserJson ? 'YES (length: ' + cachedUserJson.length + ')' : 'NO'}`);
+
+        if (cachedUserJson) {
+          try {
+            const cached = JSON.parse(cachedUserJson);
+            console.log("🔍 [INIT] Parsed cached user:", {
+              email: cached.user?.email,
+              profileType: cached.user?.profile_data?.profileType,
+              timestamp: cached.timestamp,
+            });
+
+            // Restore user session immediately from cache
+            if (isMounted) {
+              setUser(cached.user);
+              console.log("✅ [INIT] Session restored from cache", {
+                email: cached.user?.email,
+                profileType: cached.user?.profile_data?.profileType,
+                cachedAt: new Date(cached.timestamp).toISOString(),
+              });
+            } else {
+              console.warn("⚠️ [INIT] Component unmounted, skipping setUser");
+            }
+          } catch (parseError) {
+            console.error("❌ [INIT] Failed to parse cached user:", parseError);
+          }
+        } else {
+          console.warn("⚠️ [INIT] Token exists but no cached user data found");
+        }
+
+        // Step 3: Background refresh (non-blocking, don't await)
+        console.log("🔄 [INIT] Step 3: Starting background auth refresh...");
+        checkAuth(true).catch((err) => {
+          console.warn("⚠️ [INIT] Background auth refresh failed:", err);
+        });
+      } catch (error) {
+        console.error("❌ [INIT] Failed to initialize auth:", error);
+      } finally {
+        if (isMounted) {
+          console.log("✅ [INIT] Setting isLoading to false");
+          setIsLoading(false);
+        } else {
+          console.warn("⚠️ [INIT] Component unmounted, skipping setIsLoading");
+        }
+      }
     };
 
     initializeAuth();
@@ -556,6 +638,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isMounted = false;
     };
   }, []);
+
+  /**
+   * Refresh user data without showing loading state
+   * Useful for updating user data when external state changes (e.g., KYC verification)
+   */
+  const refreshUserData = async (): Promise<void> => {
+    try {
+      console.log("🔄 [REFRESH_USER] Refreshing user data...");
+      const response = await apiRequest(ENDPOINTS.ME);
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log("✅ [REFRESH_USER] User data refreshed:", {
+          email: userData?.email,
+          kycVerified: userData?.kycVerified,
+        });
+        setUser(userData);
+
+        // Update cache
+        await AsyncStorage.setItem(
+          "cached_user",
+          JSON.stringify({
+            user: userData,
+            timestamp: Date.now(),
+          }),
+        );
+      } else {
+        console.warn("⚠️ [REFRESH_USER] Failed to refresh user data");
+      }
+    } catch (error) {
+      console.error("❌ [REFRESH_USER] Error refreshing user data:", error);
+    }
+  };
 
   const isAuthenticated = !!user;
 
@@ -571,6 +686,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         checkAuth,
         assignRole,
         switchProfile,
+        refreshUserData,
       }}
     >
       {children}

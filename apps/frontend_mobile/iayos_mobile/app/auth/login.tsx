@@ -41,6 +41,17 @@ export default function LoginScreen() {
   // Track the last focused field's ref object
   const lastFocusedRef = useRef<any>(null);
 
+  // Redirect authenticated users away from login screen
+  useEffect(() => {
+    if (user?.profile_data?.profileType) {
+      console.log("🔀 [LOGIN] User already authenticated, redirecting to tabs");
+      router.replace("/(tabs)");
+    } else if (user && !user.profile_data?.profileType) {
+      console.log("🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection");
+      router.replace("/auth/select-role");
+    }
+  }, [user]);
+
   // When keyboard hides, try to re-focus the last focused field if it still reports focused
   useEffect(() => {
     const subscription = Keyboard.addListener("keyboardDidHide", () => {
@@ -49,7 +60,7 @@ export default function LoginScreen() {
         setTimeout(() => {
           try {
             (fieldRef as any).focus?.();
-          } catch (e) {}
+          } catch (e) { }
         }, 50);
       }
     });
@@ -57,7 +68,7 @@ export default function LoginScreen() {
     return () => {
       try {
         subscription.remove();
-      } catch (e) {}
+      } catch (e) { }
     };
   }, []);
 
@@ -99,7 +110,7 @@ export default function LoginScreen() {
           keyboardDismissMode="on-drag"
         >
           {/* Clean Header with Logo */}
-          
+
           <View style={styles.headerContainer}>
             <Image
               source={require("../../assets/logo-white.png")}

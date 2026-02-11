@@ -176,4 +176,6 @@ export interface AuthContextType {
   checkAuth: () => Promise<boolean>;
   assignRole: (profileType: "WORKER" | "CLIENT") => Promise<boolean>;
   switchProfile: (profileType: "WORKER" | "CLIENT") => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
+
