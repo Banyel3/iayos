@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -118,7 +119,7 @@ export default function WalletPaymentScreen() {
         <Text style={styles.errorText}>Invalid payment details</Text>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
         >
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
@@ -130,7 +131,7 @@ export default function WalletPaymentScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
+        <TouchableOpacity onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backIcon}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>

@@ -13,6 +13,7 @@ import {
   Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -309,7 +310,7 @@ export default function ActiveJobDetailScreen() {
         [
           {
             text: "OK",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/jobs"),
           },
         ]
       );
@@ -481,7 +482,7 @@ export default function ActiveJobDetailScreen() {
                   Alert.alert(
                     "Success",
                     "Team job completed! Payments will be processed.",
-                    [{ text: "OK", onPress: () => router.back() }]
+                    [{ text: "OK", onPress: () => safeGoBack(router, "/(tabs)/jobs") }]
                   );
                 },
                 onError: (error: any) => {
@@ -535,7 +536,7 @@ export default function ActiveJobDetailScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

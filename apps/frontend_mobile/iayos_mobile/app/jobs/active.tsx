@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -145,7 +146,7 @@ export default function ActiveJobsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
             style={styles.backButton}
             activeOpacity={0.7}
           >

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "react-native-paper";
 import { Colors, Typography, Spacing } from "@/constants/theme";
@@ -90,7 +91,7 @@ export default function DocumentPreviewScreen() {
             </Text>
             <Button
               mode="contained"
-              onPress={() => router.back()}
+              onPress={() => safeGoBack(router, "/(tabs)/profile")}
               style={styles.backButton}
             >
               Go Back

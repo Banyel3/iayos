@@ -29,6 +29,7 @@ import {
   Divider,
 } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { StarRating } from "@/components/Reviews";
 import { useSubmitReview } from "@/lib/hooks/useReviews";
 import { SubmitReviewRequest } from "@/lib/types/review";
@@ -160,7 +161,7 @@ export default function SubmitReviewScreen() {
         Alert.alert("Review Submitted", "Thank you for your feedback!", [
           {
             text: "OK",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/jobs"),
           },
         ]);
       },
@@ -348,7 +349,7 @@ export default function SubmitReviewScreen() {
 
           <Button
             mode="outlined"
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
             disabled={submitReviewMutation.isPending}
             style={styles.cancelButton}
           >

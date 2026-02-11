@@ -94,7 +94,7 @@ export function useMySkills() {
       const data = (await response.json()) as MySkillsResponse;
       return data.data || [];
     },
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 1000 * 30, // Cache for 30 seconds (short to avoid stale skill-mismatch warnings)
   });
 }
 

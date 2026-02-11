@@ -20,6 +20,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -754,7 +755,7 @@ export default function KYCUploadScreen() {
       }
       setCurrentStep(currentStep - 1);
     } else {
-      router.back();
+      safeGoBack(router, "/(tabs)/profile");
     }
   };
 

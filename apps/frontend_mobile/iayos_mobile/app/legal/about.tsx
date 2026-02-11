@@ -9,6 +9,7 @@ import {
   Linking,
 } from "react-native";
 import { router } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, BorderRadius } from "@/constants/theme";
 
@@ -27,7 +28,7 @@ export default function AboutScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>

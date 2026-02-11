@@ -14,6 +14,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -51,13 +52,13 @@ export default function SkillCertificationsScreen() {
       Alert.alert(
         "Worker Feature Only",
         "Certifications are only available for worker profiles.",
-        [{ text: "OK", onPress: () => router.back() }],
+        [{ text: "OK", onPress: () => safeGoBack(router, "/(tabs)/profile") }],
       );
     }
 
     if (!skillId) {
       Alert.alert("Error", "Skill ID is required", [
-        { text: "OK", onPress: () => router.back() },
+        { text: "OK", onPress: () => safeGoBack(router, "/(tabs)/profile") },
       ]);
     }
   }, [isWorker, user, router, skillId]);

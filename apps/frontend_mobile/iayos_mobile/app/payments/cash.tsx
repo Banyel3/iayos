@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -213,7 +214,7 @@ export default function CashPaymentScreen() {
         {
           text: "Yes, Cancel",
           style: "destructive",
-          onPress: () => router.back(),
+          onPress: () => safeGoBack(router, "/(tabs)/profile"),
         },
       ]
     );

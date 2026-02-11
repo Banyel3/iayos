@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -210,7 +211,7 @@ export default function VerifyOTPScreen() {
           {/* Back Button */}
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)")}
             disabled={isVerifying}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.primary} />

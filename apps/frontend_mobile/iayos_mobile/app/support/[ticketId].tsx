@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
@@ -112,7 +113,7 @@ export default function TicketDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ticket Details</Text>
@@ -130,7 +131,7 @@ export default function TicketDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ticket Details</Text>
@@ -139,7 +140,7 @@ export default function TicketDetailScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
           <Text style={styles.errorTitle}>Ticket not found</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => safeGoBack(router, "/(tabs)/profile")}>
             <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -162,7 +163,7 @@ export default function TicketDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ticket #{ticket.id}</Text>

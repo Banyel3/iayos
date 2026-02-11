@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AvatarUpload } from "@/components/AvatarUpload";
@@ -69,7 +70,7 @@ export default function AvatarUploadScreen() {
       Alert.alert("Success!", "Your avatar has been updated successfully.", [
         {
           text: "OK",
-          onPress: () => router.back(),
+          onPress: () => safeGoBack(router, "/(tabs)/profile"),
         },
       ]);
     }, 500);
@@ -109,7 +110,7 @@ export default function AvatarUploadScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
