@@ -1145,11 +1145,11 @@ export default function JobDetailScreen() {
             <Ionicons
               name="calendar-outline"
               size={16}
-              color={Colors.textSecondary}
+              color={Colors.primary}
             />
-            <Text style={styles.jobCategory}>
+            <Text style={styles.jobStartDate}>
               {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString()}`
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
                 : `Posted ${job.postedAt}`}
             </Text>
           </View>
@@ -1174,6 +1174,12 @@ export default function JobDetailScreen() {
               )}
             </View>
           )}
+        </View>
+
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Job Description</Text>
+          <Text style={styles.description}>{job.description}</Text>
         </View>
 
         {/* Budget & Location */}
@@ -1314,6 +1320,23 @@ export default function JobDetailScreen() {
           </View>
         </View>
 
+        {/* Materials Needed */}
+        {job.materialsNeeded && job.materialsNeeded.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Materials Needed</Text>
+            {job.materialsNeeded.map((material, index) => (
+              <View key={index} style={styles.listItem}>
+                <Ionicons
+                  name="construct-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+                <Text style={styles.listItemText}>{material}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* ML Estimated Completion Time */}
         {(isLoading ||
           (job.estimatedCompletion && job.status !== "COMPLETED")) && (
@@ -1324,12 +1347,6 @@ export default function JobDetailScreen() {
               />
             </View>
           )}
-
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{job.description}</Text>
-        </View>
 
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
@@ -1366,23 +1383,6 @@ export default function JobDetailScreen() {
                 </View>
               ))}
             </View>
-          </View>
-        )}
-
-        {/* Materials Needed */}
-        {job.materialsNeeded && job.materialsNeeded.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Materials Needed</Text>
-            {job.materialsNeeded.map((material, index) => (
-              <View key={index} style={styles.listItem}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color={Colors.primary}
-                />
-                <Text style={styles.listItemText}>{material}</Text>
-              </View>
-            ))}
           </View>
         )}
 
@@ -1647,7 +1647,7 @@ export default function JobDetailScreen() {
                     color={Colors.success}
                   />
                   <Text style={styles.assignmentCardTitle}>
-                    You're Assigned!
+                    You&apos;re Assigned!
                   </Text>
                 </View>
                 <Text style={styles.assignmentCardSubtitle}>
@@ -1842,7 +1842,7 @@ export default function JobDetailScreen() {
                   <Text style={styles.inviteActionTitle}>Job Invitation</Text>
                 </View>
                 <Text style={styles.inviteActionText}>
-                  You've been invited to work on this job. Review the details
+                  You&apos;ve been invited to work on this job. Review the details
                   and decide whether to accept or decline.
                 </Text>
                 <View style={styles.inviteActionButtons}>
@@ -2848,8 +2848,8 @@ const styles = StyleSheet.create({
   },
   jobTitle: {
     flex: 1,
-    fontSize: Typography.fontSize.xl,
-    fontWeight: "700",
+    fontSize: 28, // Made larger as requested
+    fontWeight: "800",
     color: Colors.textPrimary,
     marginRight: Spacing.md,
   },
@@ -3033,6 +3033,12 @@ const styles = StyleSheet.create({
   postedTime: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  // Job Details
+  jobStartDate: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary,
+    fontWeight: "700",
   },
   tapToViewHint: {
     fontSize: Typography.fontSize.xs,
