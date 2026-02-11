@@ -19,10 +19,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { AvatarUpload } from "@/components/AvatarUpload";
 
 export default function EditClientProfileScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUserData } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -33,6 +34,7 @@ export default function EditClientProfileScreen() {
     email: "",
     contactNum: "",
     birthDate: "",
+    profileImg: "",
   });
 
   // Track changes
@@ -48,6 +50,7 @@ export default function EditClientProfileScreen() {
         email: user.email || "",
         contactNum: user.profile_data.contactNum || "",
         birthDate: user.profile_data.birthDate || "",
+        profileImg: user.profile_data.profileImg || "",
       };
       setFormData(data);
       setOriginalData(data);
@@ -61,7 +64,8 @@ export default function EditClientProfileScreen() {
       formData.firstName !== originalData.firstName ||
       formData.lastName !== originalData.lastName ||
       formData.contactNum !== originalData.contactNum ||
-      formData.birthDate !== originalData.birthDate;
+      formData.birthDate !== originalData.birthDate ||
+      formData.profileImg !== originalData.profileImg;
     setHasChanges(changed);
   }, [formData, originalData]);
 
@@ -96,7 +100,7 @@ export default function EditClientProfileScreen() {
 
     try {
       const response = await apiRequest(
-        ENDPOINTS.UPDATE_PROFILE(user?.profile_data?.id || 0),
+        ENDPOINTS.UPDATE_PROFILE,
         {
           method: "PUT",
           body: JSON.stringify({
@@ -104,6 +108,7 @@ export default function EditClientProfileScreen() {
             last_name: formData.lastName,
             contact_num: formData.contactNum,
             birth_date: formData.birthDate || null,
+            profile_img: formData.profileImg,
           }),
         }
       );
@@ -173,30 +178,45 @@ export default function EditClientProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Profile Picture Section */}
+        <View style={styles.avatarContainer}>
+          <AvatarUpload
+            currentAvatarUrl={formData.profileImg}
+            size={120}
+            onUploadSuccess={(url) => {
+              handleInputChange("profileImg", url);
+              refreshUserData();
+            }}
+            editable={true}
+            showEditOverlay={true}
+          />
+          <Text style={styles.avatarHint}>Tap to change profile picture</Text>
+        </View>
+
         {/* Form Fields */}
         <View style={styles.formSection}>
           {/* First Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name *</Text>
+            <Text style={styles.label}>First Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, styles.inputReadonly]}
               value={formData.firstName}
-              onChangeText={(value) => handleInputChange("firstName", value)}
-              placeholder="Enter your first name"
+              editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
+            <Text style={styles.helperText}>First name cannot be changed</Text>
           </View>
 
           {/* Last Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name *</Text>
+            <Text style={styles.label}>Last Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, styles.inputReadonly]}
               value={formData.lastName}
-              onChangeText={(value) => handleInputChange("lastName", value)}
-              placeholder="Enter your last name"
+              editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
+            <Text style={styles.helperText}>Last name cannot be changed</Text>
           </View>
 
           {/* Email (Read-only) */}
@@ -229,15 +249,12 @@ export default function EditClientProfileScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Birth Date</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, styles.inputReadonly]}
               value={formData.birthDate}
-              onChangeText={(value) => handleInputChange("birthDate", value)}
-              placeholder="YYYY-MM-DD"
+              editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>
-              Format: YYYY-MM-DD (e.g., 1990-01-15)
-            </Text>
+            <Text style={styles.helperText}>Birth date cannot be changed</Text>
           </View>
         </View>
 
@@ -311,6 +328,23 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.lg,
     paddingBottom: 40,
+  },
+  avatarContainer: {
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  avatarHint: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
   },
   formSection: {
     backgroundColor: Colors.white,

@@ -493,7 +493,7 @@ export default function CreateTeamJobScreen() {
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
       team_start_threshold: teamStartThreshold,
-      urgency_level: urgency,
+      urgency: urgency,
       preferred_start_date: startDate?.toISOString().split("T")[0],
       materials_needed: materials,
       budget_allocation_type: allocationMethod,
