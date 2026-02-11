@@ -39,6 +39,7 @@ interface Employee {
   fullName?: string;
   name: string;
   email: string;
+  mobile?: string;
   specializations?: string[];
   role?: string;
   avatar?: string | null;
@@ -102,7 +103,6 @@ export default function EmployeesPage() {
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
 
@@ -111,7 +111,6 @@ export default function EmployeesPage() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editMiddleName, setEditMiddleName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
   const [editMobile, setEditMobile] = useState("");
   const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -256,9 +255,9 @@ export default function EmployeesPage() {
     setEditFirstName(emp.firstName || "");
     setEditMiddleName(emp.middleName || "");
     setEditLastName(emp.lastName || "");
-    setEditEmail(emp.email);
-    setEditMobile((emp as any).mobile || "");
+    setEditMobile(emp.mobile || "");
     setEditSpecializations(emp.specializations || (emp.role ? [emp.role] : []));
+  };
   };
 
   const toggleSpecialization = (spec: string) => {

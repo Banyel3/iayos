@@ -545,6 +545,7 @@ def get_agency_employees(account_id):
                 "fullName": emp.fullName,
                 "name": emp.name,  # Legacy field
                 "email": emp.email,
+                "mobile": emp.mobile,
                 "specializations": emp.get_specializations_list(),
                 "role": emp.role,  # Legacy field
                 "avatar": emp.avatar,
@@ -589,12 +590,15 @@ def add_agency_employee(account_id, firstName, lastName, mobile, specializations
         name_parts.append(lastName.strip())
         full_name = " ".join(name_parts)
         
-        # Ensure mobile uniqueness across Accounts.contactNumber and AgencyEmployee.mobile
+        # Ensure mobile uniqueness across Profile.contactNum, Agency.contactNumber and AgencyEmployee.mobile
         if mobile and mobile.strip():
             m = mobile.strip()
-            # Check Accounts table
-            if Accounts.objects.filter(contactNumber=m).exists():
-                raise ValueError("Mobile number already in use by an account")
+            # Check Profile contact numbers
+            if Profile.objects.filter(contactNum=m).exists():
+                raise ValueError("Mobile number already in use by a user profile")
+            # Check Agency contact numbers
+            if AgencyProfile.objects.filter(contactNumber=m).exists():
+                raise ValueError("Mobile number already in use by an agency")
             # Check existing agency employees
             if AgencyEmployee.objects.filter(mobile=m).exists():
                 raise ValueError("Mobile number already in use by another employee")
@@ -671,9 +675,11 @@ def update_agency_employee(account_id, employee_id, firstName=None, lastName=Non
             # If provided value looks like a phone (digits, +), treat it as mobile; otherwise treat as email
             candidate = str(email).strip()
             if candidate and all(c.isdigit() or c in ['+', '-', ' '] for c in candidate):
-                # Validate uniqueness
-                if Accounts.objects.filter(contactNumber=candidate).exclude(accountID=account_id).exists():
-                    raise ValueError("Mobile number already in use by an account")
+                # Validate uniqueness across Profile, Agency, and AgencyEmployee
+                if Profile.objects.filter(contactNum=candidate).exists():
+                    raise ValueError("Mobile number already in use by a user profile")
+                if AgencyProfile.objects.filter(contactNumber=candidate).exists():
+                    raise ValueError("Mobile number already in use by an agency")
                 if AgencyEmployee.objects.filter(mobile=candidate).exclude(employeeID=employee_id).exists():
                     raise ValueError("Mobile number already in use by another employee")
                 employee.mobile = candidate
@@ -709,6 +715,7 @@ def update_agency_employee(account_id, employee_id, firstName=None, lastName=Non
             "fullName": employee.fullName,
             "name": employee.name,
             "email": employee.email,
+            "mobile": employee.mobile,
             "specializations": employee.get_specializations_list(),
             "role": employee.role,
             "avatar": employee.avatar,
