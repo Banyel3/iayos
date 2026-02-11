@@ -47,111 +47,111 @@ const FIELD_CONFIG: Array<{
   keyboardType?: "default" | "email-address" | "phone-pad";
   section?: "personal" | "clearance"; // Group fields by section
 }> = [
-  // ============================================================
-  // PERSONAL INFORMATION (from ID documents)
-  // ============================================================
-  {
-    key: "full_name",
-    label: "Full Name",
-    required: true,
-    placeholder: "Juan Dela Cruz",
-    section: "personal",
-  },
-  {
-    key: "first_name",
-    label: "First Name",
-    required: false,
-    placeholder: "Juan",
-    section: "personal",
-  },
-  {
-    key: "middle_name",
-    label: "Middle Name",
-    required: false,
-    placeholder: "Santos",
-    section: "personal",
-  },
-  {
-    key: "last_name",
-    label: "Last Name",
-    required: false,
-    placeholder: "Dela Cruz",
-    section: "personal",
-  },
-  {
-    key: "date_of_birth",
-    label: "Date of Birth",
-    required: true,
-    placeholder: "YYYY-MM-DD",
-    section: "personal",
-  },
-  {
-    key: "address",
-    label: "Address",
-    required: true,
-    placeholder: "123 Main St, Barangay, City",
-    section: "personal",
-  },
-  {
-    key: "id_number",
-    label: "ID Number",
-    required: true,
-    placeholder: "1234-5678-9012-3456",
-    section: "personal",
-  },
-  {
-    key: "nationality",
-    label: "Nationality",
-    required: false,
-    placeholder: "Filipino",
-    section: "personal",
-  },
-  {
-    key: "sex",
-    label: "Sex",
-    required: false,
-    placeholder: "Male / Female",
-    section: "personal",
-  },
-  {
-    key: "place_of_birth",
-    label: "Place of Birth",
-    required: false,
-    placeholder: "City, Province",
-    section: "personal",
-  },
-  // ============================================================
-  // CLEARANCE INFORMATION (NBI / Police Clearance)
-  // ============================================================
-  {
-    key: "clearance_number",
-    label: "Clearance Number",
-    required: false,
-    placeholder: "NBI-2025-XXXXXXXX",
-    section: "clearance",
-  },
-  {
-    key: "clearance_type",
-    label: "Clearance Type",
-    required: false,
-    placeholder: "NBI / Police",
-    section: "clearance",
-  },
-  {
-    key: "clearance_issue_date",
-    label: "Clearance Issue Date",
-    required: false,
-    placeholder: "YYYY-MM-DD",
-    section: "clearance",
-  },
-  {
-    key: "clearance_validity_date",
-    label: "Clearance Valid Until",
-    required: false,
-    placeholder: "YYYY-MM-DD",
-    section: "clearance",
-  },
-];
+    // ============================================================
+    // PERSONAL INFORMATION (from ID documents)
+    // ============================================================
+    {
+      key: "full_name",
+      label: "Full Name",
+      required: true,
+      placeholder: "Juan Dela Cruz",
+      section: "personal",
+    },
+    {
+      key: "first_name",
+      label: "First Name",
+      required: false,
+      placeholder: "Juan",
+      section: "personal",
+    },
+    {
+      key: "middle_name",
+      label: "Middle Name",
+      required: false,
+      placeholder: "Santos",
+      section: "personal",
+    },
+    {
+      key: "last_name",
+      label: "Last Name",
+      required: false,
+      placeholder: "Dela Cruz",
+      section: "personal",
+    },
+    {
+      key: "date_of_birth",
+      label: "Date of Birth",
+      required: true,
+      placeholder: "YYYY-MM-DD",
+      section: "personal",
+    },
+    {
+      key: "address",
+      label: "Address",
+      required: true,
+      placeholder: "123 Main St, Barangay, City",
+      section: "personal",
+    },
+    {
+      key: "id_number",
+      label: "ID Number",
+      required: true,
+      placeholder: "1234-5678-9012-3456",
+      section: "personal",
+    },
+    {
+      key: "nationality",
+      label: "Nationality",
+      required: false,
+      placeholder: "Filipino",
+      section: "personal",
+    },
+    {
+      key: "sex",
+      label: "Sex",
+      required: false,
+      placeholder: "Male / Female",
+      section: "personal",
+    },
+    {
+      key: "place_of_birth",
+      label: "Place of Birth",
+      required: false,
+      placeholder: "City, Province",
+      section: "personal",
+    },
+    // ============================================================
+    // CLEARANCE INFORMATION (NBI / Police Clearance)
+    // ============================================================
+    {
+      key: "clearance_number",
+      label: "Clearance Number",
+      required: false,
+      placeholder: "NBI-2025-XXXXXXXX",
+      section: "clearance",
+    },
+    {
+      key: "clearance_type",
+      label: "Clearance Type",
+      required: false,
+      placeholder: "NBI / Police",
+      section: "clearance",
+    },
+    {
+      key: "clearance_issue_date",
+      label: "Clearance Issue Date",
+      required: false,
+      placeholder: "YYYY-MM-DD",
+      section: "clearance",
+    },
+    {
+      key: "clearance_validity_date",
+      label: "Clearance Valid Until",
+      required: false,
+      placeholder: "YYYY-MM-DD",
+      section: "clearance",
+    },
+  ];
 
 export default function KYCConfirmScreen() {
   const router = useRouter();
@@ -207,10 +207,10 @@ export default function KYCConfirmScreen() {
       prev.map((field) =>
         field.key === key
           ? {
-              ...field,
-              value: newValue,
-              edited: newValue !== field.originalValue,
-            }
+            ...field,
+            value: newValue,
+            edited: newValue !== field.originalValue,
+          }
           : field,
       ),
     );
@@ -265,7 +265,7 @@ export default function KYCConfirmScreen() {
       Alert.alert(
         "Data Confirmed",
         "Your KYC information has been saved successfully.",
-        [{ text: "OK", onPress: () => router.replace("/kyc/status") }],
+        [{ text: "View Status", onPress: () => router.replace("/kyc/status") }],
       );
     } catch (err) {
       Alert.alert(

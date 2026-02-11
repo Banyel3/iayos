@@ -83,7 +83,10 @@ def create_team_job(
     urgency: str = 'MEDIUM',
     preferred_start_date: Optional[str] = None,
     materials_needed: Optional[list] = None,
-    payment_method: str = 'WALLET'
+    payment_method: str = 'WALLET',
+    job_scope: str = 'MODERATE_PROJECT',
+    skill_level_required: str = 'INTERMEDIATE',
+    work_environment: str = 'INDOOR'
 ) -> dict:
     """
     Create a team job with multiple skill slot requirements.
@@ -159,7 +162,10 @@ def create_team_job(
         status='ACTIVE',
         is_team_job=True,
         budget_allocation_type=allocation_type,
-        team_job_start_threshold=Decimal(str(team_start_threshold))
+        team_job_start_threshold=Decimal(str(team_start_threshold)),
+        job_scope=job_scope,
+        skill_level_required=skill_level_required,
+        work_environment=work_environment
     )
     
     # Create skill slots

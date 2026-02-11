@@ -114,6 +114,11 @@ class CreateTeamJobSchema(Schema):
     skill_slots: list[SkillSlotSchema]  # At least one skill slot required
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
 
+    # ML enhancement fields
+    job_scope: Optional[str] = "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    skill_level_required: Optional[str] = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
+    work_environment: Optional[str] = "INDOOR"  # INDOOR, OUTDOOR, BOTH
+
 
 class TeamJobResponseSchema(Schema):
     """Response schema for team job creation"""

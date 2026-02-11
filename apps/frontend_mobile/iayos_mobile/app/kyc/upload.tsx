@@ -865,23 +865,19 @@ export default function KYCUploadScreen() {
         Alert.alert(
           "Verification Failed",
           `Your documents could not be verified automatically:\n\n${formattedReasons}\n\nPlease resubmit with clearer images.`,
-          [{ text: "OK", onPress: () => router.replace("/kyc/status" as any) }],
+          [{ text: "View Status", onPress: () => router.replace("/kyc/status" as any) }],
         );
       } else {
-        // Success - offer to review extracted data
+        // Success - redirect to status
         Alert.alert(
           "Documents Uploaded!",
           isRejected
-            ? "Your KYC documents have been resubmitted. Would you like to review the extracted information?"
-            : "Your KYC documents are being processed. Would you like to review the extracted information?",
+            ? "Your KYC documents have been resubmitted."
+            : "Your KYC documents are being processed.",
           [
             {
-              text: "Skip",
+              text: "View Status",
               onPress: () => router.replace("/kyc/status" as any),
-            },
-            {
-              text: "Review Details",
-              onPress: () => router.replace("/kyc/confirm" as any),
             },
           ],
         );
