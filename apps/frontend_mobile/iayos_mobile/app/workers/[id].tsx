@@ -151,7 +151,7 @@ const WorkerDetailSkeleton = () => {
 
         {/* Stats Skeleton */}
         <View style={styles.statsSection}>
-          <View style={styles.statCard}>
+          <View style={styles.statItem}>
             <View style={[styles.skeletonBox, { width: 40, height: 28 }]} />
             <View
               style={[
@@ -160,7 +160,8 @@ const WorkerDetailSkeleton = () => {
               ]}
             />
           </View>
-          <View style={styles.statCard}>
+          <View style={styles.divider} />
+          <View style={styles.statItem}>
             <View style={[styles.skeletonBox, { width: 60, height: 28 }]} />
             <View
               style={[
@@ -169,7 +170,8 @@ const WorkerDetailSkeleton = () => {
               ]}
             />
           </View>
-          <View style={styles.statCard}>
+          <View style={styles.divider} />
+          <View style={styles.statItem}>
             <View style={[styles.skeletonBox, { width: 30, height: 28 }]} />
             <View
               style={[
@@ -460,17 +462,19 @@ export default function WorkerDetailScreen() {
 
           {/* Stats Cards */}
           <View style={styles.statsSection}>
-            <View style={styles.statCard}>
+            <View style={styles.statItem}>
               <Ionicons name="briefcase" size={24} color={Colors.primary} />
               <Text style={styles.statValue}>{data.completedJobs}</Text>
               <Text style={styles.statLabel}>Jobs Done</Text>
             </View>
-            <View style={styles.statCard}>
+            <View style={styles.divider} />
+            <View style={styles.statItem}>
               <Ionicons name="time" size={24} color={Colors.primary} />
               <Text style={styles.statValue}>{data.responseTime || "1h"}</Text>
               <Text style={styles.statLabel}>Response Time</Text>
             </View>
-            <View style={styles.statCard}>
+            <View style={styles.divider} />
+            <View style={styles.statItem}>
               <Ionicons name="cash" size={24} color={Colors.primary} />
               <Text style={styles.statValue}>₱{data.hourlyRate || "N/A"}</Text>
               <Text style={styles.statLabel}>Per Hour</Text>
@@ -1507,17 +1511,22 @@ const styles = StyleSheet.create({
   },
   statsSection: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
     backgroundColor: Colors.white,
+    marginHorizontal: 16,
     borderRadius: BorderRadius.lg,
-    padding: 16,
-    alignItems: "center",
+    paddingVertical: 16,
+    marginBottom: 16,
     ...Shadows.sm,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  divider: {
+    width: 1,
+    height: "60%",
+    backgroundColor: Colors.border,
+    alignSelf: "center",
   },
   statValue: {
     fontSize: 18,

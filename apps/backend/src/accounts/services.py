@@ -112,6 +112,26 @@ def create_account_individ(data):
         profileImg=None  # NULL until user uploads a profile picture
     )
 
+    # 5️⃣ Create WorkerProfile or ClientProfile immediately
+    from .models import WorkerProfile, ClientProfile
+    if profile_type == Profile.ProfileType.WORKER:
+        WorkerProfile.objects.create(
+            profileID=profile,
+            description='',
+            workerRating=0,
+            totalEarningGross=0.00,
+            availability_status='OFFLINE'
+        )
+        print(f"✅ Auto-created WorkerProfile during registration for {user.email}")
+    elif profile_type == Profile.ProfileType.CLIENT:
+        ClientProfile.objects.create(
+            profileID=profile,
+            description='',
+            totalJobsPosted=0,
+            clientRating=0
+        )
+        print(f"✅ Auto-created ClientProfile during registration for {user.email}")
+
     # Return OTP for email sending (frontend will trigger email)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     return {
@@ -524,7 +544,20 @@ def fetch_currentUser(accountID, profile_type=None):
             if profile.profileType == "WORKER":
                 try:
                     from .models import WorkerProfile, workerSpecialization, WorkerCertification
-                    worker_profile = WorkerProfile.objects.get(profileID=profile)
+                    # Auto-repair: Get or create WorkerProfile if it's missing
+                    worker_profile, created = WorkerProfile.objects.get_or_create(
+                        profileID=profile,
+                        defaults={
+                            'description': '',
+                            'workerRating': 0,
+                            'totalEarningGross': 0.00,
+                            'availability_status': 'OFFLINE'
+                        }
+                    )
+                    
+                    if created:
+                        print(f"   🔧 Auto-repaired: Created missing WorkerProfile for profile {profile.profileID}")
+                    
                     profile_data["workerProfileId"] = worker_profile.id  # WorkerProfile primary key
                     profile_data["bio"] = worker_profile.bio or ""
                     profile_data["hourlyRate"] = float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None
