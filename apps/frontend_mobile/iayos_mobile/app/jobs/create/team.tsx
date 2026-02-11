@@ -94,9 +94,9 @@ const ALLOCATION_METHODS: {
 ];
 
 const SKILL_LEVELS = [
-  { value: "ENTRY", label: "Entry Level 🌱", multiplier: 1 },
-  { value: "INTERMEDIATE", label: "Intermediate ⭐", multiplier: 2 },
-  { value: "EXPERT", label: "Expert 👑", multiplier: 3 },
+  { value: "ENTRY", label: "Entry Level", multiplier: 1 },
+  { value: "INTERMEDIATE", label: "Intermediate", multiplier: 2 },
+  { value: "EXPERT", label: "Expert", multiplier: 3 },
 ];
 
 export default function CreateTeamJobScreen() {
@@ -951,13 +951,13 @@ export default function CreateTeamJobScreen() {
                 <Text style={styles.label}>Urgency Level</Text>
                 <View style={styles.urgencyOptions}>
                   {[
-                    { value: "LOW", label: "Low 🟢", color: Colors.success },
+                    { value: "LOW", label: "Low", color: Colors.success },
                     {
                       value: "MEDIUM",
-                      label: "Medium 🟡",
+                      label: "Medium",
                       color: Colors.warning,
                     },
-                    { value: "HIGH", label: "High 🔴", color: Colors.error },
+                    { value: "HIGH", label: "High", color: Colors.error },
                   ].map((opt) => (
                     <TouchableOpacity
                       key={opt.value}
@@ -1008,9 +1008,9 @@ export default function CreateTeamJobScreen() {
                 <Text style={styles.label}>Job Scope</Text>
                 <View style={styles.urgencyOptions}>
                   {[
-                    { value: "MINOR_REPAIR", label: "🔧 Minor" },
-                    { value: "MODERATE_PROJECT", label: "🛠️ Moderate" },
-                    { value: "MAJOR_RENOVATION", label: "🏗️ Major" },
+                    { value: "MINOR_REPAIR", label: "Minor" },
+                    { value: "MODERATE_PROJECT", label: "Moderate" },
+                    { value: "MAJOR_RENOVATION", label: "Major" },
                   ].map((opt) => (
                     <TouchableOpacity
                       key={opt.value}
@@ -1037,9 +1037,9 @@ export default function CreateTeamJobScreen() {
                 <Text style={styles.label}>Work Environment</Text>
                 <View style={styles.urgencyOptions}>
                   {[
-                    { value: "INDOOR", label: "🏠 Indoor" },
-                    { value: "OUTDOOR", label: "🌳 Outdoor" },
-                    { value: "BOTH", label: "🔄 Both" },
+                    { value: "INDOOR", label: "Indoor" },
+                    { value: "OUTDOOR", label: "Outdoor" },
+                    { value: "BOTH", label: "Both" },
                   ].map((opt) => (
                     <TouchableOpacity
                       key={opt.value}
