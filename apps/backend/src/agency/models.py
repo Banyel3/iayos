@@ -162,7 +162,9 @@ class AgencyEmployee(models.Model):
     
     # Legacy name field (kept for backward compatibility during migration)
     name = models.CharField(max_length=255)
-    email = models.EmailField(max_length=255)
+    email = models.EmailField(max_length=255, blank=True, default="")
+    # Mobile number for employee (E.164 or local format), added to support agency-managed contacts
+    mobile = models.CharField(max_length=15, blank=True, default="", help_text="Employee mobile number")
     
     # Specializations as JSON array (NEW - replaces single role)
     specializations = models.TextField(default="[]", help_text="JSON array of specialization names")
