@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Job Detail Hardcoded Data Removal** (PR #XXX)
+- **Job Detail Hardcoded Data Removal** (PR #363)
   - Replaced 13 `via.placeholder.com` avatar fallback URLs with Ionicons person icon across job detail and active job detail screens
   - Changed misleading "0.0 rating" displays to show "New" for unrated users (7 instances)
   - Fixed budget display to show "TBD" instead of "₱0" when budget is missing
