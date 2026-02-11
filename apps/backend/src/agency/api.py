@@ -788,6 +788,12 @@ def add_employee(request):
         middleName = request.POST.get("middleName", "")
         mobile = request.POST.get("mobile")
         
+        # Backward compatibility: fall back to `email` if `mobile` is not provided
+        if not mobile:
+            mobile = request.POST.get("email")
+        if not mobile:
+            return Response({"error": "Mobile number is required"}, status=400)
+        
         # Handle specializations as JSON array
         specializations_raw = request.POST.get("specializations", "[]")
         try:
@@ -827,6 +833,9 @@ def update_employee(request, employee_id: int):
         lastName = body.get("lastName")
         middleName = body.get("middleName")
         mobile = body.get("mobile")
+        # Backward compatibility: fall back to `email` if `mobile` is not provided
+        if mobile is None:
+            mobile = body.get("email")
         specializations = body.get("specializations")
         avatar = body.get("avatar")
         isActive = body.get("isActive")
