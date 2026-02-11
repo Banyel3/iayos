@@ -71,27 +71,27 @@ const ALLOCATION_METHODS: {
   label: string;
   description: string;
 }[] = [
-  {
-    value: "EQUAL_PER_WORKER",
-    label: "Equal Per Worker",
-    description: "Split budget equally among all workers",
-  },
-  {
-    value: "EQUAL_PER_SKILL",
-    label: "Equal Per Skill",
-    description: "Split budget equally among skill slots",
-  },
-  {
-    value: "SKILL_WEIGHTED",
-    label: "Skill Weighted",
-    description: "Expert 3x, Intermediate 2x, Entry 1x",
-  },
-  {
-    value: "MANUAL_ALLOCATION",
-    label: "Manual",
-    description: "Set budget per skill slot manually",
-  },
-];
+    {
+      value: "EQUAL_PER_WORKER",
+      label: "Equal Per Worker",
+      description: "Split budget equally among all workers",
+    },
+    {
+      value: "EQUAL_PER_SKILL",
+      label: "Equal Per Skill",
+      description: "Split budget equally among skill slots",
+    },
+    {
+      value: "SKILL_WEIGHTED",
+      label: "Skill Weighted",
+      description: "Expert 3x, Intermediate 2x, Entry 1x",
+    },
+    {
+      value: "MANUAL_ALLOCATION",
+      label: "Manual",
+      description: "Set budget per skill slot manually",
+    },
+  ];
 
 const SKILL_LEVELS = [
   { value: "ENTRY", label: "Entry Level", multiplier: 1 },
@@ -492,11 +492,14 @@ export default function CreateTeamJobScreen() {
       description: description.trim(),
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
-      urgency: urgency,
+      team_start_threshold: teamStartThreshold,
+      urgency_level: urgency,
       preferred_start_date: startDate?.toISOString().split("T")[0],
       materials_needed: materials,
       budget_allocation_type: allocationMethod,
-      team_start_threshold: teamStartThreshold,
+      job_scope: jobScope,
+      work_environment: workEnvironment,
+      skill_level_required: highestSkillLevel,
       skill_slots: skillSlots.map((slot) => ({
         specialization_id: slot.specialization_id,
         workers_needed: slot.workers_needed,
@@ -744,19 +747,19 @@ export default function CreateTeamJobScreen() {
                     minPrice={
                       pricePrediction?.min_price
                         ? pricePrediction.min_price *
-                          Math.max(1, totalWorkersNeeded)
+                        Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     suggestedPrice={
                       pricePrediction?.suggested_price
                         ? pricePrediction.suggested_price *
-                          Math.max(1, totalWorkersNeeded)
+                        Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     maxPrice={
                       pricePrediction?.max_price
                         ? pricePrediction.max_price *
-                          Math.max(1, totalWorkersNeeded)
+                        Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     confidence={pricePrediction?.confidence}
@@ -776,7 +779,7 @@ export default function CreateTeamJobScreen() {
                       style={[
                         styles.allocationOption,
                         allocationMethod === method.value &&
-                          styles.allocationOptionSelected,
+                        styles.allocationOptionSelected,
                       ]}
                       onPress={() => setAllocationMethod(method.value)}
                     >
@@ -785,7 +788,7 @@ export default function CreateTeamJobScreen() {
                           style={[
                             styles.allocationOptionLabel,
                             allocationMethod === method.value &&
-                              styles.allocationOptionLabelSelected,
+                            styles.allocationOptionLabelSelected,
                           ]}
                         >
                           {method.label}
@@ -881,7 +884,7 @@ export default function CreateTeamJobScreen() {
                       style={[
                         styles.thresholdOption,
                         teamStartThreshold === value &&
-                          styles.thresholdOptionSelected,
+                        styles.thresholdOptionSelected,
                       ]}
                       onPress={() => setTeamStartThreshold(value)}
                     >
@@ -889,7 +892,7 @@ export default function CreateTeamJobScreen() {
                         style={[
                           styles.thresholdText,
                           teamStartThreshold === value &&
-                            styles.thresholdTextSelected,
+                          styles.thresholdTextSelected,
                         ]}
                       >
                         {value}%
@@ -1053,7 +1056,7 @@ export default function CreateTeamJobScreen() {
                         style={[
                           styles.urgencyText,
                           workEnvironment === opt.value &&
-                            styles.activeButtonText,
+                          styles.activeButtonText,
                         ]}
                       >
                         {opt.label}
@@ -1117,7 +1120,7 @@ export default function CreateTeamJobScreen() {
               (!hasEnoughBalance ||
                 skillSlots.length === 0 ||
                 createJobMutation.isPending) &&
-                styles.submitButtonDisabled,
+              styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={
@@ -1173,7 +1176,7 @@ export default function CreateTeamJobScreen() {
                     style={[
                       styles.specItem,
                       selectedSpecialization?.id === item.id &&
-                        styles.specItemSelected,
+                      styles.specItemSelected,
                     ]}
                     onPress={() => setSelectedSpecialization(item)}
                   >
@@ -1244,7 +1247,7 @@ export default function CreateTeamJobScreen() {
                           style={[
                             styles.skillLevelOption,
                             newSlotLevel === level.value &&
-                              styles.skillLevelOptionSelected,
+                            styles.skillLevelOptionSelected,
                           ]}
                           onPress={() => setNewSlotLevel(level.value as any)}
                         >
