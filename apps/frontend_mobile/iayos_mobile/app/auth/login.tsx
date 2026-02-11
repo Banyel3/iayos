@@ -13,6 +13,7 @@ import {
   TextInput as RNTextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../../context/AuthContext";
 import {
   Colors,
@@ -42,14 +43,29 @@ export default function LoginScreen() {
   const lastFocusedRef = useRef<any>(null);
 
   // Redirect authenticated users away from login screen
+  // Only redirect if user exists AND there's a valid token in AsyncStorage
   useEffect(() => {
-    if (user?.profile_data?.profileType) {
-      console.log("🔀 [LOGIN] User already authenticated, redirecting to tabs");
-      router.replace("/(tabs)");
-    } else if (user && !user.profile_data?.profileType) {
-      console.log("🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection");
-      router.replace("/auth/select-role");
-    }
+    const checkAuthAndRedirect = async () => {
+      // Check if there's a token in AsyncStorage
+      const token = await AsyncStorage.getItem("access_token");
+
+      if (!token) {
+        // No token = definitely not authenticated, stay on login
+        console.log("🔀 [LOGIN] No token found, staying on login screen");
+        return;
+      }
+
+      // Token exists, check user state
+      if (user?.profile_data?.profileType) {
+        console.log("🔀 [LOGIN] User already authenticated, redirecting to tabs");
+        router.replace("/(tabs)");
+      } else if (user && !user.profile_data?.profileType) {
+        console.log("🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection");
+        router.replace("/auth/select-role");
+      }
+    };
+
+    checkAuthAndRedirect();
   }, [user]);
 
   // When keyboard hides, try to re-focus the last focused field if it still reports focused

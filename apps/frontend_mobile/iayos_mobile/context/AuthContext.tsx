@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { CacheManager } from "../lib/utils/cacheManager";
 import websocketService from "../lib/services/websocket";
 import { User, AuthContextType, RegisterPayload } from "../types";
@@ -271,11 +272,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           errorBody?.message ||
           errorBody?.detail ||
           errorBody?.non_field_errors?.[0] || // Django: {non_field_errors: ["message"]}
-          (typeof errorBody === "string" ? errorBody : JSON.stringify(errorBody)) ||
-          "Login failed (unknown error)";
+          (errorBody && typeof errorBody === "string" ? errorBody : null) ||
+          "Login failed. Please check your credentials.";
 
         console.error("❌ Login failed:", errorMessage);
-        await clearAllCaches();
         throw new Error(errorMessage);
       }
 
@@ -319,12 +319,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return userData;
       } else {
         setUser(null);
-        await clearAllCaches();
+        await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
         throw new Error("Failed to fetch user data after login");
       }
     } catch (error) {
       setUser(null);
-      await clearAllCaches();
+      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
       throw error;
     }
   };
@@ -540,18 +540,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Logout function
   const logout = async () => {
     try {
+      console.log("🚪 [LOGOUT] Starting logout...");
+
+      // Clear user state first
       setUser(null);
-      await clearAllCaches();
 
-      await apiRequest(ENDPOINTS.LOGOUT, {
-        method: "POST",
-      });
+      // Clear only AsyncStorage keys, NOT React Query cache
+      // (clearing React Query cache causes immediate refetch flood)
+      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+      console.log("🗑️ [LOGOUT] Cleared AsyncStorage auth keys");
 
-      console.log("✅ Logout successful");
+      // Call backend logout endpoint (best effort, don't block on errors)
+      try {
+        await apiRequest(ENDPOINTS.LOGOUT, {
+          method: "POST",
+        });
+        console.log("✅ [LOGOUT] Backend logout successful");
+      } catch (error) {
+        console.warn("⚠️ [LOGOUT] Backend logout failed (non-critical):", error);
+      }
+
+      // Navigate to welcome screen
+      console.log("🔀 [LOGOUT] Navigating to welcome screen");
+      router.replace("/welcome");
+
+      console.log("✅ [LOGOUT] Logout complete");
     } catch (error) {
-      console.error("❌ Logout error:", error);
+      console.error("❌ [LOGOUT] Logout error:", error);
+      // Even if logout fails, clear state and navigate
       setUser(null);
-      await clearAllCaches();
+      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+      router.replace("/welcome");
     }
   };
 
