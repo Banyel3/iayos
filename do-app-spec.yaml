@@ -155,11 +155,10 @@ services:
         value: "https://iayos-face-api.onrender.com"
 
       # ===========================================
-      # REDIS (Required for WebSocket support)
+      # REDIS (Embedded in container - started by start.sh)
       # ===========================================
       - key: REDIS_URL
-        value: "rediss://default:AWnhAAIncDE1MjE4MWE0M2U5OGM0YzdjOGE5M2RhNDA0OTM2NTczMXAxMjcxMDU@exotic-leopard-27105.upstash.io:6379"
-        type: SECRET
+        value: "redis://localhost:6379/0"
 
       # ===========================================
       # ADMIN CREDENTIALS (for test user creation)
