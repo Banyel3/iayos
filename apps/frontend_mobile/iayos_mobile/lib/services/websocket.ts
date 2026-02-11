@@ -88,7 +88,7 @@ class WebSocketService {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log("[WebSocket] ✅ Connected successfully");
+          console.log("[WebSocket] ✅ Connected successfully to", this.url);
           this.connectionState = "connected";
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
@@ -107,14 +107,15 @@ class WebSocketService {
           }
         };
 
-        this.ws.onerror = (error) => {
-          console.error("[WebSocket] ❌ Error:", error);
+        this.ws.onerror = (error: any) => {
+          console.error("[WebSocket] ❌ Error:", error?.message || error);
+          console.warn(`[WebSocket] Connection state was: ${this.connectionState}, URL: ${this.url}`);
           this.connectionState = "error";
           reject(error);
         };
 
         this.ws.onclose = (event) => {
-          console.log(`[WebSocket] Connection closed (code: ${event.code})`);
+          console.warn(`[WebSocket] Connection closed - code: ${event.code}, reason: ${event.reason || 'none'}, clean: ${event.wasClean}`);
           this.connectionState = "disconnected";
           this.stopHeartbeat();
           this.notifyDisconnectionHandlers();
@@ -167,7 +168,9 @@ class WebSocketService {
     type: "TEXT" | "IMAGE" = "TEXT"
   ): boolean {
     if (!this.isConnected()) {
-      console.warn("[WebSocket] ⚠️ Not connected, cannot send message");
+      console.warn(
+        `[WebSocket] ⚠️ Not connected (state: ${this.connectionState}), falling back to HTTP for conversation ${conversationId}`
+      );
       return false;
     }
 
@@ -180,11 +183,14 @@ class WebSocketService {
 
       this.ws!.send(JSON.stringify(payload));
       console.log(
-        `[WebSocket] 📤 Message sent to conversation ${conversationId}`
+        `[WebSocket] 📤 Message sent via WS to conversation ${conversationId}`
       );
       return true;
     } catch (error) {
-      console.error("[WebSocket] ❌ Failed to send message:", error);
+      console.error(
+        `[WebSocket] ❌ WS send failed for conversation ${conversationId}, will fall back to HTTP:`,
+        error
+      );
       return false;
     }
   }

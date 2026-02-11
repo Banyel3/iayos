@@ -1842,22 +1842,32 @@ def send_message(request, data: SendMessageSchema):
     """
     Send a new message within an existing job conversation.
     Conversations are created when job applications are accepted.
+    Supports both Profile-based users (workers/clients) and Agency users.
     """
     try:
-        # Get sender's profile
+        # Get sender's profile OR agency (mirrors InboxConsumer.save_message pattern)
+        sender_profile = None
+        sender_agency = None
         try:
             sender_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
+            # No profile found - check if this is an agency user
+            from accounts.models import Agency
+            try:
+                sender_agency = Agency.objects.get(accountFK=request.auth)
+                print(f"[MOBILE] Agency sender: {sender_agency.agencyId} ({sender_agency.businessName})")
+            except Agency.DoesNotExist:
+                return Response(
+                    {"error": "No profile or agency found for this account"},
+                    status=400
+                )
         
         # Get the conversation
         try:
             conversation = Conversation.objects.select_related(
                 'client',
                 'worker',
+                'agency',
                 'relatedJobPosting'
             ).get(conversationID=data.conversation_id)
         except Conversation.DoesNotExist:
@@ -1867,38 +1877,53 @@ def send_message(request, data: SendMessageSchema):
             )
         
         # Verify sender is a participant
-        # For regular conversations, check client/worker fields
-        is_client = conversation.client == sender_profile
-        is_worker = conversation.worker == sender_profile
+        is_client = sender_profile and conversation.client == sender_profile
+        is_worker = sender_profile and conversation.worker == sender_profile
         
         # For team conversations, also check ConversationParticipant table
         is_team_participant = False
-        if conversation.conversation_type == 'TEAM_GROUP':
+        if sender_profile and conversation.conversation_type == 'TEAM_GROUP':
             from profiles.models import ConversationParticipant
             is_team_participant = ConversationParticipant.objects.filter(
                 conversation=conversation,
                 profile=sender_profile
             ).exists()
         
-        if not (is_client or is_worker or is_team_participant):
+        # Check agency-based access (conversation.agency field)
+        is_agency = (
+            sender_agency is not None
+            and conversation.agency is not None
+            and conversation.agency.agencyId == sender_agency.agencyId
+        )
+        
+        if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
             )
         
-        # Create the message
+        # Create the message (sender=None for agency, senderAgency=None for profile)
         message = Message.objects.create(
             conversationID=conversation,
             sender=sender_profile,
+            senderAgency=sender_agency,
             messageText=data.message_text,
             messageType=data.message_type or "TEXT"
         )
+        
+        # Determine sender name
+        if sender_profile:
+            sender_name = f"{sender_profile.firstName} {sender_profile.lastName}"
+        elif sender_agency:
+            sender_name = sender_agency.businessName or "Agency"
+        else:
+            sender_name = "Unknown"
         
         return {
             "success": True,
             "message": {
                 "conversation_id": conversation.conversationID,
-                "sender_name": f"{sender_profile.firstName} {sender_profile.lastName}",
+                "sender_name": sender_name,
                 "message_text": message.messageText,
                 "message_type": message.messageType,
                 "created_at": message.createdAt.isoformat(),
@@ -1920,20 +1945,27 @@ def send_message(request, data: SendMessageSchema):
 def mark_messages_as_read(request, data: MarkAsReadSchema):
     """
     Mark messages in a job conversation as read.
+    Supports both Profile-based users and Agency users.
     """
     try:
-        # Get user's profile
+        # Get user's profile OR agency
+        user_profile = None
+        user_agency = None
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
+            from accounts.models import Agency
+            try:
+                user_agency = Agency.objects.get(accountFK=request.auth)
+            except Agency.DoesNotExist:
+                return Response(
+                    {"error": "No profile or agency found for this account"},
+                    status=400
+                )
         
         # Get the conversation
         try:
-            conversation = Conversation.objects.get(conversationID=data.conversation_id)
+            conversation = Conversation.objects.select_related('agency').get(conversationID=data.conversation_id)
         except Conversation.DoesNotExist:
             return Response(
                 {"error": "Conversation not found"},
@@ -1941,24 +1973,36 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
             )
         
         # Verify user is a participant
-        is_client = conversation.client == user_profile
-        is_worker = conversation.worker == user_profile
+        is_client = user_profile and conversation.client == user_profile
+        is_worker = user_profile and conversation.worker == user_profile
+        is_agency = (
+            user_agency is not None
+            and conversation.agency is not None
+            and conversation.agency.agencyId == user_agency.agencyId
+        )
         
-        if not (is_client or is_worker):
+        if not (is_client or is_worker or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
             )
         
-        # Determine the other participant
-        other_participant = conversation.worker if is_client else conversation.client
-        
-        # Mark messages as read
-        query = Message.objects.filter(
-            conversationID=conversation,
-            sender=other_participant,
-            isRead=False
-        )
+        # Mark messages as read - for agency users, mark all messages not sent by agency
+        if is_agency:
+            # Agency user: mark all messages from non-agency senders as read
+            query = Message.objects.filter(
+                conversationID=conversation,
+                senderAgency__isnull=True,
+                isRead=False
+            )
+        else:
+            # Profile user: mark messages from the other participant
+            other_participant = conversation.worker if is_client else conversation.client
+            query = Message.objects.filter(
+                conversationID=conversation,
+                sender=other_participant,
+                isRead=False
+            )
         
         if data.message_id:
             # Mark up to specific message
@@ -1969,7 +2013,10 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         # Reset unread count
         if is_client:
             conversation.unreadCountClient = 0
-        else:
+        elif is_worker:
+            conversation.unreadCountWorker = 0
+        # Agency users - reset client unread (agency acts as the service provider side)
+        elif is_agency:
             conversation.unreadCountWorker = 0
         conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
         

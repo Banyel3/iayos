@@ -20,7 +20,7 @@ export type AgencyConversationJob = {
   clientReviewed: boolean;
   assignedEmployeeId: number | null;
   assignedEmployeeName: string | null;
-  payment_model?: 'PROJECT' | 'DAILY'; // Daily payment vs project payment
+  payment_model?: "PROJECT" | "DAILY"; // Daily payment vs project payment
   daily_rate_agreed?: number; // Per worker per day rate
   duration_days?: number; // Expected duration
 };
@@ -163,7 +163,8 @@ export function useAgencyConversations(
  * Search agency conversations by client name or job title
  */
 export function useAgencyConversationSearch(searchQuery: string) {
-  const { data: conversationsData, isLoading } = useAgencyConversations("active");
+  const { data: conversationsData, isLoading } =
+    useAgencyConversations("active");
 
   const filteredConversations =
     conversationsData?.conversations.filter((conv) => {
