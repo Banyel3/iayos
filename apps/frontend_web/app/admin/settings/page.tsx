@@ -14,10 +14,11 @@ import {
   ChevronRight,
   Zap,
 } from "lucide-react";
-import { Sidebar } from "../components";
+import { Sidebar, useMainContentClass } from "../components";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const mainClass = useMainContentClass("p-8 min-h-screen");
 
   const settingsModules = [
     {
@@ -86,7 +87,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Modern Header with Gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-600 via-gray-700 to-zinc-700 p-8 text-white shadow-xl">

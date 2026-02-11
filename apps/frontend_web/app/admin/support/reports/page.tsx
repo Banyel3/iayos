@@ -18,7 +18,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface UserReport {
   id: string;
@@ -87,6 +87,7 @@ const CONTENT_TYPE_CONFIG: Record<string, { color: string }> = {
 
 export default function UserReportsPage() {
   const router = useRouter();
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<UserReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(
@@ -273,7 +274,7 @@ export default function UserReportsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-pink-700 p-8 text-white shadow-xl">

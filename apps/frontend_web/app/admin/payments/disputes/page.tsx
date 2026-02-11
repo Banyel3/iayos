@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -47,6 +47,7 @@ type StatusFilter = "all" | "pending" | "resolved" | "rejected";
 type PriorityFilter = "all" | "low" | "medium" | "high" | "urgent";
 
 export default function DisputesPage() {
+  const mainClass = useMainContentClass("flex-1 p-8");
   const router = useRouter();
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
@@ -134,7 +135,7 @@ export default function DisputesPage() {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className={mainClass}>
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
@@ -155,7 +156,7 @@ export default function DisputesPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">

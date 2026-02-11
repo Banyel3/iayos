@@ -1,6 +1,6 @@
 "use client";
 
-import { Sidebar } from "./index";
+import { SidebarProvider } from "./SidebarContext";
 
 interface AdminLayoutWrapperProps {
     children: React.ReactNode;
@@ -8,11 +8,8 @@ interface AdminLayoutWrapperProps {
 
 export default function AdminLayoutWrapper({ children }: AdminLayoutWrapperProps) {
     return (
-        <div className="min-h-screen bg-gray-50">
-            <Sidebar />
-            <main className="pl-72 p-6 min-h-screen">
-                {children}
-            </main>
-        </div>
+        <SidebarProvider>
+            {children}
+        </SidebarProvider>
     );
 }

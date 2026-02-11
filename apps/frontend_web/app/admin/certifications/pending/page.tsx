@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "../../components/sidebar";
+import { useMainContentClass } from "../../components";
 import { toast } from "sonner";
 
 interface PendingCertification {
@@ -46,6 +47,7 @@ interface VerificationStats {
 }
 
 export default function PendingCertificationsPage() {
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const router = useRouter();
   const [certifications, setCertifications] = useState<PendingCertification[]>(
     [],
@@ -220,7 +222,7 @@ export default function PendingCertificationsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-[80vh]">
             <div className="text-center">
               <div className="relative">
@@ -243,7 +245,7 @@ export default function PendingCertificationsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         {/* Header with Gradient */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 p-8 text-white shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 pointer-events-none"></div>

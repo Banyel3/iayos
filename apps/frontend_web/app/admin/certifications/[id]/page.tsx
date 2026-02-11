@@ -27,6 +27,7 @@ import {
   Building,
 } from "lucide-react";
 import Sidebar from "../../components/sidebar";
+import { useMainContentClass } from "../../components";
 
 interface CertificationDetail {
   certification: {
@@ -59,6 +60,7 @@ interface CertificationDetail {
 }
 
 export default function CertificationDetailPage() {
+  const mainClass = useMainContentClass("flex-1 p-8");
   const params = useParams();
   const rawId = Array.isArray(params?.id) ? params?.id[0] : params?.id;
   const router = useRouter();
@@ -304,7 +306,7 @@ export default function CertificationDetailPage() {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-[80vh]">
             <div className="text-center">
               <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto" />
@@ -322,7 +324,7 @@ export default function CertificationDetailPage() {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className={mainClass}>
           <Card className="max-w-2xl mx-auto mt-20">
             <CardContent className="p-12 text-center">
               <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
@@ -355,7 +357,7 @@ export default function CertificationDetailPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className={mainClass}>
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <Button

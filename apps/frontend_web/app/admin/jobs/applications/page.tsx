@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,7 @@ interface JobApplication {
 }
 
 export default function JobApplicationsPage() {
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -183,7 +184,7 @@ export default function JobApplicationsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="pl-72 p-6 min-h-screen">
+        <main className={mainClass}>
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
             <div className="space-y-4">
@@ -200,7 +201,7 @@ export default function JobApplicationsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="pl-72 p-6 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <div>

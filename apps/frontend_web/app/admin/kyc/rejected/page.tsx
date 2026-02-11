@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   Trash2,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { useToast } from "@/components/ui/toast";
 import KYCDetailModal from "@/components/admin/KYCDetailModal";
 
@@ -49,6 +49,7 @@ export default function RejectedKYCPage() {
     "all" | "allowed" | "not_allowed" | "resubmitted"
   >("all");
   const { showToast } = useToast();
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedKYC, setSelectedKYC] = useState<{ id: number; type: "USER" | "AGENCY" } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -224,7 +225,7 @@ export default function RejectedKYCPage() {
   return (
     <div className="min-h-screen">
       <Sidebar />
-      <main className="pl-72 p-6 min-h-screen">
+      <main className={mainClass}>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>

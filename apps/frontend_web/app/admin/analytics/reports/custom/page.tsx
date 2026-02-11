@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sidebar } from "../../../components";
+import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 export default function CustomReportBuilder() {
+  const mainClass = useMainContentClass("min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50");
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedChartType, setSelectedChartType] = useState<string>("line");
@@ -110,7 +111,7 @@ export default function CustomReportBuilder() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
+      <div className={mainClass}>
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>

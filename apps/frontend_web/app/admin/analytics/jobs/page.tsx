@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ const formatNumber = (num: number) => {
 };
 
 export default function JobAnalytics() {
+  const mainClass = useMainContentClass("min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50");
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("last_30_days");
   const [stats, setStats] = useState<any>(null);
@@ -75,7 +76,7 @@ export default function JobAnalytics() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="pl-72 min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50">
+      <div className={mainClass}>
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>

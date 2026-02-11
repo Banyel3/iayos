@@ -18,7 +18,7 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface Admin {
   id: string;
@@ -81,6 +81,7 @@ const ALL_PERMISSIONS = [
 ];
 
 export default function AdminManagementPage() {
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [admins, setAdmins] = useState<Admin[]>([]);
@@ -365,7 +366,7 @@ export default function AdminManagementPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -388,7 +389,7 @@ export default function AdminManagementPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         {/* Header */}
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-red-500 opacity-20 blur-3xl pointer-events-none"></div>

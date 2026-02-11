@@ -25,7 +25,7 @@ import {
   PauseCircle,
   XCircle,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface TicketData {
   id: string;
@@ -113,6 +113,7 @@ const TICKET_TYPE_CONFIG = {
 
 export default function SupportTicketsPage() {
   const router = useRouter();
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
@@ -250,7 +251,7 @@ export default function SupportTicketsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">

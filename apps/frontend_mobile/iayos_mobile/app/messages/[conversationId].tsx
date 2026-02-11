@@ -1083,7 +1083,7 @@ export default function ChatScreen() {
       index === 0 ||
       Math.abs(
         new Date(item.created_at).getTime() -
-          new Date(conversation!.messages[index - 1].created_at).getTime(),
+        new Date(conversation!.messages[index - 1].created_at).getTime(),
       ) > 60000;
 
     // Extract image URL from attachments if present
@@ -1340,43 +1340,86 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
-          <TouchableOpacity
-            style={styles.jobHeader}
-            onPress={() => router.push(`/jobs/${conversation.job.id}`)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.jobInfo}>
-              <Ionicons
-                name="briefcase-outline"
-                size={16}
-                color={Colors.primary}
-              />
-              <Text style={styles.jobTitle} numberOfLines={1}>
-                {conversation.job.title}
-              </Text>
-            </View>
-            <View style={styles.jobMeta}>
-              <Text style={styles.jobBudget}>
-                ₱{conversation.job.budget.toLocaleString()}
-              </Text>
-              {/* ML Estimated Completion Time - Compact mode */}
-              {(isLoading ||
-                (conversation.job.estimatedCompletion &&
-                  conversation.job.status !== "COMPLETED")) && (
-                <EstimatedTimeCard
-                  prediction={conversation?.job?.estimatedCompletion || null}
-                  compact={true}
-                  countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                  jobStartTime={
-                    conversation?.job?.clientConfirmedWorkStarted
-                      ? new Date().toISOString()
-                      : undefined
-                  }
-                  isLoading={isLoading}
+          <View style={[styles.jobHeader, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              onPress={() => router.push(`/jobs/${conversation.job.id}`)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.jobInfo}>
+                <Ionicons
+                  name="briefcase-outline"
+                  size={16}
+                  color={Colors.primary}
                 />
+                <Text style={styles.jobTitle} numberOfLines={1}>
+                  {conversation.job.title}
+                </Text>
+              </View>
+              <View style={styles.jobMeta}>
+                <Text style={styles.jobBudget}>
+                  ₱{conversation.job.budget.toLocaleString()}
+                </Text>
+                {/* ML Estimated Completion Time - Compact mode */}
+                {(isLoading ||
+                  (conversation.job.estimatedCompletion &&
+                    conversation.job.status !== "COMPLETED")) && (
+                    <EstimatedTimeCard
+                      prediction={conversation?.job?.estimatedCompletion || null}
+                      compact={true}
+                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                      jobStartTime={
+                        conversation?.job?.clientConfirmedWorkStarted
+                          ? new Date().toISOString()
+                          : undefined
+                      }
+                      isLoading={isLoading}
+                    />
+                  )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Rate Button (Client, Worker & Agency) */}
+            {conversation.job.clientMarkedComplete &&
+              !isConversationClosed &&
+              ((conversation.my_role !== "CLIENT" &&
+                !conversation.job.workerReviewed) ||
+                (conversation.my_role === "CLIENT" &&
+                  !(conversation.is_team_job
+                    ? conversation.all_team_workers_reviewed
+                    : conversation.job.clientReviewed))) && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    marginLeft: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: "#FBC02D",
+                  }}
+                  onPress={() => setShowReviewModal(true)}
+                >
+                  <Ionicons name="star" size={16} color="#FBC02D" />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#FBC02D",
+                    }}
+                  >
+                    {conversation.my_role === "CLIENT"
+                      ? conversation.is_agency_job
+                        ? "Rate Agency"
+                        : "Rate Worker"
+                      : "Rate Client"}
+                  </Text>
+                </TouchableOpacity>
               )}
-            </View>
-          </TouchableOpacity>
+          </View>
 
           {/* Action Buttons (replaces role banner) */}
           {conversation.job.status === "IN_PROGRESS" &&
@@ -1416,7 +1459,7 @@ export default function ChatScreen() {
                               style={[
                                 styles.teamWorkerCardCompact,
                                 assignment.client_confirmed_arrival &&
-                                  styles.teamWorkerCardConfirmed,
+                                styles.teamWorkerCardConfirmed,
                               ]}
                             >
                               <View style={styles.teamWorkerInfoCompact}>
@@ -2651,9 +2694,7 @@ export default function ChatScreen() {
                   conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (
                     <Text style={styles.statusMessage}>
-                      {conversation.my_role === "CLIENT"
-                        ? "Worker marked job complete. Please review and approve."
-                        : "✓ Marked complete. Waiting for client approval."}
+                      Worker marked job complete. Please review and approve.
                     </Text>
                   )}
 
@@ -2689,27 +2730,79 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* View Receipt Button - Shows for COMPLETED jobs */}
+          {/* View Receipt Banner - Merged with Payment Buffer Info */}
           {conversation.job.status === "COMPLETED" && (
             <TouchableOpacity
-              style={styles.viewReceiptBanner}
+              style={[
+                styles.viewReceiptBanner,
+                conversation.job.paymentBuffer?.is_payment_released && {
+                  backgroundColor: "#E8F5E9",
+                  borderColor: "#A5D6A7",
+                },
+              ]}
               onPress={() => setShowReceiptModal(true)}
               activeOpacity={0.8}
             >
               <View style={styles.viewReceiptContent}>
-                <View style={styles.viewReceiptIconContainer}>
-                  <Ionicons name="receipt" size={20} color={Colors.white} />
+                <View
+                  style={[
+                    styles.viewReceiptIconContainer,
+                    conversation.job.paymentBuffer?.is_payment_released && {
+                      backgroundColor: Colors.success,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      conversation.job.paymentBuffer?.is_payment_released
+                        ? "checkmark-circle"
+                        : "receipt"
+                    }
+                    size={20}
+                    color={Colors.white}
+                  />
                 </View>
                 <View style={styles.viewReceiptTextContainer}>
-                  <Text style={styles.viewReceiptTitle}>View Receipt</Text>
-                  <Text style={styles.viewReceiptSubtitle}>
-                    Payment breakdown and job details
+                  <Text
+                    style={[
+                      styles.viewReceiptTitle,
+                      conversation.job.paymentBuffer?.is_payment_released && {
+                        color: Colors.success,
+                      },
+                    ]}
+                  >
+                    View Receipt
                   </Text>
+                  {/* Dynamic description based on payment hold status */}
+                  {conversation.job.paymentBuffer ? (
+                    <Text
+                      style={[
+                        styles.viewReceiptSubtitle,
+                        conversation.job.paymentBuffer.is_payment_released
+                          ? { color: "#388E3C" } // Success Green
+                          : { color: "#E65100" }, // Orange for hold
+                      ]}
+                    >
+                      {conversation.job.paymentBuffer.is_payment_released
+                        ? "✅ Payment Released"
+                        : conversation.my_role !== "CLIENT"
+                          ? `₱${(conversation.job.budget * 0.5).toLocaleString("en-PH", { minimumFractionDigits: 0 })} held ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d left` : " · releasing soon"}`
+                          : `${conversation.job.paymentBuffer.buffer_days}-Day Hold ${conversation.job.paymentBuffer.remaining_days !== null && conversation.job.paymentBuffer.remaining_days > 0 ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining` : " · releasing soon"}`}
+                    </Text>
+                  ) : (
+                    <Text style={styles.viewReceiptSubtitle}>
+                      Payment breakdown and job details
+                    </Text>
+                  )}
                 </View>
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color={Colors.primary}
+                  color={
+                    conversation.job.paymentBuffer?.is_payment_released
+                      ? Colors.success
+                      : Colors.primary
+                  }
                 />
               </View>
             </TouchableOpacity>
@@ -2729,8 +2822,13 @@ export default function ChatScreen() {
                 }
                 activeOpacity={0.8}
               >
-                <View style={styles.requestBackjobContent}>
-                  <View style={styles.requestBackjobIconContainer}>
+                <View style={[styles.requestBackjobContent, {
+                  backgroundColor: "#FFF3E0", // Orange background
+                  borderColor: "#FFE0B2", // Orange border
+                }]}>
+                  <View style={[styles.requestBackjobIconContainer, {
+                    backgroundColor: "#FFB74D", // Match orange icon container
+                  }]}>
                     <Ionicons
                       name="refresh-circle"
                       size={24}
@@ -2738,90 +2836,23 @@ export default function ChatScreen() {
                     />
                   </View>
                   <View style={styles.requestBackjobText}>
-                    <Text style={styles.requestBackjobTitle}>
+                    <Text style={[styles.requestBackjobTitle, { color: "#E65100" }]}>
                       Not satisfied with the work?
                     </Text>
-                    <Text style={styles.requestBackjobSubtitle}>
+                    <Text style={[styles.requestBackjobSubtitle, { color: "#EF6C00" }]}>
                       Tap here to request a backjob (rework)
                     </Text>
                   </View>
                   <Ionicons
                     name="chevron-forward"
                     size={20}
-                    color={Colors.primary}
+                    color="#EF6C00"
                   />
                 </View>
               </TouchableOpacity>
             )}
 
-          {/* Payment Buffer Banner - Shows for COMPLETED jobs with payment held - COMPACT */}
-          {conversation.job.status === "COMPLETED" &&
-            conversation.job.clientMarkedComplete &&
-            conversation.job.paymentBuffer && (
-              <TouchableOpacity
-                style={[
-                  styles.paymentBufferBannerCompact,
-                  conversation.job.paymentBuffer.is_payment_released
-                    ? styles.paymentReleasedBannerCompact
-                    : null,
-                ]}
-                onPress={() =>
-                  conversation.my_role === "WORKER" && router.push("/wallet")
-                }
-                activeOpacity={conversation.my_role === "WORKER" ? 0.7 : 1}
-              >
-                <Ionicons
-                  name={
-                    conversation.job.paymentBuffer.is_payment_released
-                      ? "checkmark-circle"
-                      : conversation.my_role === "WORKER"
-                        ? "time"
-                        : "shield-checkmark"
-                  }
-                  size={20}
-                  color={
-                    conversation.job.paymentBuffer.is_payment_released
-                      ? Colors.success
-                      : "#FFA000"
-                  }
-                />
-                <View style={styles.paymentBufferTextCompact}>
-                  {conversation.job.paymentBuffer.is_payment_released ? (
-                    <Text style={styles.paymentReleasedTitleCompact}>
-                      ✅ Payment Released
-                    </Text>
-                  ) : conversation.my_role === "WORKER" ? (
-                    <Text style={styles.paymentBufferTitleCompact}>
-                      💰 ₱
-                      {(conversation.job.budget * 0.5).toLocaleString("en-PH", {
-                        minimumFractionDigits: 0,
-                      })}{" "}
-                      held
-                      {conversation.job.paymentBuffer.remaining_days !== null &&
-                      conversation.job.paymentBuffer.remaining_days > 0
-                        ? ` · ${conversation.job.paymentBuffer.remaining_days}d left`
-                        : " · releasing soon"}
-                    </Text>
-                  ) : (
-                    <Text style={styles.paymentBufferTitleCompact}>
-                      ⏳ {conversation.job.paymentBuffer.buffer_days}-Day Hold
-                      {conversation.job.paymentBuffer.remaining_days !== null &&
-                      conversation.job.paymentBuffer.remaining_days > 0
-                        ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining`
-                        : " · releasing soon"}
-                    </Text>
-                  )}
-                </View>
-                {conversation.my_role === "WORKER" &&
-                  !conversation.job.paymentBuffer.is_payment_released && (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color="#FFA000"
-                    />
-                  )}
-              </TouchableOpacity>
-            )}
+
 
           {/* Review Section - Compact Banner that opens modal */}
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
@@ -3021,8 +3052,8 @@ export default function ChatScreen() {
                     (conversation.is_team_job
                       ? conversation.all_team_workers_reviewed
                       : conversation.job.clientReviewed)) ||
-                  (conversation.my_role === "WORKER" &&
-                    conversation.job.workerReviewed) ? (
+                    (conversation.my_role !== "CLIENT" &&
+                      conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
                     <View style={styles.reviewWaitingContainer}>
                       <Ionicons
@@ -3032,29 +3063,29 @@ export default function ChatScreen() {
                       />
                       <Text style={styles.reviewWaitingTitle}>
                         {conversation.is_team_job &&
-                        conversation.my_role === "CLIENT"
+                          conversation.my_role === "CLIENT"
                           ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
                           : "Thank you for your review!"}
                       </Text>
                       {((conversation.my_role === "CLIENT" &&
                         !conversation.job.workerReviewed) ||
-                        (conversation.my_role === "WORKER" &&
+                        (conversation.my_role !== "CLIENT" &&
                           !conversation.job.clientReviewed)) && (
-                        <Text style={styles.reviewWaitingText}>
-                          Waiting for{" "}
-                          {conversation.my_role === "CLIENT"
-                            ? "workers"
-                            : "client"}{" "}
-                          to review...
-                        </Text>
-                      )}
+                          <Text style={styles.reviewWaitingText}>
+                            Waiting for{" "}
+                            {conversation.my_role === "CLIENT"
+                              ? "worker"
+                              : "client"}{" "}
+                            to review...
+                          </Text>
+                        )}
                     </View>
                   ) : (
                     // User hasn't reviewed yet - show review form
                     <>
                       {/* Dynamic title based on agency job review step */}
                       {conversation.is_agency_job &&
-                      conversation.my_role === "CLIENT" ? (
+                        conversation.my_role === "CLIENT" ? (
                         <>
                           {/* Multi-employee support: show which employee is being reviewed */}
                           {(() => {
@@ -3560,7 +3591,7 @@ export default function ChatScreen() {
                             ratingProfessionalism === 0 ||
                             !reviewComment.trim() ||
                             submitReviewMutation.isPending) &&
-                            styles.submitReviewButtonDisabled,
+                          styles.submitReviewButtonDisabled,
                         ]}
                         onPress={() => {
                           Keyboard.dismiss();
@@ -4069,7 +4100,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   jobHeader: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
@@ -4935,24 +4966,25 @@ const styles = StyleSheet.create({
   },
   // Request Backjob Banner Styles (for clients to request rework)
   requestBackjobBanner: {
-    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    backgroundColor: "#FFF3E0", // Use orange palette as base style
     marginHorizontal: Spacing.md,
     marginTop: Spacing.sm,
     borderRadius: BorderRadius.medium,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: "#FFE0B2",
   },
   requestBackjobContent: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
     gap: Spacing.md,
+    borderRadius: BorderRadius.medium, // Ensure content respects border radius
   },
   requestBackjobIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: "#FFB74D", // Orange
     justifyContent: "center",
     alignItems: "center",
   },

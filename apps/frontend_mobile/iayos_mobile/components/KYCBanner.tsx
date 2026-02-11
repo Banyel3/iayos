@@ -15,7 +15,7 @@ import { Colors, BorderRadius, Shadows } from "@/constants/theme";
  */
 export function KYCBanner() {
   const { user } = useAuth();
-  const { hasSubmittedKYC, kycStatus, isLoading, isError } = useKYC();
+  const { hasSubmittedKYC, kycStatus, isLoading, isVerified } = useKYC();
   const router = useRouter();
 
   // Debug logging
@@ -26,12 +26,15 @@ export function KYCBanner() {
     kycStatus,
     "isLoading:",
     isLoading,
-    "isError:",
-    isError
+    "isVerified:",
+    isVerified,
+    "user.kycVerified:",
+    user?.kycVerified
   );
 
-  // Don't show banner if user is already verified, not logged in, loading, or error
-  if (!user || user.kycVerified || isLoading || isError) {
+  // Don't show banner if user is already verified (check both sources) or not logged in
+  // Check isVerified from useKYC hook first (more up-to-date) then fallback to user.kycVerified
+  if (!user || isVerified || user.kycVerified || isLoading) {
     return null;
   }
 

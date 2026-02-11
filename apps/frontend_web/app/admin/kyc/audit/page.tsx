@@ -34,9 +34,10 @@ interface AuditLogEntry {
   newStatus?: string;
 }
 
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 export default function KYCAuditLogPage() {
+  const mainClass = useMainContentClass("p-6 space-y-6 min-h-screen");
   const router = useRouter();
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -175,7 +176,7 @@ export default function KYCAuditLogPage() {
   return (
     <div className="min-h-screen">
       <Sidebar />
-      <div className="pl-72 p-6 space-y-6 min-h-screen">
+      <div className={mainClass}>
         {loading && (
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="flex flex-col items-center space-y-4">

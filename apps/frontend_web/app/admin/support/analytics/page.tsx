@@ -17,7 +17,7 @@ import {
   Download,
   RefreshCw,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface Statistics {
   total_tickets: number;
@@ -54,6 +54,8 @@ interface Statistics {
 }
 
 export default function SupportAnalyticsPage() {
+  const mainClass = useMainContentClass("p-8 min-h-screen");
+  const mainClassLoading = useMainContentClass("flex items-center justify-center min-h-screen");
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Statistics | null>(null);
   const [dateRange, setDateRange] = useState("7days");
@@ -127,7 +129,7 @@ export default function SupportAnalyticsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 flex items-center justify-center min-h-screen">
+        <main className={mainClassLoading}>
           <div className="text-center">
             <BarChart3 className="h-16 w-16 text-gray-400 animate-pulse mx-auto" />
             <p className="text-gray-500 mt-4 text-lg">Loading analytics...</p>
@@ -140,7 +142,7 @@ export default function SupportAnalyticsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-700 p-8 text-white shadow-xl">

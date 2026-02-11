@@ -14,7 +14,7 @@ import {
   ArrowLeft,
   Flag,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import Link from "next/link";
 
 interface Review {
@@ -51,6 +51,7 @@ interface ReviewStats {
 }
 
 export default function AllReviewsPage() {
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const [reviews, setReviews] = useState<Review[]>([]);
   const [stats, setStats] = useState<ReviewStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,7 +145,7 @@ export default function AllReviewsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Sidebar />
-        <main className="pl-72 p-6 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -159,7 +160,7 @@ export default function AllReviewsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="pl-72 p-6 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-4">

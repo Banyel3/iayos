@@ -19,7 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface FAQ {
   id: string;
@@ -36,6 +36,7 @@ interface FAQ {
 const CATEGORIES = ["all", "account", "payments", "jobs", "workers", "general"];
 
 export default function FAQManagementPage() {
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [filteredFaqs, setFilteredFaqs] = useState<FAQ[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,7 +218,7 @@ export default function FAQManagementPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-[1400px] mx-auto space-y-8">
           {/* Modern Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-green-700 to-teal-700 p-8 text-white shadow-xl">

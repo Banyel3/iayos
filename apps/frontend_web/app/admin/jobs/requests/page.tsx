@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ interface JobRequest {
 }
 
 export default function JobRequestsPage() {
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const [jobs, setJobs] = useState<JobRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -172,7 +173,7 @@ export default function JobRequestsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -195,7 +196,7 @@ export default function JobRequestsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">

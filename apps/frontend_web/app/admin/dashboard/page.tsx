@@ -2,7 +2,7 @@
 
 import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
-import { Sidebar } from "../components";
+import { Sidebar, useSidebar } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface DashboardStats {
   total_users: number;
@@ -42,6 +43,12 @@ interface DashboardStats {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { collapsed } = useSidebar();
+  
+  const mainClassName = cn(
+    "p-6 bg-gray-50 min-h-screen transition-all duration-400 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
+    collapsed ? "pl-24" : "pl-72"
+  );
 
   const fetchStats = async () => {
     try {
@@ -73,7 +80,7 @@ export default function AdminDashboardPage() {
     return (
       <div>
         <Sidebar />
-        <main className="p-6 bg-gray-50 pl-72 min-h-screen">
+        <main className={mainClassName}>
           <div className="max-w-7xl mx-auto">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">
               Admin Dashboard
@@ -101,7 +108,7 @@ export default function AdminDashboardPage() {
     return (
       <div>
         <Sidebar />
-        <main className="p-6 bg-gray-50 pl-72 min-h-screen">
+        <main className={mainClassName}>
           <div className="max-w-7xl mx-auto">
             <p className="text-red-600">Failed to load dashboard data</p>
           </div>
@@ -112,7 +119,7 @@ export default function AdminDashboardPage() {
   return (
     <div>
       <Sidebar />
-      <main className="p-6 bg-gray-50 pl-72 min-h-screen">
+      <main className={mainClassName}>
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-6">
