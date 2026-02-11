@@ -877,9 +877,10 @@ export default function AgencyChatScreen() {
                         const attendance = attendanceData?.records.find(
                           (r: any) => r.employee_id === emp.employeeId,
                         );
-                        const isDispatched = !!attendance && !attendance.time_in;  // On the way, not yet arrived
-                        const hasArrived = !!attendance?.time_in;  // Client verified arrival
-                        const hasCheckedOut = !!attendance?.time_out;  // Client marked checkout
+                        const isDispatched =
+                          !!attendance && !attendance.time_in; // On the way, not yet arrived
+                        const hasArrived = !!attendance?.time_in; // Client verified arrival
+                        const hasCheckedOut = !!attendance?.time_out; // Client marked checkout
                         const isClientConfirmed =
                           !!attendance?.client_confirmed;
 

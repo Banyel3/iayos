@@ -163,26 +163,27 @@ export default function ChatScreen() {
     : !!conversation?.job?.clientReviewed;
   const isConversationClosed =
     (conversation?.job?.clientMarkedComplete &&
-    clientHasFullyReviewed &&
-    conversation?.job?.workerReviewed &&
-    !hasApprovedBackjob) || // Don't close if there's an APPROVED backjob
+      clientHasFullyReviewed &&
+      conversation?.job?.workerReviewed &&
+      !hasApprovedBackjob) || // Don't close if there's an APPROVED backjob
     // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
     (conversation?.job?.status === "COMPLETED" &&
-    clientHasFullyReviewed &&
-    conversation?.job?.workerReviewed &&
-    !hasApprovedBackjob);
+      clientHasFullyReviewed &&
+      conversation?.job?.workerReviewed &&
+      !hasApprovedBackjob);
 
   // Force review: user must review before leaving conversation after payment/completion
   const needsReview = !!(
     conversation?.job &&
-    (conversation.job.clientMarkedComplete || conversation.job.status === "COMPLETED") &&
+    (conversation.job.clientMarkedComplete ||
+      conversation.job.status === "COMPLETED") &&
     !isConversationClosed &&
     !hasApprovedBackjob &&
     ((conversation.my_role === "CLIENT" &&
       (conversation.is_team_job
         ? !conversation.all_team_workers_reviewed
         : !conversation.job.clientReviewed)) ||
-     (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
+      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
   );
 
   // Block hardware back button when review is needed
@@ -198,7 +199,7 @@ export default function ChatScreen() {
             onPress: () => setShowReviewModal(true),
           },
         ],
-        { cancelable: false }
+        { cancelable: false },
       );
       return true; // Block back
     });
@@ -921,6 +922,7 @@ export default function ChatScreen() {
       } catch (error) {
         console.error("[ChatScreen] Failed to send message:", error);
         Alert.alert("Error", getErrorMessage(error, "Failed to send message"));
+        throw error; // Re-throw so MessageInput keeps the text for retry
       } finally {
         setIsSending(false);
       }
@@ -1226,8 +1228,13 @@ export default function ChatScreen() {
               Alert.alert(
                 "Review Required",
                 "Please leave a review before exiting this conversation.",
-                [{ text: "Leave Review", onPress: () => setShowReviewModal(true) }],
-                { cancelable: false }
+                [
+                  {
+                    text: "Leave Review",
+                    onPress: () => setShowReviewModal(true),
+                  },
+                ],
+                { cancelable: false },
               );
             } else {
               safeGoBack(routerHook, "/(tabs)/messages");
@@ -1789,7 +1796,10 @@ export default function ChatScreen() {
                                 ) : attendance.time_in ? (
                                   // Employee is working - show Mark Checkout button
                                   <TouchableOpacity
-                                    style={[styles.confirmArrivalButtonCompact, { backgroundColor: Colors.warning }]}
+                                    style={[
+                                      styles.confirmArrivalButtonCompact,
+                                      { backgroundColor: Colors.warning },
+                                    ]}
                                     onPress={() =>
                                       Alert.alert(
                                         "Mark Checkout",
@@ -1799,15 +1809,20 @@ export default function ChatScreen() {
                                           {
                                             text: "Mark Checkout",
                                             onPress: () =>
-                                              clientMarkCheckoutMutation.mutate({
-                                                jobId: conversation.job.id,
-                                                attendanceId: attendance.attendance_id,
-                                              }),
+                                              clientMarkCheckoutMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  attendanceId:
+                                                    attendance.attendance_id,
+                                                },
+                                              ),
                                           },
                                         ],
                                       )
                                     }
-                                    disabled={clientMarkCheckoutMutation.isPending}
+                                    disabled={
+                                      clientMarkCheckoutMutation.isPending
+                                    }
                                   >
                                     {clientMarkCheckoutMutation.isPending ? (
                                       <ActivityIndicator
@@ -1815,7 +1830,11 @@ export default function ChatScreen() {
                                         color={Colors.white}
                                       />
                                     ) : (
-                                      <Text style={styles.confirmArrivalButtonTextCompact}>
+                                      <Text
+                                        style={
+                                          styles.confirmArrivalButtonTextCompact
+                                        }
+                                      >
                                         Out
                                       </Text>
                                     )}
@@ -1823,7 +1842,10 @@ export default function ChatScreen() {
                                 ) : attendance.is_dispatched ? (
                                   // Employee dispatched but not arrived - show Verify Arrival button
                                   <TouchableOpacity
-                                    style={[styles.confirmArrivalButtonCompact, { backgroundColor: Colors.primary }]}
+                                    style={[
+                                      styles.confirmArrivalButtonCompact,
+                                      { backgroundColor: Colors.primary },
+                                    ]}
                                     onPress={() =>
                                       Alert.alert(
                                         "Verify Arrival",
@@ -1833,15 +1855,20 @@ export default function ChatScreen() {
                                           {
                                             text: "Verify",
                                             onPress: () =>
-                                              clientVerifyArrivalMutation.mutate({
-                                                jobId: conversation.job.id,
-                                                attendanceId: attendance.attendance_id,
-                                              }),
+                                              clientVerifyArrivalMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  attendanceId:
+                                                    attendance.attendance_id,
+                                                },
+                                              ),
                                           },
                                         ],
                                       )
                                     }
-                                    disabled={clientVerifyArrivalMutation.isPending}
+                                    disabled={
+                                      clientVerifyArrivalMutation.isPending
+                                    }
                                   >
                                     {clientVerifyArrivalMutation.isPending ? (
                                       <ActivityIndicator
@@ -1849,7 +1876,11 @@ export default function ChatScreen() {
                                         color={Colors.white}
                                       />
                                     ) : (
-                                      <Ionicons name="car" size={14} color={Colors.white} />
+                                      <Ionicons
+                                        name="car"
+                                        size={14}
+                                        color={Colors.white}
+                                      />
                                     )}
                                   </TouchableOpacity>
                                 ) : (
@@ -2246,24 +2277,27 @@ export default function ChatScreen() {
                   conversation.assigned_employees.length > 0 &&
                   (() => {
                     const allDispatched = conversation.assigned_employees.every(
-                      (e) => e.dispatched
+                      (e) => e.dispatched,
                     );
                     const allArrived = conversation.assigned_employees.every(
-                      (e) => e.clientConfirmedArrival
+                      (e) => e.clientConfirmedArrival,
                     );
                     const allComplete = conversation.assigned_employees.every(
-                      (e) => e.agencyMarkedComplete
+                      (e) => e.agencyMarkedComplete,
                     );
 
                     // Show dispatch buttons for employees not yet dispatched
-                    const pendingDispatch = conversation.assigned_employees.filter(
-                      (e) => !e.dispatched
-                    );
-                    
+                    const pendingDispatch =
+                      conversation.assigned_employees.filter(
+                        (e) => !e.dispatched,
+                      );
+
                     // Show mark complete buttons for arrived employees not yet marked complete
-                    const pendingComplete = conversation.assigned_employees.filter(
-                      (e) => e.clientConfirmedArrival && !e.agencyMarkedComplete
-                    );
+                    const pendingComplete =
+                      conversation.assigned_employees.filter(
+                        (e) =>
+                          e.clientConfirmedArrival && !e.agencyMarkedComplete,
+                      );
 
                     return (
                       <>
@@ -2271,12 +2305,16 @@ export default function ChatScreen() {
                         {pendingDispatch.length > 0 && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>
-                              Dispatch Employees ({pendingDispatch.length} pending)
+                              Dispatch Employees ({pendingDispatch.length}{" "}
+                              pending)
                             </Text>
                             {pendingDispatch.map((employee) => (
                               <TouchableOpacity
                                 key={`dispatch-${employee.id}`}
-                                style={[styles.actionButton, styles.dispatchButton]}
+                                style={[
+                                  styles.actionButton,
+                                  styles.dispatchButton,
+                                ]}
                                 onPress={() =>
                                   Alert.alert(
                                     "Dispatch Employee",
@@ -2286,21 +2324,32 @@ export default function ChatScreen() {
                                       {
                                         text: "Dispatch",
                                         onPress: () =>
-                                          dispatchProjectEmployeeMutation.mutate({
-                                            jobId: conversation.job.id,
-                                            employeeId: employee.id,
-                                          }),
+                                          dispatchProjectEmployeeMutation.mutate(
+                                            {
+                                              jobId: conversation.job.id,
+                                              employeeId: employee.id,
+                                            },
+                                          ),
                                       },
-                                    ]
+                                    ],
                                   )
                                 }
-                                disabled={dispatchProjectEmployeeMutation.isPending}
+                                disabled={
+                                  dispatchProjectEmployeeMutation.isPending
+                                }
                               >
                                 {dispatchProjectEmployeeMutation.isPending ? (
-                                  <ActivityIndicator size="small" color={Colors.white} />
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
                                 ) : (
                                   <>
-                                    <Ionicons name="car" size={20} color={Colors.white} />
+                                    <Ionicons
+                                      name="car"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
                                     <Text style={styles.actionButtonText}>
                                       Dispatch {employee.name}
                                     </Text>
@@ -2313,12 +2362,22 @@ export default function ChatScreen() {
 
                         {/* Waiting for client to confirm arrivals */}
                         {allDispatched && !allArrived && (
-                          <View style={[styles.actionButton, styles.waitingButton]}>
-                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                          <View
+                            style={[styles.actionButton, styles.waitingButton]}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
                             <Text style={styles.waitingButtonText}>
-                              Waiting for client to confirm arrivals ({
-                                conversation.assigned_employees.filter((e) => e.clientConfirmedArrival).length
-                              } of {conversation.assigned_employees.length})
+                              Waiting for client to confirm arrivals (
+                              {
+                                conversation.assigned_employees.filter(
+                                  (e) => e.clientConfirmedArrival,
+                                ).length
+                              }{" "}
+                              of {conversation.assigned_employees.length})
                             </Text>
                           </View>
                         )}
@@ -2327,12 +2386,16 @@ export default function ChatScreen() {
                         {pendingComplete.length > 0 && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>
-                              Mark Work Complete ({pendingComplete.length} on site)
+                              Mark Work Complete ({pendingComplete.length} on
+                              site)
                             </Text>
                             {pendingComplete.map((employee) => (
                               <TouchableOpacity
                                 key={`complete-${employee.id}`}
-                                style={[styles.actionButton, styles.markCompleteButton]}
+                                style={[
+                                  styles.actionButton,
+                                  styles.markCompleteButton,
+                                ]}
                                 onPress={() =>
                                   Alert.alert(
                                     "Mark Complete",
@@ -2342,21 +2405,32 @@ export default function ChatScreen() {
                                       {
                                         text: "Mark Complete",
                                         onPress: () =>
-                                          agencyMarkProjectCompleteMutation.mutate({
-                                            jobId: conversation.job.id,
-                                            employeeId: employee.id,
-                                          }),
+                                          agencyMarkProjectCompleteMutation.mutate(
+                                            {
+                                              jobId: conversation.job.id,
+                                              employeeId: employee.id,
+                                            },
+                                          ),
                                       },
-                                    ]
+                                    ],
                                   )
                                 }
-                                disabled={agencyMarkProjectCompleteMutation.isPending}
+                                disabled={
+                                  agencyMarkProjectCompleteMutation.isPending
+                                }
                               >
                                 {agencyMarkProjectCompleteMutation.isPending ? (
-                                  <ActivityIndicator size="small" color={Colors.white} />
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
                                 ) : (
                                   <>
-                                    <Ionicons name="checkmark-done" size={20} color={Colors.white} />
+                                    <Ionicons
+                                      name="checkmark-done"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
                                     <Text style={styles.actionButtonText}>
                                       Complete: {employee.name}
                                     </Text>
@@ -2368,14 +2442,25 @@ export default function ChatScreen() {
                         )}
 
                         {/* All complete - waiting for client approval */}
-                        {allComplete && !conversation.job.clientMarkedComplete && (
-                          <View style={[styles.actionButton, styles.waitingButton]}>
-                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
-                            <Text style={styles.waitingButtonText}>
-                              ✓ All employees complete. Waiting for client to approve & pay
-                            </Text>
-                          </View>
-                        )}
+                        {allComplete &&
+                          !conversation.job.clientMarkedComplete && (
+                            <View
+                              style={[
+                                styles.actionButton,
+                                styles.waitingButton,
+                              ]}
+                            >
+                              <Ionicons
+                                name="time-outline"
+                                size={20}
+                                color={Colors.textSecondary}
+                              />
+                              <Text style={styles.waitingButtonText}>
+                                ✓ All employees complete. Waiting for client to
+                                approve & pay
+                              </Text>
+                            </View>
+                          )}
                       </>
                     );
                   })()}
@@ -2388,35 +2473,49 @@ export default function ChatScreen() {
                   conversation.assigned_employees.length > 0 &&
                   (() => {
                     const allDispatched = conversation.assigned_employees.every(
-                      (e) => e.dispatched
+                      (e) => e.dispatched,
                     );
                     const allArrived = conversation.assigned_employees.every(
-                      (e) => e.clientConfirmedArrival
+                      (e) => e.clientConfirmedArrival,
                     );
                     const allComplete = conversation.assigned_employees.every(
-                      (e) => e.agencyMarkedComplete
-                    );
-                    
-                    // Employees dispatched but not arrived yet
-                    const pendingArrival = conversation.assigned_employees.filter(
-                      (e) => e.dispatched && !e.clientConfirmedArrival
+                      (e) => e.agencyMarkedComplete,
                     );
 
+                    // Employees dispatched but not arrived yet
+                    const pendingArrival =
+                      conversation.assigned_employees.filter(
+                        (e) => e.dispatched && !e.clientConfirmedArrival,
+                      );
+
                     // Employees arrived but not yet marked complete by agency
-                    const onSiteWorking = conversation.assigned_employees.filter(
-                      (e) => e.clientConfirmedArrival && !e.agencyMarkedComplete
-                    );
+                    const onSiteWorking =
+                      conversation.assigned_employees.filter(
+                        (e) =>
+                          e.clientConfirmedArrival && !e.agencyMarkedComplete,
+                      );
 
                     return (
                       <>
                         {/* Waiting for agency to dispatch */}
                         {!allDispatched && (
-                          <View style={[styles.actionButton, styles.waitingButton]}>
-                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                          <View
+                            style={[styles.actionButton, styles.waitingButton]}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
                             <Text style={styles.waitingButtonText}>
-                              Waiting for agency to dispatch employees ({
-                                conversation.assigned_employees.filter((e) => e.dispatched).length
-                              } of {conversation.assigned_employees.length} dispatched)
+                              Waiting for agency to dispatch employees (
+                              {
+                                conversation.assigned_employees.filter(
+                                  (e) => e.dispatched,
+                                ).length
+                              }{" "}
+                              of {conversation.assigned_employees.length}{" "}
+                              dispatched)
                             </Text>
                           </View>
                         )}
@@ -2425,12 +2524,16 @@ export default function ChatScreen() {
                         {pendingArrival.length > 0 && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>
-                              Confirm Arrivals ({pendingArrival.length} on the way)
+                              Confirm Arrivals ({pendingArrival.length} on the
+                              way)
                             </Text>
                             {pendingArrival.map((employee) => (
                               <TouchableOpacity
                                 key={`arrival-${employee.id}`}
-                                style={[styles.actionButton, styles.confirmWorkStartedButton]}
+                                style={[
+                                  styles.actionButton,
+                                  styles.confirmWorkStartedButton,
+                                ]}
                                 onPress={() =>
                                   Alert.alert(
                                     "Confirm Arrival",
@@ -2445,16 +2548,25 @@ export default function ChatScreen() {
                                             employeeId: employee.id,
                                           }),
                                       },
-                                    ]
+                                    ],
                                   )
                                 }
-                                disabled={confirmProjectArrivalMutation.isPending}
+                                disabled={
+                                  confirmProjectArrivalMutation.isPending
+                                }
                               >
                                 {confirmProjectArrivalMutation.isPending ? (
-                                  <ActivityIndicator size="small" color={Colors.white} />
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
                                 ) : (
                                   <>
-                                    <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
                                     <Text style={styles.actionButtonText}>
                                       Confirm: {employee.name} Arrived
                                     </Text>
@@ -2467,33 +2579,58 @@ export default function ChatScreen() {
 
                         {/* Workers on site, working */}
                         {onSiteWorking.length > 0 && (
-                          <View style={[styles.actionButton, styles.waitingButton]}>
-                            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                          <View
+                            style={[styles.actionButton, styles.waitingButton]}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
                             <Text style={styles.waitingButtonText}>
-                              {onSiteWorking.length} employee{onSiteWorking.length > 1 ? 's' : ''} working on site...
+                              {onSiteWorking.length} employee
+                              {onSiteWorking.length > 1 ? "s" : ""} working on
+                              site...
                             </Text>
                           </View>
                         )}
 
                         {/* All complete - show approve & pay button */}
-                        {allComplete && !conversation.job.clientMarkedComplete && (
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.approveCompletionButton]}
-                            onPress={() => handleApproveCompletion()}
-                            disabled={approveAgencyProjectJobMutation.isPending}
-                          >
-                            {approveAgencyProjectJobMutation.isPending ? (
-                              <ActivityIndicator size="small" color={Colors.white} />
-                            ) : (
-                              <>
-                                <Ionicons name="wallet" size={20} color={Colors.white} />
-                                <Text style={styles.actionButtonText}>
-                                  Approve & Pay Agency (₱{(conversation.job.budget * 0.5).toLocaleString()})
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
-                        )}
+                        {allComplete &&
+                          !conversation.job.clientMarkedComplete && (
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                styles.approveCompletionButton,
+                              ]}
+                              onPress={() => handleApproveCompletion()}
+                              disabled={
+                                approveAgencyProjectJobMutation.isPending
+                              }
+                            >
+                              {approveAgencyProjectJobMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="wallet"
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.actionButtonText}>
+                                    Approve & Pay Agency (₱
+                                    {(
+                                      conversation.job.budget * 0.5
+                                    ).toLocaleString()}
+                                    )
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          )}
                       </>
                     );
                   })()}
@@ -2691,127 +2828,148 @@ export default function ChatScreen() {
           {(conversation.job.clientMarkedComplete ||
             conversation.job.status === "COMPLETED") &&
             !isConversationClosed && (
-            <>
-              {/* Check if current user already reviewed */}
-              {(conversation.my_role === "CLIENT" &&
-                (conversation.is_team_job
-                  ? conversation.all_team_workers_reviewed
-                  : conversation.job.clientReviewed)) ||
-              (conversation.my_role === "WORKER" &&
-                conversation.job.workerReviewed) ? (
-                // User has already reviewed - show compact waiting banner
-                <View style={styles.reviewCompleteBanner}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={20}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.reviewCompleteBannerText}>
-                    {conversation.is_team_job &&
-                    conversation.my_role === "CLIENT"
-                      ? `✅ Reviewed all ${conversation.team_worker_assignments?.length || 0} workers`
-                      : "✅ Review submitted"}
-                  </Text>
-                  {((conversation.my_role === "CLIENT" &&
-                    !conversation.job.workerReviewed) ||
-                    (conversation.my_role === "WORKER" &&
-                      !conversation.job.clientReviewed)) && (
-                    <View style={styles.reviewWaitingBadge}>
-                      <Ionicons
-                        name="time-outline"
-                        size={12}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.reviewWaitingBadgeText}>
-                        Waiting for{" "}
-                        {conversation.my_role === "CLIENT"
-                          ? "worker"
-                          : "client"}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                // User hasn't reviewed yet - show compact banner to open modal
-                <TouchableOpacity
-                  style={styles.leaveReviewBanner}
-                  onPress={() => setShowReviewModal(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="star" size={20} color="#FFB800" />
-                  <View style={styles.leaveReviewTextContainer}>
-                    <Text style={styles.leaveReviewTitle}>
+              <>
+                {/* Check if current user already reviewed */}
+                {(conversation.my_role === "CLIENT" &&
+                  (conversation.is_team_job
+                    ? conversation.all_team_workers_reviewed
+                    : conversation.job.clientReviewed)) ||
+                (conversation.my_role === "WORKER" &&
+                  conversation.job.workerReviewed) ? (
+                  // User has already reviewed - show compact waiting banner
+                  <View style={styles.reviewCompleteBanner}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={Colors.success}
+                    />
+                    <Text style={styles.reviewCompleteBannerText}>
                       {conversation.is_team_job &&
                       conversation.my_role === "CLIENT"
-                        ? (() => {
-                            const pending = conversation.pending_team_worker_reviews?.length || 0;
-                            const total = conversation.team_worker_assignments?.length || 0;
-                            const reviewed = total - pending;
-                            return reviewed > 0
-                              ? `Rate workers (${reviewed}/${total} done)`
-                              : `Rate ${total} worker${total > 1 ? "s" : ""}`;
-                          })()
-                        : conversation.is_agency_job &&
-                            conversation.my_role === "CLIENT"
-                          ? reviewStep === "EMPLOYEE"
-                            ? "Rate Employee"
-                            : "Rate Agency"
-                          : `Rate ${conversation.my_role === "CLIENT" ? "Worker" : "Client"}`}
+                        ? `✅ Reviewed all ${conversation.team_worker_assignments?.length || 0} workers`
+                        : "✅ Review submitted"}
                     </Text>
-                  </View>
-                  <View style={styles.leaveReviewBadge}>
-                    <Text style={styles.leaveReviewBadgeText}>
-                      Tap to review
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={16}
-                    color={Colors.primary}
-                  />
-                </TouchableOpacity>
-              )}
-
-              {/* Team job worker review checklist - show who's been reviewed */}
-              {conversation.is_team_job &&
-                conversation.my_role === "CLIENT" &&
-                (conversation.job.clientMarkedComplete || conversation.job.status === "COMPLETED") &&
-                !isConversationClosed &&
-                (conversation.team_worker_assignments?.length || 0) > 1 && (
-                <View style={styles.teamReviewChecklist}>
-                  {(conversation.team_worker_assignments || []).map((worker: any, idx: number) => {
-                    const isPending = (conversation.pending_team_worker_reviews || []).some(
-                      (pw: any) => pw.worker_id === worker.worker_id
-                    );
-                    const isReviewed = !isPending;
-                    return (
-                      <View key={worker.worker_id || idx} style={styles.teamReviewChecklistItem}>
+                    {((conversation.my_role === "CLIENT" &&
+                      !conversation.job.workerReviewed) ||
+                      (conversation.my_role === "WORKER" &&
+                        !conversation.job.clientReviewed)) && (
+                      <View style={styles.reviewWaitingBadge}>
                         <Ionicons
-                          name={isReviewed ? "checkmark-circle" : "ellipse-outline"}
-                          size={16}
-                          color={isReviewed ? Colors.success : Colors.textSecondary}
+                          name="time-outline"
+                          size={12}
+                          color={Colors.textSecondary}
                         />
-                        <Text
-                          style={[
-                            styles.teamReviewChecklistName,
-                            isReviewed && styles.teamReviewChecklistNameDone,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {worker.name || `Worker ${idx + 1}`}
+                        <Text style={styles.reviewWaitingBadgeText}>
+                          Waiting for{" "}
+                          {conversation.my_role === "CLIENT"
+                            ? "worker"
+                            : "client"}
                         </Text>
-                        {worker.skill && (
-                          <Text style={styles.teamReviewChecklistSkill}>
-                            {worker.skill}
-                          </Text>
-                        )}
                       </View>
-                    );
-                  })}
-                </View>
-              )}
-            </>
-          )}
+                    )}
+                  </View>
+                ) : (
+                  // User hasn't reviewed yet - show compact banner to open modal
+                  <TouchableOpacity
+                    style={styles.leaveReviewBanner}
+                    onPress={() => setShowReviewModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="star" size={20} color="#FFB800" />
+                    <View style={styles.leaveReviewTextContainer}>
+                      <Text style={styles.leaveReviewTitle}>
+                        {conversation.is_team_job &&
+                        conversation.my_role === "CLIENT"
+                          ? (() => {
+                              const pending =
+                                conversation.pending_team_worker_reviews
+                                  ?.length || 0;
+                              const total =
+                                conversation.team_worker_assignments?.length ||
+                                0;
+                              const reviewed = total - pending;
+                              return reviewed > 0
+                                ? `Rate workers (${reviewed}/${total} done)`
+                                : `Rate ${total} worker${total > 1 ? "s" : ""}`;
+                            })()
+                          : conversation.is_agency_job &&
+                              conversation.my_role === "CLIENT"
+                            ? reviewStep === "EMPLOYEE"
+                              ? "Rate Employee"
+                              : "Rate Agency"
+                            : `Rate ${conversation.my_role === "CLIENT" ? "Worker" : "Client"}`}
+                      </Text>
+                    </View>
+                    <View style={styles.leaveReviewBadge}>
+                      <Text style={styles.leaveReviewBadgeText}>
+                        Tap to review
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={Colors.primary}
+                    />
+                  </TouchableOpacity>
+                )}
+
+                {/* Team job worker review checklist - show who's been reviewed */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
+                  (conversation.job.clientMarkedComplete ||
+                    conversation.job.status === "COMPLETED") &&
+                  !isConversationClosed &&
+                  (conversation.team_worker_assignments?.length || 0) > 1 && (
+                    <View style={styles.teamReviewChecklist}>
+                      {(conversation.team_worker_assignments || []).map(
+                        (worker: any, idx: number) => {
+                          const isPending = (
+                            conversation.pending_team_worker_reviews || []
+                          ).some(
+                            (pw: any) => pw.worker_id === worker.worker_id,
+                          );
+                          const isReviewed = !isPending;
+                          return (
+                            <View
+                              key={worker.worker_id || idx}
+                              style={styles.teamReviewChecklistItem}
+                            >
+                              <Ionicons
+                                name={
+                                  isReviewed
+                                    ? "checkmark-circle"
+                                    : "ellipse-outline"
+                                }
+                                size={16}
+                                color={
+                                  isReviewed
+                                    ? Colors.success
+                                    : Colors.textSecondary
+                                }
+                              />
+                              <Text
+                                style={[
+                                  styles.teamReviewChecklistName,
+                                  isReviewed &&
+                                    styles.teamReviewChecklistNameDone,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {worker.name || `Worker ${idx + 1}`}
+                              </Text>
+                              {worker.skill && (
+                                <Text style={styles.teamReviewChecklistSkill}>
+                                  {worker.skill}
+                                </Text>
+                              )}
+                            </View>
+                          );
+                        },
+                      )}
+                    </View>
+                  )}
+              </>
+            )}
 
           {/* Review Modal */}
           <Modal
@@ -2831,12 +2989,21 @@ export default function ChatScreen() {
                     if (!needsReview) {
                       setShowReviewModal(false);
                     } else {
-                      Alert.alert("Review Required", "Please complete your review before closing.");
+                      Alert.alert(
+                        "Review Required",
+                        "Please complete your review before closing.",
+                      );
                     }
                   }}
                   style={styles.reviewModalCloseButton}
                 >
-                  <Ionicons name="close" size={24} color={needsReview ? Colors.textSecondary : Colors.textPrimary} />
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={
+                      needsReview ? Colors.textSecondary : Colors.textPrimary
+                    }
+                  />
                 </TouchableOpacity>
                 <Text style={styles.reviewModalTitle}>Leave a Review</Text>
                 <View style={{ width: 40 }} />
@@ -3003,12 +3170,18 @@ export default function ChatScreen() {
                                 {/* Progress bar and worker checklist */}
                                 {totalWorkers > 1 && (
                                   <>
-                                    <View style={styles.teamReviewProgressContainer}>
-                                      <View style={styles.teamReviewProgressBarBg}>
+                                    <View
+                                      style={styles.teamReviewProgressContainer}
+                                    >
+                                      <View
+                                        style={styles.teamReviewProgressBarBg}
+                                      >
                                         <View
                                           style={[
                                             styles.teamReviewProgressBarFill,
-                                            { width: `${(reviewedCount / totalWorkers) * 100}%` },
+                                            {
+                                              width: `${(reviewedCount / totalWorkers) * 100}%`,
+                                            },
                                           ]}
                                         />
                                       </View>
@@ -3026,29 +3199,44 @@ export default function ChatScreen() {
                                     </View>
 
                                     {/* Mini worker checklist in modal */}
-                                    <View style={styles.teamReviewModalChecklist}>
+                                    <View
+                                      style={styles.teamReviewModalChecklist}
+                                    >
                                       {allWorkers.map((w: any, i: number) => {
-                                        const isWorkerPending = pendingWorkers.some(
-                                          (pw: any) => pw.worker_id === w.worker_id
-                                        );
-                                        const isCurrent = pendingWorkers[0]?.worker_id === w.worker_id;
+                                        const isWorkerPending =
+                                          pendingWorkers.some(
+                                            (pw: any) =>
+                                              pw.worker_id === w.worker_id,
+                                          );
+                                        const isCurrent =
+                                          pendingWorkers[0]?.worker_id ===
+                                          w.worker_id;
                                         const isReviewed = !isWorkerPending;
                                         return (
                                           <View
                                             key={w.worker_id || i}
                                             style={[
                                               styles.teamReviewModalChecklistDot,
-                                              isReviewed && styles.teamReviewModalChecklistDotDone,
-                                              isCurrent && styles.teamReviewModalChecklistDotCurrent,
+                                              isReviewed &&
+                                                styles.teamReviewModalChecklistDotDone,
+                                              isCurrent &&
+                                                styles.teamReviewModalChecklistDotCurrent,
                                             ]}
                                           >
                                             {isReviewed ? (
-                                              <Ionicons name="checkmark" size={10} color={Colors.white} />
+                                              <Ionicons
+                                                name="checkmark"
+                                                size={10}
+                                                color={Colors.white}
+                                              />
                                             ) : (
-                                              <Text style={[
-                                                styles.teamReviewModalChecklistDotText,
-                                                isCurrent && styles.teamReviewModalChecklistDotTextCurrent,
-                                              ]}>
+                                              <Text
+                                                style={[
+                                                  styles.teamReviewModalChecklistDotText,
+                                                  isCurrent &&
+                                                    styles.teamReviewModalChecklistDotTextCurrent,
+                                                ]}
+                                              >
                                                 {i + 1}
                                               </Text>
                                             )}
