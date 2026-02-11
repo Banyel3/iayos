@@ -3,7 +3,6 @@
 
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import type { KYCStatusResponse } from "@/lib/types/kyc";
@@ -133,14 +132,21 @@ export const useKYC = () => {
    */
   const reviewDate = data?.kycRecord?.reviewedAt;
 
+  // Track whether we've already refreshed user data for the current verified state
+  const hasRefreshedForKYC = React.useRef(false);
+
   // Auto-refresh user data when KYC status changes to APPROVED
-  // This ensures user.kycVerified is updated immediately
+  // This ensures user.kycVerified is updated immediately, without causing a refresh loop
   React.useEffect(() => {
-    if (isVerified && !isLoading) {
+    if (!isLoading && isVerified && !hasRefreshedForKYC.current) {
+      hasRefreshedForKYC.current = true;
       console.log("✅ [useKYC] KYC verified, refreshing user data...");
       refreshUserData().catch((err) => {
         console.error("❌ [useKYC] Failed to refresh user data:", err);
       });
+    } else if (!isVerified) {
+      // Allow a future verified transition to trigger a refresh again
+      hasRefreshedForKYC.current = false;
     }
   }, [isVerified, isLoading, refreshUserData]);
 
