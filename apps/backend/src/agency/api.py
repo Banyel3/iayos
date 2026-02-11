@@ -786,7 +786,7 @@ def add_employee(request):
         firstName = request.POST.get("firstName")
         lastName = request.POST.get("lastName")
         middleName = request.POST.get("middleName", "")
-        email = request.POST.get("email")
+        mobile = request.POST.get("mobile")
         
         # Handle specializations as JSON array
         specializations_raw = request.POST.get("specializations", "[]")
@@ -801,7 +801,7 @@ def add_employee(request):
         rating = float(request.POST.get("rating")) if request.POST.get("rating") else None
         
         result = services.add_agency_employee(
-            account_id, firstName, lastName, email, specializations,
+            account_id, firstName, lastName, mobile, specializations,
             middleName=middleName, avatar=avatar, rating=rating
         )
         return result
@@ -826,20 +826,21 @@ def update_employee(request, employee_id: int):
         firstName = body.get("firstName")
         lastName = body.get("lastName")
         middleName = body.get("middleName")
-        email = body.get("email")
+        mobile = body.get("mobile")
         specializations = body.get("specializations")
         avatar = body.get("avatar")
         isActive = body.get("isActive")
         
+        # Pass mobile value via `email` parameter for backwards-compatible update handler
         result = services.update_agency_employee(
             account_id, employee_id,
             firstName=firstName,
             lastName=lastName,
             middleName=middleName,
-            email=email,
+            email=mobile or None,
             specializations=specializations,
             avatar=avatar,
-            isActive=isActive
+            isActive=isActive,
         )
         return result
     except ValueError as e:

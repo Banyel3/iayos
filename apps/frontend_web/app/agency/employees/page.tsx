@@ -103,6 +103,7 @@ export default function EmployeesPage() {
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
   const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
 
   // Edit Employee modal state
@@ -111,6 +112,7 @@ export default function EmployeesPage() {
   const [editMiddleName, setEditMiddleName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editMobile, setEditMobile] = useState("");
   const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -255,6 +257,7 @@ export default function EmployeesPage() {
     setEditMiddleName(emp.middleName || "");
     setEditLastName(emp.lastName || "");
     setEditEmail(emp.email);
+    setEditMobile((emp as any).mobile || "");
     setEditSpecializations(emp.specializations || (emp.role ? [emp.role] : []));
   };
 
@@ -300,7 +303,7 @@ export default function EmployeesPage() {
           firstName: editFirstName.trim(),
           middleName: editMiddleName.trim(),
           lastName: editLastName.trim(),
-          email: editEmail,
+          mobile: editMobile,
           specializations: editSpecializations,
         }),
       });
@@ -327,8 +330,8 @@ export default function EmployeesPage() {
       return;
     }
 
-    if (!email) {
-      toast.error("Email is required");
+    if (!mobile) {
+      toast.error("Mobile number is required");
       return;
     }
 
@@ -342,7 +345,7 @@ export default function EmployeesPage() {
       formData.append("firstName", firstName.trim());
       formData.append("middleName", middleName.trim());
       formData.append("lastName", lastName.trim());
-      formData.append("email", email);
+      formData.append("mobile", mobile);
       formData.append("specializations", JSON.stringify(selectedSpecializations));
 
       const res = await fetch(`${API_BASE}/api/agency/employees`, {
@@ -356,7 +359,7 @@ export default function EmployeesPage() {
         setFirstName("");
         setMiddleName("");
         setLastName("");
-        setEmail("");
+        setMobile("");
         setSelectedSpecializations([]);
         fetchEmployees();
       } else {
@@ -655,10 +658,10 @@ export default function EmployeesPage() {
                       onChange={(e) => setMiddleName(e.target.value)}
                     />
                     <Input
-                      placeholder="Email *"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Mobile number (e.g. 09171234567) *"
+                      type="tel"
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value)}
                     />
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">

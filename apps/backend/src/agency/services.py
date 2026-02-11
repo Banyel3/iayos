@@ -566,7 +566,7 @@ def get_agency_employees(account_id):
         raise ValueError("User not found")
 
 
-def add_agency_employee(account_id, firstName, lastName, email, specializations, middleName="", avatar=None, rating=None):
+def add_agency_employee(account_id, firstName, lastName, mobile, specializations, middleName="", avatar=None, rating=None):
     """Add a new employee to an agency with name breakdown and multi-specializations."""
     import json
     try:
@@ -589,6 +589,16 @@ def add_agency_employee(account_id, firstName, lastName, email, specializations,
         name_parts.append(lastName.strip())
         full_name = " ".join(name_parts)
         
+        # Ensure mobile uniqueness across Accounts.contactNumber and AgencyEmployee.mobile
+        if mobile and mobile.strip():
+            m = mobile.strip()
+            # Check Accounts table
+            if Accounts.objects.filter(contactNumber=m).exists():
+                raise ValueError("Mobile number already in use by an account")
+            # Check existing agency employees
+            if AgencyEmployee.objects.filter(mobile=m).exists():
+                raise ValueError("Mobile number already in use by another employee")
+
         # Create the employee
         employee = AgencyEmployee.objects.create(
             agency=user,
@@ -596,7 +606,8 @@ def add_agency_employee(account_id, firstName, lastName, email, specializations,
             middleName=(middleName or "").strip(),
             lastName=lastName.strip(),
             name=full_name,  # Legacy field
-            email=email,
+            email=(""),
+            mobile=(mobile.strip() if mobile else ""),
             specializations=json.dumps(specializations),
             role=specializations[0] if specializations else "",  # Legacy field - first specialization
             avatar=avatar,
@@ -611,6 +622,7 @@ def add_agency_employee(account_id, firstName, lastName, email, specializations,
             "fullName": employee.fullName,
             "name": employee.name,  # Legacy
             "email": employee.email,
+            "mobile": employee.mobile,
             "specializations": employee.get_specializations_list(),
             "role": employee.role,  # Legacy
             "avatar": employee.avatar,
@@ -650,8 +662,23 @@ def update_agency_employee(account_id, employee_id, firstName=None, lastName=Non
         if middleName is not None:
             employee.middleName = middleName.strip()
         
+        # Support mobile updates instead of email for employee contact
+        # `body` variable is parsed by the API layer; here we attempt to read mobile from request body if provided
+        # (The API layer will pass mobile via the `email` parameter change in the controller)
+        # To avoid changing the function signature further, check for attribute on employee update payload elsewhere.
+        # If caller passed `email` as mobile (backwards compatibility), set mobile accordingly.
         if email is not None:
-            employee.email = email
+            # If provided value looks like a phone (digits, +), treat it as mobile; otherwise treat as email
+            candidate = str(email).strip()
+            if candidate and all(c.isdigit() or c in ['+', '-', ' '] for c in candidate):
+                # Validate uniqueness
+                if Accounts.objects.filter(contactNumber=candidate).exclude(accountID=account_id).exists():
+                    raise ValueError("Mobile number already in use by an account")
+                if AgencyEmployee.objects.filter(mobile=candidate).exclude(employeeID=employee_id).exists():
+                    raise ValueError("Mobile number already in use by another employee")
+                employee.mobile = candidate
+            else:
+                employee.email = candidate
         
         if specializations is not None:
             if not isinstance(specializations, list) or len(specializations) == 0:
