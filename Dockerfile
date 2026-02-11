@@ -233,6 +233,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     postgresql-client \
     cron \
+    redis-server \
     tesseract-ocr \
     tesseract-ocr-eng \
     poppler-utils \
@@ -293,17 +294,20 @@ RUN groupadd -g 1001 appgroup \
 
 # Install only runtime dependencies (Debian syntax)
 # - tesseract-ocr for KYC document verification
+# - redis-server for in-container Redis (channels, caching, rate limiting)
 # Note: Removed OpenCV/InsightFace deps (moved to Face API service)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     libpq5 \
     libffi8 \
     libssl3 \
+    redis-server \
     tesseract-ocr \
     tesseract-ocr-eng \
     poppler-utils \
     libleptonica-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /data/redis && chown 1001:1001 /data/redis
 
 WORKDIR /app/backend
 

@@ -93,8 +93,7 @@ services:
         value: https://iayos-face-api.onrender.com
       - key: REDIS_URL
         scope: RUN_AND_BUILD_TIME
-        type: SECRET
-        value: rediss://default:AWnhAAIncDE1MjE4MWE0M2U5OGM0YzdjOGE5M2RhNDA0OTM2NTczMXAxMjcxMDU@exotic-leopard-27105.upstash.io:6379
+        value: redis://localhost:6379/0
       - key: ADMIN_EMAIL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
