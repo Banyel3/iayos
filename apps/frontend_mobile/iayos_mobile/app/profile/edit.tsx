@@ -61,7 +61,7 @@ interface UpdateProfileData {
 export default function EditProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, refreshUserData } = useAuth();
 
   // Form state - basic info
   const [firstName, setFirstName] = useState("");
@@ -97,7 +97,7 @@ export default function EditProfileScreen() {
   // Fetch worker's current backend skills
   const { data: mySkills = [], refetch: refetchMySkills } = useMySkills();
   const removeSkillMutation = useRemoveSkill();
-  
+
   // Handle skill removal (one-tap delete)
   const handleRemoveSkill = (skillId: number, skillName: string) => {
     removeSkillMutation.mutate(skillId, {
@@ -115,7 +115,7 @@ export default function EditProfileScreen() {
       },
     });
   };
-  
+
 
 
   // Fetch current profile
@@ -192,7 +192,7 @@ export default function EditProfileScreen() {
 
       const response = await apiRequest(ENDPOINTS.UPLOAD_AVATAR, {
         method: "POST",
-        body: formData,
+        body: formData as any,
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -202,6 +202,8 @@ export default function EditProfileScreen() {
         setAvatarUri(uri);
         setAvatarChanged(true);
         Alert.alert("Success", "Profile photo updated!");
+        // Refresh global user state to show new photo immediately
+        await refreshUserData();
         // Invalidate queries to refresh user data
         queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
       } else {
@@ -239,10 +241,10 @@ export default function EditProfileScreen() {
         );
         throw new Error(
           errorData.detail ||
-            errorData.error ||
-            errorData.message ||
-            JSON.stringify(errorData) ||
-            `Failed to update basic profile (${profileResponse.status})`
+          errorData.error ||
+          errorData.message ||
+          JSON.stringify(errorData) ||
+          `Failed to update basic profile (${profileResponse.status})`
         );
       }
 
@@ -428,7 +430,7 @@ export default function EditProfileScreen() {
             style={[
               styles.saveHeaderButton,
               (!hasChanges || updateMutation.isPending) &&
-                styles.saveHeaderButtonDisabled,
+              styles.saveHeaderButtonDisabled,
             ]}
             onPress={handleSave}
             disabled={!hasChanges || updateMutation.isPending}
@@ -492,9 +494,9 @@ export default function EditProfileScreen() {
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>First Name *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.inputReadonly]}
                 value={firstName}
-                onChangeText={setFirstName}
+                editable={false}
                 placeholder="Enter your first name"
                 placeholderTextColor={Colors.textSecondary}
               />
@@ -504,9 +506,9 @@ export default function EditProfileScreen() {
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Last Name *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.inputReadonly]}
                 value={lastName}
-                onChangeText={setLastName}
+                editable={false}
                 placeholder="Enter your last name"
                 placeholderTextColor={Colors.textSecondary}
               />
@@ -850,15 +852,15 @@ export default function EditProfileScreen() {
 
               {hourlyRate.trim() !==
                 (profile?.hourlyRate?.toString() || "") && (
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Hourly Rate:</Text>
-                  <Text style={styles.previewValue}>
-                    {hourlyRate
-                      ? `₱${parseFloat(hourlyRate).toFixed(2)}/hour`
-                      : "Not set"}
-                  </Text>
-                </View>
-              )}
+                  <View style={styles.previewItem}>
+                    <Text style={styles.previewLabel}>Hourly Rate:</Text>
+                    <Text style={styles.previewValue}>
+                      {hourlyRate
+                        ? `₱${parseFloat(hourlyRate).toFixed(2)}/hour`
+                        : "Not set"}
+                    </Text>
+                  </View>
+                )}
 
               {phoneNumber.trim() !== (profile?.user?.phoneNumber || "") && (
                 <View style={styles.previewItem}>
@@ -1194,7 +1196,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     fontSize: 10,
   },
-  
+
   // New Skill Chips with delete
   addSkillButton: {
     width: 40,
@@ -1245,7 +1247,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.sm,
   },
-  
+
   // Add Skill Modal
   addSkillModalContent: {
     width: "90%",
