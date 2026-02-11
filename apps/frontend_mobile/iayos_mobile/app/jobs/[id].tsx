@@ -104,13 +104,18 @@ interface JobDetail {
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
   budget_allocation_type?:
-    | "EQUAL_PER_SKILL"
-    | "EQUAL_PER_WORKER"
-    | "MANUAL"
-    | "SKILL_WEIGHTED";
+  | "EQUAL_PER_SKILL"
+  | "EQUAL_PER_WORKER"
+  | "MANUAL"
+  | "SKILL_WEIGHTED";
   team_fill_percentage?: number;
   total_workers_needed?: number;
   total_workers_assigned?: number;
+  // Missing fields
+  preferred_start_date?: string;
+  payment_model?: "PROJECT" | "DAILY";
+  daily_rate?: number;
+  duration_days?: number;
 }
 
 interface JobApplication {
@@ -251,6 +256,10 @@ export default function JobDetailScreen() {
         skill_slots_count: jobData.skill_slots?.length || 0,
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
+        payment_model: jobData.payment_model,
+        daily_rate: jobData.daily_rate,
+        budget: jobData.budget,
+        duration_days: jobData.duration_days,
       });
 
       const mapReview = (reviewData: any): JobReviewSummary => ({
@@ -277,17 +286,17 @@ export default function JobDetailScreen() {
         status: jobData.status,
         postedBy: jobData.client
           ? {
-              id: jobData.client.id,
-              name: jobData.client.name,
-              avatar: jobData.client.avatar,
-              rating: jobData.client.rating,
-            }
+            id: jobData.client.id,
+            name: jobData.client.name,
+            avatar: jobData.client.avatar,
+            rating: jobData.client.rating,
+          }
           : {
-              id: 0,
-              name: "Unknown Client",
-              avatar: null,
-              rating: 0,
-            },
+            id: 0,
+            name: "Unknown Client",
+            avatar: null,
+            rating: 0,
+          },
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
@@ -305,13 +314,13 @@ export default function JobDetailScreen() {
         assignedWorker: jobData.assigned_worker,
         reviews: jobData.reviews
           ? {
-              clientToWorker: jobData.reviews.client_to_worker
-                ? mapReview(jobData.reviews.client_to_worker)
-                : undefined,
-              workerToClient: jobData.reviews.worker_to_client
-                ? mapReview(jobData.reviews.worker_to_client)
-                : undefined,
-            }
+            clientToWorker: jobData.reviews.client_to_worker
+              ? mapReview(jobData.reviews.client_to_worker)
+              : undefined,
+            workerToClient: jobData.reviews.worker_to_client
+              ? mapReview(jobData.reviews.worker_to_client)
+              : undefined,
+          }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
         // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
@@ -326,6 +335,17 @@ export default function JobDetailScreen() {
         team_fill_percentage: jobData.team_fill_percentage,
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
+        // Missing fields mapping
+        preferred_start_date: jobData.preferred_start_date,
+        payment_model: jobData.payment_model || (jobData.daily_rate ? "DAILY" : "PROJECT"),
+        daily_rate:
+          jobData.daily_rate ||
+          (jobData.payment_model === "DAILY" &&
+            jobData.budget &&
+            jobData.duration_days
+            ? jobData.budget / jobData.duration_days
+            : undefined),
+        duration_days: jobData.duration_days,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -1121,6 +1141,18 @@ export default function JobDetailScreen() {
                 : job.category}
             </Text>
           </View>
+          <View style={styles.jobMetaRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.jobCategory}>
+              {job.preferred_start_date
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString()}`
+                : `Posted ${job.postedAt}`}
+            </Text>
+          </View>
 
           {/* Team Job Header Badge - Prominent indicator at top */}
           {isTeamJob && (
@@ -1147,10 +1179,26 @@ export default function JobDetailScreen() {
         {/* Budget & Location */}
         <View style={styles.detailsSection}>
           <View style={styles.detailCard}>
-            <Ionicons name="cash-outline" size={24} color={Colors.primary} />
+            <Ionicons
+              name={job.payment_model === "DAILY" ? "time-outline" : "cash-outline"}
+              size={24}
+              color={Colors.primary}
+            />
             <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Budget</Text>
-              <Text style={styles.detailValue}>{job.budget}</Text>
+              <Text style={styles.detailLabel}>
+                {job.payment_model === "DAILY" ? "Daily Rate" : "Fixed Budget"}
+              </Text>
+              <Text style={styles.detailValue}>
+                {job.payment_model === "DAILY"
+                  ? `₱${job.daily_rate?.toLocaleString() ?? "0"}/day`
+                  : job.budget}
+              </Text>
+              {job.payment_model === "DAILY" && job.duration_days && (
+                <Text style={styles.detailSubValue}>
+                  {job.duration_days} days • Total: ₱
+                  {((job.daily_rate || 0) * job.duration_days).toLocaleString()}
+                </Text>
+              )}
             </View>
           </View>
           <View style={styles.detailCard}>
@@ -1269,13 +1317,13 @@ export default function JobDetailScreen() {
         {/* ML Estimated Completion Time */}
         {(isLoading ||
           (job.estimatedCompletion && job.status !== "COMPLETED")) && (
-          <View style={styles.section}>
-            <EstimatedTimeCard
-              prediction={job?.estimatedCompletion || null}
-              isLoading={isLoading}
-            />
-          </View>
-        )}
+            <View style={styles.section}>
+              <EstimatedTimeCard
+                prediction={job?.estimatedCompletion || null}
+                isLoading={isLoading}
+              />
+            </View>
+          )}
 
         {/* Description */}
         <View style={styles.section}>
@@ -1913,11 +1961,11 @@ export default function JobDetailScreen() {
                           style={[
                             styles.applicationStatusBadge,
                             application.status === "PENDING" &&
-                              styles.statusPending,
+                            styles.statusPending,
                             application.status === "ACCEPTED" &&
-                              styles.statusAccepted,
+                            styles.statusAccepted,
                             application.status === "REJECTED" &&
-                              styles.statusRejected,
+                            styles.statusRejected,
                           ]}
                         >
                           <Text style={styles.applicationStatusText}>
@@ -2076,8 +2124,8 @@ export default function JobDetailScreen() {
 
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
-        job.status === "IN_PROGRESS" ||
-        job.status === "COMPLETED" ? (
+          job.status === "IN_PROGRESS" ||
+          job.status === "COMPLETED" ? (
           <>
             {/* Client Section - clickable for workers */}
             <View style={styles.section}>
@@ -2316,7 +2364,7 @@ export default function JobDetailScreen() {
               style={[
                 styles.applyButton,
                 (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonDisabled,
+                styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
@@ -2326,7 +2374,7 @@ export default function JobDetailScreen() {
                 style={[
                   styles.applyButtonText,
                   (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonTextDisabled,
+                  styles.applyButtonTextDisabled,
                 ]}
               >
                 {!user?.kycVerified
@@ -2850,6 +2898,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  detailSubValue: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    fontWeight: "500",
   },
   section: {
     padding: Spacing.lg,
