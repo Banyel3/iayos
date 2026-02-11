@@ -1037,74 +1037,75 @@ def approve_backjob(request, dispute_id: int):
         before_state = {"status": dispute.status, "priority": dispute.priority}
         
         # Update dispute
-        dispute.status = 'UNDER_REVIEW'
-        dispute.priority = priority
-        if admin_notes:
-            dispute.resolution = f"Admin notes: {admin_notes}"
-        dispute.save()
-        
-        job = dispute.jobID
-        
-        # Create job log
-        JobLog.objects.create(
-            jobID=job,
-            oldStatus=job.status,
-            newStatus="BACKJOB_APPROVED",
-            changedBy=request.auth,
-            notes=f"Admin approved backjob request. Priority: {priority}"
-        )
-        
-        # Log audit trail
-        log_action(
-            admin=request.auth,
-            action="backjob_approve",
-            entity_type="job",
-            entity_id=str(dispute_id),
-            details={"job_id": job.jobID, "job_title": job.title, "priority": priority, "notes": admin_notes},
-            before_value=before_state,
-            after_value={"status": "UNDER_REVIEW", "priority": priority},
-            request=request
-        )
-        
-        # Notify the worker or agency
-        notify_account = None
-        if job.assignedAgencyFK:
-            notify_account = job.assignedAgencyFK.accountFK
-        elif job.assignedWorkerID:
-            notify_account = job.assignedWorkerID.profileID.accountFK
-        
-        if notify_account:
-            Notification.objects.create(
-                accountFK=notify_account,
-                notificationType="BACKJOB_APPROVED",
-                title="New Backjob Assigned",
-                message=f"You have a new backjob for '{job.title}'. The client has requested rework. Please review and complete.",
-                relatedJobID=job.jobID
-            )
-        
-        # Also notify the client that their backjob was approved
-        if job.clientID:
-            Notification.objects.create(
-                accountFK=job.clientID.profileID.accountFK,
-                notificationType="BACKJOB_APPROVED",
-                title="Backjob Request Approved",
-                message=f"Your backjob request for '{job.title}' has been approved. The worker/agency has been notified.",
-                relatedJobID=job.jobID
-            )
-        
-        # ============================================
-        # REOPEN CONVERSATION FOR BACKJOB DISCUSSION
-        # ============================================
+        # Use atomic transaction to ensure consistency for entire approve-backjob workflow
         from profiles.models import Conversation, Message
         from django.db import transaction
         
-        # Find existing conversation for this job
-        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-        
         try:
-            if conversation:
-                # Use atomic transaction to ensure consistency
-                with transaction.atomic():
+            with transaction.atomic():
+                # Update dispute status and priority
+                dispute.status = 'UNDER_REVIEW'
+                dispute.priority = priority
+                if admin_notes:
+                    dispute.resolution = f"Admin notes: {admin_notes}"
+                dispute.save()
+                
+                job = dispute.jobID
+                
+                # Create job log
+                JobLog.objects.create(
+                    jobID=job,
+                    oldStatus=job.status,
+                    newStatus="BACKJOB_APPROVED",
+                    changedBy=request.auth,
+                    notes=f"Admin approved backjob request. Priority: {priority}"
+                )
+                
+                # Log audit trail
+                log_action(
+                    admin=request.auth,
+                    action="backjob_approve",
+                    entity_type="job",
+                    entity_id=str(dispute_id),
+                    details={"job_id": job.jobID, "job_title": job.title, "priority": priority, "notes": admin_notes},
+                    before_value=before_state,
+                    after_value={"status": "UNDER_REVIEW", "priority": priority},
+                    request=request
+                )
+                
+                # Notify the worker or agency
+                notify_account = None
+                if job.assignedAgencyFK:
+                    notify_account = job.assignedAgencyFK.accountFK
+                elif job.assignedWorkerID:
+                    notify_account = job.assignedWorkerID.profileID.accountFK
+                
+                if notify_account:
+                    Notification.objects.create(
+                        accountFK=notify_account,
+                        notificationType="BACKJOB_APPROVED",
+                        title="New Backjob Assigned",
+                        message=f"You have a new backjob for '{job.title}'. The client has requested rework. Please review and complete.",
+                        relatedJobID=job.jobID
+                    )
+                
+                # Also notify the client that their backjob was approved
+                if job.clientID:
+                    Notification.objects.create(
+                        accountFK=job.clientID.profileID.accountFK,
+                        notificationType="BACKJOB_APPROVED",
+                        title="Backjob Request Approved",
+                        message=f"Your backjob request for '{job.title}' has been approved. The worker/agency has been notified.",
+                        relatedJobID=job.jobID
+                    )
+                
+                # ============================================
+                # REOPEN CONVERSATION FOR BACKJOB DISCUSSION
+                # ============================================
+                # Find existing conversation for this job
+                conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+                
+                if conversation:
                     # Reopen the existing conversation
                     old_status = conversation.status
                     conversation.status = Conversation.ConversationStatus.ACTIVE
@@ -1118,18 +1119,14 @@ def approve_backjob(request, dispute_id: int):
                     ])
                     print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
                     
-                    # Add system message immediately after reopening
-                    Message.objects.create(
-                        conversationID=conversation,
-                        sender=None,  # System message has no sender
-                        senderAgency=None,
-                        messageText="🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here.",
-                        messageType=Message.MessageType.SYSTEM
+                    # Add system message using helper method (sets sender=conversation.client)
+                    Message.create_system_message(
+                        conversation,
+                        "🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here."
                     )
                     print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
-            else:
-                # Create a new conversation if none exists
-                with transaction.atomic():
+                else:
+                    # Create a new conversation if none exists
                     client_profile = job.clientID.profileID
                     worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
                     agency = job.assignedAgencyFK
@@ -1145,26 +1142,23 @@ def approve_backjob(request, dispute_id: int):
                     )
                     print(f"💬 Created new conversation {conversation.conversationID} for backjob")
                     
-                    # Add system message immediately
-                    Message.objects.create(
-                        conversationID=conversation,
-                        sender=None,  # System message has no sender
-                        senderAgency=None,
-                        messageText="🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here.",
-                        messageType=Message.MessageType.SYSTEM
+                    # Add system message using helper method (sets sender=conversation.client)
+                    Message.create_system_message(
+                        conversation,
+                        "🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here."
                     )
                     print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
-            
-            # Unarchive conversation so it appears in Active tab
-            from profiles.conversation_service import unarchive_conversation
-            unarchive_result = unarchive_conversation(conversation)
-            print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+                
+                # Unarchive conversation so it appears in Active tab (inside transaction)
+                from profiles.conversation_service import unarchive_conversation
+                unarchive_result = unarchive_conversation(conversation)
+                print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
         
         except Exception as e:
-            print(f"❌ Error managing conversation for backjob: {str(e)}")
+            print(f"❌ Error in approve-backjob workflow: {str(e)}")
             import traceback
             traceback.print_exc()
-            # Don't return error - conversation issue shouldn't block backjob approval
+            return {"success": False, "error": f"Failed to approve backjob: {str(e)}"}
         
         return {
             "success": True,

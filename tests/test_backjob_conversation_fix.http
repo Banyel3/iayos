@@ -63,13 +63,22 @@ Cookie: auth_token={{clientToken}}
 
 ### 4. Client requests backjob (work is unsatisfactory - retry example)
 POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
-Content-Type: application/json
+Content-Type: multipart/form-data; boundary=BackjobBoundary
 Cookie: auth_token={{clientToken}}
 
-{
-  "reason": "Work not satisfactory",
-  "description": "Sink still leaks after the repair. Please rework."
-}
+--BackjobBoundary
+Content-Disposition: form-data; name="reason"
+
+Work not satisfactory
+--BackjobBoundary
+Content-Disposition: form-data; name="description"
+
+Sink still leaks after the repair. Please rework.
+--BackjobBoundary
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+--BackjobBoundary--
 
 ### Store dispute ID
 @disputeId = {{response.body.dispute.disputeID}}
@@ -164,13 +173,22 @@ Cookie: auth_token={{agencyToken}}
 ### 10. (OPTIONAL) Client requests ANOTHER backjob on same job
 ### This tests whether the fix handles multiple backjob approvals
 POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
-Content-Type: application/json
+Content-Type: multipart/form-data; boundary=BackjobBoundary
 Cookie: auth_token={{clientToken}}
 
-{
-  "reason": "Minor adjustment needed",
-  "description": "The faucet is a bit loose. Can you tighten it?"
-}
+--BackjobBoundary
+Content-Disposition: form-data; name="reason"
+
+Minor adjustment needed
+--BackjobBoundary
+Content-Disposition: form-data; name="description"
+
+The faucet is a bit loose. Can you tighten it?
+--BackjobBoundary
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+--BackjobBoundary--
 
 ### Store new dispute ID
 @disputeId2 = {{response.body.dispute.disputeID}}
