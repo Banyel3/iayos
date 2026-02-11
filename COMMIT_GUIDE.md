@@ -8,7 +8,7 @@ When you push changes to `main` or `dev` branches that affect files in `apps/fro
 
 1. Analyze your commit messages
 2. Determine the appropriate version bump (major/minor/patch)
-3. Build a new Android APK
+3. Build a new Android APK locally on GitHub Actions runners (no EAS credits required)
 4. Create a GitHub release with the APK attached
 
 ## Commit Message Format
@@ -254,4 +254,5 @@ git push
 
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Semantic Versioning](https://semver.org/)
-- [Expo EAS Build Docs](https://docs.expo.dev/build/introduction/)
+- [Expo Prebuild Documentation](https://docs.expo.dev/workflow/prebuild/)
+- [GitHub Actions Android Builds](https://github.com/actions/setup-java)
