@@ -29,7 +29,7 @@ from .schemas import (
     UpdateSkillSchema,
     UpdateProfileMobileSchema,
 )
-from .authentication import jwt_auth, dual_auth  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
+from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
 
 # Create mobile router
@@ -1198,6 +1198,7 @@ def mobile_available_skills(request):
 
 
 @mobile_router.post("/skills/add", auth=jwt_auth)
+@require_kyc
 def mobile_add_skill(request, payload: AddSkillSchema):
     """
     Add a skill (specialization) to worker's profile.
@@ -1283,6 +1284,7 @@ def mobile_add_skill(request, payload: AddSkillSchema):
 
 
 @mobile_router.put("/skills/{skill_id}", auth=jwt_auth)
+@require_kyc
 def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
     """
     Update experience years for a worker's skill.
@@ -1354,6 +1356,7 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
 
 
 @mobile_router.delete("/skills/{skill_id}", auth=jwt_auth)
+@require_kyc
 def mobile_remove_skill(request, skill_id: int):
     """
     Remove a skill from worker's profile.
@@ -1603,6 +1606,7 @@ def mobile_job_detail(request, job_id: int):
 
 
 @mobile_router.post("/jobs/create", auth=jwt_auth)
+@require_kyc
 def mobile_create_job(request, payload: CreateJobMobileSchema):
     """
     Create job posting from mobile app
@@ -1645,6 +1649,7 @@ def mobile_test_invite_endpoint(request):
 
 
 @mobile_router.post("/jobs/test-invite-post", auth=jwt_auth)
+@require_kyc
 def mobile_test_invite_post_endpoint(request, title: str):
     """Test POST endpoint to verify POST works"""
     print(f"✅ TEST POST ENDPOINT HIT - title: {title}")
@@ -1652,6 +1657,7 @@ def mobile_test_invite_post_endpoint(request, title: str):
 
 
 @mobile_router.post("/jobs/invite", auth=jwt_auth)
+@require_kyc
 def mobile_create_invite_job(request, payload: CreateInviteJobMobileSchema):
     """
     Create INVITE-type job (direct worker/agency hiring) from mobile
@@ -1697,6 +1703,7 @@ def mobile_create_invite_job(request, payload: CreateInviteJobMobileSchema):
 
 
 @mobile_router.delete("/jobs/{job_id}", auth=jwt_auth)
+@require_kyc
 def mobile_delete_job(request, job_id: int):
     """
     Delete a job posting (only if not in progress)
@@ -1733,6 +1740,7 @@ def mobile_delete_job(request, job_id: int):
 
 
 @mobile_router.patch("/jobs/{job_id}", auth=jwt_auth)
+@require_kyc
 def mobile_update_job(request, job_id: int, payload: UpdateJobMobileSchema):
     """
     Update an existing job posting (PATCH - partial update)
@@ -1902,6 +1910,7 @@ def mobile_get_job_applications(request, job_id: int):
 
 
 @mobile_router.post("/jobs/{job_id}/applications/{application_id}/accept", auth=jwt_auth)
+@require_kyc
 def mobile_accept_application(request, job_id: int, application_id: int):
     """
     Accept a job application (mobile version)
@@ -2131,6 +2140,7 @@ def mobile_accept_application(request, job_id: int, application_id: int):
 
 
 @mobile_router.post("/jobs/{job_id}/applications/{application_id}/reject", auth=jwt_auth)
+@require_kyc
 def mobile_reject_application(request, job_id: int, application_id: int):
     """
     Reject a job application (mobile version)
@@ -2207,6 +2217,7 @@ def mobile_reject_application(request, job_id: int, application_id: int):
 
 
 @mobile_router.post("/jobs/{job_id}/apply", auth=dual_auth)
+@require_kyc
 def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     """
     Submit an application for a job posting (mobile version)
@@ -2549,6 +2560,7 @@ def mobile_get_application_detail(request, application_id: int):
 
 
 @mobile_router.delete("/applications/{application_id}/withdraw", auth=dual_auth)
+@require_kyc
 def mobile_withdraw_application(request, application_id: int):
     """
     Withdraw a pending application
@@ -2691,6 +2703,7 @@ def mobile_job_search(request, query: str, page: int = 1, limit: int = 20):
 #region SAVED JOBS ENDPOINTS
 
 @mobile_router.post("/jobs/{job_id}/save", auth=dual_auth)
+@require_kyc
 def mobile_save_job(request, job_id: int):
     """
     Save a job for later viewing
@@ -2777,6 +2790,7 @@ def mobile_save_job(request, job_id: int):
 
 
 @mobile_router.delete("/jobs/{job_id}/save", auth=dual_auth)
+@require_kyc
 def mobile_unsave_job(request, job_id: int):
     """
     Unsave a previously saved job
@@ -3670,6 +3684,7 @@ def get_mobile_config(request):
 
 # TODO: REMOVE FOR PROD - Testing only direct deposit (bypasses PayMongo)
 @mobile_router.post("/wallet/deposit-gcash", auth=jwt_auth)
+@require_kyc
 def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     """
     TODO: REMOVE FOR PROD - Testing only
@@ -3758,6 +3773,7 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
 
 
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
+@require_kyc
 def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
     Mobile wallet deposit via PayMongo QR PH
@@ -3887,6 +3903,7 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
 
 
 @mobile_router.post("/wallet/withdraw", auth=jwt_auth)
+@require_kyc
 def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
     """
     Withdraw funds from wallet - Manual Processing.
@@ -4140,6 +4157,7 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
 #region MOBILE REVIEW ENDPOINTS
 
 @mobile_router.post("/reviews/submit", auth=jwt_auth)
+@require_kyc
 def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema):
     """
     Submit a review after job completion
@@ -4495,6 +4513,7 @@ def mobile_get_review_stats(request, worker_id: int):
 
 
 @mobile_router.put("/reviews/{review_id}", auth=jwt_auth)
+@require_kyc
 def mobile_edit_review(request, review_id: int, rating: int, comment: str):
     """
     Edit an existing review (only allowed within 24 hours)
@@ -4528,6 +4547,7 @@ def mobile_edit_review(request, review_id: int, rating: int, comment: str):
 
 
 @mobile_router.post("/reviews/{review_id}/report", auth=jwt_auth)
+@require_kyc
 def mobile_report_review(request, review_id: int, reason: str):
     """
     Report a review for inappropriate content
@@ -5466,6 +5486,7 @@ def reply_to_mobile_support_ticket(request, ticket_id: int):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @mobile_router.post("/payments/escrow", auth=dual_auth)
+@require_kyc
 def mobile_create_escrow_payment(request):
     """
     Create an escrow payment for a job.
@@ -5576,6 +5597,7 @@ def mobile_create_escrow_payment(request):
 
 
 @mobile_router.post("/payments/cash-proof", auth=dual_auth)
+@require_kyc
 def mobile_upload_cash_proof(request):
     """
     Upload proof of cash payment for a job.
@@ -5855,6 +5877,7 @@ def mobile_get_payment_receipt(request, transaction_id: int):
 
 
 @mobile_router.post("/payments/final", auth=dual_auth)
+@require_kyc
 def mobile_create_final_payment(request):
     """
     Create the final 50% payment for a completed job.
@@ -6369,6 +6392,7 @@ def cleanup_maestro_test_data(request):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @mobile_router.post("/daily-attendance/{job_id}/worker-check-in", auth=dual_auth)
+@require_kyc
 def worker_check_in(request, job_id: int):
     """
     Worker clocks in for a daily job.
@@ -6488,6 +6512,7 @@ def worker_check_in(request, job_id: int):
 
 
 @mobile_router.post("/daily-attendance/{job_id}/worker-check-out", auth=dual_auth)
+@require_kyc
 def worker_check_out(request, job_id: int):
     """
     Worker clocks out for a daily job.
@@ -6599,6 +6624,7 @@ def worker_check_out(request, job_id: int):
 
 
 @mobile_router.post("/daily-attendance/{attendance_id}/client-confirm", auth=dual_auth)
+@require_kyc
 def client_confirm_attendance(request, attendance_id: int, approved_status: str = None):
     """
     Client confirms worker's attendance and triggers auto-payment.

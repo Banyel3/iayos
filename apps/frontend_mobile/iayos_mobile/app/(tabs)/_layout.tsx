@@ -9,6 +9,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/context/AuthContext";
 import { KYCBanner } from "@/components/KYCBanner";
 import PendingReviewModal from "@/components/PendingReviewModal";
+import KYCRequiredListener from "@/components/KYCRequiredListener";
 import { usePendingReviews } from "@/lib/hooks/useReviews";
 // Debug imports at runtime to detect undefined exports
 try {
@@ -192,6 +193,8 @@ export default function TabLayout() {
           pendingReviews?.pending_reviews?.[0] ?? null
         }
       />
+      {/* Global KYC enforcement listener */}
+      <KYCRequiredListener />
     </View>
   );
 }

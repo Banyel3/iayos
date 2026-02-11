@@ -14,6 +14,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -149,7 +150,7 @@ export default function ProfileScreen() {
         [
           {
             text: "OK",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
         ]
       );

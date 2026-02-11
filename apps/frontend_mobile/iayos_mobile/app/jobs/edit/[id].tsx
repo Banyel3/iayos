@@ -27,6 +27,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -453,7 +454,7 @@ export default function EditJobScreen() {
           <Text style={styles.errorText}>Failed to load job details</Text>
           <TouchableOpacity
             style={styles.backButtonError}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Text style={styles.backButtonErrorText}>Go Back</Text>
           </TouchableOpacity>
@@ -474,7 +475,7 @@ export default function EditJobScreen() {
           </Text>
           <TouchableOpacity
             style={styles.backButtonError}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Text style={styles.backButtonErrorText}>Go Back</Text>
           </TouchableOpacity>
@@ -494,7 +495,7 @@ export default function EditJobScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>

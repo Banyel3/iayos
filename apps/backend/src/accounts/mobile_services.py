@@ -54,6 +54,31 @@ def get_reviewer_info(account: Accounts, profile_type: Optional[str] = None) -> 
     return (reviewer_name, reviewer_img)
 
 
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance between two coordinates in kilometers using Haversine formula.
+
+    Module-level function so it can be reused by get_mobile_job_list and get_mobile_job_detail.
+    """
+    from math import radians, sin, cos, sqrt, atan2
+    if not all([lat1, lon1, lat2, lon2]):
+        return None
+
+    R = 6371  # Earth's radius in kilometers
+
+    lat1_rad = radians(float(lat1))
+    lon1_rad = radians(float(lon1))
+    lat2_rad = radians(float(lat2))
+    lon2_rad = radians(float(lon2))
+
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+
+    a = sin(dlat / 2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return R * c
+
+
 def get_mobile_job_list(
     user: Accounts,
     category_id: Optional[int] = None,
@@ -75,26 +100,6 @@ def get_mobile_job_list(
                'budget_desc', 'created_desc', 'urgency_desc'
     """
     from math import radians, sin, cos, sqrt, atan2
-    
-    def calculate_distance(lat1, lon1, lat2, lon2):
-        """Calculate distance between two coordinates in kilometers using Haversine formula"""
-        if not all([lat1, lon1, lat2, lon2]):
-            return None
-        
-        R = 6371  # Earth's radius in kilometers
-        
-        lat1_rad = radians(float(lat1))
-        lon1_rad = radians(float(lon1))
-        lat2_rad = radians(float(lat2))
-        lon2_rad = radians(float(lon2))
-        
-        dlat = lat2_rad - lat1_rad
-        dlon = lon2_rad - lon1_rad
-        
-        a = sin(dlat / 2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon / 2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        
-        return R * c
     
     try:
         # Get user's location for distance calculation
@@ -375,6 +380,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'name': f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown",
             'avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
             'rating': round(client_rating, 2),
+            'phone': client_profile.contactNum if client_profile and client_profile.contactNum else None,
         }
 
         # Get job photos
@@ -456,6 +462,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                     'name': f"{worker_profile.firstName} {worker_profile.lastName}" if worker_profile else "Unknown",
                     'avatar': worker_profile.profileImg if worker_profile and worker_profile.profileImg else None,
                     'rating': round(worker_rating, 2),
+                    'phone': worker_profile.contactNum if worker_profile and worker_profile.contactNum else None,
                 }
                 print(f"   ✓ Assigned worker: {assigned_worker['name']}, Rating: {worker_rating:.2f}")
             except Exception as e:
@@ -532,12 +539,38 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         except Exception as e:
             print(f"   ⚠️ ML prediction error: {str(e)}")
 
+        # Calculate distance from requesting user to job location
+        job_distance = None
+        try:
+            profile_type = getattr(user, 'profile_type', 'WORKER')
+            user_profile_for_dist = Profile.objects.filter(
+                accountFK=user, profileType=profile_type
+            ).first()
+            if not user_profile_for_dist:
+                user_profile_for_dist = Profile.objects.filter(
+                    accountFK=user, profileType='WORKER'
+                ).first()
+            if user_profile_for_dist and user_profile_for_dist.latitude and user_profile_for_dist.longitude:
+                # Job location coordinates from the client profile
+                job_lat = client_profile.latitude if client_profile else None
+                job_lon = client_profile.longitude if client_profile else None
+                if job_lat and job_lon:
+                    job_distance = calculate_distance(
+                        user_profile_for_dist.latitude, user_profile_for_dist.longitude,
+                        job_lat, job_lon
+                    )
+                    if job_distance is not None:
+                        job_distance = round(job_distance, 1)
+        except Exception as e:
+            print(f"   ⚠️ Distance calculation error: {e}")
+
         job_data = {
             'id': job.jobID,
             'title': job.title,
             'description': job.description,
             'budget': float(job.budget),
             'location': job.location,
+            'distance': job_distance,
             'expected_duration': job.expectedDuration,
             'urgency_level': job.urgency,
             'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,

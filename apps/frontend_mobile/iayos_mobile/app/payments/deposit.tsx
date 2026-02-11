@@ -12,6 +12,7 @@ import {
   Linking,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import * as FileSystem from "expo-file-system";
@@ -200,7 +201,7 @@ export default function WalletDepositScreen() {
             text: "OK",
             onPress: () => {
               refetchBalance();
-              router.back();
+              safeGoBack(router, "/(tabs)/profile");
             },
           },
         ],
@@ -248,7 +249,7 @@ export default function WalletDepositScreen() {
             text: "OK",
             onPress: () => {
               refetchBalance();
-              router.back();
+              safeGoBack(router, "/(tabs)/profile");
             },
           },
         ],
@@ -307,7 +308,7 @@ export default function WalletDepositScreen() {
             text: "OK",
             onPress: () => {
               refetchBalance();
-              router.back();
+              safeGoBack(router, "/(tabs)/profile");
             },
           },
         ],
@@ -353,7 +354,7 @@ export default function WalletDepositScreen() {
         ],
       );
     } else {
-      router.back();
+      safeGoBack(router, "/(tabs)/profile");
     }
   };
 
@@ -465,7 +466,7 @@ export default function WalletDepositScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

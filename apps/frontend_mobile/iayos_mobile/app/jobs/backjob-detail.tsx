@@ -12,6 +12,7 @@ import {
   Dimensions,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, BorderRadius } from "@/constants/theme";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
@@ -208,7 +209,7 @@ export default function BackjobDetailScreen() {
         </Text>
         <TouchableOpacity
           style={styles.backButtonLarge}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/jobs")}
         >
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
@@ -226,7 +227,7 @@ export default function BackjobDetailScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/jobs")}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>

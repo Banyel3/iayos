@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Colors, Typography, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -427,7 +428,7 @@ export default function PaymentMethodsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/profile")}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />

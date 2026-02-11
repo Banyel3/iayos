@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Job Detail Hardcoded Data Removal** (PR #363)
+  - Replaced 13 `via.placeholder.com` avatar fallback URLs with Ionicons person icon across job detail and active job detail screens
+  - Changed misleading "0.0 rating" displays to show "New" for unrated users (7 instances)
+  - Fixed budget display to show "TBD" instead of "₱0" when budget is missing
+  - Fixed distance display to show location name when distance is unavailable instead of "0.0 km away"
+  - Added `payment_model` badge indicator: 💼 Project Based or 📅 Daily Rate with per-day amount
+  - Added `phone` field to client and worker data from backend
+  - Added server-side Haversine distance calculation in job detail API
+  - Fixed active job detail data transformation (category showed `[object Object]`, location fields mismatched, budget was unformatted number)
+  - Fixed "Unknown" and "N/A" worker fallbacks to use friendlier text
+  - **Impact**: All job detail data now comes from backend with no fake/placeholder values
+
+- **Skill Mismatch Banner Stale Cache Fix**
+  - Reduced `useMySkills()` staleTime from 5 minutes to 30 seconds
+  - Added `useFocusEffect` in job detail screen to invalidate skills cache on screen focus
+  - **Impact**: After adding a skill, returning to a job listing immediately shows correct "skill match" status instead of stale mismatch warning
+
+- **Add Skills Modal Scroll Fix**
+  - Replaced hardcoded `maxHeight: 400` on skills list with `flexShrink: 1` for dynamic sizing
+  - Added `nestedScrollEnabled` for proper Android nested scroll support
+  - **Impact**: Users can now scroll through the full skills list in the Add Skills modal on all screen sizes
+
+- **Safe Back Navigation App-Wide** (54 files, 98 instances)
+  - Replaced all `router.back()` calls with `safeGoBack(router, fallbackRoute)` across the entire mobile app
+  - Each screen now falls back to its logical parent tab instead of closing the app when there's no navigation history
+  - Fallback routes: profile screens → `/(tabs)/profile`, job screens → `/(tabs)/jobs`, auth screens → `/(tabs)`, call screens → `/(tabs)/messages`
+  - **Impact**: Tapping the back button no longer closes the app when navigating directly to a screen via deep link or notification
+
+- **"Back to Home" After Job Creation Redirects to Login**
+  - Changed `router.replace("/")` to `router.replace("/(tabs)")` in job creation success alert
+  - Root cause: `/` goes through the auth redirect gate in `app/index.tsx` which can flash the login screen
+  - **Impact**: After creating a job, tapping "Back to Home" now goes directly to the home tab
+
+- **Team Job Completion Button Removed From Job Details**
+  - Removed duplicate "Mark My Work Complete" button from job detail page
+  - Workers should use the conversation screen to manage job progress (where the button already exists)
+  - Kept "You're Assigned!" card and "Marked Complete" badge for already-completed assignments
+  - Added link to conversation for workers who haven't completed yet
+  - **Impact**: Prevents confusion from having the completion action in two places
+
+- **Chat Messaging Hint During Arrival Wait**
+  - Added "💬 You can still send messages while waiting" hint below the "Waiting for client to confirm work started..." banner
+  - Messaging was never actually blocked, but the prominent waiting banner gave the impression chat was locked
+  - **Impact**: Workers understand they can communicate with clients while waiting for arrival confirmation
+
 ### Added
 - **Force Review Feature** (PR #349)
   - Users must leave a review after job completion/payment before exiting conversation

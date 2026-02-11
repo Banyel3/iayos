@@ -404,6 +404,52 @@ def require_admin():
     return decorator
 
 
+def require_kyc(func=None):
+    """
+    Decorator for endpoints that require KYC verification.
+    
+    Non-verified users can still browse (GET requests) and manage their
+    profile/KYC submissions, but cannot perform business actions like
+    creating jobs, applying, making payments, submitting reviews, etc.
+    
+    Usage (no parentheses):
+        @router.post("/create", auth=jwt_auth)
+        @require_kyc
+        def create_job(request):
+            ...
+    
+    Usage (with parentheses):
+        @router.post("/create", auth=jwt_auth)
+        @require_kyc()
+        def create_job(request):
+            ...
+    """
+    from functools import wraps
+    from ninja.responses import Response
+    
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(request, *args, **kwargs):
+            user = request.auth
+            if not user:
+                return Response({"error": "Authentication required", "error_code": "AUTH_REQUIRED"}, status=401)
+            
+            if not getattr(user, 'KYCVerified', False):
+                return Response({
+                    "error": "KYC verification required to perform this action",
+                    "error_code": "KYC_REQUIRED"
+                }, status=403)
+            
+            return fn(request, *args, **kwargs)
+        
+        return wrapper
+    
+    # Support both @require_kyc and @require_kyc()
+    if func is not None:
+        return decorator(func)
+    return decorator
+
+
 def require_web_access():
     """
     Decorator for endpoints that should only be accessible via web (agency/admin only).

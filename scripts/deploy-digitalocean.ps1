@@ -158,7 +158,7 @@ if ($AppId) {
     $envArgs += "--env", "ENVIRONMENT=production"
     $envArgs += "--env", "PAYMENT_PROVIDER=paymongo"
     $envArgs += "--env", "FACE_API_URL=https://iayos-face-api.onrender.com"
-    $envArgs += "--env", "REDIS_URL=none"
+    $envArgs += "--env", "REDIS_URL=redis://localhost:6379/0"
     $envArgs += "--env", "TESTING=false"
     $envArgs += "--env", "FRONTEND_URL=https://iayos.online"
     

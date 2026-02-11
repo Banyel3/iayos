@@ -6,6 +6,39 @@ echo "🚀 START.SH SCRIPT IS RUNNING!"
 echo "Date: $(date)"
 echo "=========================================="
 
+# ==========================================
+# Start embedded Redis if no external REDIS_URL is configured
+# ==========================================
+if [ -z "$REDIS_URL" ] || [ "$REDIS_URL" = "none" ] || [ "$REDIS_URL" = "redis://localhost:6379/0" ] || [ "$REDIS_URL" = "redis://127.0.0.1:6379/0" ]; then
+    echo "🔴 Starting embedded Redis server..."
+    # Start Redis in background with production settings
+    redis-server --daemonize yes \
+        --port 6379 \
+        --bind 127.0.0.1 \
+        --maxmemory 128mb \
+        --maxmemory-policy allkeys-lru \
+        --appendonly yes \
+        --dir /data/redis \
+        --loglevel warning \
+        --protected-mode yes
+    
+    # Wait for Redis to be ready
+    for i in 1 2 3 4 5; do
+        if redis-cli ping 2>/dev/null | grep -q PONG; then
+            echo "✅ Embedded Redis is ready"
+            break
+        fi
+        echo "⏳ Waiting for Redis... (attempt $i/5)"
+        sleep 1
+    done
+    
+    # Set REDIS_URL to local if not already set
+    export REDIS_URL="redis://localhost:6379/0"
+    echo "📌 REDIS_URL set to $REDIS_URL"
+else
+    echo "🔗 Using external Redis: ${REDIS_URL%%@*}@***"
+fi
+
 # DIAGNOSTIC: Show Python environment details
 echo "=========================================="
 echo "📊 Python Environment Diagnostics"

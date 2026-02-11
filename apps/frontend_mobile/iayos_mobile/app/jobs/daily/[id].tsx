@@ -16,6 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -313,7 +314,7 @@ export default function DailyJobDetailScreen() {
             try {
               await cancelJobMutation.mutateAsync({ jobId });
               Alert.alert("Success", "Job cancelled");
-              router.back();
+              safeGoBack(router, "/(tabs)/jobs");
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : "Failed to cancel job";
               Alert.alert("Error", message);
@@ -348,7 +349,7 @@ export default function DailyJobDetailScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors.error} />
           <Text style={styles.errorText}>Job not found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => safeGoBack(router, "/(tabs)/jobs")}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -375,7 +376,7 @@ export default function DailyJobDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBackButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.headerBackButton} onPress={() => safeGoBack(router, "/(tabs)/jobs")}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>

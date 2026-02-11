@@ -17,6 +17,7 @@ import {
   Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { Colors, Typography } from "@/constants/theme";
@@ -78,7 +79,7 @@ export default function IncomingCallScreen() {
     Vibration.cancel();
     rejectCall("User declined");
     if (router.canGoBack()) {
-      router.back();
+      safeGoBack(router, "/(tabs)/messages");
     }
   };
 

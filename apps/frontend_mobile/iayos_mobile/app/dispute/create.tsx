@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -173,7 +174,7 @@ export default function CreateDisputeScreen() {
                 [
                   {
                     text: 'OK',
-                    onPress: () => router.back(),
+                    onPress: () => safeGoBack(router, "/(tabs)/jobs"),
                   },
                 ]
               );

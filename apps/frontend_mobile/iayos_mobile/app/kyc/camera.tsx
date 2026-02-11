@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions, FlashMode } from "expo-camera";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
@@ -211,7 +212,7 @@ export default function KYCCameraScreen() {
           {/* Header */}
           <TouchableOpacity
             style={styles.permissionCloseButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/profile")}
           >
             <Ionicons name="close" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
@@ -318,7 +319,7 @@ export default function KYCCameraScreen() {
         // Emit the (cropped) photo URI to listeners in upload.tsx
         cameraEvents.emit(documentType, finalUri);
         // Navigate back to the upload screen
-        router.back();
+        safeGoBack(router, "/(tabs)/profile");
       }
     } catch (error) {
       console.error("Camera capture error:", error);
@@ -334,7 +335,7 @@ export default function KYCCameraScreen() {
 
   // Handle close
   const handleClose = () => {
-    router.back();
+    safeGoBack(router, "/(tabs)/profile");
   };
 
   return (

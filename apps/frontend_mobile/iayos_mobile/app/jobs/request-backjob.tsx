@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
@@ -76,12 +77,12 @@ export default function RequestBackjobScreen() {
         });
       } else {
         Alert.alert("Error", "Failed to load job details");
-        router.back();
+        safeGoBack(router, "/(tabs)/jobs");
       }
     } catch (error) {
       console.error("Error fetching job:", error);
       Alert.alert("Error", "Failed to load job details");
-      router.back();
+      safeGoBack(router, "/(tabs)/jobs");
     } finally {
       setIsLoading(false);
     }
@@ -252,7 +253,7 @@ export default function RequestBackjobScreen() {
                   [
                     {
                       text: "OK",
-                      onPress: () => router.back(),
+                      onPress: () => safeGoBack(router, "/(tabs)/jobs"),
                     },
                   ]
                 );
@@ -297,7 +298,7 @@ export default function RequestBackjobScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>

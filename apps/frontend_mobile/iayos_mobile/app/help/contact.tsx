@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { router } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useContactSupport } from "@/lib/hooks/useContactSupport";
@@ -51,7 +52,7 @@ export default function ContactSupportScreen() {
         [
           {
             text: "OK",
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
         ]
       );
@@ -304,7 +305,7 @@ export default function ContactSupportScreen() {
         {/* Cancel Button */}
         <TouchableOpacity
           style={styles.cancelButton}
-          onPress={() => router.back()}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
           disabled={contactSupport.isPending}
         >
           <Text style={styles.cancelButtonText}>Cancel</Text>

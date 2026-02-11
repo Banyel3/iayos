@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
   Colors,
   Typography,
@@ -185,7 +186,7 @@ export default function SkillsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </Pressable>
           <Text style={styles.headerTitle}>My Skills</Text>
@@ -203,7 +204,7 @@ export default function SkillsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>My Skills</Text>
@@ -343,6 +344,7 @@ export default function SkillsScreen() {
                     <ScrollView
                       style={styles.skillsList}
                       showsVerticalScrollIndicator={false}
+                      nestedScrollEnabled={true}
                     >
                       {availableToAdd.map((skill) => (
                         <Pressable
@@ -729,7 +731,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   skillsList: {
-    maxHeight: 400,
+    flexShrink: 1,
     marginBottom: Spacing.md,
   },
   skillOption: {

@@ -26,6 +26,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -622,7 +623,7 @@ export default function CreateTeamJobScreen() {
         <View style={styles.pageHeader}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
           </TouchableOpacity>

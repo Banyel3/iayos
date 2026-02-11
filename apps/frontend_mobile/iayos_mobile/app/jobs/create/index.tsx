@@ -30,6 +30,7 @@ import {
   StatusBar,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Colors,
@@ -301,7 +302,18 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please select a specialization");
       return;
     }
-    const workersCount = parseInt(newSlotWorkersNeeded) || 1;
+
+    // Single worker jobs (non-agency): only 1 slot with 1 worker allowed
+    if (!agencyId && skillSlots.length >= 1) {
+      Alert.alert(
+        "Single Worker Job",
+        "Single worker jobs only need one worker type. For multi-worker jobs, use Team Job instead.",
+      );
+      return;
+    }
+
+    // Force 1 worker for non-agency jobs; agency jobs allow 1-10
+    const workersCount = agencyId ? (parseInt(newSlotWorkersNeeded) || 1) : 1;
     if (workersCount < 1 || workersCount > 10) {
       Alert.alert("Error", "Workers needed must be between 1 and 10");
       return;
@@ -523,7 +535,7 @@ export default function CreateJobScreen() {
             },
             {
               text: "Back to Home",
-              onPress: () => router.replace("/"),
+              onPress: () => router.replace("/(tabs)"),
             },
           ],
         );
@@ -598,6 +610,15 @@ export default function CreateJobScreen() {
         Alert.alert(
           "Error",
           "Please add at least one worker requirement for this agency job",
+        );
+        return;
+      }
+      // Agency jobs require at least 2 total workers
+      const totalWorkers = skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+      if (totalWorkers < 2) {
+        Alert.alert(
+          "Error",
+          "Agency jobs require at least 2 workers total. For single worker jobs, post directly without an agency.",
         );
         return;
       }
@@ -709,7 +730,7 @@ export default function CreateJobScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack(router, "/(tabs)/jobs")}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
@@ -760,102 +781,106 @@ export default function CreateJobScreen() {
 
             {/* Worker Requirements Section - shown for all job types */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>👥 Worker Requirements</Text>
-              <Text style={styles.sectionHint}>
-                {workerId
-                  ? `Select the skill you need from ${workerDetailsData?.name || 'this worker'}.`
-                  : agencyId
-                    ? 'Specify the workers you need for this job. You can add multiple skill types.'
-                    : 'What type of worker do you need for this job?'}
-              </Text>
+                <Text style={styles.sectionTitle}>👥 Worker Requirements</Text>
+                <Text style={styles.sectionHint}>
+                  {workerId
+                    ? `Select the skill you need from ${workerDetailsData?.name || 'this worker'}.`
+                    : agencyId
+                      ? 'Specify the workers you need for this job. You can add multiple skill types.'
+                      : 'Select the type of worker you need for this job.'}
+                </Text>
 
-              {/* Skill Slots List */}
-              <View style={styles.skillSlotsContainer}>
-                {skillSlots.length === 0 ? (
-                  <View style={styles.emptySlots}>
-                    <Ionicons
-                      name="people-outline"
-                      size={32}
-                      color={Colors.textHint}
-                    />
-                    <Text style={styles.emptySlotsText}>
-                      No workers added yet. Add at least one worker requirement.
-                    </Text>
-                  </View>
-                ) : (
-                  <>
-                    <Text style={styles.slotsSummary}>
-                      Total: {getTotalWorkersNeeded()} worker
-                      {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
-                      {skillSlots.length} requirement
-                      {skillSlots.length !== 1 ? "s" : ""}
-                    </Text>
-                    {skillSlots.map((slot, index) => (
-                      <View key={index} style={styles.slotCard}>
-                        <View style={styles.slotHeader}>
-                          <Text style={styles.slotTitle}>
-                            {getSpecializationName(slot.specialization_id)}
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => removeSkillSlot(index)}
-                            style={styles.removeSlotBtn}
-                          >
-                            <Ionicons
-                              name="close-circle"
-                              size={24}
-                              color={Colors.error}
-                            />
-                          </TouchableOpacity>
-                        </View>
-                        <View style={styles.slotDetails}>
-                          <View style={styles.slotBadge}>
-                            <Ionicons
-                              name="people"
-                              size={14}
-                              color={Colors.primary}
-                            />
-                            <Text style={styles.slotBadgeText}>
-                              {slot.workers_needed} worker
-                              {slot.workers_needed !== 1 ? "s" : ""}
+                {/* Skill Slots List */}
+                <View style={styles.skillSlotsContainer}>
+                  {skillSlots.length === 0 ? (
+                    <View style={styles.emptySlots}>
+                      <Ionicons
+                        name="people-outline"
+                        size={32}
+                        color={Colors.textHint}
+                      />
+                      <Text style={styles.emptySlotsText}>
+                        No workers added yet. Add at least one worker requirement.
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.slotsSummary}>
+                        Total: {getTotalWorkersNeeded()} worker
+                        {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
+                        {skillSlots.length} requirement
+                        {skillSlots.length !== 1 ? "s" : ""}
+                      </Text>
+                      {skillSlots.map((slot, index) => (
+                        <View key={index} style={styles.slotCard}>
+                          <View style={styles.slotHeader}>
+                            <Text style={styles.slotTitle}>
+                              {getSpecializationName(slot.specialization_id)}
                             </Text>
+                            <TouchableOpacity
+                              onPress={() => removeSkillSlot(index)}
+                              style={styles.removeSlotBtn}
+                            >
+                              <Ionicons
+                                name="close-circle"
+                                size={24}
+                                color={Colors.error}
+                              />
+                            </TouchableOpacity>
                           </View>
-                          <View
-                            style={[
-                              styles.slotBadge,
-                              styles.slotBadgeSkill,
-                            ]}
-                          >
-                            <Text style={styles.slotBadgeText}>
-                              {slot.skill_level_required === "ENTRY"
-                                ? "🌱 Entry"
-                                : slot.skill_level_required ===
-                                  "INTERMEDIATE"
-                                  ? "⭐ Intermediate"
-                                  : "👑 Expert"}
-                            </Text>
+                          <View style={styles.slotDetails}>
+                            <View style={styles.slotBadge}>
+                              <Ionicons
+                                name="people"
+                                size={14}
+                                color={Colors.primary}
+                              />
+                              <Text style={styles.slotBadgeText}>
+                                {slot.workers_needed} worker
+                                {slot.workers_needed !== 1 ? "s" : ""}
+                              </Text>
+                            </View>
+                            <View
+                              style={[
+                                styles.slotBadge,
+                                styles.slotBadgeSkill,
+                              ]}
+                            >
+                              <Text style={styles.slotBadgeText}>
+                                {slot.skill_level_required === "ENTRY"
+                                  ? "🌱 Entry"
+                                  : slot.skill_level_required ===
+                                      "INTERMEDIATE"
+                                    ? "⭐ Intermediate"
+                                    : "👑 Expert"}
+                              </Text>
+                            </View>
                           </View>
+                          {slot.notes && (
+                            <Text style={styles.slotNotes}>{slot.notes}</Text>
+                          )}
                         </View>
-                        {slot.notes && (
-                          <Text style={styles.slotNotes}>{slot.notes}</Text>
-                        )}
-                      </View>
-                    ))}
-                  </>
-                )}
+                      ))}
+                    </>
+                  )}
 
-                {/* Add Worker Button */}
-                <TouchableOpacity
-                  style={styles.addSlotBtn}
-                  onPress={() => setShowAddSlotModal(true)}
-                >
-                  <Ionicons
-                    name="add-circle"
-                    size={20}
-                    color={Colors.white}
-                  />
-                  <Text style={styles.addSlotBtnText}>Add Worker Requirement</Text>
-                </TouchableOpacity>
-              </View>
+                  {/* Add Worker Button - hidden for non-agency after 1 slot */}
+                  {(!!agencyId || skillSlots.length === 0) && (
+                    <TouchableOpacity
+                      style={styles.addSlotBtn}
+                      onPress={() => setShowAddSlotModal(true)}
+                    >
+                      <Ionicons
+                        name="add-circle"
+                        size={20}
+                        color={Colors.white}
+                      />
+                      <Text style={styles.addSlotBtnText}>
+                        {agencyId ? 'Add Worker Requirement' : 'Select Worker Type'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
             </View>
 
             {/* Budget Section */}
@@ -1269,7 +1294,7 @@ export default function CreateJobScreen() {
               <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Add Skill Slot</Text>
+                    <Text style={styles.modalTitle}>{agencyId ? 'Add Skill Slot' : 'Select Worker Type'}</Text>
                     <TouchableOpacity
                       onPress={() => setShowAddSlotModal(false)}
                       style={styles.modalCloseButton}
@@ -1328,7 +1353,8 @@ export default function CreateJobScreen() {
                       )}
                     </View>
 
-                    {/* Workers Needed */}
+                    {/* Workers Needed - only shown for agency jobs */}
+                    {!!agencyId && (
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Workers Needed *</Text>
                       <View style={styles.workersRow}>
@@ -1357,6 +1383,7 @@ export default function CreateJobScreen() {
                         </TouchableOpacity>
                       </View>
                     </View>
+                    )}
 
                     {/* Skill Level */}
                     <View style={styles.inputGroup}>

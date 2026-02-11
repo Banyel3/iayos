@@ -1,6 +1,6 @@
 from ninja import Router, Form
 from ninja.responses import Response
-from accounts.authentication import cookie_auth, dual_auth
+from accounts.authentication import cookie_auth, dual_auth, require_kyc
 from . import services, schemas
 from .fast_upload_service import upload_agency_kyc_fast, extract_ocr_for_autofill
 import logging
@@ -777,6 +777,7 @@ def get_employees(request):
 
 
 @router.post("/employees", auth=cookie_auth)
+@require_kyc
 def add_employee(request):
     """Add a new employee to the agency with name breakdown and multi-specializations."""
     try:
@@ -785,7 +786,13 @@ def add_employee(request):
         firstName = request.POST.get("firstName")
         lastName = request.POST.get("lastName")
         middleName = request.POST.get("middleName", "")
-        email = request.POST.get("email")
+        mobile = request.POST.get("mobile")
+        
+        # Backward compatibility: fall back to `email` if `mobile` is not provided
+        if not mobile:
+            mobile = request.POST.get("email")
+        if not mobile:
+            return Response({"error": "Mobile number is required"}, status=400)
         
         # Handle specializations as JSON array
         specializations_raw = request.POST.get("specializations", "[]")
@@ -800,7 +807,7 @@ def add_employee(request):
         rating = float(request.POST.get("rating")) if request.POST.get("rating") else None
         
         result = services.add_agency_employee(
-            account_id, firstName, lastName, email, specializations,
+            account_id, firstName, lastName, mobile, specializations,
             middleName=middleName, avatar=avatar, rating=rating
         )
         return result
@@ -812,6 +819,7 @@ def add_employee(request):
 
 
 @router.put("/employees/{employee_id}", auth=cookie_auth)
+@require_kyc
 def update_employee(request, employee_id: int):
     """Update an existing employee's information."""
     try:
@@ -824,20 +832,24 @@ def update_employee(request, employee_id: int):
         firstName = body.get("firstName")
         lastName = body.get("lastName")
         middleName = body.get("middleName")
-        email = body.get("email")
+        mobile = body.get("mobile")
+        # Backward compatibility: fall back to `email` if `mobile` is not provided
+        if mobile is None:
+            mobile = body.get("email")
         specializations = body.get("specializations")
         avatar = body.get("avatar")
         isActive = body.get("isActive")
         
+        # Pass mobile value via `email` parameter for backwards-compatible update handler
         result = services.update_agency_employee(
             account_id, employee_id,
             firstName=firstName,
             lastName=lastName,
             middleName=middleName,
-            email=email,
+            email=mobile or None,
             specializations=specializations,
             avatar=avatar,
-            isActive=isActive
+            isActive=isActive,
         )
         return result
     except ValueError as e:
@@ -850,6 +862,7 @@ def update_employee(request, employee_id: int):
 
 
 @router.delete("/employees/{employee_id}", auth=cookie_auth)
+@require_kyc
 def remove_employee(request, employee_id: int):
     """Remove an employee from the agency."""
     try:
@@ -902,6 +915,7 @@ def get_revenue_trends(request, weeks: int = 12):
 
 
 @router.post("/profile/update", auth=cookie_auth)
+@require_kyc
 def update_profile(request):
     """Update agency profile information."""
     try:
@@ -931,6 +945,7 @@ def update_profile(request):
 
 
 @router.put("/profile", auth=cookie_auth)
+@require_kyc
 def update_profile_put(request):
     """Update agency profile information."""
     try:
@@ -998,6 +1013,7 @@ def get_agency_job_detail(request, job_id: int):
 
 
 @router.post("/jobs/{job_id}/accept", auth=cookie_auth)
+@require_kyc
 def accept_job_invite(request, job_id: int):
     """
     Agency accepts a job invitation
@@ -1116,6 +1132,7 @@ def accept_job_invite(request, job_id: int):
 
 
 @router.post("/jobs/{job_id}/reject", auth=cookie_auth)
+@require_kyc
 def reject_job_invite(request, job_id: int, reason: str | None = None):
     """
     Agency rejects a job invitation
@@ -1244,6 +1261,7 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
 # Agency Phase 2 - Employee Management Endpoints
 
 @router.put("/employees/{employee_id}/rating", auth=cookie_auth, response=schemas.UpdateEmployeeRatingResponse)
+@require_kyc
 def update_employee_rating(request, employee_id: int, rating: float, reason: str | None = None):
     """
     Update an employee's rating manually.
@@ -1268,6 +1286,7 @@ def update_employee_rating(request, employee_id: int, rating: float, reason: str
 
 
 @router.post("/employees/{employee_id}/set-eotm", auth=cookie_auth, response=schemas.SetEmployeeOfMonthResponse)
+@require_kyc
 def set_employee_of_month(request, employee_id: int, payload: schemas.SetEmployeeOfMonthSchema):
     """
     Set an employee as Employee of the Month.
@@ -1337,6 +1356,7 @@ def get_employee_leaderboard(request, sort_by: str = 'rating'):
 
 
 @router.post("/jobs/{job_id}/assign-employee", auth=cookie_auth)
+@require_kyc
 def assign_job_to_employee_endpoint(
     request,
     job_id: int,
@@ -1373,6 +1393,7 @@ def assign_job_to_employee_endpoint(
 
 
 @router.post("/jobs/{job_id}/unassign-employee", auth=cookie_auth)
+@require_kyc
 def unassign_job_from_employee_endpoint(
     request,
     job_id: int,
@@ -1434,6 +1455,7 @@ def get_employee_workload_endpoint(request, employee_id: int):
 # ============================================================
 
 @router.post("/jobs/{job_id}/assign-employees", auth=cookie_auth)
+@require_kyc
 def assign_employees_to_job_endpoint(request, job_id: int):
     """
     Assign multiple employees to a job.
@@ -1478,6 +1500,7 @@ def assign_employees_to_job_endpoint(request, job_id: int):
 
 
 @router.delete("/jobs/{job_id}/employees/{employee_id}", auth=cookie_auth)
+@require_kyc
 def remove_employee_from_job_endpoint(request, job_id: int, employee_id: int):
     """
     Remove a single employee from a multi-employee job.
@@ -1534,6 +1557,7 @@ def get_job_employees_endpoint(request, job_id: int):
 
 
 @router.put("/jobs/{job_id}/primary-contact/{employee_id}", auth=cookie_auth)
+@require_kyc
 def set_primary_contact_endpoint(request, job_id: int, employee_id: int):
     """
     Change the primary contact/team lead for a job.
@@ -1559,6 +1583,7 @@ def set_primary_contact_endpoint(request, job_id: int, employee_id: int):
 
 
 @router.post("/jobs/{job_id}/assign-employees-to-slots", auth=cookie_auth)
+@require_kyc
 def assign_employees_to_slots_endpoint(request, job_id: int):
     """
     Assign agency employees to specific skill slots for multi-employee INVITE jobs.
@@ -2170,6 +2195,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
 
 @router.post("/conversations/{conversation_id}/send", auth=cookie_auth)
+@require_kyc
 def send_agency_message(request, conversation_id: int, payload: schemas.AgencySendMessageSchema):
     """
     Send a message in a conversation on behalf of the agency.
@@ -2214,12 +2240,30 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
         
-        # Block sending messages if conversation is COMPLETED (not yet reopened for backjob)
+        # Block sending messages if conversation is COMPLETED AND not under backjob review
         if conv.status == Conversation.ConversationStatus.COMPLETED:
-            return Response({
-                "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
-                "conversation_status": "COMPLETED"
-            }, status=400)
+            # Check if there's an active backjob that was approved
+            from accounts.models import JobDispute
+            job = conv.relatedJobPosting
+            active_dispute = JobDispute.objects.filter(
+                jobID=job,
+                status="UNDER_REVIEW"  # Backjob is under review
+            ).first()
+            
+            if not active_dispute:
+                # No active backjob - conversation is truly closed
+                return Response({
+                    "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
+                    "conversation_status": "COMPLETED"
+                }, status=400)
+            else:
+                # Backjob is active - automatically reopen conversation
+                conv.status = Conversation.ConversationStatus.ACTIVE
+                conv.archivedByClient = False
+                conv.archivedByWorker = False
+                conv.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
+                print(f"🔄 Auto-reopened conversation {conv.conversationID} for active backjob {active_dispute.disputeID}")
+                # Continue to message creation below
         
         # Create message - use senderAgency for agency users without profile
         message = Message.objects.create(
@@ -2291,6 +2335,7 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
 
 
 @router.post("/conversations/{conversation_id}/upload-image", auth=cookie_auth)
+@require_kyc
 def upload_agency_chat_image(request, conversation_id: int):
     """
     Upload an image to an agency chat conversation.
@@ -2477,6 +2522,7 @@ def upload_agency_chat_image(request, conversation_id: int):
 
 
 @router.post("/conversations/{conversation_id}/toggle-archive", auth=cookie_auth)
+@require_kyc
 def toggle_agency_archive(request, conversation_id: int):
     """Toggle archive status for a conversation."""
     try:
@@ -2811,6 +2857,7 @@ def set_primary_agency_payment_method(request, method_id: int):
 # ============================================
 
 @router.post("/wallet/withdraw", auth=cookie_auth)
+@require_kyc
 def agency_withdraw_funds(request):
     """
     Withdraw funds from agency wallet to GCash via Xendit Disbursement.
@@ -3399,6 +3446,7 @@ def agency_get_pending_earnings(request):
 # ===========================================================================
 
 @router.post("/change-password", auth=cookie_auth)
+@require_kyc
 def agency_change_password(request):
     """
     Change the password for the currently logged-in agency user.
@@ -3474,6 +3522,7 @@ def agency_change_password(request):
 # ===========================================================================
 
 @router.post("/reviews/{review_id}/respond", auth=cookie_auth)
+@require_kyc
 def agency_respond_to_review(request, review_id: int):
     """
     Allow agency to respond to a customer review.
@@ -3572,6 +3621,7 @@ def agency_respond_to_review(request, review_id: int):
     auth=cookie_auth,
     response=schemas.MarkEmployeeAttendanceResponse
 )
+@require_kyc
 def dispatch_employee(request, job_id: int, employee_id: int):
     """
     Dispatch an agency employee for a daily-rate job.
@@ -3679,6 +3729,7 @@ def dispatch_employee(request, job_id: int, employee_id: int):
     auth=cookie_auth,
     response=schemas.MarkEmployeeAttendanceResponse
 )
+@require_kyc
 def mark_employee_checkout(request, job_id: int, employee_id: int):
     """
     DEPRECATED: Client now marks checkout instead of agency.
@@ -3879,6 +3930,7 @@ def get_daily_attendance(request, job_id: int, date: str = None):
     auth=dual_auth,
     response={200: dict, 400: dict, 403: dict, 404: dict}
 )
+@require_kyc
 def dispatch_project_employee(request, job_id: int, employee_id: int):
     """
     Dispatch an agency employee for a PROJECT-based job.
@@ -3994,6 +4046,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
     auth=dual_auth,
     response={200: dict, 400: dict, 403: dict, 404: dict}
 )
+@require_kyc
 def mark_project_employee_complete(request, job_id: int, employee_id: int, notes: str = ""):
     """
     Mark an agency employee's work as complete for a PROJECT-based job.

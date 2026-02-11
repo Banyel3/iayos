@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -38,11 +38,11 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
-  useWorkerCompleteAssignment,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
 import { useMySkills } from "@/lib/hooks/useSkills";
+import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
@@ -67,13 +67,14 @@ interface JobDetail {
   description: string;
   budget: string;
   location: string;
-  distance: number;
+  distance: number | null;
   status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | string;
   postedBy: {
     id: number;
     name: string;
-    avatar: string;
+    avatar: string | null;
     rating: number;
+    phone: string | null;
   };
   postedAt: string;
   urgency: "LOW" | "MEDIUM" | "HIGH";
@@ -90,15 +91,20 @@ interface JobDetail {
   assignedWorker?: {
     id: number;
     name: string;
-    avatar: string;
+    avatar: string | null;
     rating: number;
-  };
+    phone: string | null;
+  } | null;
   reviews?: JobReviews;
   estimatedCompletion?: EstimatedCompletion | null;
   // Universal job fields for ML
   job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
   skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
   work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
+  // Payment model fields
+  payment_model?: "PROJECT" | "DAILY" | string;
+  daily_rate_agreed?: number | null;
+  duration_days?: number | null;
   // Team Job Fields
   is_team_job?: boolean;
   skill_slots?: SkillSlot[];
@@ -280,23 +286,25 @@ export default function JobDetailScreen() {
         title: jobData.title,
         category: jobData.category, // Already an object {id, name}
         description: jobData.description,
-        budget: `₱${jobData.budget?.toLocaleString() || "0"}`,
+        budget: jobData.budget != null ? `₱${Number(jobData.budget).toLocaleString()}` : "TBD",
         location: jobData.location,
-        distance: jobData.distance || 0,
+        distance: jobData.distance ?? null,
         status: jobData.status,
         postedBy: jobData.client
           ? {
-            id: jobData.client.id,
-            name: jobData.client.name,
-            avatar: jobData.client.avatar,
-            rating: jobData.client.rating,
-          }
+              id: jobData.client.id,
+              name: jobData.client.name,
+              avatar: jobData.client.avatar || null,
+              rating: jobData.client.rating ?? 0,
+              phone: jobData.client.phone || null,
+            }
           : {
-            id: 0,
-            name: "Unknown Client",
-            avatar: null,
-            rating: 0,
-          },
+              id: -1,
+              name: "Unknown Client",
+              avatar: null,
+              rating: 0,
+              phone: null,
+            },
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
@@ -311,7 +319,15 @@ export default function JobDetailScreen() {
         materialsNeeded: jobData.materials_needed,
         specializations: jobData.specializations,
         jobType: jobData.job_type,
-        assignedWorker: jobData.assigned_worker,
+        assignedWorker: jobData.assigned_worker
+          ? {
+              id: jobData.assigned_worker.id,
+              name: jobData.assigned_worker.name,
+              avatar: jobData.assigned_worker.avatar || null,
+              rating: jobData.assigned_worker.rating ?? 0,
+              phone: jobData.assigned_worker.phone || null,
+            }
+          : null,
         reviews: jobData.reviews
           ? {
             clientToWorker: jobData.reviews.client_to_worker
@@ -327,6 +343,10 @@ export default function JobDetailScreen() {
         job_scope: jobData.job_scope,
         skill_level_required: jobData.skill_level_required,
         work_environment: jobData.work_environment,
+        // Payment model fields
+        payment_model: jobData.payment_model || "PROJECT",
+        daily_rate_agreed: jobData.daily_rate_agreed ?? null,
+        duration_days: jobData.duration_days ?? null,
         // Team Job fields
         is_team_job: jobData.is_team_job || false,
         skill_slots: jobData.skill_slots || [],
@@ -741,8 +761,12 @@ export default function JobDetailScreen() {
   // Fetch worker's skills for skill mismatch warning
   const { data: mySkills = [] } = useMySkills();
 
-  // Team job completion mutations
-  const workerCompleteAssignment = useWorkerCompleteAssignment();
+  // Invalidate skills cache when screen gains focus (e.g., after adding a skill)
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
+    }, [queryClient])
+  );
 
   // Team job applications (for clients)
   const { data: teamApplicationsData } = useTeamJobApplications(
@@ -842,29 +866,6 @@ export default function JobDetailScreen() {
           setEstimatedDuration("");
         },
       },
-    );
-  };
-
-  const handleWorkerCompleteAssignment = () => {
-    if (!currentWorkerAssignment) return;
-
-    Alert.alert(
-      "Mark Complete",
-      "Are you sure you want to mark your assignment as complete?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Complete",
-          style: "default",
-          onPress: () => {
-            workerCompleteAssignment.mutate({
-              jobId: parseInt(id),
-              assignmentId: currentWorkerAssignment.assignment_id,
-              completionNotes: completionNotes || undefined,
-            });
-          },
-        },
-      ],
     );
   };
 
@@ -1193,19 +1194,15 @@ export default function JobDetailScreen() {
               color={Colors.primary}
             />
             <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>
-                {job.payment_model === "DAILY" ? "Daily Rate" : "Fixed Budget"}
-              </Text>
-              <Text style={styles.detailValue}>
-                {job.payment_model === "DAILY"
-                  ? `₱${job.daily_rate?.toLocaleString() ?? "0"}/day`
-                  : job.budget}
-              </Text>
-              {job.payment_model === "DAILY" && job.duration_days && (
-                <Text style={styles.detailSubValue}>
-                  {job.duration_days} days • Total: ₱
-                  {((job.daily_rate || 0) * job.duration_days).toLocaleString()}
-                </Text>
+              <Text style={styles.detailLabel}>Budget</Text>
+              <Text style={styles.detailValue}>{job.budget}</Text>
+              {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
+                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+                  <Text style={{ fontSize: 11, color: Colors.primary }}>📅 Daily Rate: ₱{Number(job.daily_rate_agreed).toLocaleString()}/day</Text>
+                  {job.duration_days ? <Text style={{ fontSize: 11, color: Colors.textSecondary, marginLeft: 4 }}>({job.duration_days}d)</Text> : null}
+                </View>
+              ) : (
+                <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 2 }}>💼 Project Based</Text>
               )}
             </View>
           </View>
@@ -1219,7 +1216,7 @@ export default function JobDetailScreen() {
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Location</Text>
               <Text style={styles.detailValue}>
-                {job.distance
+                {job.distance != null && job.distance > 0
                   ? `${job.distance.toFixed(1)} km away`
                   : job.location}
               </Text>
@@ -1547,14 +1544,16 @@ export default function JobDetailScreen() {
                             </View>
                             {isFilled ? (
                               <>
-                                <Image
-                                  source={{
-                                    uri:
-                                      assignedWorker.worker_avatar ||
-                                      "https://via.placeholder.com/30",
-                                  }}
-                                  style={styles.positionAvatar}
-                                />
+                                {assignedWorker.worker_avatar ? (
+                                  <Image
+                                    source={{ uri: assignedWorker.worker_avatar }}
+                                    style={styles.positionAvatar}
+                                  />
+                                ) : (
+                                  <View style={[styles.positionAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                                    <Ionicons name="person" size={16} color={Colors.textSecondary} />
+                                  </View>
+                                )}
                                 <Text style={styles.positionWorkerName}>
                                   {assignedWorker.worker_name}
                                 </Text>
@@ -1657,29 +1656,7 @@ export default function JobDetailScreen() {
                   Slot: {currentWorkerAssignment.specialization_name}
                 </Text>
 
-                {!currentWorkerAssignment.worker_marked_complete ? (
-                  <TouchableOpacity
-                    style={styles.completeAssignmentButton}
-                    onPress={handleWorkerCompleteAssignment}
-                    disabled={workerCompleteAssignment.isPending}
-                    activeOpacity={0.8}
-                  >
-                    {workerCompleteAssignment.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="checkmark-done"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.completeAssignmentButtonText}>
-                          Mark My Work Complete
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                ) : (
+                {currentWorkerAssignment.worker_marked_complete ? (
                   <View style={styles.completedBadge}>
                     <Ionicons
                       name="checkmark-circle"
@@ -1688,6 +1665,13 @@ export default function JobDetailScreen() {
                     />
                     <Text style={styles.completedBadgeText}>
                       Marked Complete - Awaiting Client Approval
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 }}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: "500" }}>
+                      Go to conversation to manage job progress
                     </Text>
                   </View>
                 )}
@@ -1715,13 +1699,16 @@ export default function JobDetailScreen() {
             {teamApplications.map((app: any) => (
               <View key={app.application_id} style={styles.applicationCard}>
                 <View style={styles.applicationWorkerInfo}>
-                  <Image
-                    source={{
-                      uri:
-                        app.worker_avatar || "https://via.placeholder.com/50",
-                    }}
-                    style={styles.applicationAvatar}
-                  />
+                  {app.worker_avatar ? (
+                    <Image
+                      source={{ uri: app.worker_avatar }}
+                      style={styles.applicationAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.applicationAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="person" size={24} color={Colors.textSecondary} />
+                    </View>
+                  )}
                   <View style={styles.applicationWorkerDetails}>
                     <Text style={styles.applicationWorkerName}>
                       {app.worker_name}
@@ -1933,23 +1920,31 @@ export default function JobDetailScreen() {
                     <View key={application.id} style={styles.applicationCard}>
                       {/* Worker Info */}
                       <View style={styles.applicationWorkerInfo}>
-                        <Image
-                          source={{
-                            uri:
-                              application.worker.avatar ||
-                              "https://via.placeholder.com/50",
-                          }}
-                          style={styles.applicationAvatar}
-                        />
+                        {application.worker.avatar ? (
+                          <Image
+                            source={{ uri: application.worker.avatar }}
+                            style={styles.applicationAvatar}
+                          />
+                        ) : (
+                          <View style={[styles.applicationAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                            <Ionicons name="person" size={24} color={Colors.textSecondary} />
+                          </View>
+                        )}
                         <View style={styles.applicationWorkerDetails}>
                           <Text style={styles.applicationWorkerName}>
                             {application.worker.name}
                           </Text>
                           <View style={styles.applicationWorkerMeta}>
-                            <Ionicons name="star" size={14} color="#F59E0B" />
-                            <Text style={styles.applicationWorkerRating}>
-                              {application.worker.rating.toFixed(1)}
-                            </Text>
+                            {application.worker.rating > 0 ? (
+                              <>
+                                <Ionicons name="star" size={14} color="#F59E0B" />
+                                <Text style={styles.applicationWorkerRating}>
+                                  {application.worker.rating.toFixed(1)}
+                                </Text>
+                              </>
+                            ) : (
+                              <Text style={[styles.applicationWorkerRating, { color: Colors.textSecondary }]}>New</Text>
+                            )}
                             {application.worker.city && (
                               <>
                                 <Text style={styles.applicationMetaDot}>•</Text>
@@ -2142,23 +2137,31 @@ export default function JobDetailScreen() {
                   }
                   activeOpacity={0.7}
                 >
-                  <Image
-                    source={{
-                      uri:
-                        job.postedBy?.avatar ||
-                        "https://via.placeholder.com/60",
-                    }}
-                    style={styles.posterAvatar}
-                  />
+                  {job.postedBy?.avatar ? (
+                    <Image
+                      source={{ uri: job.postedBy.avatar }}
+                      style={styles.posterAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                    </View>
+                  )}
                   <View style={styles.posterInfo}>
                     <Text style={styles.posterName}>
                       {job.postedBy?.name || "Unknown Client"}
                     </Text>
                     <View style={styles.posterRating}>
-                      <Ionicons name="star" size={16} color="#F59E0B" />
-                      <Text style={styles.posterRatingText}>
-                        {(job.postedBy?.rating || 0).toFixed(1)} rating
-                      </Text>
+                      {(job.postedBy?.rating ?? 0) > 0 ? (
+                        <>
+                          <Ionicons name="star" size={16} color="#F59E0B" />
+                          <Text style={styles.posterRatingText}>
+                            {job.postedBy.rating.toFixed(1)} rating
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                      )}
                     </View>
                     <Text style={styles.tapToViewHint}>
                       Tap to view profile
@@ -2173,14 +2176,16 @@ export default function JobDetailScreen() {
               ) : (
                 /* Client viewing their own job - not clickable */
                 <View style={styles.posterCard}>
-                  <Image
-                    source={{
-                      uri:
-                        job.postedBy?.avatar ||
-                        "https://via.placeholder.com/60",
-                    }}
-                    style={styles.posterAvatar}
-                  />
+                  {job.postedBy?.avatar ? (
+                    <Image
+                      source={{ uri: job.postedBy.avatar }}
+                      style={styles.posterAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                    </View>
+                  )}
                   <View style={styles.posterInfo}>
                     <Text style={styles.posterName}>
                       {job.postedBy?.name || "Unknown Client"}
@@ -2189,10 +2194,16 @@ export default function JobDetailScreen() {
                         : ""}
                     </Text>
                     <View style={styles.posterRating}>
-                      <Ionicons name="star" size={16} color="#F59E0B" />
-                      <Text style={styles.posterRatingText}>
-                        {(job.postedBy?.rating || 0).toFixed(1)} rating
-                      </Text>
+                      {(job.postedBy?.rating ?? 0) > 0 ? (
+                        <>
+                          <Ionicons name="star" size={16} color="#F59E0B" />
+                          <Text style={styles.posterRatingText}>
+                            {job.postedBy.rating.toFixed(1)} rating
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -2212,23 +2223,31 @@ export default function JobDetailScreen() {
                     }
                     activeOpacity={0.7}
                   >
-                    <Image
-                      source={{
-                        uri:
-                          job.assignedWorker?.avatar ||
-                          "https://via.placeholder.com/60",
-                      }}
-                      style={styles.posterAvatar}
-                    />
+                    {job.assignedWorker?.avatar ? (
+                      <Image
+                        source={{ uri: job.assignedWorker.avatar }}
+                        style={styles.posterAvatar}
+                      />
+                    ) : (
+                      <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                      </View>
+                    )}
                     <View style={styles.posterInfo}>
                       <Text style={styles.posterName}>
                         {job.assignedWorker?.name || "Unknown Worker"}
                       </Text>
                       <View style={styles.posterRating}>
-                        <Ionicons name="star" size={16} color="#F59E0B" />
-                        <Text style={styles.posterRatingText}>
-                          {(job.assignedWorker?.rating || 0).toFixed(1)} rating
-                        </Text>
+                        {(job.assignedWorker?.rating ?? 0) > 0 ? (
+                          <>
+                            <Ionicons name="star" size={16} color="#F59E0B" />
+                            <Text style={styles.posterRatingText}>
+                              {job.assignedWorker.rating.toFixed(1)} rating
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                        )}
                       </View>
                       <Text style={styles.tapToViewHint}>
                         Tap to view profile
@@ -2243,24 +2262,32 @@ export default function JobDetailScreen() {
                 ) : (
                   /* Worker viewing their own info - not clickable */
                   <View style={styles.posterCard}>
-                    <Image
-                      source={{
-                        uri:
-                          job.assignedWorker?.avatar ||
-                          "https://via.placeholder.com/60",
-                      }}
-                      style={styles.posterAvatar}
-                    />
+                    {job.assignedWorker?.avatar ? (
+                      <Image
+                        source={{ uri: job.assignedWorker.avatar }}
+                        style={styles.posterAvatar}
+                      />
+                    ) : (
+                      <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                      </View>
+                    )}
                     <View style={styles.posterInfo}>
                       <Text style={styles.posterName}>
                         {job.assignedWorker?.name || "Unknown Worker"}
                         {job.assignedWorker?.id === user?.accountID && " (You)"}
                       </Text>
                       <View style={styles.posterRating}>
-                        <Ionicons name="star" size={16} color="#F59E0B" />
-                        <Text style={styles.posterRatingText}>
-                          {(job.assignedWorker?.rating || 0).toFixed(1)} rating
-                        </Text>
+                        {(job.assignedWorker?.rating ?? 0) > 0 ? (
+                          <>
+                            <Ionicons name="star" size={16} color="#F59E0B" />
+                            <Text style={styles.posterRatingText}>
+                              {job.assignedWorker.rating.toFixed(1)} rating
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -2281,22 +2308,31 @@ export default function JobDetailScreen() {
                 }
                 activeOpacity={0.7}
               >
-                <Image
-                  source={{
-                    uri:
-                      job.postedBy?.avatar || "https://via.placeholder.com/60",
-                  }}
-                  style={styles.posterAvatar}
-                />
+                {job.postedBy?.avatar ? (
+                  <Image
+                    source={{ uri: job.postedBy.avatar }}
+                    style={styles.posterAvatar}
+                  />
+                ) : (
+                  <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                  </View>
+                )}
                 <View style={styles.posterInfo}>
                   <Text style={styles.posterName}>
                     {job.postedBy?.name || "Unknown Client"}
                   </Text>
                   <View style={styles.posterRating}>
-                    <Ionicons name="star" size={16} color="#F59E0B" />
-                    <Text style={styles.posterRatingText}>
-                      {(job.postedBy?.rating || 0).toFixed(1)} rating
-                    </Text>
+                    {(job.postedBy?.rating ?? 0) > 0 ? (
+                      <>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {job.postedBy.rating.toFixed(1)} rating
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                    )}
                   </View>
                   <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
                   <Text style={styles.tapToViewHint}>Tap to view profile</Text>
@@ -2310,13 +2346,16 @@ export default function JobDetailScreen() {
             ) : (
               /* Client viewing their own post - not clickable */
               <View style={styles.posterCard}>
-                <Image
-                  source={{
-                    uri:
-                      job.postedBy?.avatar || "https://via.placeholder.com/60",
-                  }}
-                  style={styles.posterAvatar}
-                />
+                {job.postedBy?.avatar ? (
+                  <Image
+                    source={{ uri: job.postedBy.avatar }}
+                    style={styles.posterAvatar}
+                  />
+                ) : (
+                  <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                  </View>
+                )}
                 <View style={styles.posterInfo}>
                   <Text style={styles.posterName}>
                     {job.postedBy?.name || "Unknown Client"}
@@ -2325,10 +2364,16 @@ export default function JobDetailScreen() {
                       : ""}
                   </Text>
                   <View style={styles.posterRating}>
-                    <Ionicons name="star" size={16} color="#F59E0B" />
-                    <Text style={styles.posterRatingText}>
-                      {(job.postedBy?.rating || 0).toFixed(1)} rating
-                    </Text>
+                    {(job.postedBy?.rating ?? 0) > 0 ? (
+                      <>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {job.postedBy.rating.toFixed(1)} rating
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                    )}
                   </View>
                   <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
                 </View>
