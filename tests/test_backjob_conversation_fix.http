@@ -1,0 +1,219 @@
+### BACKJOB CONVERSATION BLOCKING FIX TEST
+### Tests the complete backjob workflow to verify agency can work on backjobs after admin approval
+### This test was previously failing with "Backend error when accepting backjob request"
+
+@baseUrl = http://localhost:8000
+@clientToken = {{CLIENT_AUTH_TOKEN}}
+@agencyToken = {{AGENCY_AUTH_TOKEN}}
+@adminToken = {{ADMIN_AUTH_TOKEN}}
+
+### ============================================
+### SETUP: Create Test Job and Complete It
+### ============================================
+
+### 1. Create initial job (Client)
+POST {{baseUrl}}/api/jobs/create-mobile
+Content-Type: application/json
+Cookie: auth_token={{clientToken}}
+
+{
+  "title": "Fix Kitchen Sink",
+  "description": "Kitchen sink is leaking and needs professional repair",
+  "category_id": 1,
+  "budget": 1500,
+  "location": "123 Main St, Tetuan, Zamboanga City",
+  "urgency_level": "HIGH",
+  "expected_duration": "2 hours"
+}
+
+### Store variables from response
+@jobId = {{response.body.job.jobID}}
+@conversationId = {{response.body.job.conversation_id}}
+
+### ============================================
+### WORKFLOW: Complete Initial Job
+### ============================================
+
+### 2. Worker/Agency marks job complete (as backjob is assigned work)
+POST {{baseUrl}}/api/jobs/{{jobId}}/mark-complete
+Content-Type: application/json
+Cookie: auth_token={{agencyToken}}
+
+{
+  "notes": "Job completed to the best of our ability",
+  "photos": []
+}
+
+### ✅ Expected: 200 OK, job status becomes COMPLETED
+
+### 3. Client approves completion
+POST {{baseUrl}}/api/jobs/{{jobId}}/approve-completion
+Content-Type: application/json
+Cookie: auth_token={{clientToken}}
+
+{
+  "notes": "Work looks good!"
+}
+
+### ✅ Expected: 200 OK, conversation should now be COMPLETED
+
+### ============================================
+### TEST START: Backjob Workflow
+### ============================================
+
+### 4. Client requests backjob (work is unsatisfactory - retry example)
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Content-Type: application/json
+Cookie: auth_token={{clientToken}}
+
+{
+  "reason": "Work not satisfactory",
+  "description": "Sink still leaks after the repair. Please rework."
+}
+
+### Store dispute ID
+@disputeId = {{response.body.dispute.disputeID}}
+
+### ✅ Expected: 200 OK, JobDispute created with status=OPEN
+
+### ============================================
+### CRITICAL FIX TEST: Admin Approves Backjob
+### ============================================
+
+### 5. Admin approves backjob request (THIS WAS FAILING BEFORE)
+POST {{baseUrl}}/api/adminpanel/jobs/disputes/{{disputeId}}/approve-backjob
+Content-Type: application/json
+Cookie: auth_token={{adminToken}}
+
+{
+  "notes": "Backjob approved for rework",
+  "priority": "HIGH"
+}
+
+### ✅ Expected: 200 OK
+### 🔍 Look for logs:
+###   "🔄 Reopened conversation {conversationId}"
+###   "📝 Added backjob approval message"
+###   "📦 Conversation unarchived after backjob approval"
+
+### ============================================
+### FAILURE POINT: Agency Tries to Send Message
+### ============================================
+
+### 6. Agency tries to send message in conversation (THIS WAS RETURNING 400 BEFORE FIX)
+POST {{baseUrl}}/api/agency/conversations/{{conversationId}}/send
+Content-Type: application/json
+Cookie: auth_token={{agencyToken}}
+
+{
+  "message_text": "We'll fix the leak issue right away. We apologize for the inconvenience."
+}
+
+### ❌ OLD Error (Before Fix): 400 Bad Request
+### {
+###   "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
+###   "conversation_status": "COMPLETED"
+### }
+
+### ✅ NEW Expected (After Fix): 200 OK
+### {
+###   "success": true,
+###   "message_id": 12345,
+###   "message": "Message sent successfully"
+### }
+
+### ============================================
+### WORKFLOW CONTINUATION: Complete Backjob
+### ============================================
+
+### 7. Agency marks backjob as complete (rework done)
+POST {{baseUrl}}/api/jobs/{{jobId}}/backjob/mark-complete
+Content-Type: application/json
+Cookie: auth_token={{agencyToken}}
+
+{
+  "notes": "Replaced the faulty pipe section. Tested and verified no leaks."
+}
+
+### ✅ Expected: 200 OK, job status becomes BACKJOB_WORKER_DONE
+
+### 8. Client approves backjob completion (final approval)
+POST {{baseUrl}}/api/jobs/{{jobId}}/backjob/approve-completion
+Content-Type: application/json
+Cookie: auth_token={{clientToken}}
+
+{
+  "notes": "Perfect! The sink works great now. Thank you."
+}
+
+### ✅ Expected: 200 OK, conversation status becomes COMPLETED
+
+### 9. Verify final state - conversation should be COMPLETED and archived
+GET {{baseUrl}}/api/agency/conversations/{{conversationId}}
+Cookie: auth_token={{agencyToken}}
+
+### ✅ Expected: 200 OK
+### Should show:
+### - status: "COMPLETED"
+### - archivedByClient: true OR archivedByWorker: true
+
+### ============================================
+### EDGE CASE TEST: Repeated Backjob Requests
+### ============================================
+
+### 10. (OPTIONAL) Client requests ANOTHER backjob on same job
+### This tests whether the fix handles multiple backjob approvals
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Content-Type: application/json
+Cookie: auth_token={{clientToken}}
+
+{
+  "reason": "Minor adjustment needed",
+  "description": "The faucet is a bit loose. Can you tighten it?"
+}
+
+### Store new dispute ID
+@disputeId2 = {{response.body.dispute.disputeID}}
+
+### ✅ Expected: 200 OK, second JobDispute created
+
+### 11. Admin approves second backjob
+POST {{baseUrl}}/api/adminpanel/jobs/disputes/{{disputeId2}}/approve-backjob
+Content-Type: application/json
+Cookie: auth_token={{adminToken}}
+
+{
+  "notes": "Minor adjustment approved",
+  "priority": "LOW"
+}
+
+### ✅ Expected: 200 OK
+### 🔍 Look for: "🔄 Reopened conversation {conversationId}"
+
+### 12. Agency tries to send message again (second iteration)
+POST {{baseUrl}}/api/agency/conversations/{{conversationId}}/send
+Content-Type: application/json
+Cookie: auth_token={{agencyToken}}
+
+{
+  "message_text": "No problem, I'll tighten the faucet for you."
+}
+
+### ✅ Expected: 200 OK (should NOT get 400 error)
+### This confirms the fix handles multiple backjob requests on same job
+
+### ============================================
+### SUMMARY
+### ============================================
+### 
+### If all tests pass (responses are 200 OK), the backjob conversation blocking issue is fixed!
+### 
+### Key changes made:
+### 1. adminpanel/api.py (lines 1095-1160): Added transaction.atomic() to ensure conversation.save() commits
+### 2. adminpanel/api.py: Clear archive flags (archivedByClient, archivedByWorker) when reopening
+### 3. agency/api.py (lines 2233-2257): Added auto-reopen fallback if conversation still COMPLETED
+### 
+### Expected Logs (from Docker):
+### 🔄 Reopened conversation 12345 (was COMPLETED)
+### 📝 Added backjob approval message to conversation 12345
+### 📦 Conversation unarchived after backjob approval

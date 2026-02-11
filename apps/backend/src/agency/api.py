@@ -2230,12 +2230,30 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
         
-        # Block sending messages if conversation is COMPLETED (not yet reopened for backjob)
+        # Block sending messages if conversation is COMPLETED AND not under backjob review
         if conv.status == Conversation.ConversationStatus.COMPLETED:
-            return Response({
-                "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
-                "conversation_status": "COMPLETED"
-            }, status=400)
+            # Check if there's an active backjob that was approved
+            from accounts.models import JobDispute
+            job = conv.relatedJobPosting
+            active_dispute = JobDispute.objects.filter(
+                jobID=job,
+                status="UNDER_REVIEW"  # Backjob is under review
+            ).first()
+            
+            if not active_dispute:
+                # No active backjob - conversation is truly closed
+                return Response({
+                    "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
+                    "conversation_status": "COMPLETED"
+                }, status=400)
+            else:
+                # Backjob is active - automatically reopen conversation
+                conv.status = Conversation.ConversationStatus.ACTIVE
+                conv.archivedByClient = False
+                conv.archivedByWorker = False
+                conv.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
+                print(f"🔄 Auto-reopened conversation {conv.conversationID} for active backjob {active_dispute.disputeID}")
+                # Continue to message creation below
         
         # Create message - use senderAgency for agency users without profile
         message = Message.objects.create(

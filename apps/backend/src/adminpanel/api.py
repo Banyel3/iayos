@@ -1096,45 +1096,75 @@ def approve_backjob(request, dispute_id: int):
         # REOPEN CONVERSATION FOR BACKJOB DISCUSSION
         # ============================================
         from profiles.models import Conversation, Message
+        from django.db import transaction
         
         # Find existing conversation for this job
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         
-        if conversation:
-            # Reopen the existing conversation
-            old_status = conversation.status
-            conversation.status = Conversation.ConversationStatus.ACTIVE
-            conversation.save()
-            print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
-        else:
-            # Create a new conversation if none exists
-            client_profile = job.clientID.profileID
-            worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
-            agency = job.assignedAgencyFK
+        try:
+            if conversation:
+                # Use atomic transaction to ensure consistency
+                with transaction.atomic():
+                    # Reopen the existing conversation
+                    old_status = conversation.status
+                    conversation.status = Conversation.ConversationStatus.ACTIVE
+                    conversation.archivedByClient = False  # Clear archive flags
+                    conversation.archivedByWorker = False
+                    conversation.save(update_fields=[
+                        'status',
+                        'archivedByClient',
+                        'archivedByWorker',
+                        'updatedAt'
+                    ])
+                    print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
+                    
+                    # Add system message immediately after reopening
+                    Message.objects.create(
+                        conversationID=conversation,
+                        sender=None,  # System message has no sender
+                        senderAgency=None,
+                        messageText="🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here.",
+                        messageType=Message.MessageType.SYSTEM
+                    )
+                    print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
+            else:
+                # Create a new conversation if none exists
+                with transaction.atomic():
+                    client_profile = job.clientID.profileID
+                    worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                    agency = job.assignedAgencyFK
+                    
+                    conversation = Conversation.objects.create(
+                        client=client_profile,
+                        worker=worker_profile,
+                        agency=agency,
+                        relatedJobPosting=job,
+                        status=Conversation.ConversationStatus.ACTIVE,
+                        archivedByClient=False,
+                        archivedByWorker=False
+                    )
+                    print(f"💬 Created new conversation {conversation.conversationID} for backjob")
+                    
+                    # Add system message immediately
+                    Message.objects.create(
+                        conversationID=conversation,
+                        sender=None,  # System message has no sender
+                        senderAgency=None,
+                        messageText="🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here.",
+                        messageType=Message.MessageType.SYSTEM
+                    )
+                    print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
             
-            conversation = Conversation.objects.create(
-                client=client_profile,
-                worker=worker_profile,
-                agency=agency,
-                relatedJobPosting=job,
-                status=Conversation.ConversationStatus.ACTIVE
-            )
-            print(f"💬 Created new conversation {conversation.conversationID} for backjob")
+            # Unarchive conversation so it appears in Active tab
+            from profiles.conversation_service import unarchive_conversation
+            unarchive_result = unarchive_conversation(conversation)
+            print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
         
-        # Add a system message indicating backjob was approved
-        Message.objects.create(
-            conversationID=conversation,
-            sender=None,  # System message has no sender
-            senderAgency=None,
-            messageText="🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here.",
-            messageType=Message.MessageType.SYSTEM
-        )
-        print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
-        
-        # Unarchive conversation so it appears in Active tab
-        from profiles.conversation_service import unarchive_conversation
-        unarchive_result = unarchive_conversation(conversation)
-        print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+        except Exception as e:
+            print(f"❌ Error managing conversation for backjob: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Don't return error - conversation issue shouldn't block backjob approval
         
         return {
             "success": True,
