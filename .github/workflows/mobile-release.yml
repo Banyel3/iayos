@@ -27,11 +27,6 @@ on:
         required: false
         default: false
         type: boolean
-      local_build:
-        description: "Build on GitHub Actions runner (no EAS credits needed)"
-        required: false
-        default: false
-        type: boolean
       is_qa:
         description: "Mark as QA release (adds -qa suffix to tag)"
         required: false
@@ -217,54 +212,31 @@ jobs:
         run: npm ci
 
       # ============================================
-      # LOCAL GITHUB ACTIONS BUILD (No EAS Credits Required)
+      # ANDROID BUILD (Optimized for GitHub Actions)
       # ============================================
 
-      - name: Setup Java
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+      - name: Add swap space for build
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        run: |
+          echo "🔧 Adding 10GB swap space for Gradle build..."
+          sudo swapoff -a || true
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "✅ Swap space added:"
+          free -h
+
+      - name: Setup JDK 17
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          java-version: "17"
+          distribution: "temurin"
 
       - name: Setup Android SDK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         uses: android-actions/setup-android@v3
-
-      - name: Setup Expo
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          # No token needed for local builds
-
-      - name: Build Android APK (Local GitHub Actions Build)
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        working-directory: ${{ env.MOBILE_DIR }}
-        env:
-          EXPO_PUBLIC_API_URL: "https://api.iayos.online"
-        run: |
-          echo "🏗️ LOCAL GITHUB ACTIONS BUILD"
-          echo "☁️ Building on GitHub Actions runners (no EAS credits required)"
-          echo "📦 Production build - ready for app store distribution"
-
-          # Generate native Android project using expo prebuild
-          echo "📱 Generating native Android project..."
-          npx expo prebuild --clean --platform android
-
-          # Build release APK using Gradle
-          echo "🔨 Building release APK with Gradle..."
-          cd android
-          chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
-
-          # Copy APK to expected location
-          echo "📦 Copying APK to release location..."
-          cd ..
-          cp android/app/build/outputs/apk/release/app-release.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
-
-          echo "✅ Local build complete!"
-          ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
       - name: Download APK from latest release (if using latest build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
@@ -276,7 +248,7 @@ jobs:
           # Get latest release info
           RELEASE_INFO=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
-          
+
           DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -1)
           RELEASE_TAG=$(echo "$RELEASE_INFO" | jq -r '.[0].tag_name')
 
@@ -299,34 +271,14 @@ jobs:
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
-      # ============================================================================
-      # GITHUB ACTIONS LOCAL BUILD - No EAS credits needed
-      # ============================================================================
-      - name: Add swap space for local build
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
-        run: |
-          echo "🔧 Adding 10GB swap space for Gradle build..."
-          sudo swapoff -a || true
-          sudo fallocate -l 10G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo "✅ Swap space added:"
-          free -h
-
-      - name: Setup JDK 17 for local build
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Build Android APK (GitHub Actions Local Build)
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
+      - name: Build Android APK
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
+        env:
+          EXPO_PUBLIC_API_URL: "https://api.iayos.online"
         run: |
-          echo "🏗️ GITHUB ACTIONS LOCAL BUILD (No EAS credits needed)"
-          echo "💻 Building directly on runner with optimized memory settings"
+          echo "🏗️ Building Android APK on GitHub Actions"
+          echo "💻 Optimized memory settings for CI environment"
           echo ""
 
           # Generate native Android project
@@ -445,18 +397,18 @@ jobs:
         id: changelog
         run: |
           echo "Extracting changelog for version ${{ steps.commit_version.outputs.final_version }}"
-          
+
           # Make script executable
           chmod +x .github/scripts/extract-changelog.sh
-          
+
           # Extract changelog content
           CHANGELOG_OUTPUT=$(./.github/scripts/extract-changelog.sh "${{ steps.commit_version.outputs.final_version }}")
-          
+
           # Output to GitHub Actions (multiline)
           echo "changelog_notes<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG_OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
           # Show extracted content in logs
           echo "📝 Changelog content extracted:"
           echo "$CHANGELOG_OUTPUT"
@@ -473,7 +425,7 @@ jobs:
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
             **Build Profile:** production
-            **Build Type:** ${{ github.event.inputs.local_build == 'true' && 'GitHub Actions Local Build' || github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'EAS Cloud Build' }}
+            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'GitHub Actions Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
 
             ### 📦 Production Build (Local GitHub Actions)
@@ -559,14 +511,11 @@ jobs:
             echo "🏗️ **Profile:** production" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
-            elif [ "${{ github.event.inputs.local_build }}" == "true" ]; then
-              echo "�️ **Build:** GitHub Actions Local Build (no EAS credits)" >> $GITHUB_STEP_SUMMARY
-              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
               echo "♻️ **Build:** Using latest existing build from GitHub Releases" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             else
-              echo "🏗️ **Build:** Local GitHub Actions build (no EAS credits)" >> $GITHUB_STEP_SUMMARY
+              echo "🏗️ **Build:** GitHub Actions build (optimized)" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             fi
           else
