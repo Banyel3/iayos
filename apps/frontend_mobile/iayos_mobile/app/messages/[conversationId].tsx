@@ -81,6 +81,7 @@ import {
   getPendingMessages,
   isOnline,
 } from "../../lib/services/offline-queue";
+import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 
 export default function ChatScreen() {
@@ -243,7 +244,29 @@ export default function ChatScreen() {
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
 
   // WebSocket connection state
-  const { isConnected } = useWebSocketConnection();
+  const { isConnected: isWsConnected } = useWebSocketConnection();
+
+  // Network connectivity state (device-level via NetInfo)
+  const [isNetworkOnline, setIsNetworkOnline] = useState(true);
+  const [hasAttemptedWsConnection, setHasAttemptedWsConnection] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsNetworkOnline(
+        state.isConnected === true && state.isInternetReachable !== false
+      );
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (isWsConnected) {
+      setHasAttemptedWsConnection(true);
+      return;
+    }
+    const timer = setTimeout(() => setHasAttemptedWsConnection(true), 3000);
+    return () => clearTimeout(timer);
+  }, [isWsConnected]);
 
   // WebSocket: Listen for new messages
   useMessageListener(conversationId);
@@ -1083,7 +1106,7 @@ export default function ChatScreen() {
       index === 0 ||
       Math.abs(
         new Date(item.created_at).getTime() -
-        new Date(conversation!.messages[index - 1].created_at).getTime(),
+          new Date(conversation!.messages[index - 1].created_at).getTime(),
       ) > 60000;
 
     // Extract image URL from attachments if present
@@ -1160,16 +1183,31 @@ export default function ChatScreen() {
 
   // Render offline indicator
   const renderOfflineIndicator = () => {
-    if (isConnected) return null;
+    // Device truly has no internet connection
+    if (!isNetworkOnline) {
+      return (
+        <View style={styles.offlineIndicator}>
+          <Ionicons name="cloud-offline-outline" size={16} color={Colors.white} />
+          <Text style={styles.offlineText}>
+            {"You're offline. Messages will be sent when you reconnect."}
+          </Text>
+        </View>
+      );
+    }
 
-    return (
-      <View style={styles.offlineIndicator}>
-        <Ionicons name="cloud-offline-outline" size={16} color={Colors.white} />
-        <Text style={styles.offlineText}>
-          {"You're offline. Messages will be sent when you reconnect."}
-        </Text>
-      </View>
-    );
+    // Device is online but WebSocket is disconnected (reconnecting)
+    if (!isWsConnected && hasAttemptedWsConnection) {
+      return (
+        <View style={styles.reconnectingIndicator}>
+          <ActivityIndicator size="small" color={Colors.white} />
+          <Text style={styles.offlineText}>
+            Reconnecting to chat...
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
   };
 
   // Render loading state
@@ -1340,7 +1378,16 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
-          <View style={[styles.jobHeader, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+          <View
+            style={[
+              styles.jobHeader,
+              {
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              },
+            ]}
+          >
             <TouchableOpacity
               style={{ flex: 1 }}
               onPress={() => router.push(`/jobs/${conversation.job.id}`)}
@@ -1364,18 +1411,18 @@ export default function ChatScreen() {
                 {(isLoading ||
                   (conversation.job.estimatedCompletion &&
                     conversation.job.status !== "COMPLETED")) && (
-                    <EstimatedTimeCard
-                      prediction={conversation?.job?.estimatedCompletion || null}
-                      compact={true}
-                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                      jobStartTime={
-                        conversation?.job?.clientConfirmedWorkStarted
-                          ? new Date().toISOString()
-                          : undefined
-                      }
-                      isLoading={isLoading}
-                    />
-                  )}
+                  <EstimatedTimeCard
+                    prediction={conversation?.job?.estimatedCompletion || null}
+                    compact={true}
+                    countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                    jobStartTime={
+                      conversation?.job?.clientConfirmedWorkStarted
+                        ? new Date().toISOString()
+                        : undefined
+                    }
+                    isLoading={isLoading}
+                  />
+                )}
               </View>
             </TouchableOpacity>
 
@@ -1459,7 +1506,7 @@ export default function ChatScreen() {
                               style={[
                                 styles.teamWorkerCardCompact,
                                 assignment.client_confirmed_arrival &&
-                                styles.teamWorkerCardConfirmed,
+                                  styles.teamWorkerCardConfirmed,
                               ]}
                             >
                               <View style={styles.teamWorkerInfoCompact}>
@@ -2224,7 +2271,13 @@ export default function ChatScreen() {
                       <Text style={styles.waitingButtonText}>
                         Waiting for client to confirm work started...
                       </Text>
-                      <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4 }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: Colors.textSecondary,
+                          marginTop: 4,
+                        }}
+                      >
                         💬 You can still send messages while waiting
                       </Text>
                     </View>
@@ -2825,13 +2878,23 @@ export default function ChatScreen() {
                 }
                 activeOpacity={0.8}
               >
-                <View style={[styles.requestBackjobContent, {
-                  backgroundColor: "#FFF3E0", // Orange background
-                  borderColor: "#FFE0B2", // Orange border
-                }]}>
-                  <View style={[styles.requestBackjobIconContainer, {
-                    backgroundColor: "#FFB74D", // Match orange icon container
-                  }]}>
+                <View
+                  style={[
+                    styles.requestBackjobContent,
+                    {
+                      backgroundColor: "#FFF3E0", // Orange background
+                      borderColor: "#FFE0B2", // Orange border
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.requestBackjobIconContainer,
+                      {
+                        backgroundColor: "#FFB74D", // Match orange icon container
+                      },
+                    ]}
+                  >
                     <Ionicons
                       name="refresh-circle"
                       size={24}
@@ -2839,23 +2902,24 @@ export default function ChatScreen() {
                     />
                   </View>
                   <View style={styles.requestBackjobText}>
-                    <Text style={[styles.requestBackjobTitle, { color: "#E65100" }]}>
+                    <Text
+                      style={[styles.requestBackjobTitle, { color: "#E65100" }]}
+                    >
                       Not satisfied with the work?
                     </Text>
-                    <Text style={[styles.requestBackjobSubtitle, { color: "#EF6C00" }]}>
+                    <Text
+                      style={[
+                        styles.requestBackjobSubtitle,
+                        { color: "#EF6C00" },
+                      ]}
+                    >
                       Tap here to request a backjob (rework)
                     </Text>
                   </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color="#EF6C00"
-                  />
+                  <Ionicons name="chevron-forward" size={20} color="#EF6C00" />
                 </View>
               </TouchableOpacity>
             )}
-
-
 
           {/* Review Section - Compact Banner that opens modal */}
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
@@ -3055,8 +3119,8 @@ export default function ChatScreen() {
                     (conversation.is_team_job
                       ? conversation.all_team_workers_reviewed
                       : conversation.job.clientReviewed)) ||
-                    (conversation.my_role !== "CLIENT" &&
-                      conversation.job.workerReviewed) ? (
+                  (conversation.my_role !== "CLIENT" &&
+                    conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
                     <View style={styles.reviewWaitingContainer}>
                       <Ionicons
@@ -3066,7 +3130,7 @@ export default function ChatScreen() {
                       />
                       <Text style={styles.reviewWaitingTitle}>
                         {conversation.is_team_job &&
-                          conversation.my_role === "CLIENT"
+                        conversation.my_role === "CLIENT"
                           ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
                           : "Thank you for your review!"}
                       </Text>
@@ -3074,21 +3138,21 @@ export default function ChatScreen() {
                         !conversation.job.workerReviewed) ||
                         (conversation.my_role !== "CLIENT" &&
                           !conversation.job.clientReviewed)) && (
-                          <Text style={styles.reviewWaitingText}>
-                            Waiting for{" "}
-                            {conversation.my_role === "CLIENT"
-                              ? "worker"
-                              : "client"}{" "}
-                            to review...
-                          </Text>
-                        )}
+                        <Text style={styles.reviewWaitingText}>
+                          Waiting for{" "}
+                          {conversation.my_role === "CLIENT"
+                            ? "worker"
+                            : "client"}{" "}
+                          to review...
+                        </Text>
+                      )}
                     </View>
                   ) : (
                     // User hasn't reviewed yet - show review form
                     <>
                       {/* Dynamic title based on agency job review step */}
                       {conversation.is_agency_job &&
-                        conversation.my_role === "CLIENT" ? (
+                      conversation.my_role === "CLIENT" ? (
                         <>
                           {/* Multi-employee support: show which employee is being reviewed */}
                           {(() => {
@@ -3594,7 +3658,7 @@ export default function ChatScreen() {
                             ratingProfessionalism === 0 ||
                             !reviewComment.trim() ||
                             submitReviewMutation.isPending) &&
-                          styles.submitReviewButtonDisabled,
+                            styles.submitReviewButtonDisabled,
                         ]}
                         onPress={() => {
                           Keyboard.dismiss();
@@ -4570,6 +4634,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.warning,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  reconnectingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#607D8B",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
