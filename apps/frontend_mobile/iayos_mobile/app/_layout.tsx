@@ -16,9 +16,20 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
-import { useAppUpdate } from "@/lib/hooks/useAppUpdate";
-import { UpdateRequiredModal } from "@/components/UpdateRequiredModal";
 import Toast from "react-native-toast-message";
+
+// Lazy-loaded update modules — prevents import crash from killing entire app.
+// useAppUpdate imports expo-file-system SDK 54 APIs (Paths, File) and
+// expo-intent-launcher which can fail on certain environments.
+let useAppUpdateHook: any = null;
+let UpdateRequiredModalComponent: any = null;
+
+try {
+  useAppUpdateHook = require("@/lib/hooks/useAppUpdate").useAppUpdate;
+  UpdateRequiredModalComponent = require("@/components/UpdateRequiredModal").UpdateRequiredModal;
+} catch (e) {
+  console.warn("[RootLayout] Failed to load update modules:", e);
+}
 
 const queryClient = new QueryClient();
 
@@ -26,6 +37,13 @@ const queryClient = new QueryClient();
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore errors (e.g., splash screen already hidden)
 });
+
+// SAFETY NET: Force-hide splash after 8 seconds no matter what.
+// Normally hideAsync() is called in ~100ms when RootLayout mounts.
+// This timeout only fires if something catastrophic prevents mounting.
+setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {});
+}, 8000);
 
 // DEV-only guard: detect when React.createElement is called with an undefined type.
 // Moved to module scope to prevent re-patching on every render.
@@ -152,8 +170,13 @@ export const unstable_settings = {
  * Must be rendered inside QueryClientProvider.
  */
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
-  const appUpdate = useAppUpdate();
+  const appUpdate = useAppUpdateHook ? useAppUpdateHook() : null;
   const [dismissed, setDismissed] = useState(false);
+
+  // If update modules failed to load, just render children
+  if (!appUpdate || !UpdateRequiredModalComponent) {
+    return <>{children}</>;
+  }
 
   // Show modal if update is required (and not dismissed for optional updates)
   const showModal = appUpdate.updateRequired && !dismissed;
@@ -161,7 +184,7 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <UpdateRequiredModal
+      <UpdateRequiredModalComponent
         visible={showModal}
         installedVersion={appUpdate.installedVersion}
         currentVersion={appUpdate.currentVersion}
