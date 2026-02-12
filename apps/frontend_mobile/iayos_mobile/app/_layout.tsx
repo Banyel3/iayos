@@ -8,6 +8,7 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
+import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
@@ -20,6 +21,11 @@ import { UpdateRequiredModal } from "@/components/UpdateRequiredModal";
 import Toast from "react-native-toast-message";
 
 const queryClient = new QueryClient();
+
+// Prevent splash screen from auto-hiding before app is ready
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore errors (e.g., splash screen already hidden)
+});
 
 // DEV-only guard: detect when React.createElement is called with an undefined type.
 // Moved to module scope to prevent re-patching on every render.
@@ -180,6 +186,11 @@ export default function RootLayout() {
     // Keep Android/iOS system bars consistent with our light background
     SystemUI.setBackgroundColorAsync("transparent").catch((error) => {
       console.warn("Failed to set system UI background", error);
+    });
+
+    // Hide splash screen once root layout has mounted
+    SplashScreen.hideAsync().catch(() => {
+      // Ignore errors
     });
   }, []);
 
