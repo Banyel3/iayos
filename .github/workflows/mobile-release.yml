@@ -42,6 +42,16 @@ on:
         required: false
         default: false
         type: boolean
+      new_arch_enabled:
+        description: "Enable React Native New Architecture in build"
+        required: false
+        default: true
+        type: boolean
+      hermes_enabled:
+        description: "Enable Hermes JS engine in build"
+        required: false
+        default: true
+        type: boolean
 
 env:
   MOBILE_DIR: apps/frontend_mobile/iayos_mobile
@@ -347,6 +357,23 @@ jobs:
           # Optimize Gradle settings for CI environment
           echo "🔧 Configuring Gradle for CI build..."
           sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
+
+          if [ "${{ github.event.inputs.new_arch_enabled }}" == "true" ]; then
+            echo "🏗️ New Architecture: ENABLED"
+            sed -i 's/newArchEnabled=.*/newArchEnabled=true/' android/gradle.properties
+          else
+            echo "🏗️ New Architecture: DISABLED"
+            sed -i 's/newArchEnabled=.*/newArchEnabled=false/' android/gradle.properties
+          fi
+
+          if [ "${{ github.event.inputs.hermes_enabled }}" == "true" ]; then
+            echo "🧠 Hermes: ENABLED"
+            sed -i 's/hermesEnabled=.*/hermesEnabled=true/' android/gradle.properties
+          else
+            echo "🧠 Hermes: DISABLED"
+            sed -i 's/hermesEnabled=.*/hermesEnabled=false/' android/gradle.properties
+          fi
+
           if [ "${{ github.event.inputs.include_x86 }}" == "true" ]; then
             echo "📱 Including x86_64 architecture (emulator/BlueStacks support)"
             sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64/' android/gradle.properties
@@ -356,7 +383,7 @@ jobs:
           echo "org.gradle.caching=true" >> android/gradle.properties
 
           echo "📋 Gradle properties:"
-          grep -E "jvmargs|Architectures|parallel" android/gradle.properties
+          grep -E "jvmargs|Architectures|parallel|newArchEnabled|hermesEnabled" android/gradle.properties
           echo ""
 
           # Build release APK (skip lint to save memory)
@@ -492,6 +519,8 @@ jobs:
             **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'GitHub Actions Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
             **Architectures:** ${{ github.event.inputs.include_x86 == 'true' && 'arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)' || 'arm64-v8a, armeabi-v7a (ARM only)' }}
+            **New Architecture:** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}
+            **Hermes:** ${{ github.event.inputs.hermes_enabled == 'true' && 'Enabled' || 'Disabled' }}
 
             ### 📦 Production Build (Local GitHub Actions)
 
