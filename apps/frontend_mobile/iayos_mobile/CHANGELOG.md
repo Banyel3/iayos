@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Android APK Startup Crash / Reanimated New-Arch Build Guard**
+  - Updated `mobile-release.yml` to synchronize `newArchEnabled` in both `android/gradle.properties` and `app.json` before build
+  - Added automatic override: if `react-native-reanimated` requires New Architecture, workflow forces it ON to prevent CI build failure
+  - Release notes now show both requested and effective New Architecture state
+  - **Impact**: Prevents `assertNewArchitectureEnabledTask` build failures while keeping architecture state explicit per release
+
 - **Job Detail Hardcoded Data Removal** (PR #363)
   - Replaced 13 `via.placeholder.com` avatar fallback URLs with Ionicons person icon across job detail and active job detail screens
   - Changed misleading "0.0 rating" displays to show "New" for unrated users (7 instances)
