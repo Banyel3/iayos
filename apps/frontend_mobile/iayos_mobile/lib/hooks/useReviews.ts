@@ -201,6 +201,9 @@ export function useSubmitReview() {
       queryClient.invalidateQueries({
         queryKey: reviewKeys.pendingReviews(),
       });
+      // Invalidate messages & conversations so isConversationClosed updates
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
 }
