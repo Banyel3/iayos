@@ -215,6 +215,15 @@ jobs:
       # ANDROID BUILD (Optimized for GitHub Actions)
       # ============================================
 
+      - name: Free disk space
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        run: |
+          echo "🧹 Freeing disk space for Android build..."
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk /opt/ghc /usr/share/swift || true
+          sudo apt-get clean || true
+          echo "✅ Disk space after cleanup:"
+          df -h /
+
       - name: Add swap space for build
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         run: |
@@ -276,6 +285,10 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         env:
           EXPO_PUBLIC_API_URL: "https://api.iayos.online"
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "🏗️ Building Android APK on GitHub Actions"
           echo "💻 Optimized memory settings for CI environment"
@@ -284,6 +297,47 @@ jobs:
           # Generate native Android project
           echo "📱 Running expo prebuild..."
           npx expo prebuild --clean --platform android
+
+          # Configure release signing with persistent keystore
+          echo "🔐 Configuring release signing..."
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/iayos-release.keystore
+          echo "  ✅ Keystore decoded to android/app/iayos-release.keystore"
+
+          cat > /tmp/inject_signing.py << 'PYEOF'
+          import os, sys
+          p = 'android/app/build.gradle'
+          with open(p) as f:
+              c = f.read()
+          sp = os.environ.get('ANDROID_KEYSTORE_PASSWORD', '')
+          ka = os.environ.get('ANDROID_KEY_ALIAS', '')
+          kp = os.environ.get('ANDROID_KEY_PASSWORD', '')
+          if not all([sp, ka, kp]):
+              print('  ⚠️ Missing signing secrets, skipping signing config')
+              sys.exit(0)
+          rc = '\n        release {\n'
+          rc += "            storeFile file('iayos-release.keystore')\n"
+          rc += "            storePassword '" + sp + "'\n"
+          rc += "            keyAlias '" + ka + "'\n"
+          rc += "            keyPassword '" + kp + "'\n"
+          rc += '        }'
+          c = c.replace('signingConfigs {', 'signingConfigs {' + rc, 1)
+          bi = c.find('buildTypes')
+          if bi > -1:
+              ri = c.find('release {', bi)
+              if ri > -1:
+                  si = c.find('signingConfig signingConfigs.debug', ri)
+                  if si > -1:
+                      old = 'signingConfig signingConfigs.debug'
+                      c = c[:si] + 'signingConfig signingConfigs.release' + c[si+len(old):]
+          with open(p, 'w') as f:
+              f.write(c)
+          print('  ✅ Release signing config injected into build.gradle')
+          PYEOF
+          python3 /tmp/inject_signing.py
+
+          # Verify signing config
+          echo "  📋 Verifying signing config in build.gradle:"
+          grep -A 6 "release {" android/app/build.gradle | head -14 || true
 
           # Optimize Gradle settings for CI environment
           echo "🔧 Configuring Gradle for CI build..."
