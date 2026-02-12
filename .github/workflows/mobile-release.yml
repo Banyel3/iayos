@@ -37,6 +37,11 @@ on:
         required: false
         default: false
         type: boolean
+      include_x86:
+        description: "Include x86_64 architecture (for emulator/BlueStacks testing)"
+        required: false
+        default: false
+        type: boolean
 
 env:
   MOBILE_DIR: apps/frontend_mobile/iayos_mobile
@@ -342,7 +347,12 @@ jobs:
           # Optimize Gradle settings for CI environment
           echo "🔧 Configuring Gradle for CI build..."
           sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
-          sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a/' android/gradle.properties
+          if [ "${{ github.event.inputs.include_x86 }}" == "true" ]; then
+            echo "📱 Including x86_64 architecture (emulator/BlueStacks support)"
+            sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64/' android/gradle.properties
+          else
+            sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a/' android/gradle.properties
+          fi
           echo "org.gradle.caching=true" >> android/gradle.properties
 
           echo "📋 Gradle properties:"
@@ -481,6 +491,7 @@ jobs:
             **Build Profile:** production
             **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'GitHub Actions Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
+            **Architectures:** ${{ github.event.inputs.include_x86 == 'true' && 'arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)' || 'arm64-v8a, armeabi-v7a (ARM only)' }}
 
             ### 📦 Production Build (Local GitHub Actions)
 
@@ -563,6 +574,11 @@ jobs:
             echo "✅ **Version:** ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
             echo "🏗️ **Profile:** production" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.event.inputs.include_x86 }}" == "true" ]; then
+              echo "📱 **Architectures:** arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "📱 **Architectures:** arm64-v8a, armeabi-v7a (ARM only)" >> $GITHUB_STEP_SUMMARY
+            fi
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
