@@ -43,9 +43,9 @@ on:
         default: false
         type: boolean
       new_arch_enabled:
-        description: "Enable React Native New Architecture in build"
+        description: "Enable React Native New Architecture in build (auto-forced ON when required by dependencies)"
         required: false
-        default: true
+        default: false
         type: boolean
       hermes_enabled:
         description: "Enable Hermes JS engine in build"
@@ -358,12 +358,41 @@ jobs:
           echo "🔧 Configuring Gradle for CI build..."
           sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
 
-          if [ "${{ github.event.inputs.new_arch_enabled }}" == "true" ]; then
+          # Determine effective New Architecture setting
+          REQUESTED_NEW_ARCH="${{ github.event.inputs.new_arch_enabled }}"
+          REANIMATED_VERSION=$(node -e "const pkg=require('./package.json'); const v=(pkg.dependencies&&pkg.dependencies['react-native-reanimated'])||''; process.stdout.write(String(v));")
+          REANIMATED_MAJOR=$(node -e "const pkg=require('./package.json'); const v=(pkg.dependencies&&pkg.dependencies['react-native-reanimated'])||''; const m=String(v).match(/(\d+)/); process.stdout.write(m?m[1]:'0');")
+          EFFECTIVE_NEW_ARCH="$REQUESTED_NEW_ARCH"
+
+          if [ "$REANIMATED_MAJOR" -ge 4 ] && [ "$REQUESTED_NEW_ARCH" != "true" ]; then
+            echo "::warning::react-native-reanimated@$REANIMATED_VERSION requires New Architecture. Overriding new_arch_enabled=false -> true for this build."
+            EFFECTIVE_NEW_ARCH="true"
+          fi
+
+          echo "EFFECTIVE_NEW_ARCH=$EFFECTIVE_NEW_ARCH" >> $GITHUB_ENV
+          echo "REANIMATED_VERSION=$REANIMATED_VERSION" >> $GITHUB_ENV
+          echo "📦 react-native-reanimated version: $REANIMATED_VERSION"
+          echo "🏗️ New Architecture requested: $REQUESTED_NEW_ARCH"
+          echo "🏗️ New Architecture effective: $EFFECTIVE_NEW_ARCH"
+
+          if [ "$EFFECTIVE_NEW_ARCH" == "true" ]; then
             echo "🏗️ New Architecture: ENABLED"
             sed -i 's/newArchEnabled=.*/newArchEnabled=true/' android/gradle.properties
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.expo.newArchEnabled = true;
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+            "
           else
             echo "🏗️ New Architecture: DISABLED"
             sed -i 's/newArchEnabled=.*/newArchEnabled=false/' android/gradle.properties
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.expo.newArchEnabled = false;
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+            "
           fi
 
           if [ "${{ github.event.inputs.hermes_enabled }}" == "true" ]; then
@@ -519,7 +548,8 @@ jobs:
             **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'GitHub Actions Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
             **Architectures:** ${{ github.event.inputs.include_x86 == 'true' && 'arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)' || 'arm64-v8a, armeabi-v7a (ARM only)' }}
-            **New Architecture:** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}
+            **New Architecture (Requested):** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}
+            **New Architecture (Effective):** ${{ env.EFFECTIVE_NEW_ARCH == 'true' && 'Enabled' || env.EFFECTIVE_NEW_ARCH == 'false' && 'Disabled' || (github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled') }}
             **Hermes:** ${{ github.event.inputs.hermes_enabled == 'true' && 'Enabled' || 'Disabled' }}
 
             ### 📦 Production Build (Local GitHub Actions)
@@ -608,6 +638,8 @@ jobs:
             else
               echo "📱 **Architectures:** arm64-v8a, armeabi-v7a (ARM only)" >> $GITHUB_STEP_SUMMARY
             fi
+            echo "🏗️ **New Architecture (requested):** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "🏗️ **New Architecture (effective):** ${{ env.EFFECTIVE_NEW_ARCH == 'true' && 'Enabled' || env.EFFECTIVE_NEW_ARCH == 'false' && 'Disabled' || (github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled') }}" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
