@@ -19,7 +19,6 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import Toast from "react-native-toast-message";
 
 console.log("[RootLayout] module evaluation start");
-
 // Lazy-loaded update modules — prevents import crash from killing entire app.
 // useAppUpdate imports expo-file-system SDK 54 APIs (Paths, File) and
 // expo-intent-launcher which can fail on certain environments.
