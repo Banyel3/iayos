@@ -96,6 +96,24 @@ export default function KYCUploadScreen() {
   } = useKYC();
   const queryClient = useQueryClient();
 
+  // Testing mode: allow gallery uploads for easier testing
+  const [isTestingMode, setIsTestingMode] = useState(false);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch(ENDPOINTS.MOBILE_CONFIG);
+        if (response.ok) {
+          const config: { testing?: boolean } = await response.json();
+          setIsTestingMode(config.testing === true);
+        }
+      } catch (error) {
+        console.log("Failed to fetch mobile config:", error);
+      }
+    };
+    fetchConfig();
+  }, []);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedIDType, setSelectedIDType] = useState<IDType>("");
   const [selectedClearanceType, setSelectedClearanceType] =
@@ -243,8 +261,20 @@ export default function KYCUploadScreen() {
   };
 
   const pickImage = async (type: "front" | "back" | "clearance" | "selfie") => {
-    // Open camera screen directly - it has real-time overlay guide built-in
-    // No need for pre-capture modal anymore
+    if (isTestingMode) {
+      // Testing mode: let user choose between camera and gallery
+      Alert.alert(
+        "Select Image Source",
+        "Choose how to provide the document image",
+        [
+          { text: "Camera", onPress: () => openCamera(type) },
+          { text: "Gallery", onPress: () => pickFromGallery(type) },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
+    }
+    // Production: camera only with real-time overlay guide
     openCamera(type);
   };
 
