@@ -83,16 +83,21 @@ export default function AgencyDashboardPage() {
         const data = await res.json();
         const jobs = data.jobs || [];
         setRecentActivity(
-          jobs.map((job: any) => ({
-            id: job.jobID,
-            title: job.title,
-            status: job.status,
-            inviteStatus: job.inviteStatus,
-            budget: job.budget,
-            updatedAt: job.updatedAt,
-            assignedEmployeeId: job.assignedEmployee?.employeeId,
-            assignedEmployeeName: job.assignedEmployee?.name,
-          })),
+          jobs.map((job: any) => {
+            // Use M2M assigned_employees array (new model) with legacy fallback
+            const employees = job.assigned_employees || [];
+            const employeeNames = employees.map((e: any) => e.name).filter(Boolean);
+            return {
+              id: job.jobID,
+              title: job.title,
+              status: job.status,
+              inviteStatus: job.inviteStatus,
+              budget: job.budget,
+              updatedAt: job.updatedAt,
+              assignedEmployeeId: employees.length > 0 ? employees[0].employeeId : job.assignedEmployee?.employeeId,
+              assignedEmployeeName: employeeNames.length > 0 ? employeeNames.join(', ') : job.assignedEmployee?.name,
+            };
+          }),
         );
       }
     } catch (error) {
@@ -114,11 +119,13 @@ export default function AgencyDashboardPage() {
       if (res.ok) {
         const data = await res.json();
         const jobs = data.jobs || [];
-        // Filter to only show unassigned jobs (jobs without an assigned employee)
-        // Backend returns assignedEmployee in camelCase
-        const unassigned = jobs.filter(
-          (job: any) => !job.assignedEmployee && !job.assignedEmployeeID,
-        );
+        // Filter to jobs that still need employee assignment
+        // Check M2M assigned_employees array (new model) with legacy fallback
+        const unassigned = jobs.filter((job: any) => {
+          const employees = job.assigned_employees || [];
+          const hasLegacyAssignment = job.assignedEmployee || job.assignedEmployeeID;
+          return employees.length === 0 && !hasLegacyAssignment;
+        });
         setPendingAssignments(
           unassigned.slice(0, 5).map((job: any) => ({
             id: job.jobID,
@@ -126,6 +133,9 @@ export default function AgencyDashboardPage() {
             status: job.status,
             inviteStatus: job.inviteStatus,
             budget: job.budget,
+            payment_model: job.payment_model,
+            daily_rate_agreed: job.daily_rate_agreed,
+            duration_days: job.duration_days,
             updatedAt: job.updatedAt,
           })),
         );
@@ -316,9 +326,9 @@ export default function AgencyDashboardPage() {
                                 {job.assignedEmployeeName}
                               </span>
                             ) : (
-                              <span className="text-xs text-orange-600 flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" />
-                                Unassigned
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Awaiting assignment
                               </span>
                             )}
                             <span className="text-xs text-gray-400">•</span>
@@ -382,7 +392,7 @@ export default function AgencyDashboardPage() {
                             </span>
                             <span className="text-xs text-gray-400">•</span>
                             <span className="text-xs text-orange-600 font-medium">
-                              Needs employee assignment
+                              Ready for assignment
                             </span>
                           </div>
                         </div>
