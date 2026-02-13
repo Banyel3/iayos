@@ -348,7 +348,11 @@ export default function CreateTeamJobScreen() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      return response.json() as Promise<CreateTeamJobResponse>;
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to create team job");
+      }
+      return result as CreateTeamJobResponse;
     },
     onSuccess: (data) => {
       Alert.alert(
