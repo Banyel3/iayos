@@ -896,7 +896,12 @@ export default function KYCUploadScreen() {
         Alert.alert(
           "Verification Failed",
           `Your documents could not be verified automatically:\n\n${formattedReasons}\n\nPlease resubmit with clearer images.`,
-          [{ text: "View Status", onPress: () => router.replace("/kyc/status" as any) }],
+          [
+            {
+              text: "View Status",
+              onPress: () => router.replace("/kyc/status" as any),
+            },
+          ],
         );
       } else {
         // Success - redirect to status
@@ -1325,17 +1330,25 @@ export default function KYCUploadScreen() {
         )}
       </View>
 
-      <View style={styles.infoCard}>
-        <Ionicons
-          name="information-circle-outline"
-          size={24}
-          color={Colors.warning}
-        />
+      <View
+        style={[
+          styles.infoCard,
+          {
+            borderColor: Colors.warning,
+            borderWidth: 1,
+            backgroundColor: `${Colors.warning}10`,
+          },
+        ]}
+      >
+        <Ionicons name="warning-outline" size={24} color={Colors.warning} />
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.infoTitle}>Important Tips</Text>
+          <Text style={[styles.infoTitle, { color: Colors.warning }]}>
+            ⚠️ Requirements for Selfie
+          </Text>
           <Text style={styles.infoText}>
-            • Good lighting{"\n"}• Face clearly visible{"\n"}• Hold ID next to
-            face{"\n"}• Remove glasses
+            • Remove glasses, hats & face coverings{"\n"}• Face must be clearly
+            visible{"\n"}• Hold your ID card next to your face{"\n"}• Ensure good
+            lighting — no shadows on face
           </Text>
         </View>
       </View>

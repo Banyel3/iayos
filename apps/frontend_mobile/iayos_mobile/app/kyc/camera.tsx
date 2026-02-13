@@ -51,8 +51,8 @@ const getGuideConfig = (documentType: DocumentType): GuideConfig => {
     case "selfie":
       return {
         shape: "oval",
-        title: "Position Your Face",
-        subtitle: "Center your face within the oval frame",
+        title: "Selfie with ID",
+        subtitle: "Position your face in the oval\nHold your ID card next to your face",
         frameWidth: OVAL_SIZE,
         frameHeight: OVAL_SIZE * 1.3,
         facing: "front",
@@ -185,8 +185,11 @@ export default function KYCCameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [flashMode, setFlashMode] = useState<FlashMode>("off");
   const [isCapturing, setIsCapturing] = useState(false);
+  const [checkGlasses, setCheckGlasses] = useState(false);
+  const [checkId, setCheckId] = useState(false);
 
   const config = getGuideConfig(documentType);
+  const isSelfie = documentType === "selfie";
 
   // Permission not determined yet
   if (!permission) {
@@ -390,27 +393,127 @@ export default function KYCCameraScreen() {
           <View style={styles.darkSection} />
         </View>
 
+        {/* Selfie ID reminder — positioned below the oval frame */}
+        {isSelfie && (
+          <View style={styles.selfieIdReminder} pointerEvents="none">
+            <View style={styles.selfieIdBadge}>
+              <Ionicons
+                name="card-outline"
+                size={16}
+                color="rgba(255,255,255,0.95)"
+              />
+              <Text style={styles.selfieIdBadgeText}>
+                Hold your ID card visible in frame
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Guidance text at top */}
         <View style={[styles.guidanceContainer, { top: insets.top + 60 }]}>
           <Text style={styles.guidanceTitle}>{config.title}</Text>
           <Text style={styles.guidanceSubtitle}>{config.subtitle}</Text>
         </View>
 
-        {/* Tips */}
-        <View style={styles.tipsContainer}>
-          <View style={styles.tipRow}>
-            <Ionicons name="sunny-outline" size={16} color={Colors.white} />
-            <Text style={styles.tipText}>Good lighting</Text>
-          </View>
-          <View style={styles.tipRow}>
-            <Ionicons name="hand-left-outline" size={16} color={Colors.white} />
-            <Text style={styles.tipText}>Hold steady</Text>
-          </View>
-          <View style={styles.tipRow}>
-            <Ionicons name="eye-outline" size={16} color={Colors.white} />
-            <Text style={styles.tipText}>Clear text</Text>
-          </View>
+        {/* Tips — selfie-specific or generic */}
+        <View style={[styles.tipsContainer, isSelfie && { bottom: 250 }]}>
+          {isSelfie ? (
+            <>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="glasses-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>No glasses</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="card-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>ID visible</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="sunny-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>Good lighting</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="sunny-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>Good lighting</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="hand-left-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>Hold steady</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="eye-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>Clear text</Text>
+              </View>
+            </>
+          )}
         </View>
+
+        {/* Selfie pre-capture checklist */}
+        {isSelfie && (
+          <View
+            style={[
+              styles.selfieChecklist,
+              { bottom: insets.bottom + 115 },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.checklistRow}
+              onPress={() => setCheckGlasses((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={checkGlasses ? "checkbox" : "square-outline"}
+                size={22}
+                color={
+                  checkGlasses ? Colors.success : "rgba(255,255,255,0.8)"
+                }
+              />
+              <Text style={styles.checklistText}>
+                I removed glasses, hats & face coverings
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.checklistRow}
+              onPress={() => setCheckId((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={checkId ? "checkbox" : "square-outline"}
+                size={22}
+                color={checkId ? Colors.success : "rgba(255,255,255,0.8)"}
+              />
+              <Text style={styles.checklistText}>
+                I am holding my ID next to my face
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Controls */}
         <View style={[styles.controls, { paddingBottom: insets.bottom + 20 }]}>
@@ -423,10 +526,14 @@ export default function KYCCameraScreen() {
           <TouchableOpacity
             style={[
               styles.captureButton,
-              isCapturing && styles.captureButtonDisabled,
+              (isCapturing ||
+                (isSelfie && !(checkGlasses && checkId))) &&
+                styles.captureButtonDisabled,
             ]}
             onPress={handleCapture}
-            disabled={isCapturing}
+            disabled={
+              isCapturing || (isSelfie && !(checkGlasses && checkId))
+            }
           >
             <View style={styles.captureButtonInner} />
           </TouchableOpacity>
@@ -702,5 +809,56 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     backgroundColor: Colors.white,
+  },
+
+  // Selfie-specific styles
+  selfieIdReminder: {
+    position: "absolute",
+    top: (SCREEN_HEIGHT + OVAL_SIZE * 1.3) / 2 + 12,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  selfieIdBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  selfieIdBadgeText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.95)",
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  selfieChecklist: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  checklistRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  checklistText: {
+    fontSize: 14,
+    color: Colors.white,
+    fontWeight: "500",
+    flex: 1,
   },
 });
