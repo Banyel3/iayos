@@ -68,6 +68,10 @@ export function useCreateClientProfile() {
       });
     },
     onError: (error: Error) => {
+      // If backend says "already exists", refetch status so UI shows "Switch"
+      if (error.message.toLowerCase().includes("already exists")) {
+        queryClient.invalidateQueries({ queryKey: ["dual-profile-status"] });
+      }
       Toast.show({
         type: "error",
         text1: "Failed to Create Profile",
@@ -109,6 +113,12 @@ export function useCreateWorkerProfile() {
       });
     },
     onError: (error: Error) => {
+      // If backend says "already exists", the Profile row exists but
+      // WorkerProfile was missing (now fixed by backend). Refetch status
+      // so the UI shows "Switch" instead of "Create".
+      if (error.message.toLowerCase().includes("already exists")) {
+        queryClient.invalidateQueries({ queryKey: ["dual-profile-status"] });
+      }
       Toast.show({
         type: "error",
         text1: "Failed to Create Profile",
