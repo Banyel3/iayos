@@ -388,7 +388,8 @@ export default function CreateJobScreen() {
       const response = await fetchJson<WorkerDetailResponse>(
         ENDPOINTS.WORKER_DETAIL(parseInt(workerId)),
       );
-      return response?.data || null;
+      // Backend worker detail V2 returns { worker: {...} }, not { data: {...} }
+      return (response as any)?.worker || response?.data || null;
     },
     enabled: !!workerId, // Only fetch when workerId is provided
   });

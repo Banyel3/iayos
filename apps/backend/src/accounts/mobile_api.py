@@ -3198,10 +3198,11 @@ def mobile_upload_profile_image(request):
 
 @mobile_router.get("/workers/list", auth=jwt_auth)
 def mobile_workers_list(request, latitude: float = None, longitude: float = None,
-                        page: int = 1, limit: int = 20):
+                        page: int = 1, limit: int = 20, category: int = None):
     """
     Get list of workers for clients
     Optional location parameters for distance calculation
+    Optional category filter to show workers with specific specialization
     """
     from .mobile_services import get_workers_list_mobile
 
@@ -3213,13 +3214,16 @@ def mobile_workers_list(request, latitude: float = None, longitude: float = None
         print(f"👤 User: {user.email} (ID: {user.accountID})")
         print(f"📍 Location: lat={latitude}, lon={longitude}")
         print(f"📄 Pagination: page={page}, limit={limit}")
+        if category:
+            print(f"🏷️ Category filter: {category}")
         
         result = get_workers_list_mobile(
             user=user,
             latitude=latitude,
             longitude=longitude,
             page=page,
-            limit=limit
+            limit=limit,
+            category=category
         )
 
         if result['success']:
