@@ -1191,9 +1191,12 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
     return False, ""
 
 
-def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.85) -> Dict[str, Any]:
+def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.55) -> Dict[str, Any]:
     """
-    Compare faces between ID document and selfie
+    Compare faces between ID document and selfie using FaceDetectionService.
+    
+    Delegates to FaceDetectionService.compare_faces() which uses the
+    face_recognition library (dlib) for actual face matching.
     
     Args:
         id_image_data: Raw bytes of ID document image (front of ID)
@@ -1203,5 +1206,7 @@ def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity
     Returns:
         Dict with match result, similarity score, and any errors
     """
-    service = get_verification_service()
-    return service.compare_faces(id_image_data, selfie_image_data, similarity_threshold)
+    from .face_detection_service import get_face_service
+    service = get_face_service()
+    result = service.compare_faces(id_image_data, selfie_image_data, similarity_threshold)
+    return result.to_dict()

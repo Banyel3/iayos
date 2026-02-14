@@ -65,11 +65,12 @@ def upload_agency_kyc(request):
         business_permit = request.FILES.get("business_permit")
         rep_front = request.FILES.get("rep_front")
         rep_back = request.FILES.get("rep_back")
+        rep_selfie = request.FILES.get("rep_selfie")
         address_proof = request.FILES.get("address_proof")
         auth_letter = request.FILES.get("auth_letter")
 
         # Call optimized upload service (skips AI validation)
-        result = upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
+        result = upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter, rep_selfie=rep_selfie)
 
         return result
     except ValueError as e:
