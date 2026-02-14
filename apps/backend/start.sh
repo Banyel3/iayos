@@ -167,4 +167,4 @@ python manage.py clear_rate_limits --all || echo "Rate limit clearing skipped (c
 echo "=========================================="
 echo "Starting Daphne ASGI server..."
 echo "=========================================="
-exec daphne -b 0.0.0.0 -p 8000 --http-timeout 120 iayos_project.asgi:application
+exec daphne -b 0.0.0.0 -p 8000 --http-timeout 300 iayos_project.asgi:application
