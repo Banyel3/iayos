@@ -58,18 +58,17 @@ def increment_request_count():
 
 
 def _prewarm_face_api_async():
-    """Pre-warm Face API in a background thread to avoid blocking startup."""
+    """Pre-warm face_recognition (dlib) in a background thread to avoid blocking startup."""
     try:
-        from accounts.face_detection_service import prewarm_face_api, FACE_API_URL
-        if FACE_API_URL:
-            print(f"🔥 Pre-warming Face API: {FACE_API_URL}")
-            success = prewarm_face_api()
-            if success:
-                print("✅ Face API: PRE-WARMED (ready for requests)")
-            else:
-                print("⚠️ Face API: Pre-warm failed (will retry on first request)")
+        from accounts.face_detection_service import prewarm_face_api
+        print("🔥 Pre-warming face_recognition (dlib)...")
+        success = prewarm_face_api()
+        if success:
+            print("✅ Face Recognition: PRE-WARMED (dlib model loaded, ready for requests)")
+        else:
+            print("⚠️ Face Recognition: Pre-warm failed (will retry on first request)")
     except Exception as e:
-        print(f"⚠️ Face API pre-warm error: {e}")
+        print(f"⚠️ Face Recognition pre-warm error: {e}")
 
 
 class AccountsConfig(AppConfig):
@@ -106,15 +105,10 @@ class AccountsConfig(AppConfig):
         except Exception as e:
             print(f"⚠️ Tesseract OCR: UNAVAILABLE - {e}")
         
-        # Check Face API URL (just env var check, no network call)
-        face_api_url = os.getenv("FACE_API_URL", "")
-        if face_api_url:
-            print(f"✅ Face API URL: {face_api_url}")
-            # Pre-warm Face API in background thread (non-blocking)
-            # This wakes up Render free tier before user requests
-            threading.Thread(target=_prewarm_face_api_async, daemon=True).start()
-        else:
-            print("⚠️ Face API: FACE_API_URL not set - face detection disabled")
+        # Pre-warm face_recognition (dlib) in background thread (non-blocking)
+        # This loads the dlib face model (~150 MB) before user requests arrive
+        print("✅ Face Detection: Using local face_recognition (dlib)")
+        threading.Thread(target=_prewarm_face_api_async, daemon=True).start()
         
         # Start keep-alive background thread (prevents Render free tier spin-down)
         global _keep_alive_thread

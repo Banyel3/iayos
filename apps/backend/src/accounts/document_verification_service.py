@@ -13,7 +13,6 @@ Integration points:
 
 import io
 import re
-import httpx
 import logging
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
@@ -24,21 +23,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Face API configuration (InsightFace microservice)
+# Face detection now uses local face_recognition (dlib) library
+# via face_detection_service.py — no external API needed
 import os
-FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
-
-# Import shared HTTP client and timeouts from face_detection_service
-# This ensures consistent connection pooling and timeouts across all face API calls
-try:
-    from .face_detection_service import get_http_client, FACE_API_TIMEOUT, FACE_API_HEALTH_TIMEOUT
-    _use_shared_client = True
-    logger.info("Using shared HTTP client from face_detection_service")
-except ImportError:
-    _use_shared_client = False
-    FACE_API_TIMEOUT = 45.0
-    FACE_API_HEALTH_TIMEOUT = 10.0
-    logger.info("Shared HTTP client not available, using standalone httpx")
 
 # Tesseract is imported conditionally
 try:
@@ -268,49 +255,25 @@ class DocumentVerificationService:
         Initialize the verification service
         
         Args:
-            face_api_url: URL of Face API service (default from FACE_API_URL env)
-            skip_face_service: When True, never call Face API (used for text-only docs)
+            face_api_url: Deprecated (kept for backward compat). Face detection is now local.
+            skip_face_service: When True, skip face detection (used for text-only docs)
         """
-        self.face_api_url = face_api_url or FACE_API_URL
         self.skip_face_service = skip_face_service
-        self._face_api_available = None  # Lazy check
+        self._face_service = None  # Lazy-loaded local face service
         
         logger.info(
-            f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}, skip_face_service={self.skip_face_service}"
+            f"DocumentVerificationService initialized - using local face_recognition (dlib), skip_face_service={self.skip_face_service}"
         )
 
-    def _check_face_api_available(self) -> bool:
-        """Check if Face API service is available.
-        
-        Uses shared HTTP client with connection pooling for better performance.
-        Health check timeout is 10s to allow for Render cold start.
-        """
-        if self.skip_face_service:
-            self._face_api_available = False
-            return False
-
-        if self._face_api_available is not None:
-            return self._face_api_available
-            
-        try:
-            # Use shared client if available (connection pooling)
-            if _use_shared_client:
-                client = get_http_client()
-                response = client.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
-            else:
-                response = httpx.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self._face_api_available = data.get("model_loaded", False)
-            else:
-                self._face_api_available = False
-            logger.info(f"Face API availability check: available={self._face_api_available}")
-        except Exception as e:
-            logger.warning(f"Face API not available: {e}")
-            self._face_api_available = False
-            
-        return self._face_api_available
+    def _get_local_face_service(self):
+        """Get the local FaceDetectionService (lazy-loaded)."""
+        if self._face_service is None:
+            try:
+                from .face_detection_service import get_face_service
+                self._face_service = get_face_service()
+            except Exception as e:
+                logger.warning(f"Could not load face_detection_service: {e}")
+        return self._face_service
 
     def validate_document_quick(
         self, 
@@ -752,16 +715,13 @@ class DocumentVerificationService:
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
-        Detect faces in image using Face API (InsightFace microservice)
+        Detect faces in image using local face_recognition (dlib) library.
         
         Returns dict with:
             - detected: bool
             - count: number of faces
             - confidence: highest face confidence
             - skipped: bool if detection was skipped
-        
-        NOTE: Health check removed to save 10s. Pre-warming on startup ensures
-        service is ready. Let detection fail directly if service is down.
         """
         # TESTING MODE: bypass face detection entirely so all photos pass
         if getattr(settings, 'TESTING', False):
@@ -787,83 +747,20 @@ class DocumentVerificationService:
             }
         
         try:
-            # Resize image if too large
-            image = Image.open(io.BytesIO(image_data))
-            original_size = (image.width, image.height)
-            max_dimension = 1920
-            
-            if max(image.width, image.height) > max_dimension:
-                ratio = max_dimension / max(image.width, image.height)
-                new_size = (int(image.width * ratio), int(image.height * ratio))
-                image = image.resize(new_size, Image.Resampling.LANCZOS)
-                logger.info(f"   📐 Resized image from {original_size} to {new_size}")
-                
-                # Convert back to bytes
-                buffer = io.BytesIO()
-                image.save(buffer, format="JPEG", quality=90)
-                image_data = buffer.getvalue()
-            
-            # Call Face API detection endpoint using shared HTTP client for connection pooling
-            files = {"file": ("image.jpg", image_data, "image/jpeg")}
-            
-            # Use shared client if available (connection pooling + 30s timeout)
-            if _use_shared_client:
-                client = get_http_client()
-                response = client.post(
-                    f"{self.face_api_url}/detect",
-                    files=files,
-                    timeout=FACE_API_TIMEOUT
-                )
-            else:
-                response = httpx.post(
-                    f"{self.face_api_url}/detect",
-                    files=files,
-                    timeout=FACE_API_TIMEOUT
-                )
-            
-            if response.status_code != 200:
-                logger.warning(f"Face API returned {response.status_code}: {response.text}")
+            face_service = self._get_local_face_service()
+            if face_service is None:
+                logger.warning("Local face_detection_service not available, skipping")
                 return {
                     "detected": False,
                     "count": 0,
                     "confidence": 0,
                     "skipped": True,
-                    "error": f"API error: {response.status_code}"
+                    "error": "face_recognition library not available"
                 }
             
-            result = response.json()
+            result = face_service.detect_face(image_data)
+            return result.to_dict()
             
-            # Apply confidence threshold to prevent false positives
-            confidence = result.get("confidence", 0)
-            detected = result.get("detected", False)
-            
-            # If detected but confidence is too low, treat as not detected
-            if detected and confidence < MIN_CONFIDENCE_FACE:
-                logger.warning(f"   ⚠️ Face detected but confidence too low ({confidence:.2f} < {MIN_CONFIDENCE_FACE}) - rejecting as false positive")
-                return {
-                    "detected": False,
-                    "count": 0,
-                    "confidence": confidence,
-                    "faces": result.get("faces", []),
-                    "reason": f"Face detection confidence too low ({confidence:.2f})"
-                }
-            
-            return {
-                "detected": detected,
-                "count": result.get("count", 0),
-                "confidence": confidence,
-                "faces": result.get("faces", [])
-            }
-            
-        except httpx.TimeoutException:
-            logger.error("Face API request timed out")
-            return {
-                "detected": False,
-                "count": 0,
-                "confidence": 0,
-                "skipped": True,
-                "error": "Face detection timed out - will be reviewed manually"
-            }
         except Exception as e:
             logger.error(f"Face detection error: {e}", exc_info=True)
             return {
