@@ -945,32 +945,29 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
 
         # ============================================
         # FACE MATCHING: Compare selfie with ID photo
-        # (Skipped if skip_ai_verification=True)
         # ============================================
         face_match_result = None
-        if skip_ai_verification:
-            print("⏭️  Skipping face matching (per-step validation already done)")
-        elif 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
+        if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
             print("🔍 Starting face matching between ID and selfie...")
             try:
                 face_match_result = verify_face_match(
                     id_image_data=file_data_cache['FRONTID'],
                     selfie_image_data=file_data_cache['SELFIE'],
-                    similarity_threshold=0.40  # 40% similarity threshold (InsightFace ArcFace)
+                    similarity_threshold=0.55  # face_recognition default threshold
                 )
                 
                 if face_match_result.get('skipped'):
                     print(f"⚠️  Face matching skipped: {face_match_result.get('reason')}")
                 elif face_match_result.get('match'):
                     similarity = face_match_result.get('similarity', 0)
-                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.70)")
+                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.55)")
                 else:
                     similarity = face_match_result.get('similarity', 0)
                     error = face_match_result.get('error', 'Face does not match')
                     
                     if similarity > 0:
                         # Faces detected but don't match
-                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.70 threshold")
+                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.55 threshold")
                         any_failed = True
                         failure_messages.append(f"FACE_MATCH: Selfie does not match ID photo (similarity: {similarity:.0%})")
                     else:

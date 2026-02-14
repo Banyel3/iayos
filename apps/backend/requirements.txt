@@ -79,10 +79,9 @@ Pillow>=10.0.0  # Image processing for quality checks
 scipy>=1.11.0  # Image processing (blur detection via Laplacian)
 pdf2image>=1.17.0  # Convert PDF to image for OCR
 
-# Face Detection - Moved to separate Face API service
-# insightface>=0.7.3  # Removed
-# onnxruntime>=1.16.0 # Removed
-# opencv-python-headless>=4.8.0 # Removed
+# Face Recognition - Local face matching (replaces external Face API)
+face-recognition>=1.3.0  # dlib-based, 99.38% LFW accuracy, ~150MB RAM
+dlib>=19.24  # C++ ML toolkit for face encodings
 
 # Security updates for Alpine packages
 # Force pip upgrade to fix CVE-2025-8869  
