@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -110,9 +111,6 @@ export default function AgencyProfilePage() {
   const { data: transactions = [], isLoading: isLoadingTransactions } =
     useWalletTransactions(activeTab === "transactions");
 
-  const API_BASE =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-
   const fetchProfile = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/agency/profile`, {
@@ -146,9 +144,11 @@ export default function AgencyProfilePage() {
   useEffect(() => {
     const verifyStatus = searchParams.get("verify");
     const methodId = searchParams.get("method_id");
-    
+
     if (verifyStatus === "success") {
-      toast.success("GCash account verified successfully! ₱1 has been credited to your wallet.");
+      toast.success(
+        "GCash account verified successfully! ₱1 has been credited to your wallet.",
+      );
       // Switch to payment methods tab to show the verified method
       setActiveTab("payment-methods");
       // Clean up URL params
@@ -157,7 +157,9 @@ export default function AgencyProfilePage() {
       fetchPaymentMethods();
       refetchWallet();
     } else if (verifyStatus === "failed") {
-      toast.error("GCash verification failed. Please try adding your payment method again.");
+      toast.error(
+        "GCash verification failed. Please try adding your payment method again.",
+      );
       setActiveTab("payment-methods");
       router.replace("/agency/profile");
       fetchPaymentMethods();
@@ -216,7 +218,7 @@ export default function AgencyProfilePage() {
       });
 
       const data = await res.json();
-      
+
       if (res.ok) {
         // Check if verification is required (new production-ready flow)
         if (data.verification_required && data.checkout_url) {
@@ -224,7 +226,7 @@ export default function AgencyProfilePage() {
           setShowAddPaymentModal(false);
           setNewAccountName("");
           setNewAccountNumber("");
-          
+
           // Redirect to PayMongo checkout for verification
           // The ₱1 payment will verify ownership of the GCash account
           window.location.href = data.checkout_url;
@@ -257,7 +259,7 @@ export default function AgencyProfilePage() {
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
 
       if (res.ok) {
@@ -284,7 +286,7 @@ export default function AgencyProfilePage() {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       if (res.ok) {
@@ -519,11 +521,11 @@ export default function AgencyProfilePage() {
                     {transactions
                       .filter(
                         (t: Transaction) =>
-                          t.type === "DEPOSIT" || t.type === "PAYMENT_RECEIVED"
+                          t.type === "DEPOSIT" || t.type === "PAYMENT_RECEIVED",
                       )
                       .reduce(
                         (sum: number, t: Transaction) => sum + t.amount,
-                        0
+                        0,
                       )
                       .toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
@@ -540,7 +542,7 @@ export default function AgencyProfilePage() {
                       .reduce(
                         (sum: number, t: Transaction) =>
                           sum + Math.abs(t.amount),
-                        0
+                        0,
                       )
                       .toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
@@ -654,7 +656,7 @@ export default function AgencyProfilePage() {
                                 year: "numeric",
                                 hour: "numeric",
                                 minute: "2-digit",
-                              }
+                              },
                             )}
                           </p>
                         </div>
@@ -1151,7 +1153,7 @@ export default function AgencyProfilePage() {
                           amount,
                           payment_method_id: methodId,
                         }),
-                      }
+                      },
                     );
 
                     const data = await res.json();
@@ -1164,13 +1166,13 @@ export default function AgencyProfilePage() {
                           {
                             description: "Opening invoice in new tab...",
                             duration: 5000,
-                          }
+                          },
                         );
                         // Open invoice URL in new tab
                         window.open(data.invoice_url, "_blank");
                       } else {
                         toast.success(
-                          `Withdrawal of ₱${amount.toLocaleString()} submitted! ${data.message || "Funds will arrive in 1-3 business days."}`
+                          `Withdrawal of ₱${amount.toLocaleString()} submitted! ${data.message || "Funds will arrive in 1-3 business days."}`,
                         );
                       }
                       setShowWithdrawModal(false);
@@ -1307,10 +1309,13 @@ export default function AgencyProfilePage() {
                     <CheckCircle className="h-4 w-4 text-blue-600" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-blue-900">Secure Verification</h4>
+                    <h4 className="text-sm font-medium text-blue-900">
+                      Secure Verification
+                    </h4>
                     <p className="text-xs text-blue-700 mt-1">
-                      After clicking "Verify Account", you'll be redirected to PayMongo to pay ₱1 
-                      via GCash. This confirms you own the account. The ₱1 will be credited to your wallet!
+                      After clicking "Verify Account", you'll be redirected to
+                      PayMongo to pay ₱1 via GCash. This confirms you own the
+                      account. The ₱1 will be credited to your wallet!
                     </p>
                   </div>
                 </div>

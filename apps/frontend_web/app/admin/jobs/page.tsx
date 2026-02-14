@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Sidebar } from "../components";
 import {
   Card,
@@ -43,7 +44,7 @@ export default function JobsManagementPage() {
     const fetchStats = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8000/api/adminpanel/jobs/dashboard-stats",
+          `${API_BASE}/api/adminpanel/jobs/dashboard-stats`,
           {
             credentials: "include",
           },

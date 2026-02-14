@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
@@ -42,12 +43,11 @@ export default function ActiveJobsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["agency-active-jobs"],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=IN_PROGRESS`,
+        `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
           credentials: "include",
-        }
+        },
       );
       if (!response.ok) throw new Error("Failed to fetch jobs");
       return response.json();
@@ -129,10 +129,10 @@ export default function ActiveJobsPage() {
   });
 
   const inProgressCount = jobs.filter(
-    (j) => j.clientConfirmedWorkStarted && !j.workerMarkedComplete
+    (j) => j.clientConfirmedWorkStarted && !j.workerMarkedComplete,
   ).length;
   const pendingCount = jobs.filter(
-    (j) => j.workerMarkedComplete && !j.clientMarkedComplete
+    (j) => j.workerMarkedComplete && !j.clientMarkedComplete,
   ).length;
 
   if (isLoading) {

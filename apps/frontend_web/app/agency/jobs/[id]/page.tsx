@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/form_button";
@@ -93,8 +94,7 @@ export default function JobDetailPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/agency/jobs/${jobId}`, {
+      const response = await fetch(`${API_BASE}/api/agency/jobs/${jobId}`, {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
@@ -110,7 +110,7 @@ export default function JobDetailPage() {
     } catch (err) {
       console.error("Error fetching job details:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to load job details"
+        err instanceof Error ? err.message : "Failed to load job details",
       );
     } finally {
       setLoading(false);
@@ -305,7 +305,7 @@ export default function JobDetailPage() {
                         <div className="text-sm text-gray-600">Start Date</div>
                         <div className="text-lg font-semibold text-gray-900">
                           {new Date(
-                            job.preferredStartDate
+                            job.preferredStartDate,
                           ).toLocaleDateString()}
                         </div>
                       </div>
@@ -413,7 +413,7 @@ export default function JobDetailPage() {
                           <Calendar className="h-4 w-4 mr-2" />
                           Assigned{" "}
                           {new Date(
-                            job.employeeAssignedAt
+                            job.employeeAssignedAt,
                           ).toLocaleDateString()}
                         </div>
                       )}

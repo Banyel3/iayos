@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -331,8 +332,6 @@ export default function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   // Fetch pending KYC count on mount and refresh every 30 seconds
   useEffect(() => {

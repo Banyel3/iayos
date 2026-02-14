@@ -10,6 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+# CRITICAL: Import ninja_patch FIRST to prevent UUID converter conflict
+# This MUST be before any other imports
+from . import ninja_patch  # noqa: F401 (imported for side effects)
+
 from pathlib import Path
 import datetime
 import os
@@ -54,13 +58,30 @@ if not SECRET_KEY:
 DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
 
 # SECURITY: In production, ALLOWED_HOSTS must be explicitly set
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
-if not any(ALLOWED_HOSTS) or ALLOWED_HOSTS == ['']:
+# Parse from environment variable (comma-separated)
+_env_hosts = os.environ.get('ALLOWED_HOSTS', '').strip()
+ALLOWED_HOSTS = [h.strip() for h in _env_hosts.split(',') if h.strip()]
+
+# Always include production domains to prevent deployment issues
+PRODUCTION_HOSTS = [
+    'iayos.onrender.com',      # Render subdomain
+    'api.iayos.online',        # Custom API domain
+    'iayos.online',            # Custom frontend domain
+    'www.iayos.online',        # www subdomain
+]
+
+# Merge with production hosts
+for host in PRODUCTION_HOSTS:
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+
+# Fallback for development
+if not ALLOWED_HOSTS:
     if DEBUG:
         ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
     else:
-        print("⚠ ALLOWED_HOSTS not set - defaulting to localhost only")
-        ALLOWED_HOSTS = ['localhost']
+        print("⚠ ALLOWED_HOSTS not set - using production defaults")
+        ALLOWED_HOSTS = PRODUCTION_HOSTS.copy()
 
 
 # Application definition
@@ -93,6 +114,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'iayos_project.observability.RequestIDMiddleware',  # Request ID for tracing (first)
     'corsheaders.middleware.CorsMiddleware',
+    'iayos_project.mobile_cors_middleware.MobileCORSMiddleware',  # Handle mobile apps without Origin header
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -145,23 +167,34 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-# CORS Settings - Allow frontend during dev
-# settings.py
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development (restrict in production)
-
-# Legacy CORS settings (kept for reference)
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     "http://localhost:8000",
-#     "http://127.0.0.1:8000",
-# ]
+# CORS Settings - Environment-aware configuration
+# Production: Restrict to specific origins | Development: Allow all
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    # Get frontend URL and ensure it has https:// prefix
+    _frontend_url = os.getenv('FRONTEND_URL', 'https://iayos.online')
+    if not _frontend_url.startswith(('http://', 'https://')):
+        _frontend_url = f'https://{_frontend_url}'
+    
+    CORS_ALLOWED_ORIGINS = [
+        _frontend_url,
+        "https://iayos.online",           # Custom domain
+        "https://www.iayos.online",       # www subdomain
+        "https://api.iayos.online",       # Backend API domain
+        "https://iayos.onrender.com",     # Render subdomain
+        "https://iayos.vercel.app",       # Vercel production
+        # Add other production domains as needed
+    ]
 
 # Get the frontend URL from environment for CSRF trust
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3400')
+_raw_frontend = os.getenv('FRONTEND_URL', 'http://localhost:3400')
+FRONTEND_URL = _raw_frontend if _raw_frontend.startswith(('http://', 'https://')) else f'https://{_raw_frontend}'
 API_URL = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"')
 
 CSRF_TRUSTED_ORIGINS = [
+    # Local development
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:3400",
@@ -173,6 +206,12 @@ CSRF_TRUSTED_ORIGINS = [
     "http://10.0.2.2:8000",  # Android emulator host access
     "http://192.168.254.116:3500",  # IP address for LAN access (port 3500)
     "http://192.168.254.116:8000",  # Backend IP for LAN access
+    # Production domains (HTTPS)
+    "https://iayos.online",               # Custom domain (frontend)
+    "https://www.iayos.online",           # www subdomain  
+    "https://api.iayos.online",           # Custom domain (backend API)
+    "https://iayos.onrender.com",         # Render subdomain
+    "https://iayos.vercel.app",           # Vercel production
     FRONTEND_URL,  # Dynamic frontend URL from env
     API_URL,  # Dynamic API URL from env
 ]
@@ -203,11 +242,7 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
-# CSRF Settings - Exempt API endpoints since we're using JWT
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+# CSRF Settings - JWT-based APIs are exempt; cookies handled above
 
 ROOT_URLCONF = 'iayos_project.urls'
 
@@ -463,9 +498,6 @@ if REDIS_URL and REDIS_URL != "none":
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": REDIS_URL,
-            "OPTIONS": {
-                "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            },
             "KEY_PREFIX": "iayos",
             "TIMEOUT": 300,  # 5 minutes default cache timeout
         }

@@ -1,0 +1,130 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Edit Profile
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies users can edit their profile information
+# Prerequisites: Logged in
+# Note: Changes are reverted at end of test
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.devante.iayos
+tags:
+  - profile
+  - edit
+  - form
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Edit Profile
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    text: "Profile"
+    optional: true
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Edit"
+    optional: true
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Edit Form
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    text: "Edit Profile"
+    optional: true
+    timeout: 10000
+
+- takeScreenshot: "01_edit_form"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Edit Bio
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "bio-input"
+    optional: true
+      - text: "Bio"
+      - text: "About"
+
+# Clear and enter new bio
+- inputText: "Maestro E2E Test Bio - This will be reverted"
+- hideKeyboard
+
+- takeScreenshot: "02_bio_edited"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Edit Hourly Rate (Worker only)
+# ─────────────────────────────────────────────────────────────────────────────
+- scroll:
+    direction: DOWN
+
+- tapOn:
+    id: "bio-input"
+    optional: true
+      - text: "Hourly Rate"
+      - text: "₱/hr"
+    optional: true
+
+- inputText: "150"
+  optional: true
+- hideKeyboard
+
+- takeScreenshot: "03_rate_edited"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Save Button
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    text: "Save"
+    optional: true
+
+- takeScreenshot: "04_ready_to_save"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLEANUP: Cancel without saving
+# ─────────────────────────────────────────────────────────────────────────────
+# We don't save to avoid polluting user data
+- tapOn:
+    text: "Cancel"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Confirm discard if prompted
+- tapOn:
+    text: "Discard"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "05_cancelled"

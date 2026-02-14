@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 interface AgencyStats {
   total_jobs: number;
@@ -36,7 +35,7 @@ export function useAgencyStats() {
   return useQuery<AgencyStats>({
     queryKey: ["agency", "stats"],
     queryFn: async () => {
-      const response = await fetch(`${API_URL}/api/agency/profile`, {
+      const response = await fetch(`${API_BASE}/api/agency/profile`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -67,7 +66,7 @@ export function useAgencyStats() {
  */
 export function useLeaderboard(
   sortBy: "rating" | "jobs" | "earnings" = "rating",
-  limit: number = 10
+  limit: number = 10,
 ) {
   return useQuery<LeaderboardEmployee[]>({
     queryKey: ["agency", "leaderboard", sortBy, limit],
@@ -84,11 +83,11 @@ export function useLeaderboard(
       });
 
       const response = await fetch(
-        `${API_URL}/api/agency/employees/leaderboard?${params}`,
+        `${API_BASE}/api/agency/employees/leaderboard?${params}`,
         {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -130,7 +129,7 @@ export function useRevenueTrends(startDate: Date, endDate: Date) {
  */
 function generateMockRevenueTrends(
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ): RevenueTrendData[] {
   const data: RevenueTrendData[] = [];
   const currentDate = new Date(startDate);
@@ -153,7 +152,7 @@ function generateMockRevenueTrends(
 export function exportAnalyticsCSV(
   leaderboard: LeaderboardEmployee[],
   stats: AgencyStats,
-  filename?: string
+  filename?: string,
 ) {
   const timestamp = new Date().toISOString().split("T")[0];
   const fname = filename || `agency-analytics-${timestamp}.csv`;

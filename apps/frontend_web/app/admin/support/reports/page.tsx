@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -89,7 +90,7 @@ export default function UserReportsPage() {
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<UserReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(
-    null
+    null,
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
@@ -120,8 +121,8 @@ export default function UserReportsPage() {
       if (typeFilter !== "all") params.append("type", typeFilter);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports?${params.toString()}`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/support/reports?${params.toString()}`,
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -138,8 +139,8 @@ export default function UserReportsPage() {
   const handleViewDetail = async (reportId: string) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${reportId}`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/support/reports/${reportId}`,
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -158,7 +159,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -167,7 +168,7 @@ export default function UserReportsPage() {
             action: "warning",
             notes: warningMessage,
           }),
-        }
+        },
       );
 
       setShowWarningModal(false);
@@ -184,7 +185,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -194,7 +195,7 @@ export default function UserReportsPage() {
             duration: parseInt(suspendDuration),
             notes: suspendReason,
           }),
-        }
+        },
       );
 
       setShowSuspendModal(false);
@@ -211,7 +212,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -220,7 +221,7 @@ export default function UserReportsPage() {
             action: "ban",
             notes: banReason,
           }),
-        }
+        },
       );
 
       setShowBanModal(false);
@@ -237,7 +238,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -246,7 +247,7 @@ export default function UserReportsPage() {
             action: "dismiss",
             notes: adminNotes,
           }),
-        }
+        },
       );
 
       setShowDetailModal(false);

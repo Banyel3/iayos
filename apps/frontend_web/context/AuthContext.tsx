@@ -9,21 +9,33 @@ import React, {
 } from "react";
 import { User, AuthContextType } from "@/types";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // 🔥 Centralized cache clearing function
 const clearAllAuthCaches = () => {
-  const cacheKeys = [
+  // Clear all localStorage auth-related items
+  const localStorageKeys = [
     "cached_user",
     "cached_worker_availability",
     "ws_token", // WebSocket authentication token
-    // Add any future cache keys here
+    "hasSeenOnboard",
+    "rateLimitEndTime",
+    "registerRateLimitEndTime",
+    "IAYOS_PERSISTENT_CACHE",
+    "IAYOS_CACHE_TIME",
   ];
 
-  cacheKeys.forEach((key) => {
+  localStorageKeys.forEach((key) => {
     localStorage.removeItem(key);
+  });
+
+  // Clear all sessionStorage auth-related items
+  const sessionStorageKeys = ["IAYOS_SESSION_CACHE", "last_login_redirect"];
+
+  sessionStorageKeys.forEach((key) => {
+    sessionStorage.removeItem(key);
   });
 };
 
@@ -35,7 +47,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // Always verify with server on mount - don't trust cache alone
+      // 🔥 Optimization: Use cached user immediately, then verify in background
+      const cached = localStorage.getItem("cached_user");
+      if (cached) {
+        try {
+          const { user: cachedUser, timestamp } = JSON.parse(cached);
+          const cacheAge = Date.now() - timestamp;
+          const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+          if (cacheAge < CACHE_TTL && cachedUser) {
+            console.log("🚀 Using cached user for instant load");
+            setUser(cachedUser);
+            setIsLoading(false);
+
+            // Verify in background (don't await)
+            checkAuthWithServer().catch(console.error);
+            return;
+          }
+        } catch (e) {
+          console.error("Cache parse error:", e);
+        }
+      }
+
+      // No valid cache - must verify with server
       await checkAuthWithServer();
     };
 
@@ -45,12 +79,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkAuthWithServer = async (): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
-        {
-          credentials: "include", // 🔥 HTTP-only cookies sent automatically
-        }
-      );
+      // 🔥 Add timeout for cold starts (Render free tier can be slow)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+      const response = await fetch(`${API_BASE}/api/accounts/me`, {
+        credentials: "include", // 🔥 HTTP-only cookies sent automatically
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const userData = await response.json();
@@ -62,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
         return true;
       } else {
@@ -87,21 +125,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearAllAuthCaches();
       setUser(null);
 
-      const response = await fetch(
-        `${API_BASE_URL.replace("/api", "")}/api/accounts/login`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-          credentials: "include", // 🔥 Cookies handled automatically
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/accounts/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include", // 🔥 Cookies handled automatically
+      });
 
       if (!response.ok) {
+        // Read error detail from response
+        const errorData = await response.json().catch(() => ({}));
+        let errorMessage = "Login failed";
+
+        // Handle structured error: {"error": [{"message": "..."}]}
+        if (Array.isArray(errorData.error) && errorData.error.length > 0) {
+          errorMessage = errorData.error[0].message || errorMessage;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+
         // Login failed - ensure everything is cleared
         setUser(null);
         clearAllAuthCaches();
-        throw new Error("Login failed");
+        throw new Error(errorMessage);
       }
 
       // Get the login response which includes tokens
@@ -114,12 +162,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Login successful - now fetch user data
-      const userDataResponse = await fetch(
-        `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
-        {
-          credentials: "include",
-        }
-      );
+      const userDataResponse = await fetch(`${API_BASE}/api/accounts/me`, {
+        credentials: "include",
+      });
 
       if (userDataResponse.ok) {
         const userData = await userDataResponse.json();
@@ -131,7 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
 
         return true;
@@ -156,23 +201,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearAllAuthCaches();
 
       // Call backend to clear cookies
-      await fetch(`${API_BASE_URL.replace("/api", "")}/api/accounts/logout`, {
+      await fetch(`${API_BASE}/api/accounts/logout`, {
         method: "POST",
         credentials: "include",
       });
 
       console.log("✅ Logout successful");
 
-      // Immediately redirect to login page
-      router.push("/auth/login");
+      // Force full page reload to clear ALL state including React Query cache
+      window.location.href = "/auth/login";
     } catch (error) {
       console.error("❌ Logout error:", error);
       // Still clear local state even if backend call fails
       setUser(null);
       clearAllAuthCaches();
 
-      // Redirect even on error
-      router.push("/auth/login");
+      // Force full page reload even on error
+      window.location.href = "/auth/login";
     }
   };
 

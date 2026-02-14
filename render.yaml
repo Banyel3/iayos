@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: iayos
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # CRITICAL: Explicitly run start.sh to ensure migrations run before Daphne
+    dockerCommand: /app/backend/start.sh
+    healthCheckPath: /health/status
+    envVars:
+      - key: WEB_CONCURRENCY
+        value: 1

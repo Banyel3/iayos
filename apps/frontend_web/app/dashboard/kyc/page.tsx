@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { API_BASE } from "@/lib/api/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -128,7 +129,7 @@ const KYCPage = () => {
       formData.append("IDType", normalizeIDType(selectedIDType));
       formData.append(
         "clearanceType",
-        normalizeClearanceType(selectedClearanceType)
+        normalizeClearanceType(selectedClearanceType),
       );
 
       // 🔥 Append files with proper field names
@@ -139,18 +140,15 @@ const KYCPage = () => {
 
       console.log("📤 Uploading KYC documents...");
 
-      const upload = await fetch(
-        "http://localhost:8000/api/accounts/upload/kyc",
-        {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        }
-      ).catch((err) => {
+      const upload = await fetch(`${API_BASE}/api/accounts/upload/kyc`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      }).catch((err) => {
         // Network error - backend not reachable
         console.error("❌ Network error:", err);
         throw new Error(
-          "Cannot connect to server. Please check your internet connection."
+          "Cannot connect to server. Please check your internet connection.",
         );
       });
 
@@ -236,7 +234,7 @@ const KYCPage = () => {
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: "front" | "back" | "clearance" | "selfie"
+    type: "front" | "back" | "clearance" | "selfie",
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;

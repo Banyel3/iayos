@@ -19,15 +19,18 @@
         "next.config.*",
         "tailwind.config.*",
         "tsconfig.json",
-        "prisma/schema.prisma",
         ".env*",
         "!**/.next/**",
-        "!**/node_modules/**",
-        "!**/@prisma/client/**",
-        "!**/lib/generated/**"
+        "!**/node_modules/**"
       ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["NODE_ENV"]
+      "env": [
+        "NODE_ENV",
+        "AUTH_SECRET",
+        "NEXT_PUBLIC_API_URL",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE",
+        "PRISMA_CLIENT_ENGINE_TYPE"
+      ]
     },
     "iayos_final#check-types": {
       "dependsOn": ["^check-types"],

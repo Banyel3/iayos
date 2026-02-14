@@ -16,7 +16,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function WelcomeScreen() {
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="welcome-screen">
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -54,6 +54,7 @@ export default function WelcomeScreen() {
                 style={styles.primaryButton}
                 onPress={() => router.push("/auth/register")}
                 activeOpacity={0.8}
+                testID="welcome-get-started-button"
               >
                 <Text style={styles.primaryButtonText}>Get Started</Text>
               </TouchableOpacity>
@@ -62,6 +63,7 @@ export default function WelcomeScreen() {
                 style={styles.outlineButton}
                 onPress={() => router.push("/auth/login")}
                 activeOpacity={0.8}
+                testID="welcome-login-button"
               >
                 <Text style={styles.outlineButtonText}>Login</Text>
               </TouchableOpacity>

@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,10 +81,10 @@ export default function PlatformSettingsPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/platform",
+        `${API_BASE}/api/adminpanel/settings/platform`,
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
 
@@ -138,7 +139,7 @@ export default function PlatformSettingsPage() {
 
   const handleChange = (
     field: keyof PlatformSettings,
-    value: number | boolean
+    value: number | boolean,
   ) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
@@ -158,13 +159,13 @@ export default function PlatformSettingsPage() {
     setSaving(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/platform",
+        `${API_BASE}/api/adminpanel/settings/platform`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(settings),
-        }
+        },
       );
 
       const data = await response.json();
@@ -188,7 +189,7 @@ export default function PlatformSettingsPage() {
   const handleReset = () => {
     if (
       !confirm(
-        "Reset all settings to default values? This will discard any unsaved changes."
+        "Reset all settings to default values? This will discard any unsaved changes.",
       )
     ) {
       return;
@@ -354,7 +355,7 @@ export default function PlatformSettingsPage() {
                       onChange={(e) =>
                         handleChange(
                           "platform_fee_percentage",
-                          parseFloat(e.target.value)
+                          parseFloat(e.target.value),
                         )
                       }
                       className={`pr-8 ${errors.platform_fee_percentage ? "border-red-500" : ""}`}
@@ -386,7 +387,7 @@ export default function PlatformSettingsPage() {
                       onChange={(e) =>
                         handleChange(
                           "escrow_holding_days",
-                          parseInt(e.target.value)
+                          parseInt(e.target.value),
                         )
                       }
                       className={`pr-16 ${errors.escrow_holding_days ? "border-red-500" : ""}`}
@@ -504,7 +505,7 @@ export default function PlatformSettingsPage() {
                     onClick={() =>
                       handleChange(
                         "worker_verification_required",
-                        !settings.worker_verification_required
+                        !settings.worker_verification_required,
                       )
                     }
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -537,7 +538,7 @@ export default function PlatformSettingsPage() {
                     onClick={() =>
                       handleChange(
                         "auto_approve_kyc",
-                        !settings.auto_approve_kyc
+                        !settings.auto_approve_kyc,
                       )
                     }
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -576,7 +577,7 @@ export default function PlatformSettingsPage() {
                         onClick={() =>
                           handleChange(
                             "kyc_require_user_confirmation",
-                            !settings.kyc_require_user_confirmation
+                            !settings.kyc_require_user_confirmation,
                           )
                         }
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
@@ -610,7 +611,7 @@ export default function PlatformSettingsPage() {
                             onChange={(e) =>
                               handleChange(
                                 "kyc_auto_approve_min_confidence",
-                                parseFloat(e.target.value)
+                                parseFloat(e.target.value),
                               )
                             }
                             className="pr-8"
@@ -635,7 +636,7 @@ export default function PlatformSettingsPage() {
                             onChange={(e) =>
                               handleChange(
                                 "kyc_face_match_min_similarity",
-                                parseFloat(e.target.value)
+                                parseFloat(e.target.value),
                               )
                             }
                             className="pr-8"
@@ -671,7 +672,7 @@ export default function PlatformSettingsPage() {
                     onChange={(e) =>
                       handleChange(
                         "kyc_document_expiry_days",
-                        parseInt(e.target.value)
+                        parseInt(e.target.value),
                       )
                     }
                     className={`pr-16 ${errors.kyc_document_expiry_days ? "border-red-500" : ""}`}
@@ -722,12 +723,12 @@ export default function PlatformSettingsPage() {
                       if (
                         !settings.maintenance_mode ||
                         confirm(
-                          "Enable maintenance mode? Users will not be able to access the platform."
+                          "Enable maintenance mode? Users will not be able to access the platform.",
                         )
                       ) {
                         handleChange(
                           "maintenance_mode",
-                          !settings.maintenance_mode
+                          !settings.maintenance_mode,
                         );
                       }
                     }}
@@ -763,7 +764,7 @@ export default function PlatformSettingsPage() {
                       onChange={(e) =>
                         handleChange(
                           "session_timeout_minutes",
-                          parseInt(e.target.value)
+                          parseInt(e.target.value),
                         )
                       }
                       className={`pr-20 ${errors.session_timeout_minutes ? "border-red-500" : ""}`}
@@ -795,7 +796,7 @@ export default function PlatformSettingsPage() {
                       onChange={(e) =>
                         handleChange(
                           "max_upload_size_mb",
-                          parseInt(e.target.value)
+                          parseInt(e.target.value),
                         )
                       }
                       className={`pr-12 ${errors.max_upload_size_mb ? "border-red-500" : ""}`}

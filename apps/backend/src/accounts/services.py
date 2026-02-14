@@ -131,29 +131,37 @@ def create_account_agency(data):
         password=data.password,
     )
     
+    # Generate 6-digit OTP for email verification (5-minute expiry)
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0
+    
+    # Keep legacy token fields for backward compatibility (can be removed later)
     verifyToken = uuid.uuid4()
     strVerifyToken = str(verifyToken)
     hashed_token = hashlib.sha256(strVerifyToken.encode("utf-8")).hexdigest()
-
     user.verifyToken = hashed_token
-
-    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)  # valid for 24h
+    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)
     user.save()
 
-    # 4️⃣ Create Profile
+    # 4️⃣ Create Agency
     profile = Agency.objects.create(
         accountFK=user,
         businessName=data.businessName,
         businessDesc=""  # Provide empty string for required field
     )
 
+    # Return OTP for email sending (frontend will trigger email)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     
     result = {
         "accountID": user.accountID,
-        "verifyLink": verifyLink,
+        "verifyLink": verifyLink,  # Legacy, kept for backward compatibility
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
-        "email": user.email
+        "email": user.email,
+        "otp_code": otp_code,  # New: OTP code for email
+        "otp_expiry_minutes": 5  # New: Expiry time in minutes
     }
     return result
 
@@ -234,24 +242,28 @@ def generateCookie(user, profile_type=None):
     })
     
     # Set cookies for Next.js web app compatibility
-    # Use SameSite=None for cross-origin localhost development (different ports)
+    # Production (Vercel/Render): secure=True, samesite='Lax', domain=.iayos.online
+    # Development (localhost): secure=False, samesite='Lax', domain=None
+    is_production = not settings.DEBUG
+    cookie_domain = ".iayos.online" if is_production else None  # Shared domain for frontend/backend
+    
     response.set_cookie(
         key="access",
         value=access_token,
         httponly=True,
-        secure=False,      # Must be False for http://localhost
-        samesite=None,     # Allow cross-origin between localhost:3000 and localhost:8000
-        max_age=3600,      # 1 hour (matches token expiry)
-        domain=None,
+        secure=is_production,           # True for HTTPS in production
+        samesite='Lax',                 # Lax is sufficient when same parent domain
+        max_age=3600,                   # 1 hour (matches token expiry)
+        domain=cookie_domain,           # .iayos.online in production
     )
     response.set_cookie(
         key="refresh",
         value=refresh_token,
         httponly=True,
-        secure=False,      # Must be False for http://localhost
-        samesite=None,     # Allow cross-origin between localhost:3000 and localhost:8000
-        max_age=604800,    # 7 days (matches token expiry)
-        domain=None,
+        secure=is_production,           # True for HTTPS in production
+        samesite='Lax',                 # Lax is sufficient when same parent domain
+        max_age=604800,                 # 7 days (matches token expiry)
+        domain=cookie_domain,           # .iayos.online in production
     )
     return response
 
@@ -379,9 +391,32 @@ def reset_password_verify(verifyToken, userID, data, request=None):
     return {"message": "Password updated successfully"}
 
 def logout_account():
+    """
+    Logout user by deleting authentication cookies.
+    CRITICAL: Must match the cookie parameters used in set_cookie() to properly delete them.
+    """
     response = JsonResponse({"Message": "Logged Out successfully"})
-    response.delete_cookie("access")
-    response.delete_cookie("refresh")
+    
+    # Production (Vercel/Render): secure=True, samesite='Lax', domain=.iayos.online
+    # Development (localhost): secure=False, samesite='Lax', domain=None
+    is_production = not settings.DEBUG
+    cookie_domain = ".iayos.online" if is_production else None
+    
+    # Delete cookies with EXACT same parameters used in set_cookie
+    # Without matching domain/path/secure/samesite, cookies won't be deleted
+    response.delete_cookie(
+        key="access",
+        path="/",
+        domain=cookie_domain,
+        samesite='Lax'
+    )
+    response.delete_cookie(
+        key="refresh",
+        path="/",
+        domain=cookie_domain,
+        samesite='Lax'
+    )
+    
     return response
 
 def refresh_token(expired_token):
@@ -403,7 +438,16 @@ def refresh_token(expired_token):
         access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm='HS256')
 
         response = JsonResponse({"Message": "Token Refreshed"})
-        response.set_cookie("access", access_token, httponly=True, secure=False, samesite="Lax")
+        is_production = not settings.DEBUG
+        cookie_domain = ".iayos.online" if is_production else None
+        response.set_cookie(
+            "access",
+            access_token,
+            httponly=True,
+            secure=is_production,
+            samesite='Lax',
+            domain=cookie_domain,
+        )
         return response
 
     except jwt.ExpiredSignatureError:
@@ -421,6 +465,11 @@ def fetch_currentUser(accountID, profile_type=None):
         # Check if a SystemRole exists for this account
         role_obj = SystemRoles.objects.filter(accountID=account).first()
         user_role = role_obj.systemRole if role_obj else None
+        
+        # Fallback: If no SystemRole but user is staff/superuser, treat as ADMIN
+        if not user_role and (account.is_staff or account.is_superuser):
+            user_role = "ADMIN"
+            print(f"✅ fetch_currentUser: User {account.email} is staff/superuser, setting role to ADMIN")
 
         try:
             # If profile_type is specified (from JWT), fetch that specific profile
@@ -840,21 +889,21 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 face_match_result = verify_face_match(
                     id_image_data=file_data_cache['FRONTID'],
                     selfie_image_data=file_data_cache['SELFIE'],
-                    similarity_threshold=0.80  # 80% similarity threshold
+                    similarity_threshold=0.40  # 40% similarity threshold (InsightFace ArcFace)
                 )
                 
                 if face_match_result.get('skipped'):
                     print(f"⚠️  Face matching skipped: {face_match_result.get('reason')}")
                 elif face_match_result.get('match'):
                     similarity = face_match_result.get('similarity', 0)
-                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.80)")
+                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.70)")
                 else:
                     similarity = face_match_result.get('similarity', 0)
                     error = face_match_result.get('error', 'Face does not match')
                     
                     if similarity > 0:
                         # Faces detected but don't match
-                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.80 threshold")
+                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.70 threshold")
                         any_failed = True
                         failure_messages.append(f"FACE_MATCH: Selfie does not match ID photo (similarity: {similarity:.0%})")
                     else:
@@ -902,9 +951,14 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         # Trigger KYC extraction to populate auto-fill data
         try:
             from .kyc_extraction_service import trigger_kyc_extraction_after_upload
-            trigger_kyc_extraction_after_upload(kyc_record)
+            print("🚀 [KYC UPLOAD] Triggering auto-fill extraction...")
+            trigger_kyc_extraction_after_upload(kyc_record, face_match_result=face_match_result)
+            print("✅ [KYC UPLOAD] Auto-fill extraction triggered successfully")
         except Exception as ext_error:
-            print(f"⚠️  KYC extraction failed (non-blocking): {str(ext_error)}")
+            print(f"❌ [KYC UPLOAD] KYC extraction failed: {str(ext_error)}")
+            print(f"   Error type: {type(ext_error).__name__}")
+            import traceback
+            print(f"   Traceback:\n{traceback.format_exc()}")
             # Don't fail KYC upload if extraction fails - admin can still verify manually
 
         return {

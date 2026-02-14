@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -53,12 +54,9 @@ export default function KYCAuditLogPage() {
       setError(null);
 
       // Use the real KYC logs endpoint
-      const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/logs",
-        {
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/logs`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -347,7 +345,7 @@ export default function KYCAuditLogPage() {
                             <div className="flex items-center gap-2 mb-1">
                               <span
                                 className={`px-2 py-1 rounded text-xs font-medium border ${getActionColor(
-                                  log.action
+                                  log.action,
                                 )}`}
                               >
                                 {log.action.toUpperCase()}

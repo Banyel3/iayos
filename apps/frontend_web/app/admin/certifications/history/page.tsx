@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -48,8 +49,6 @@ export default function CertificationHistoryPage() {
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 20;
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
   useEffect(() => {
     fetchLogs();
   }, [searchTerm, actionFilter, dateFrom, dateTo, page]);
@@ -78,7 +77,7 @@ export default function CertificationHistoryPage() {
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/certifications/history?${params.toString()}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -322,7 +321,7 @@ export default function CertificationHistoryPage() {
                 value={actionFilter}
                 onChange={(e) =>
                   setActionFilter(
-                    e.target.value as "all" | "APPROVED" | "REJECTED"
+                    e.target.value as "all" | "APPROVED" | "REJECTED",
                   )
                 }
                 className="px-4 py-2 border rounded-lg"

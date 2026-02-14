@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
@@ -64,7 +65,7 @@ const EditProfilePage = () => {
     const fetchUserData = async () => {
       try {
         setIsFetching(true);
-        const response = await fetch("http://localhost:8000/api/accounts/me", {
+        const response = await fetch(`${API_BASE}/api/accounts/me`, {
           method: "GET",
           credentials: "include",
           headers: {
@@ -152,12 +153,12 @@ const EditProfilePage = () => {
       formData.append("profile_image", selectedImageFile);
 
       const response = await fetch(
-        "http://localhost:8000/api/accounts/upload/profile-image",
+        `${API_BASE}/api/accounts/upload/profile-image`,
         {
           method: "POST",
           credentials: "include",
           body: formData,
-        }
+        },
       );
 
       if (!response.ok) {
@@ -174,7 +175,7 @@ const EditProfilePage = () => {
       alert(
         error instanceof Error
           ? error.message
-          : "Failed to upload profile image"
+          : "Failed to upload profile image",
       );
       return null;
     } finally {

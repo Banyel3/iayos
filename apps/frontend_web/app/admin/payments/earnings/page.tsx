@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +64,7 @@ export default function WorkerEarningsPage() {
       if (searchTerm) params.append("search", searchTerm);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/worker-earnings?${params}`,
+        `${API_BASE}/api/adminpanel/transactions/worker-earnings?${params}`,
         { credentials: "include" },
       );
 
@@ -85,7 +86,7 @@ export default function WorkerEarningsPage() {
   const fetchStatistics = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/transactions/worker-earnings/statistics",
+        `${API_BASE}/api/adminpanel/transactions/worker-earnings/statistics`,
         { credentials: "include" },
       );
 
@@ -151,7 +152,7 @@ export default function WorkerEarningsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/payout`,
+        `${API_BASE}/api/adminpanel/transactions/payout`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

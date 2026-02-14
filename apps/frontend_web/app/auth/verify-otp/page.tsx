@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/form_button";
 import { Input } from "@/components/ui/input";
 import { Loader2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function VerifyOTPContent() {
   const router = useRouter();
@@ -108,7 +107,7 @@ function VerifyOTPContent() {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/accounts/verify-otp`, {
+      const res = await fetch(`${API_BASE}/api/accounts/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp: code }),
@@ -146,24 +145,33 @@ function VerifyOTPContent() {
     setError("");
 
     try {
+      console.log("🔄 Resending OTP for:", email);
+
       // First, call resend-otp to generate new OTP
-      const resendRes = await fetch(`${API_BASE_URL}/api/accounts/resend-otp`, {
+      const resendRes = await fetch(`${API_BASE}/api/accounts/resend-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
       const resendData = await resendRes.json();
+      console.log("🔄 Resend OTP response:", resendRes.status, resendData);
 
       if (!resendRes.ok) {
         if (resendData.wait_seconds) {
           setResendCooldown(resendData.wait_seconds);
+          setError(
+            resendData.error ||
+              `Please wait ${resendData.wait_seconds} seconds before requesting a new OTP.`,
+          );
+        } else {
+          setError(resendData.error || "Failed to resend OTP");
         }
-        setError(resendData.error || "Failed to resend OTP");
         return;
       }
 
       // Then send the OTP email
+      console.log("📧 Sending OTP email with code:", resendData.otp_code);
       const emailRes = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -174,17 +182,29 @@ function VerifyOTPContent() {
         }),
       });
 
+      const emailData = await emailRes.json();
+      console.log("📧 Email send response:", emailRes.status, emailData);
+
       if (emailRes.ok) {
         setTimeLeft(300); // Reset timer to 5 minutes
         setResendCooldown(60); // 60 second cooldown between resends
         setOtp(["", "", "", "", "", ""]); // Clear inputs
         inputRefs.current[0]?.focus();
+
+        // Show success message
+        const successMsg = document.createElement("div");
+        successMsg.className =
+          "fixed top-4 right-4 bg-green-50 border border-green-200 text-green-700 px-6 py-3 rounded-lg shadow-lg z-50";
+        successMsg.textContent = "✅ New code sent to your email!";
+        document.body.appendChild(successMsg);
+        setTimeout(() => successMsg.remove(), 3000);
       } else {
-        setError("Failed to send email. Please try again.");
+        console.error("❌ Email send failed:", emailData);
+        setError(emailData.error || "Failed to send email. Please try again.");
       }
     } catch (err) {
       console.error("Resend error:", err);
-      setError("Network error. Please try again.");
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setIsResending(false);
     }

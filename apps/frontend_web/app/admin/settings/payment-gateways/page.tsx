@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,10 +57,10 @@ export default function PaymentGatewaysPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/payment-gateways",
+        `${API_BASE}/api/adminpanel/settings/payment-gateways`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: GatewaysResponse = await response.json();
 
@@ -75,12 +76,12 @@ export default function PaymentGatewaysPage() {
 
   const handleToggleGateway = async (
     gateway: string,
-    currentEnabled: boolean
+    currentEnabled: boolean,
   ) => {
     if (
       currentEnabled &&
       !confirm(
-        "Disable this payment gateway? Users will not be able to use it for payments."
+        "Disable this payment gateway? Users will not be able to use it for payments.",
       )
     ) {
       return;
@@ -88,13 +89,13 @@ export default function PaymentGatewaysPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/payment-gateways/${gateway}`,
+        `${API_BASE}/api/adminpanel/settings/payment-gateways/${gateway}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ enabled: !currentEnabled }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -132,13 +133,13 @@ export default function PaymentGatewaysPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/payment-gateways/${selectedGateway}`,
+        `${API_BASE}/api/adminpanel/settings/payment-gateways/${selectedGateway}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(formData),
-        }
+        },
       );
 
       const data = await response.json();
@@ -162,13 +163,13 @@ export default function PaymentGatewaysPage() {
     setTesting(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/payment-gateways/${selectedGateway}/test`,
+        `${API_BASE}/api/adminpanel/settings/payment-gateways/${selectedGateway}/test`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(formData),
-        }
+        },
       );
 
       const data = await response.json();
@@ -493,7 +494,7 @@ export default function PaymentGatewaysPage() {
                   onClick={() =>
                     handleToggleGateway(
                       "bank_transfer",
-                      gateways.bank_transfer.enabled
+                      gateways.bank_transfer.enabled,
                     )
                   }
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${

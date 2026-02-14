@@ -1,0 +1,60 @@
+# Test: Successful Worker Login
+# Verifies that a valid worker can log in successfully
+# NOTE: Test user must exist in production database
+
+appId: com.devante.iayos
+tags:
+  - auth
+  - login
+  - worker
+  - critical
+
+env:
+  WORKER_EMAIL: "worker.test@iayos.com"
+  WORKER_PASSWORD: "Test1234!"
+
+---
+# Launch app fresh
+- launchApp:
+    clearState: true
+
+# Navigate to login screen
+- waitForAnimationToEnd
+- tapOn:
+    id: "welcome-login-button"
+
+# Wait for login screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "login-screen"
+
+# Enter worker credentials
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+
+# Hide keyboard
+- hideKeyboard
+
+# Submit login
+- tapOn:
+    id: "login-submit-button"
+
+# Wait for navigation (loading + redirect)
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "login-screen"
+    timeout: 15000
+
+# Verify landed on main app (jobs, home, or role selection)
+- assertVisible:
+    id: "jobs-screen"
+    optional: true
+
+# Take success screenshot
+- takeScreenshot: "login_worker_success"

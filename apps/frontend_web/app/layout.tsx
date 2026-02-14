@@ -25,6 +25,13 @@ export const metadata: Metadata = {
   title: "iAyos",
   description:
     "The Marketplace for Everyday Help Platform for Blue-Collar Services",
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/favicon.png",
+  },
 };
 
 export const viewport = {

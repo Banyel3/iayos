@@ -1,0 +1,171 @@
+### Agency KYC Optimized Flow Testing
+### This file tests the new 3-step optimized upload flow:
+### Step 1: Validate document (cache results)
+### Step 2: Extract OCR (autofill business form)
+### Step 3: Upload (use cached validation, no AI re-processing)
+
+### 1. LOGIN AS AGENCY USER
+POST http://localhost:8000/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "agency@example.com",
+  "password": "password123"
+}
+
+### Store cookie from login response
+
+### 2. STEP 1: Validate Single Document (BUSINESS_PERMIT)
+### Expected: 200 OK with file_hash, ai_status, quality_score
+### Response time: ~3-5 seconds (face detection + quality check)
+POST http://localhost:8000/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Cookie: token=<cookie-from-login>
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\business_permit_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+BUSINESS_PERMIT
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 3. STEP 1: Validate REP_ID_FRONT
+### Expected: 200 OK with file_hash, face_detected=true
+### Response time: ~3-5 seconds
+POST http://localhost:8000/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Cookie: token=<cookie-from-login>
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document"; filename="rep_id_front.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\rep_id_front_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+REP_ID_FRONT
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 4. STEP 1: Validate REP_ID_BACK
+### Expected: 200 OK with file_hash
+### Response time: ~2-4 seconds
+POST http://localhost:8000/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Cookie: token=<cookie-from-login>
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document"; filename="rep_id_back.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\rep_id_back_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+REP_ID_BACK
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 5. STEP 2: Extract OCR for Autofill
+### Expected: 200 OK with extracted_data (business_name, address, rep_name, etc.)
+### Response time: ~3-5 seconds
+### COPY file_hash values from validation responses above into file_hashes_json below
+POST http://localhost:8000/api/agency/kyc/extract-ocr
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Cookie: token=<cookie-from-login>
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_permit"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\business_permit_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_id_front"; filename="rep_id_front.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\rep_id_front_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_type"
+
+SOLE_PROPRIETORSHIP
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 6. STEP 3: Upload to Supabase (FAST - uses cached validation)
+### Expected: 200 OK with agency_kyc_id, status=PENDING, files array
+### Response time: ~5-10 seconds (ONLY upload, no AI processing)
+### COPY file_hash values from validation responses and paste into file_hashes_json
+POST http://localhost:8000/api/agency/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Cookie: token=<cookie-from-login>
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_permit"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\business_permit_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_front"; filename="rep_id_front.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\rep_id_front_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_back"; filename="rep_id_back.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\rep_id_back_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file_hashes_json"
+
+{"BUSINESS_PERMIT":"<hash-from-step1>","REP_ID_FRONT":"<hash-from-step1>","REP_ID_BACK":"<hash-from-step1>"}
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_id_type"
+
+PHILSYS_ID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_type"
+
+SOLE_PROPRIETORSHIP
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 7. TEST: Unauthorized Access (no cookie)
+### Expected: 401 Unauthorized
+POST http://localhost:8000/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\business_permit_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+BUSINESS_PERMIT
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 8. TEST: Invalid Document Type
+### Expected: 400 Bad Request
+POST http://localhost:8000/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Cookie: token=<cookie-from-login>
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< c:\code\iayos\tests\fixtures\business_permit_sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+INVALID_TYPE
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### TESTING NOTES:
+### - Run tests in order (1 → 2 → 3 → 4 → 5 → 6)
+### - Copy file_hash values from Step 1 responses into Step 3 file_hashes_json
+### - Total time for full flow: ~15-20 seconds (validate 3 files + OCR + upload)
+### - Old flow took 25-45 seconds (duplicate AI validation)
+### - Performance improvement: ~40-60% faster ✅

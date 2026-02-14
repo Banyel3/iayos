@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -80,13 +81,13 @@ export default function ClientsPage() {
 
   // Bulk selection state
   const [selectedClients, setSelectedClients] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [selectAll, setSelectAll] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showBulkActionModal, setShowBulkActionModal] = useState(false);
   const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(
-    null
+    null,
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
 
@@ -103,10 +104,10 @@ export default function ClientsPage() {
       if (sortBy !== "newest") params.append("sort", sortBy);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/clients?${params}`,
+        `${API_BASE}/api/adminpanel/users/clients?${params}`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -230,7 +231,7 @@ export default function ClientsPage() {
             ? { reason: bulkActionReason }
             : {};
 
-        const response = await fetch(`http://localhost:8000${endpoint}`, {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -255,7 +256,7 @@ export default function ClientsPage() {
     setSelectAll(false);
 
     alert(
-      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} clients successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`
+      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} clients successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`,
     );
 
     fetchClients();
@@ -393,7 +394,7 @@ export default function ClientsPage() {
                   value={statusFilter}
                   onChange={(e) =>
                     setStatusFilter(
-                      e.target.value as "all" | "active" | "inactive"
+                      e.target.value as "all" | "active" | "inactive",
                     )
                   }
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
@@ -638,7 +639,7 @@ export default function ClientsPage() {
                                 size="sm"
                                 onClick={() =>
                                   router.push(
-                                    `/admin/users/clients/${client.id}`
+                                    `/admin/users/clients/${client.id}`,
                                   )
                                 }
                               >

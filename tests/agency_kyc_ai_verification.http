@@ -1,0 +1,65 @@
+### Agency KYC AI Verification Tests
+### Tests for the new AI verification endpoints added to agency KYC flow
+
+@baseUrl = http://localhost:8000
+@agencyEmail = ririka.ruu@gmail.com
+@agencyPassword = SharonB2025@!!
+
+### 1. Login as agency user
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{agencyEmail}}",
+  "password": "{{agencyPassword}}"
+}
+
+### 2. Get agency KYC status
+# @name kycStatus
+GET {{baseUrl}}/api/agency/status
+Cookie: {{login.response.headers.set-cookie}}
+Content-Type: application/json
+
+### 3. Validate document - Test with Rep ID Front (should require face detection)
+# This test uses a multipart form upload
+# @name validateDocRepFront
+# Note: Replace 'test_id.jpg' with an actual test image file path
+POST {{baseUrl}}/api/agency/kyc/validate-document
+Cookie: {{login.response.headers.set-cookie}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="document_type"
+
+REP_ID_FRONT
+------FormBoundary
+Content-Disposition: form-data; name="file"; filename="test_id.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/test_id.jpg
+------FormBoundary--
+
+### 4. Get autofill data (OCR extracted from business permit)
+# @name autofill
+GET {{baseUrl}}/api/agency/kyc/autofill
+Cookie: {{login.response.headers.set-cookie}}
+Content-Type: application/json
+
+### 5. Confirm autofilled business data
+# @name confirmData
+POST {{baseUrl}}/api/agency/kyc/confirm
+Cookie: {{login.response.headers.set-cookie}}
+Content-Type: application/json
+
+{
+  "business_name": "Test Agency Corp",
+  "registration_number": "SEC-12345",
+  "business_description": "Professional services agency"
+}
+
+### 6. Check KYC files with AI verification status
+# @name kycFiles
+GET {{baseUrl}}/api/agency/status
+Cookie: {{login.response.headers.set-cookie}}
+Content-Type: application/json

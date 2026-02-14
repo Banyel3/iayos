@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -66,8 +67,8 @@ export default function InvoicePage() {
     setError(null);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/jobs/${jobId}/invoice`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/jobs/${jobId}/invoice`,
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -189,7 +190,7 @@ export default function InvoicePage() {
                             year: "numeric",
                             month: "long",
                             day: "numeric",
-                          }
+                          },
                         )
                       : "Pending"}
                   </p>

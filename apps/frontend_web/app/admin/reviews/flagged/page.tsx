@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,7 +45,7 @@ export default function FlaggedReviewsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [selectedReviews, setSelectedReviews] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [pagination, setPagination] = useState({
     page: 1,
@@ -64,8 +65,8 @@ export default function FlaggedReviewsPage() {
       if (severityFilter !== "all") params.append("severity", severityFilter);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/flagged?${params}`,
-        { credentials: "include" }
+        `${API_BASE}/api/adminpanel/app-reviews/flagged?${params}`,
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch flagged reviews");
@@ -94,7 +95,7 @@ export default function FlaggedReviewsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/reviews/${reviewId}/hide`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/hide`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -102,7 +103,7 @@ export default function FlaggedReviewsPage() {
           body: JSON.stringify({
             reason: "Flagged review - inappropriate content",
           }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to hide review");
@@ -118,14 +119,14 @@ export default function FlaggedReviewsPage() {
   const handleDelete = async (reviewId: number) => {
     if (
       !confirm(
-        "Are you sure you want to permanently delete this review? This action cannot be undone."
+        "Are you sure you want to permanently delete this review? This action cannot be undone.",
       )
     )
       return;
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/reviews/${reviewId}`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -133,7 +134,7 @@ export default function FlaggedReviewsPage() {
           body: JSON.stringify({
             reason: "Flagged review - violation of terms",
           }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to delete review");
@@ -151,11 +152,11 @@ export default function FlaggedReviewsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}/restore`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/restore`,
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to dismiss flag");
@@ -187,15 +188,12 @@ export default function FlaggedReviewsPage() {
     let successCount = 0;
     for (const reviewId of selectedReviews) {
       try {
-        await fetch(
-          `http://localhost:8000/api/adminpanel/reviews/${reviewId}/hide`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ reason: "Bulk hide - flagged reviews" }),
-          }
-        );
+        await fetch(`${API_BASE}/api/adminpanel/reviews/${reviewId}/hide`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reason: "Bulk hide - flagged reviews" }),
+        });
         successCount++;
       } catch (error) {
         console.error(`Failed to hide review ${reviewId}:`, error);
@@ -203,7 +201,7 @@ export default function FlaggedReviewsPage() {
     }
 
     alert(
-      `Successfully hidden ${successCount} of ${selectedReviews.size} reviews`
+      `Successfully hidden ${successCount} of ${selectedReviews.size} reviews`,
     );
     setSelectedReviews(new Set());
     fetchFlaggedReviews();
@@ -217,7 +215,7 @@ export default function FlaggedReviewsPage() {
 
     if (
       !confirm(
-        `Permanently delete ${selectedReviews.size} selected reviews? This action cannot be undone.`
+        `Permanently delete ${selectedReviews.size} selected reviews? This action cannot be undone.`,
       )
     )
       return;
@@ -225,15 +223,12 @@ export default function FlaggedReviewsPage() {
     let successCount = 0;
     for (const reviewId of selectedReviews) {
       try {
-        await fetch(
-          `http://localhost:8000/api/adminpanel/reviews/${reviewId}`,
-          {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ reason: "Bulk delete - flagged reviews" }),
-          }
-        );
+        await fetch(`${API_BASE}/api/adminpanel/reviews/${reviewId}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reason: "Bulk delete - flagged reviews" }),
+        });
         successCount++;
       } catch (error) {
         console.error(`Failed to delete review ${reviewId}:`, error);
@@ -241,7 +236,7 @@ export default function FlaggedReviewsPage() {
     }
 
     alert(
-      `Successfully deleted ${successCount} of ${selectedReviews.size} reviews`
+      `Successfully deleted ${successCount} of ${selectedReviews.size} reviews`,
     );
     setSelectedReviews(new Set());
     fetchFlaggedReviews();
@@ -298,7 +293,7 @@ export default function FlaggedReviewsPage() {
       ? review.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         review.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         review.comment.toLowerCase().includes(searchQuery.toLowerCase())
-      : true
+      : true,
   );
 
   if (loading && reviews.length === 0) {
@@ -516,7 +511,7 @@ export default function FlaggedReviewsPage() {
                               <span>•</span>
                               <span>
                                 {new Date(
-                                  review.created_at
+                                  review.created_at,
                                 ).toLocaleDateString()}
                               </span>
                             </div>

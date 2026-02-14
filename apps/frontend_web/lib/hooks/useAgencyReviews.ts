@@ -2,8 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api/config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = API_BASE;
 
 // Types
 export interface AgencyReview {
@@ -46,7 +47,7 @@ export type ReviewTypeFilter = "ALL" | "AGENCY" | "EMPLOYEE";
 async function fetchAgencyReviews(
   page: number = 1,
   limit: number = 10,
-  reviewType: ReviewTypeFilter = "ALL"
+  reviewType: ReviewTypeFilter = "ALL",
 ): Promise<AgencyReviewsResponse> {
   const params = new URLSearchParams({
     page: page.toString(),
@@ -65,7 +66,7 @@ async function fetchAgencyReviews(
       headers: {
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -83,7 +84,7 @@ async function fetchAgencyReviews(
 export function useAgencyReviews(
   page: number = 1,
   limit: number = 10,
-  reviewType: ReviewTypeFilter = "ALL"
+  reviewType: ReviewTypeFilter = "ALL",
 ) {
   return useQuery({
     queryKey: ["agencyReviews", page, limit, reviewType],

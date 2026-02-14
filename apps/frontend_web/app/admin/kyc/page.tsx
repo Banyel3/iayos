@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -48,10 +49,10 @@ function combineKYCData(data: any): KYCRecord[] {
   // Combine individual KYC records
   const individualKYC = (data.kyc || []).map((kyc: any) => {
     const user = (data.users || []).find(
-      (u: any) => u.accountID === kyc.accountFK_id
+      (u: any) => u.accountID === kyc.accountFK_id,
     );
     const files = (data.kyc_files || []).filter(
-      (f: any) => f.kycID_id === kyc.kycID
+      (f: any) => f.kycID_id === kyc.kycID,
     );
 
     return {
@@ -78,10 +79,10 @@ function combineKYCData(data: any): KYCRecord[] {
   // Combine agency KYC records
   const agencyKYC = (data.agency_kyc || []).map((kyc: any) => {
     const agency = (data.agencies || []).find(
-      (a: any) => a.accountID === kyc.accountFK_id
+      (a: any) => a.accountID === kyc.accountFK_id,
     );
     const files = (data.agency_kyc_files || []).filter(
-      (f: any) => f.agencyKyc_id === kyc.agencyKycID
+      (f: any) => f.agencyKyc_id === kyc.agencyKycID,
     );
 
     return {
@@ -125,12 +126,9 @@ export default function KYCManagementPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/all",
-        {
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch KYC data: ${response.status}`);
@@ -381,7 +379,7 @@ export default function KYCManagementPage() {
                         | "pending"
                         | "approved"
                         | "rejected"
-                        | "under_review"
+                        | "under_review",
                     )
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
@@ -396,7 +394,7 @@ export default function KYCManagementPage() {
                   value={typeFilter}
                   onChange={(e) =>
                     setTypeFilter(
-                      e.target.value as "all" | "worker" | "client" | "agency"
+                      e.target.value as "all" | "worker" | "client" | "agency",
                     )
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"

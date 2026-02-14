@@ -4,15 +4,19 @@
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
 
+import { Platform } from "react-native";
+import NetInfo from "@react-native-community/netinfo";
+
 // AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
 // When you switch networks, Expo will automatically use the new IP
-const getDevIP = () => {
+const getDevIP = (): string => {
   // Priority 1: Try to use Expo's detected IP from Constants
   // This works when running via Expo Go and detects your machine's IP automatically
   try {
     const Constants = require("expo-constants").default;
     const expoIP = Constants.expoConfig?.hostUri?.split(":")[0];
     if (expoIP && expoIP !== "localhost" && expoIP !== "127.0.0.1") {
+      console.log("[API Config] Using Expo detected IP:", expoIP);
       return expoIP;
     }
   } catch (e) {
@@ -21,15 +25,58 @@ const getDevIP = () => {
 
   // Priority 2: Environment variable (manual override if needed)
   if (process.env.EXPO_PUBLIC_DEV_IP) {
+    console.log("[API Config] Using EXPO_PUBLIC_DEV_IP:", process.env.EXPO_PUBLIC_DEV_IP);
     return process.env.EXPO_PUBLIC_DEV_IP;
   }
 
   // Priority 3: Fallback to localhost (will fail on physical devices)
+  console.warn("[API Config] Falling back to localhost - may fail on device!");
   return "localhost";
 };
 
 const DEV_IP = getDevIP();
-const API_URL = __DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.com";
+
+// PRODUCTION URL - hardcoded as the authoritative production endpoint
+const PRODUCTION_API_URL = "https://api.iayos.online";
+
+// Allow environment variable override for CI/CD (e.g., staging backend in Detox tests)
+// In production builds (__DEV__ = false), ALWAYS use production URL
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (__DEV__ ? `http://${DEV_IP}:8000` : PRODUCTION_API_URL);
+
+// Log the API URL being used (helps debug network issues)
+console.log(`[API Config] API_URL = ${API_URL}`);
+console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
+console.log(`[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`);
+
+/**
+ * Check network connectivity before making requests.
+ * Returns detailed network state for debugging.
+ */
+export const checkNetworkConnectivity = async (): Promise<{
+  isConnected: boolean;
+  type: string;
+  details: string;
+}> => {
+  try {
+    const state = await NetInfo.fetch();
+    const isConnected = state.isConnected ?? false;
+    const type = state.type || "unknown";
+    const details = JSON.stringify({
+      isConnected: state.isConnected,
+      isInternetReachable: state.isInternetReachable,
+      type: state.type,
+      details: state.details,
+    });
+    
+    console.log(`[Network] Connectivity check: connected=${isConnected}, type=${type}`);
+    return { isConnected, type, details };
+  } catch (error) {
+    console.error("[Network] Failed to check connectivity:", error);
+    return { isConnected: false, type: "error", details: String(error) };
+  }
+};
 
 const deriveDevWebUrl = () => {
   try {
@@ -92,32 +139,32 @@ export const getAbsoluteMediaUrl = (
 // API Endpoints
 export const ENDPOINTS = {
   // Authentication - Use mobile endpoints with Bearer token auth
-  LOGIN: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/login`,
-  LOGOUT: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/logout`,
-  REGISTER: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/register`,
-  ME: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
-  ASSIGN_ROLE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/assign-role`,
+  LOGIN: `${API_URL}/api/mobile/auth/login`,
+  LOGOUT: `${API_URL}/api/mobile/auth/logout`,
+  REGISTER: `${API_URL}/api/mobile/auth/register`,
+  ME: `${API_URL}/api/mobile/auth/profile`,
+  ASSIGN_ROLE: `${API_URL}/api/mobile/auth/assign-role`,
 
   // Jobs - Use mobile endpoints with Bearer token auth
-  AVAILABLE_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/available`,
-  MY_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/my-jobs`,
+  AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
+  MY_JOBS: `${API_URL}/api/mobile/jobs/my-jobs`,
   JOB_DETAILS: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
+    `${API_URL}/api/mobile/jobs/${id}`,
   DELETE_JOB: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
+    `${API_URL}/api/mobile/jobs/${id}`,
   JOB_APPLICATIONS: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/applications`,
+    `${API_URL}/api/mobile/jobs/${id}/applications`,
   ACCEPT_APPLICATION: (jobId: number, applicationId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${jobId}/applications/${applicationId}/accept`,
+    `${API_URL}/api/mobile/jobs/${jobId}/applications/${applicationId}/accept`,
   REJECT_APPLICATION: (jobId: number, applicationId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${jobId}/applications/${applicationId}/reject`,
+    `${API_URL}/api/mobile/jobs/${jobId}/applications/${applicationId}/reject`,
   ACCEPT_INVITE: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/accept-invite`,
+    `${API_URL}/api/jobs/${jobId}/accept-invite`,
   REJECT_INVITE: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/reject-invite`,
+    `${API_URL}/api/jobs/${jobId}/reject-invite`,
   APPLY_JOB: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/apply`,
-  MY_APPLICATIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/applications/my`,
+    `${API_URL}/api/mobile/jobs/${id}/apply`,
+  MY_APPLICATIONS: `${API_URL}/api/mobile/jobs/applications/my`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/approve-completion`,
@@ -127,10 +174,10 @@ export const ENDPOINTS = {
   UPLOAD_JOB_PHOTOS: (id: number) => `${API_BASE_URL}/jobs/${id}/upload-photos`,
 
   // Phase 3: Job Browsing & Filtering
-  JOB_CATEGORIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/categories`,
-  GET_CATEGORIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/categories`,
+  JOB_CATEGORIES: `${API_URL}/api/mobile/jobs/categories`,
+  GET_CATEGORIES: `${API_URL}/api/mobile/jobs/categories`,
   JOB_SEARCH: (query: string, page = 1, limit = 20) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
+    `${API_URL}/api/mobile/jobs/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
   JOB_LIST_FILTERED: (filters: {
     category?: number;
     minBudget?: number;
@@ -154,13 +201,13 @@ export const ENDPOINTS = {
     if (filters.sortBy) params.append("sort_by", filters.sortBy);
     params.append("page", filters.page?.toString() || "1");
     params.append("limit", filters.limit?.toString() || "20");
-    return `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/list?${params.toString()}`;
+    return `${API_URL}/api/mobile/jobs/list?${params.toString()}`;
   },
   SAVE_JOB: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/save`,
+    `${API_URL}/api/mobile/jobs/${id}/save`,
   UNSAVE_JOB: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/save`,
-  SAVED_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/saved`,
+    `${API_URL}/api/mobile/jobs/${id}/save`,
+  SAVED_JOBS: `${API_URL}/api/mobile/jobs/saved`,
 
   // Team Jobs (Multi-Skill Multi-Worker)
   CREATE_TEAM_JOB: `${API_BASE_URL}/jobs/team/create`,
@@ -187,25 +234,25 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${jobId}/team/start-available`,
 
   // Phase 4: Worker Profile & Application Management
-  WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
-  UPDATE_PROFILE_MOBILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`,
+  WORKER_PROFILE: `${API_URL}/api/mobile/auth/profile`,
+  UPDATE_PROFILE_MOBILE: `${API_URL}/api/mobile/profile/update`,
   UPDATE_WORKER_PROFILE: `${API_BASE_URL}/accounts/worker/profile`,
   APPLICATION_DETAIL: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}`,
+    `${API_URL}/api/mobile/applications/${id}`,
   WITHDRAW_APPLICATION: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}/withdraw`,
+    `${API_URL}/api/mobile/applications/${id}/withdraw`,
 
   // Phase 5: Photo Upload (Avatar & Portfolio)
-  UPLOAD_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/upload-image`,
-  DELETE_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/avatar`,
-  UPLOAD_PORTFOLIO_IMAGE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio`,
-  PORTFOLIO_LIST: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio`,
+  UPLOAD_AVATAR: `${API_URL}/api/mobile/profile/upload-image`,
+  DELETE_AVATAR: `${API_URL}/api/mobile/profile/avatar`,
+  UPLOAD_PORTFOLIO_IMAGE: `${API_URL}/api/mobile/profile/portfolio`,
+  PORTFOLIO_LIST: `${API_URL}/api/mobile/profile/portfolio`,
   PORTFOLIO_UPDATE: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/${id}`,
-  PORTFOLIO_REORDER: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/reorder`,
+    `${API_URL}/api/mobile/profile/portfolio/${id}`,
+  PORTFOLIO_REORDER: `${API_URL}/api/mobile/profile/portfolio/reorder`,
   PORTFOLIO_DELETE: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/${id}`,
-  PROFILE_METRICS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/metrics`,
+    `${API_URL}/api/mobile/profile/portfolio/${id}`,
+  PROFILE_METRICS: `${API_URL}/api/mobile/profile/metrics`,
 
   // Phase 6: Certifications & Materials
   // Note: Using /api/accounts/worker/ endpoints (web endpoints work for mobile with dual_auth)
@@ -219,168 +266,168 @@ export const ENDPOINTS = {
   WORKER_MATERIALS_PUBLIC: (workerId: number) =>
     `${API_BASE_URL}/accounts/workers/${workerId}/materials`,
   // Worker skills (specializations the worker has)
-  AVAILABLE_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/available`,
-  MY_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/my-skills`,
-  ADD_SKILL: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/add`,
+  AVAILABLE_SKILLS: `${API_URL}/api/mobile/skills/available`,
+  MY_SKILLS: `${API_URL}/api/mobile/skills/my-skills`,
+  ADD_SKILL: `${API_URL}/api/mobile/skills/add`,
   UPDATE_SKILL: (skillId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
+    `${API_URL}/api/mobile/skills/${skillId}`,
   REMOVE_SKILL: (skillId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
+    `${API_URL}/api/mobile/skills/${skillId}`,
 
   // Worker
   WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,
-  NEARBY_WORKERS: `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/list`,
+  NEARBY_WORKERS: `${API_URL}/api/mobile/workers/list`,
   WORKER_DETAIL: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/detail/${id}`,
+    `${API_URL}/api/mobile/workers/detail/${id}`,
 
   // Client
   CLIENT_DETAIL: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/clients/${id}`,
+    `${API_URL}/api/mobile/clients/${id}`,
 
   // Locations
-  GET_CITIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/locations/cities`,
+  GET_CITIES: `${API_URL}/api/mobile/locations/cities`,
   GET_BARANGAYS: (cityId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/locations/cities/${cityId}/barangays`,
+    `${API_URL}/api/mobile/locations/cities/${cityId}/barangays`,
 
   // Location Tracking
-  UPDATE_LOCATION: `${API_BASE_URL.replace("/api", "")}/api/accounts/location/update`,
-  GET_MY_LOCATION: `${API_BASE_URL.replace("/api", "")}/api/accounts/location/me`,
-  TOGGLE_LOCATION_SHARING: `${API_BASE_URL.replace("/api", "")}/api/accounts/location/toggle-sharing`,
+  UPDATE_LOCATION: `${API_URL}/api/accounts/location/update`,
+  GET_MY_LOCATION: `${API_URL}/api/accounts/location/me`,
+  TOGGLE_LOCATION_SHARING: `${API_URL}/api/accounts/location/toggle-sharing`,
 
   // Client
   BROWSE_AGENCIES: `${API_BASE_URL}/client/agencies/browse`,
   AGENCY_PROFILE: (id: number) => `${API_BASE_URL}/client/agencies/${id}`,
   AGENCY_DETAIL: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/agencies/detail/${id}`,
-  AGENCIES_LIST: `${API_BASE_URL.replace("/api", "")}/api/mobile/agencies/list`,
+    `${API_URL}/api/mobile/agencies/detail/${id}`,
+  AGENCIES_LIST: `${API_URL}/api/mobile/agencies/list`,
 
   // Wallet - Use mobile endpoints with Bearer token auth
-  WALLET_BALANCE: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/balance`,
-  WALLET_PENDING_EARNINGS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/pending-earnings`,
-  TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
-  DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
+  WALLET_BALANCE: `${API_URL}/api/mobile/wallet/balance`,
+  WALLET_PENDING_EARNINGS: `${API_URL}/api/mobile/wallet/pending-earnings`,
+  TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
+  DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
 
   // Phase 3: Escrow Payment System (10 endpoints)
-  CREATE_ESCROW_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/escrow`,
+  CREATE_ESCROW_PAYMENT: `${API_URL}/api/mobile/payments/escrow`,
   // Create payment invoice (generic name, same endpoint)
-  CREATE_PAYMENT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`,
-  CREATE_XENDIT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`, // Alias for backward compatibility
-  UPLOAD_CASH_PROOF: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-proof`,
+  CREATE_PAYMENT_INVOICE: `${API_URL}/api/mobile/payments/xendit/invoice`,
+  CREATE_XENDIT_INVOICE: `${API_URL}/api/mobile/payments/xendit/invoice`, // Alias for backward compatibility
+  UPLOAD_CASH_PROOF: `${API_URL}/api/mobile/payments/cash-proof`,
   PAYMENT_STATUS: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/status/${id}`,
-  PAYMENT_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/history`,
-  WALLET_DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
-  WALLET_WITHDRAW: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/withdraw`,
-  WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
-  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
-  CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
+    `${API_URL}/api/mobile/payments/status/${id}`,
+  PAYMENT_HISTORY: `${API_URL}/api/mobile/payments/history`,
+  WALLET_DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
+  WALLET_WITHDRAW: `${API_URL}/api/mobile/wallet/withdraw`,
+  WALLET_TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
+  CREATE_JOB_WITH_PAYMENT: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
+  CREATE_JOB: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
   // Payment webhooks
-  PAYMENT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/accounts/wallet/paymongo-webhook`,
-  XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`, // Legacy
+  PAYMENT_WEBHOOK: `${API_URL}/api/accounts/wallet/paymongo-webhook`,
+  XENDIT_WEBHOOK: `${API_URL}/api/payments/xendit/callback`, // Legacy
   PAYMENT_RECEIPT: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
+    `${API_URL}/api/mobile/payments/receipt/${id}`,
 
   // Job Receipt/Invoice
   JOB_RECEIPT: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/receipt`,
+    `${API_URL}/api/jobs/${jobId}/receipt`,
 
   // Phase 4: Final Payment System (8 endpoints)
-  CREATE_FINAL_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/final`,
+  CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,
   JOB_PAYMENT_STATUS: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${id}/payment-status`,
+    `${API_URL}/api/jobs/${id}/payment-status`,
   JOB_EARNINGS: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${id}/earnings`,
+    `${API_URL}/api/jobs/${id}/earnings`,
   PAYMENT_TIMELINE: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${id}/payment-timeline`,
-  EARNINGS_SUMMARY: `${API_BASE_URL.replace("/api", "")}/api/accounts/earnings/summary`,
-  EARNINGS_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/earnings/history`,
+    `${API_URL}/api/jobs/${id}/payment-timeline`,
+  EARNINGS_SUMMARY: `${API_URL}/api/accounts/earnings/summary`,
+  EARNINGS_HISTORY: `${API_URL}/api/accounts/earnings/history`,
   CASH_PAYMENT_STATUS: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-status/${id}`,
-  CREATE_PAYMENT_NOTIFICATION: `${API_BASE_URL.replace("/api", "")}/api/notifications/payment`,
+    `${API_URL}/api/mobile/payments/cash-status/${id}`,
+  CREATE_PAYMENT_NOTIFICATION: `${API_URL}/api/notifications/payment`,
 
   // Phase 5: Real-Time Chat & Messaging (4 endpoints)
-  CONVERSATIONS: `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversations`,
+  CONVERSATIONS: `${API_URL}/api/profiles/chat/conversations`,
   CONVERSATION_BY_JOB: (jobId: number, reopen: boolean = false) =>
-    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversation-by-job/${jobId}${reopen ? "?reopen=true" : ""}`,
+    `${API_URL}/api/profiles/chat/conversation-by-job/${jobId}${reopen ? "?reopen=true" : ""}`,
   CONVERSATION_MESSAGES: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversations/${id}`,
-  SEND_MESSAGE: `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/messages`,
+    `${API_URL}/api/profiles/chat/conversations/${id}`,
+  SEND_MESSAGE: `${API_URL}/api/profiles/chat/messages`,
   UPLOAD_MESSAGE_IMAGE: (conversationId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/${conversationId}/upload-image`,
+    `${API_URL}/api/profiles/chat/${conversationId}/upload-image`,
 
   // Phase 9: Push Notifications & Notification Management (8 endpoints)
-  NOTIFICATIONS: `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications`,
+  NOTIFICATIONS: `${API_URL}/api/accounts/notifications`,
   MARK_NOTIFICATION_READ: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/mark-read`,
-  MARK_ALL_NOTIFICATIONS_READ: `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/mark-all-read`,
-  UNREAD_NOTIFICATIONS_COUNT: `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/unread-count`,
-  REGISTER_PUSH_TOKEN: `${API_BASE_URL.replace("/api", "")}/api/accounts/register-push-token`,
-  UPDATE_NOTIFICATION_SETTINGS: `${API_BASE_URL.replace("/api", "")}/api/accounts/notification-settings`,
-  GET_NOTIFICATION_SETTINGS: `${API_BASE_URL.replace("/api", "")}/api/accounts/notification-settings`,
+    `${API_URL}/api/accounts/notifications/${id}/mark-read`,
+  MARK_ALL_NOTIFICATIONS_READ: `${API_URL}/api/accounts/notifications/mark-all-read`,
+  UNREAD_NOTIFICATIONS_COUNT: `${API_URL}/api/accounts/notifications/unread-count`,
+  REGISTER_PUSH_TOKEN: `${API_URL}/api/accounts/register-push-token`,
+  UPDATE_NOTIFICATION_SETTINGS: `${API_URL}/api/accounts/notification-settings`,
+  GET_NOTIFICATION_SETTINGS: `${API_URL}/api/accounts/notification-settings`,
   DELETE_NOTIFICATION: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/delete`,
+    `${API_URL}/api/accounts/notifications/${id}/delete`,
 
   // Phase 7: KYC Document Upload & Verification (7 endpoints)
-  KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
-  UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
-  KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
-  KYC_VALIDATE_DOCUMENT: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/validate-document`, // Per-step validation
-  KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
-  KYC_AUTOFILL: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/autofill`, // Get AI-extracted data for auto-fill
-  KYC_CONFIRM: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/confirm`, // Confirm/edit extracted data
+  KYC_STATUS: `${API_URL}/api/accounts/kyc-status`,
+  UPLOAD_KYC: `${API_URL}/api/accounts/upload-kyc`,
+  KYC_UPLOAD: `${API_URL}/api/accounts/upload/kyc`, // Matches Next.js endpoint
+  KYC_VALIDATE_DOCUMENT: `${API_URL}/api/accounts/kyc/validate-document`, // Per-step validation
+  KYC_APPLICATION_HISTORY: `${API_URL}/api/accounts/kyc-application-history`,
+  KYC_AUTOFILL: `${API_URL}/api/accounts/kyc/autofill`, // Get AI-extracted data for auto-fill
+  KYC_CONFIRM: `${API_URL}/api/accounts/kyc/confirm`, // Confirm/edit extracted data
 
   // Dual Profile Management (4 endpoints)
-  DUAL_PROFILE_STATUS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/dual-status`,
-  CREATE_CLIENT_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/create-client`,
-  CREATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/create-worker`,
-  SWITCH_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/switch-profile`,
+  DUAL_PROFILE_STATUS: `${API_URL}/api/mobile/profile/dual-status`,
+  CREATE_CLIENT_PROFILE: `${API_URL}/api/mobile/profile/create-client`,
+  CREATE_WORKER_PROFILE: `${API_URL}/api/mobile/profile/create-worker`,
+  SWITCH_PROFILE: `${API_URL}/api/mobile/profile/switch-profile`,
 
   // Payment Methods
-  PAYMENT_METHODS: `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods`,
-  ADD_PAYMENT_METHOD: `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods`,
+  PAYMENT_METHODS: `${API_URL}/api/mobile/payment-methods`,
+  ADD_PAYMENT_METHOD: `${API_URL}/api/mobile/payment-methods`,
   DELETE_PAYMENT_METHOD: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods/${id}`,
+    `${API_URL}/api/mobile/payment-methods/${id}`,
   SET_PRIMARY_PAYMENT_METHOD: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods/${id}/set-primary`,
+    `${API_URL}/api/mobile/payment-methods/${id}/set-primary`,
 
   // Phase 8: Reviews & Ratings (6 endpoints)
   // Use jobs API for review submission (supports agency employee reviews)
   SUBMIT_REVIEW: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/review`,
+    `${API_URL}/api/jobs/${jobId}/review`,
   WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/worker/${workerId}?page=${page}&limit=${limit}`,
+    `${API_URL}/api/mobile/reviews/worker/${workerId}?page=${page}&limit=${limit}`,
   CLIENT_REVIEWS: (clientId: number, page = 1, limit = 20) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/client/${clientId}?page=${page}&limit=${limit}`,
+    `${API_URL}/api/mobile/reviews/client/${clientId}?page=${page}&limit=${limit}`,
   REVIEW_STATS: (workerId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/stats/${workerId}`,
-  MY_REVIEWS: `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/my-reviews`,
+    `${API_URL}/api/mobile/reviews/stats/${workerId}`,
+  MY_REVIEWS: `${API_URL}/api/mobile/reviews/my-reviews`,
   EDIT_REVIEW: (reviewId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/${reviewId}`,
+    `${API_URL}/api/mobile/reviews/${reviewId}`,
   REPORT_REVIEW: (reviewId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/${reviewId}/report`,
+    `${API_URL}/api/mobile/reviews/${reviewId}/report`,
 
   // Backjobs / Disputes
   REQUEST_BACKJOB: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/request-backjob`,
-  MY_BACKJOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/my-backjobs`,
+    `${API_URL}/api/jobs/${jobId}/request-backjob`,
+  MY_BACKJOBS: `${API_URL}/api/mobile/jobs/my-backjobs`,
   BACKJOB_STATUS: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob-status`,
+    `${API_URL}/api/jobs/${jobId}/backjob-status`,
   COMPLETE_BACKJOB: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/complete-backjob`,
+    `${API_URL}/api/jobs/${jobId}/complete-backjob`,
   // Backjob 3-Phase Workflow (mirrors regular job workflow)
   BACKJOB_CONFIRM_STARTED: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/confirm-started`,
+    `${API_URL}/api/jobs/${jobId}/backjob/confirm-started`,
   BACKJOB_MARK_COMPLETE: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/mark-complete`,
+    `${API_URL}/api/jobs/${jobId}/backjob/mark-complete`,
   BACKJOB_APPROVE_COMPLETION: (jobId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/approve-completion`,
+    `${API_URL}/api/jobs/${jobId}/backjob/approve-completion`,
 
   // ML/AI Prediction Endpoints
   // Price prediction for job creation - returns min/suggested/max price range
-  PREDICT_PRICE: `${API_BASE_URL.replace("/api", "")}/api/ml/predict-price`,
+  PREDICT_PRICE: `${API_URL}/api/ml/predict-price`,
   // Worker profile score for improvement suggestions (worker's own profile only)
   WORKER_PROFILE_SCORE: (workerId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/ml/worker-rating-for-profile/${workerId}`,
+    `${API_URL}/api/ml/worker-rating-for-profile/${workerId}`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -456,18 +503,47 @@ export const apiRequest = async (
   };
 
   try {
+    console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
     const resp = await fetch(url, defaultOptions);
+    console.log(`[API] Response: ${resp.status} ${resp.statusText} from ${url}`);
     return resp;
   } catch (err: any) {
+    // Enhanced error logging for debugging network issues
+    console.error(`[API] ❌ Request failed: ${url}`);
+    console.error(`[API] Error name: ${err.name}`);
+    console.error(`[API] Error message: ${err.message}`);
+    
     if (err.name === "AbortError") {
       // Provide clearer error for timeouts
-      throw new Error(`Network request timed out after ${timeout}ms`);
+      throw new Error(`Network request timed out after ${timeout}ms. Please check your internet connection.`);
     }
+    
+    // Check if it's a network error (no internet)
+    if (err.message === "Network request failed") {
+      // Get detailed network state
+      const netState = await checkNetworkConnectivity();
+      console.error(`[API] Network state: ${netState.details}`);
+      
+      if (!netState.isConnected) {
+        throw new Error("No internet connection. Please check your network settings and try again.");
+      }
+      
+      // Internet connected but request still failed - likely server issue
+      throw new Error(
+        `Unable to reach server at ${url}. ` +
+        `Network: ${netState.type}. ` +
+        `Please verify the server is running and try again.`
+      );
+    }
+    
     throw err;
   } finally {
     clearTimeout(timeoutId);
   }
 };
+
+// Export the API_URL for debugging purposes
+export const getApiUrl = () => API_URL;
 
 // Typed JSON fetch helper. Use this when you expect JSON and want a typed result.
 export async function fetchJson<T = any>(

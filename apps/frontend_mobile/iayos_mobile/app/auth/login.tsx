@@ -35,7 +35,7 @@ export default function LoginScreen() {
   // Refs for inputs so we can programmatically focus and check isFocused
   const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
   const passwordRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   // Track the last focused field's ref object
   const lastFocusedRef = useRef<any>(null);
@@ -83,7 +83,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="login-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -117,6 +117,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!isLoading}
+              testID="login-email-input"
               iconLeft={
                 <Ionicons
                   name="mail-outline"
@@ -138,6 +139,7 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               isPassword
               editable={!isLoading}
+              testID="login-password-input"
               iconLeft={
                 <Ionicons
                   name="lock-closed-outline"
@@ -155,6 +157,7 @@ export default function LoginScreen() {
               style={styles.forgotPassword}
               activeOpacity={0.7}
               disabled={isLoading}
+              testID="login-forgot-password-link"
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -167,12 +170,16 @@ export default function LoginScreen() {
               variant="primary"
               size="lg"
               fullWidth
+              testID="login-submit-button"
             >
               Login
             </Button>
 
             {/* Register Link */}
-            <View style={styles.registerContainer}>
+            <View
+              style={styles.registerContainer}
+              testID="login-register-container"
+            >
               <Text style={styles.registerText}>
                 {"Don't have an account? "}
               </Text>
@@ -180,6 +187,7 @@ export default function LoginScreen() {
                 onPress={() => router.push("/auth/register")}
                 disabled={isLoading}
                 activeOpacity={0.7}
+                testID="login-register-link"
               >
                 <Text style={styles.registerLink}>Sign Up</Text>
               </TouchableOpacity>

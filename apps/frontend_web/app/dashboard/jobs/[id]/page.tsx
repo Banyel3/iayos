@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import MobileNav from "@/components/ui/mobile-nav";
@@ -79,7 +80,7 @@ export default function JobDetailsPage() {
     const fetchJobDetails = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`http://localhost:8000/api/jobs/${id}`, {
+        const response = await fetch(`${API_BASE}/api/jobs/${id}`, {
           method: "GET",
           credentials: "include",
         });
@@ -111,13 +112,10 @@ export default function JobDetailsPage() {
   const fetchApplications = async () => {
     try {
       setIsLoadingApplications(true);
-      const response = await fetch(
-        `http://localhost:8000/api/jobs/${id}/applications`,
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/jobs/${id}/applications`, {
+        method: "GET",
+        credentials: "include",
+      });
 
       const data = await response.json();
 
@@ -135,7 +133,7 @@ export default function JobDetailsPage() {
   const handleAcceptApplication = async (applicationId: number) => {
     if (
       !confirm(
-        "Are you sure you want to accept this application? This will reject all other pending applications and start the job."
+        "Are you sure you want to accept this application? This will reject all other pending applications and start the job.",
       )
     ) {
       return;
@@ -144,11 +142,11 @@ export default function JobDetailsPage() {
     try {
       setProcessingApplicationId(applicationId);
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${id}/applications/${applicationId}/accept`,
+        `${API_BASE}/api/jobs/${id}/applications/${applicationId}/accept`,
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       const data = await response.json();
@@ -176,11 +174,11 @@ export default function JobDetailsPage() {
     try {
       setProcessingApplicationId(applicationId);
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${id}/applications/${applicationId}/reject`,
+        `${API_BASE}/api/jobs/${id}/applications/${applicationId}/reject`,
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       const data = await response.json();
@@ -189,8 +187,8 @@ export default function JobDetailsPage() {
         // Update local state
         setApplications((prev) =>
           prev.map((app) =>
-            app.id === applicationId ? { ...app, status: "REJECTED" } : app
-          )
+            app.id === applicationId ? { ...app, status: "REJECTED" } : app,
+          ),
         );
         alert("Application rejected");
       } else {
@@ -234,7 +232,7 @@ export default function JobDetailsPage() {
           : parseFloat(proposedBudget);
 
       const response = await fetch(
-        "http://localhost:8000/api/accounts/job-applications/create",
+        `${API_BASE}/api/accounts/job-applications/create`,
         {
           method: "POST",
           headers: {
@@ -248,7 +246,7 @@ export default function JobDetailsPage() {
             budget_option: budgetOption,
             estimated_duration: estimatedDuration || null,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -704,11 +702,11 @@ export default function JobDetailsPage() {
                         <p className="text-xs text-gray-400 mt-3">
                           Applied{" "}
                           {new Date(
-                            application.created_at
+                            application.created_at,
                           ).toLocaleDateString()}{" "}
                           at{" "}
                           {new Date(
-                            application.created_at
+                            application.created_at,
                           ).toLocaleTimeString()}
                         </p>
                       </div>

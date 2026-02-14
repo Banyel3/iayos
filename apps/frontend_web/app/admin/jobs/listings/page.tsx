@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Sidebar } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -75,7 +76,7 @@ export default function JobListingsPage() {
       // LISTING = open job posts accepting applications (no worker assigned)
       // INVITE = direct hire requests (see Job Requests page)
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=20${statusParam}`,
+        `${API_BASE}/api/adminpanel/jobs/listings?page=${page}&page_size=20${statusParam}`,
         {
           credentials: "include",
         },
@@ -111,7 +112,7 @@ export default function JobListingsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/jobs/listings/${jobId}`,
+        `${API_BASE}/api/adminpanel/jobs/listings/${jobId}`,
         {
           method: "DELETE",
           credentials: "include",

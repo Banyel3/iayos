@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/api/config";
 
 interface AgencyEmployee {
   employee_id: number;
@@ -58,14 +59,14 @@ export function useAgencyEmployees(agencyId: number) {
   return useQuery<AgencyEmployee[]>({
     queryKey: ["admin-agency-employees", agencyId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = API_BASE;
 
       // Fetch via dedicated admin endpoint
       const response = await fetch(
         `${apiUrl}/api/adminpanel/users/agencies/${agencyId}/employees`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -108,13 +109,13 @@ export function useEmployeePerformance(employeeId: number) {
   return useQuery<EmployeePerformance>({
     queryKey: ["employee-performance", employeeId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = API_BASE;
 
       const response = await fetch(
         `${apiUrl}/api/agency/employees/${employeeId}/performance`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -143,7 +144,7 @@ export function useBulkUpdateEmployees() {
       action: "activate" | "deactivate";
       agencyId: number;
     }) => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = API_BASE;
 
       // This endpoint may need to be created on backend
       // For now, we'll make individual requests
@@ -158,7 +159,7 @@ export function useBulkUpdateEmployees() {
               is_active: action === "activate",
               agency_id: agencyId,
             }),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -186,7 +187,7 @@ export function useBulkUpdateEmployees() {
  */
 export function exportEmployeesToCSV(
   employees: AgencyEmployee[],
-  agencyName: string
+  agencyName: string,
 ) {
   const headers = [
     "Employee ID",

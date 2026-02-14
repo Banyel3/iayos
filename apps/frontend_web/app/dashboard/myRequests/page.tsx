@@ -16,7 +16,10 @@ import {
   useCompletedJobs,
 } from "@/lib/hooks/useHomeData";
 import { useBarangays } from "@/lib/hooks/useLocations";
-import { EstimatedTimeCard, type EstimatedCompletion } from "@/components/ui/estimated-time-card";
+import {
+  EstimatedTimeCard,
+  type EstimatedCompletion,
+} from "@/components/ui/estimated-time-card";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -153,7 +156,7 @@ const MyRequestsPage = () => {
 
   // React Query hooks with sessionStorage (after isWorker/isClient are defined)
   const { data: jobRequests = [], isLoading: isLoadingRequests } = useMyJobs(
-    isAuthenticated && isClient
+    isAuthenticated && isClient,
   );
   const { data: inProgressJobs = [], isLoading: isLoadingInProgress } =
     useInProgressJobs(isAuthenticated && activeTab === "inProgress");
@@ -218,7 +221,7 @@ const MyRequestsPage = () => {
           `${API_BASE_URL}/profiles/wallet/balance`,
           {
             credentials: "include",
-          }
+          },
         );
 
         if (response.ok) {
@@ -245,7 +248,7 @@ const MyRequestsPage = () => {
           `${API_BASE_URL}/adminpanel/jobs/categories`,
           {
             credentials: "include",
-          }
+          },
         );
         const data = await response.json();
         if (data.success && data.categories) {
@@ -305,7 +308,7 @@ const MyRequestsPage = () => {
     fileArray.forEach((file) => {
       if (!allowedTypes.includes(file.type)) {
         alert(
-          `${file.name} is not a valid image type. Please use JPEG, PNG, JPG, or WEBP.`
+          `${file.name} is not a valid image type. Please use JPEG, PNG, JPG, or WEBP.`,
         );
         return;
       }
@@ -323,7 +326,7 @@ const MyRequestsPage = () => {
 
       // Create preview URLs
       const newPreviewUrls = validFiles.map((file) =>
-        URL.createObjectURL(file)
+        URL.createObjectURL(file),
       );
       setImagePreviewUrls([...imagePreviewUrls, ...newPreviewUrls]);
     }
@@ -414,7 +417,7 @@ const MyRequestsPage = () => {
         `❌ Insufficient Wallet Balance\n\n` +
           `Required: ₱${downpayment.toFixed(2)}\n` +
           `Available: ₱${walletBalance.toFixed(2)}\n\n` +
-          `Please deposit more funds or select GCash payment.`
+          `Please deposit more funds or select GCash payment.`,
       );
       return;
     }
@@ -451,7 +454,7 @@ const MyRequestsPage = () => {
               `Job: ${pendingJobData.title}\n` +
               `Escrow Payment (50%): ₱${data.escrow_amount?.toFixed(2)}\n\n` +
               `You will be redirected to complete your payment via GCash.\n` +
-              `Your job will be activated once payment is confirmed.`
+              `Your job will be activated once payment is confirmed.`,
           );
 
           // Open Xendit payment page
@@ -467,7 +470,7 @@ const MyRequestsPage = () => {
               `Escrow Paid: ₱${data.escrow_amount?.toFixed(2)}\n` +
               `Remaining Payment: ₱${data.remaining_payment?.toFixed(2)}\n` +
               `New Wallet Balance: ₱${data.new_wallet_balance?.toFixed(2)}\n\n` +
-              `The downpayment has been deducted from your wallet and is now held in escrow.`
+              `The downpayment has been deducted from your wallet and is now held in escrow.`,
           );
 
           // Update local wallet balance
@@ -489,7 +492,7 @@ const MyRequestsPage = () => {
                   method: "POST",
                   credentials: "include",
                   body: formData,
-                }
+                },
               );
 
               if (!uploadResponse.ok) {
@@ -498,7 +501,7 @@ const MyRequestsPage = () => {
             } catch (uploadError) {
               console.error(
                 `Error uploading image ${image.name}:`,
-                uploadError
+                uploadError,
               );
             }
           }
@@ -526,13 +529,13 @@ const MyRequestsPage = () => {
         window.location.reload();
       } else {
         setJobPostError(
-          data.error || data.message || "Failed to create job posting"
+          data.error || data.message || "Failed to create job posting",
         );
       }
     } catch (error) {
       console.error("Error creating job:", error);
       setJobPostError(
-        "An error occurred while creating the job. Please try again."
+        "An error occurred while creating the job. Please try again.",
       );
     } finally {
       setIsSubmittingJob(false);
@@ -572,7 +575,7 @@ const MyRequestsPage = () => {
         `50% Downpayment (Escrow): ₱${downpayment.toFixed(2)}\n\n` +
         `You will be redirected to pay the escrow amount via GCash.\n` +
         `The downpayment will be held in escrow and released to the worker upon job completion.\n\n` +
-        `Continue to payment?`
+        `Continue to payment?`,
     );
 
     if (!confirmPayment) {
@@ -618,7 +621,7 @@ const MyRequestsPage = () => {
               `Job: ${jobPostForm.title}\n` +
               `Escrow Payment (50%): ₱${data.escrow_amount?.toFixed(2)}\n\n` +
               `You will be redirected to complete your payment via GCash.\n` +
-              `Your job will be activated once payment is confirmed.`
+              `Your job will be activated once payment is confirmed.`,
           );
 
           // Open Xendit payment page
@@ -632,7 +635,7 @@ const MyRequestsPage = () => {
             `Escrow Paid: ₱${data.escrow_amount?.toFixed(2)}\n` +
             `Remaining Payment: ₱${data.remaining_payment?.toFixed(2)}\n` +
             `New Wallet Balance: ₱${data.new_wallet_balance?.toFixed(2)}\n\n` +
-            `The downpayment is now held in escrow and will be released to the worker upon job completion.`
+            `The downpayment is now held in escrow and will be released to the worker upon job completion.`,
         );
 
         // Upload images if any were selected
@@ -650,7 +653,7 @@ const MyRequestsPage = () => {
                   method: "POST",
                   credentials: "include",
                   body: formData,
-                }
+                },
               );
 
               if (!uploadResponse.ok) {
@@ -659,7 +662,7 @@ const MyRequestsPage = () => {
             } catch (uploadError) {
               console.error(
                 `Error uploading image ${image.name}:`,
-                uploadError
+                uploadError,
               );
             }
           }
@@ -709,7 +712,7 @@ const MyRequestsPage = () => {
         {
           method: "PATCH",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -722,7 +725,7 @@ const MyRequestsPage = () => {
       if (data.success) {
         // Remove cancelled job from the list
         setJobRequests((prev) =>
-          prev.filter((job) => parseInt(job.id) !== jobToCancel)
+          prev.filter((job) => parseInt(job.id) !== jobToCancel),
         );
         setSelectedJob(null);
         setShowCancelConfirm(false);
@@ -732,7 +735,7 @@ const MyRequestsPage = () => {
         if (data.refunded && data.refund_amount > 0) {
           alert(
             `✅ Job Cancelled Successfully!\n\n` +
-              `Your escrow payment of ₱${data.refund_amount.toFixed(2)} has been refunded to your wallet.`
+              `Your escrow payment of ₱${data.refund_amount.toFixed(2)} has been refunded to your wallet.`,
           );
         } else {
           alert("Job cancelled successfully!");
@@ -745,7 +748,7 @@ const MyRequestsPage = () => {
       alert(
         error instanceof Error
           ? error.message
-          : "Failed to cancel job. Please try again."
+          : "Failed to cancel job. Please try again.",
       );
     } finally {
       setIsCancelling(false);
@@ -771,7 +774,7 @@ const MyRequestsPage = () => {
 
     if (
       !confirm(
-        "Are you sure you want to accept this application? This will reject all other pending applications and start the job."
+        "Are you sure you want to accept this application? This will reject all other pending applications and start the job.",
       )
     ) {
       return;
@@ -784,14 +787,14 @@ const MyRequestsPage = () => {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       const data = await response.json();
 
       if (data.success) {
         alert(
-          "✅ Application accepted! A chat conversation has been created. You can now discuss the job details."
+          "✅ Application accepted! A chat conversation has been created. You can now discuss the job details.",
         );
 
         // Refresh applications and job data
@@ -822,7 +825,7 @@ const MyRequestsPage = () => {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       const data = await response.json();
@@ -831,8 +834,8 @@ const MyRequestsPage = () => {
         // Update local state
         setJobApplications((prev) =>
           prev.map((app) =>
-            app.id === applicationId ? { ...app, status: "REJECTED" } : app
-          )
+            app.id === applicationId ? { ...app, status: "REJECTED" } : app,
+          ),
         );
         alert("Application rejected");
       } else {
@@ -861,7 +864,7 @@ const MyRequestsPage = () => {
           `${API_BASE_URL}/jobs/${selectedJob.id}/applications`,
           {
             credentials: "include",
-          }
+          },
         );
 
         console.log("Response status:", response.status);
@@ -2104,12 +2107,13 @@ const MyRequestsPage = () => {
               </div>
 
               {/* ML Estimated Completion Time */}
-              {selectedJob.estimatedCompletion && selectedJob.status !== 'COMPLETED' && (
-                <EstimatedTimeCard 
-                  prediction={selectedJob.estimatedCompletion}
-                  countdownMode={selectedJob.status === 'IN_PROGRESS'}
-                />
-              )}
+              {selectedJob.estimatedCompletion &&
+                selectedJob.status !== "COMPLETED" && (
+                  <EstimatedTimeCard
+                    prediction={selectedJob.estimatedCompletion}
+                    countdownMode={selectedJob.status === "IN_PROGRESS"}
+                  />
+                )}
 
               {/* Payment Information */}
               {(selectedJob.paymentStatus ||
@@ -2277,7 +2281,7 @@ const MyRequestsPage = () => {
                             onError={(e) => {
                               console.error(
                                 "❌ Image failed to load:",
-                                photo.url
+                                photo.url,
                               );
                               e.currentTarget.src = "/placeholder-image.png";
                             }}
@@ -2544,23 +2548,38 @@ const MyRequestsPage = () => {
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                   <div className="bg-blue-50 rounded-lg p-2 text-center">
-                                    <p className="text-xs text-blue-600 mb-0.5">Platform AI</p>
-                                    <p className="font-semibold text-blue-900">
-                                      {selectedJob.estimatedCompletion.formatted_duration}
+                                    <p className="text-xs text-blue-600 mb-0.5">
+                                      Platform AI
                                     </p>
-                                    <p className={`text-xs mt-0.5 ${
-                                      selectedJob.estimatedCompletion.confidence_level === 'high' 
-                                        ? 'text-green-600' 
-                                        : selectedJob.estimatedCompletion.confidence_level === 'medium' 
-                                          ? 'text-yellow-600' 
-                                          : 'text-red-500'
-                                    }`}>
-                                      {selectedJob.estimatedCompletion.confidence_level} confidence
+                                    <p className="font-semibold text-blue-900">
+                                      {
+                                        selectedJob.estimatedCompletion
+                                          .formatted_duration
+                                      }
+                                    </p>
+                                    <p
+                                      className={`text-xs mt-0.5 ${
+                                        selectedJob.estimatedCompletion
+                                          .confidence_level === "high"
+                                          ? "text-green-600"
+                                          : selectedJob.estimatedCompletion
+                                                .confidence_level === "medium"
+                                            ? "text-yellow-600"
+                                            : "text-red-500"
+                                      }`}
+                                    >
+                                      {
+                                        selectedJob.estimatedCompletion
+                                          .confidence_level
+                                      }{" "}
+                                      confidence
                                     </p>
                                   </div>
                                   {application.estimated_duration && (
                                     <div className="bg-gray-100 rounded-lg p-2 text-center">
-                                      <p className="text-xs text-gray-600 mb-0.5">Worker</p>
+                                      <p className="text-xs text-gray-600 mb-0.5">
+                                        Worker
+                                      </p>
                                       <p className="font-semibold text-gray-900">
                                         {application.estimated_duration}
                                       </p>
@@ -2569,7 +2588,6 @@ const MyRequestsPage = () => {
                                 </div>
                               </div>
                             )}
-                            </div>
                           </div>
 
                           {/* Action Buttons */}
@@ -2743,7 +2761,7 @@ const MyRequestsPage = () => {
                             <button
                               onClick={() =>
                                 router.push(
-                                  `/worker/${selectedJob.assignedWorker?.id}`
+                                  `/worker/${selectedJob.assignedWorker?.id}`,
                                 )
                               }
                               className="flex-1 bg-white border border-blue-600 text-blue-600 py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors flex items-center justify-center"
@@ -3506,7 +3524,7 @@ const MyRequestsPage = () => {
                         <p className="text-xs text-red-600 mt-1 font-medium">
                           ⚠️ Insufficient balance (need ₱
                           {(pendingJobData.downpayment - walletBalance).toFixed(
-                            2
+                            2,
                           )}{" "}
                           more)
                         </p>

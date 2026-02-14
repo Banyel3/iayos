@@ -5,6 +5,7 @@
 // Uses agency-specific hooks for conversations
 
 import React, { useEffect, useRef, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useParams } from "next/navigation";
 import {
   useAgencyMessages,
@@ -65,7 +66,8 @@ export default function AgencyChatScreen() {
 
   // Backjob action state
   const [showBackjobConfirmModal, setShowBackjobConfirmModal] = useState(false);
-  const [showBackjobCompleteModal, setShowBackjobCompleteModal] = useState(false);
+  const [showBackjobCompleteModal, setShowBackjobCompleteModal] =
+    useState(false);
   const [showBackjobApproveModal, setShowBackjobApproveModal] = useState(false);
   const [backjobNotes, setBackjobNotes] = useState("");
 
@@ -139,12 +141,12 @@ export default function AgencyChatScreen() {
       formData.append("image", file);
 
       const response = await fetch(
-        `http://localhost:8000/api/agency/conversations/${conversationId}/upload-image`,
+        `${API_BASE}/api/agency/conversations/${conversationId}/upload-image`,
         {
           method: "POST",
           body: formData,
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -190,7 +192,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to mark job as complete");
         },
-      }
+      },
     );
   };
 
@@ -210,7 +212,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to submit review");
         },
-      }
+      },
     );
   };
 
@@ -244,7 +246,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to mark backjob complete");
         },
-      }
+      },
     );
   };
 
@@ -263,7 +265,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to approve backjob completion");
         },
-      }
+      },
     );
   };
 

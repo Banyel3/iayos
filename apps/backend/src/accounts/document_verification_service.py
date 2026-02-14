@@ -2,7 +2,7 @@
 Document Verification Service for KYC Uploads
 
 This service provides automated verification of KYC documents using:
-1. CompreFace - Face detection for government IDs
+1. Face API (InsightFace microservice) - Face detection for government IDs
 2. Tesseract OCR - Text extraction for clearances and permits
 3. Image quality checks - Blur detection, resolution, orientation
 
@@ -23,20 +23,41 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# CompreFace configuration
-# Inside Docker network, CompreFace runs nginx on port 80 which proxies to Java backend
-# Docker mapping: 8100:80 (external:internal)
-COMPREFACE_URL = "http://compreface:80"
-# Detection service API key - from CompreFace's built-in "Detection_Demo" service
-COMPREFACE_API_KEY = "00000000-0000-0000-0000-000000000003"
+# Face API configuration (InsightFace microservice)
+import os
+FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
-# Tesseract is imported conditionally to handle environments where it's not installed
+# Import shared HTTP client and timeouts from face_detection_service
+# This ensures consistent connection pooling and timeouts across all face API calls
+try:
+    from .face_detection_service import get_http_client, FACE_API_TIMEOUT, FACE_API_HEALTH_TIMEOUT
+    _use_shared_client = True
+    logger.info("Using shared HTTP client from face_detection_service")
+except ImportError:
+    _use_shared_client = False
+    FACE_API_TIMEOUT = 45.0
+    FACE_API_HEALTH_TIMEOUT = 10.0
+    logger.info("Shared HTTP client not available, using standalone httpx")
+
+# Tesseract is imported conditionally
 try:
     import pytesseract
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
     logger.warning("pytesseract not installed - OCR verification disabled")
+
+# Import pdf2image for PDF support
+try:
+    from pdf2image import convert_from_bytes
+    PDF_SUPPORT_AVAILABLE = True
+except ImportError:
+    PDF_SUPPORT_AVAILABLE = False
+    logger.warning("pdf2image not installed - PDF verification disabled")
+
+
+
+
 
 
 class VerificationStatus(Enum):
@@ -110,10 +131,12 @@ DOCUMENT_KEYWORDS = {
         ["POLICE", "PNP", "PHILIPPINE NATIONAL POLICE"],
         ["CLEARANCE", "CERTIFICATE"],
     ],
-    # Business Permit (for agencies)
+    # Business Permit (for agencies) - includes Mayor's Permit AND DTI Business Registration
     "BUSINESS_PERMIT": [
-        ["BUSINESS", "MAYOR", "PERMIT", "LICENSE"],
-        ["CITY", "MUNICIPALITY", "BARANGAY"],
+        # Must match at least one from this group
+        ["BUSINESS", "MAYOR", "PERMIT", "LICENSE", "DTI", "TRADE", "INDUSTRY", "CERTIFICATE"],
+        # Must match at least one from this group (location OR DTI registration keywords)
+        ["CITY", "MUNICIPALITY", "BARANGAY", "REGION", "REGISTRATION", "CERTIFIES", "ZAMBOANGA"],
     ],
     
     # ============ GOVERNMENT IDs ============
@@ -148,58 +171,145 @@ DOCUMENT_KEYWORDS = {
     "FRONTID": [
         ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "PHILIPPINE"],  # Must be Philippine document
     ],
+    
+    # ============ MOBILE APP ID TYPE ALIASES ============
+    # These match the ID type names used in the mobile app for unified naming
+    # PHILSYS_ID maps to NATIONALID keywords
+    "PHILSYS_ID": [
+        ["PHILSYS", "PHILIPPINE IDENTIFICATION", "NATIONAL ID", "PSN", "EPHILID"],
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA"],
+    ],
+    # DRIVERS_LICENSE maps to DRIVERSLICENSE keywords  
+    "DRIVERS_LICENSE": [
+        ["DRIVER", "LICENSE", "LTO", "LAND TRANSPORTATION"],
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "NON-PROFESSIONAL", "PROFESSIONAL"],
+    ],
+    # SSS ID
+    "SSS_ID": [
+        ["SSS", "SOCIAL SECURITY"],
+        ["PILIPINAS", "PHILIPPINES", "MEMBER", "ID"],
+    ],
+    # PRC ID (Professional Regulation Commission)
+    "PRC_ID": [
+        ["PRC", "PROFESSIONAL REGULATION", "PROFESSIONAL REGULATORY"],
+        ["PILIPINAS", "PHILIPPINES", "LICENSE", "REGISTRATION"],
+    ],
+    # Postal ID
+    "POSTAL_ID": [
+        ["POSTAL", "PHILPOST", "POST OFFICE"],
+        ["PILIPINAS", "PHILIPPINES", "ID", "IDENTIFICATION"],
+    ],
+    # Voter's ID
+    "VOTERS_ID": [
+        ["VOTER", "COMELEC", "ELECTION"],
+        ["PILIPINAS", "PHILIPPINES", "REGISTRATION", "ID"],
+    ],
+    # TIN ID
+    "TIN_ID": [
+        ["TIN", "TAX IDENTIFICATION", "BIR"],
+        ["PILIPINAS", "PHILIPPINES", "NUMBER"],
+    ],
+    # Senior Citizen ID
+    "SENIOR_CITIZEN_ID": [
+        ["SENIOR", "CITIZEN", "OSCA"],
+        ["PILIPINAS", "PHILIPPINES", "ID"],
+    ],
+    # OFW ID
+    "OFW_ID": [
+        ["OFW", "OVERSEAS FILIPINO", "OWWA"],
+        ["PILIPINAS", "PHILIPPINES", "ID", "WORKER"],
+    ],
+    # OTHER - Generic Philippine Government ID fallback
+    "OTHER": [
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "PHILIPPINE"],
+    ],
 }
 
 # Government IDs that require face detection
 FACE_REQUIRED_DOCUMENTS = [
     "PASSPORT", "NATIONALID", "UMID", "PHILHEALTH", 
-    "DRIVERSLICENSE", "FRONTID", "REPRESENTATIVE_ID_FRONT"
+    "DRIVERSLICENSE", "FRONTID", "REPRESENTATIVE_ID_FRONT",
+    # Mobile app unified ID type names
+    "PHILSYS_ID", "DRIVERS_LICENSE", "SSS_ID", "PRC_ID",
+    "POSTAL_ID", "VOTERS_ID", "TIN_ID", "SENIOR_CITIZEN_ID",
+    "OFW_ID", "OTHER"
 ]
 
 # Minimum requirements
 MIN_RESOLUTION = 400  # Minimum width or height in pixels (lowered from 640 for testing)
 MIN_FACE_SIZE_RATIO = 0.05  # Face must be at least 5% of image area
-MAX_BLUR_THRESHOLD = 100  # Laplacian variance threshold (lower = more blur)
-MIN_CONFIDENCE_FACE = 0.85  # Minimum confidence for face detection
+MAX_BLUR_THRESHOLD = 50  # Lowered from 100 for leniency on REP IDs  # Laplacian variance threshold (lower = more blur)
+MIN_CONFIDENCE_FACE = 0.40  # Minimum confidence for face detection (lowered for ID photos with small/faded faces)
+
+
+TEXT_ONLY_DOCUMENTS = [
+    # Clearance / permits and supporting docs that do not need face detection
+    "NBI",
+    "POLICE",
+    "CLEARANCE",
+    "BUSINESS_PERMIT",
+    "ADDRESS_PROOF",
+    "AUTH_LETTER",
+]
 
 
 class DocumentVerificationService:
     """
     Service for automated document verification using AI/ML
+    
+    Uses:
+    - Face API (InsightFace microservice) for face detection
+    - Tesseract OCR for text extraction
     """
 
-    def __init__(self, compreface_url: str = None, compreface_api_key: str = None):
+    def __init__(self, face_api_url: str = None, skip_face_service: bool = False):
         """
         Initialize the verification service
         
         Args:
-            compreface_url: URL of CompreFace service (default: http://compreface:8100)
-            compreface_api_key: API key for CompreFace
+            face_api_url: URL of Face API service (default from FACE_API_URL env)
+            skip_face_service: When True, never call Face API (used for text-only docs)
         """
-        import os
-        self.compreface_url = compreface_url or os.getenv("COMPREFACE_URL", COMPREFACE_URL)
-        self.compreface_api_key = compreface_api_key or os.getenv("COMPREFACE_API_KEY", COMPREFACE_API_KEY)
-        self._compreface_available = None  # Lazy check
+        self.face_api_url = face_api_url or FACE_API_URL
+        self.skip_face_service = skip_face_service
+        self._face_api_available = None  # Lazy check
         
-        logger.info(f"DocumentVerificationService initialized - CompreFace URL: {self.compreface_url}")
+        logger.info(
+            f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}, skip_face_service={self.skip_face_service}"
+        )
 
-    def _check_compreface_available(self) -> bool:
-        """Check if CompreFace service is available"""
-        if self._compreface_available is not None:
-            return self._compreface_available
+    def _check_face_api_available(self) -> bool:
+        """Check if Face API service is available.
+        
+        Uses shared HTTP client with connection pooling for better performance.
+        Health check timeout is 10s to allow for Render cold start.
+        """
+        if self.skip_face_service:
+            self._face_api_available = False
+            return False
+
+        if self._face_api_available is not None:
+            return self._face_api_available
             
         try:
-            # Try to reach CompreFace Detection API endpoint
-            # Detection service uses /api/v1/detection/detect
-            response = httpx.get(f"{self.compreface_url}/api/v1/detection/detect", timeout=5.0)
-            # Service is up if we get any HTTP response (400/401/404 means it's running but needs auth/params)
-            self._compreface_available = response.status_code in [200, 400, 401, 403, 404, 405]
-            logger.info(f"CompreFace availability check: status={response.status_code}, available={self._compreface_available}")
-        except Exception as e:
-            logger.warning(f"CompreFace not available: {e}")
-            self._compreface_available = False
+            # Use shared client if available (connection pooling)
+            if _use_shared_client:
+                client = get_http_client()
+                response = client.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
+            else:
+                response = httpx.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
             
-        return self._compreface_available
+            if response.status_code == 200:
+                data = response.json()
+                self._face_api_available = data.get("model_loaded", False)
+            else:
+                self._face_api_available = False
+            logger.info(f"Face API availability check: available={self._face_api_available}")
+        except Exception as e:
+            logger.warning(f"Face API not available: {e}")
+            self._face_api_available = False
+            
+        return self._face_api_available
 
     def validate_document_quick(
         self, 
@@ -252,18 +362,23 @@ class DocumentVerificationService:
                 }
             
             # Step 2: Face detection (if required)
+            face_detection_skipped = False
+            face_detection_warning = None
+            
             if require_face:
                 face_result = self._detect_face(file_data)
                 
                 if not face_result.get("detected", False):
                     if face_result.get("skipped"):
-                        # CompreFace not available - let it pass, manual review will catch it
-                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable)")
+                        # CompreFace not available - mark for manual review with warning
+                        face_detection_skipped = True
+                        face_detection_warning = "Face detection service temporarily unavailable. Your document will be reviewed manually."
+                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable) - marked for manual review")
                     else:
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
                             error_msg = "No face detected in your selfie. Please take a clear photo of your face looking at the camera."
-                        elif document_type.upper() in ["FRONTID", "BACKID"]:
+                        elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE"]:
                             error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible."
                         
                         logger.warning(f"   ❌ No face detected")
@@ -272,20 +387,29 @@ class DocumentVerificationService:
                             "error": error_msg,
                             "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
                         }
-                
-                # Face size check removed - was causing issues with valid IDs
-                
-                logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
+                else:
+                    logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
             
-            # All checks passed
-            logger.info(f"   ✅ Quick validation passed for {document_type}")
+            # All checks passed (or face detection was skipped for manual review)
+            if face_detection_skipped:
+                logger.info(f"   ⚠️ Quick validation passed for {document_type} (face detection skipped - needs manual review)")
+            else:
+                logger.info(f"   ✅ Quick validation passed for {document_type}")
+            
+            # Build warnings list
+            warnings = quality_result.get("warnings", [])
+            if face_detection_warning:
+                warnings.append(face_detection_warning)
+            
             return {
                 "valid": True,
                 "error": None,
                 "details": {
                     "resolution": f"{width}x{height}",
                     "quality_score": quality_result.get("score", 0),
-                    "warnings": quality_result.get("warnings", [])
+                    "warnings": warnings,
+                    "face_detection_skipped": face_detection_skipped,
+                    "needs_manual_review": face_detection_skipped
                 }
             }
             
@@ -295,6 +419,89 @@ class DocumentVerificationService:
                 "valid": False,
                 "error": "Failed to process image. Please try a different photo.",
                 "details": {"error": str(e)}
+            }
+
+    def validate_text_only_document(
+        self,
+        file_data: bytes,
+        document_type: str,
+        skip_keyword_check: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Lightweight validation path for documents that only need OCR/quality checks.
+
+        Used for agency/business permits and supporting docs to avoid hitting the
+        face detection service (cold starts on Render cause timeouts).
+        """
+        logger.info(
+            f"📄 Text-only validation for {document_type}, skip_keyword_check={skip_keyword_check}"
+        )
+
+        try:
+            image = Image.open(io.BytesIO(file_data))
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+
+            width, height = image.size
+
+            # 1) Quality check
+            quality_result = self._check_image_quality(image)
+            if quality_result["status"] == "FAILED":
+                reason = quality_result.get("reason", "Image quality too low")
+                logger.warning(f"   ❌ Text-only quality failed: {reason}")
+                return {
+                    "valid": False,
+                    "error": reason,
+                    "details": {"quality": quality_result, "resolution": f"{width}x{height}"},
+                }
+
+            # 2) OCR
+            ocr_result = self._extract_text(image)
+            extracted_text = ocr_result.get("text", "")
+            details = {
+                "quality_score": quality_result.get("score", 0),
+                "resolution": f"{width}x{height}",
+                "ocr_confidence": ocr_result.get("confidence", 0),
+                "ocr_length": len(extracted_text),
+                "warnings": quality_result.get("warnings", []),
+            }
+
+            if ocr_result.get("skipped") or ocr_result.get("error"):
+                reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
+                logger.warning(f"   ❌ OCR failed for text-only doc: {reason}")
+                return {"valid": False, "error": reason, "details": details}
+
+            if not extracted_text.strip():
+                logger.warning("   ❌ No readable text found in document")
+                return {
+                    "valid": False,
+                    "error": "No readable text detected. Please upload a clearer document.",
+                    "details": details,
+                }
+
+            # 3) Optional keyword check
+            if not skip_keyword_check and document_type.upper() in DOCUMENT_KEYWORDS:
+                keyword_check = self._check_required_keywords(
+                    extracted_text, document_type.upper()
+                )
+                details["keyword_check"] = keyword_check
+                if not keyword_check["passed"]:
+                    missing = keyword_check.get("missing_groups") or []
+                    logger.warning(f"   ❌ Missing required keywords for {document_type}: {missing}")
+                    return {
+                        "valid": False,
+                        "error": "Required document text not found. Please upload a clearer copy.",
+                        "details": details,
+                    }
+
+            return {"valid": True, "error": None, "details": details}
+
+        except Exception as e:
+            logger.error(f"Text-only validation error: {e}", exc_info=True)
+            return {
+                "valid": False,
+                "error": "Failed to process document. Please try again.",
+                "details": {"error": str(e)},
             }
 
     def verify_document(
@@ -378,9 +585,8 @@ class DocumentVerificationService:
             extracted_text = ""
             
             print(f"   📝 OCR check: document_type={document_type.upper()}, ocr_required={ocr_required}")
-            print(f"   📝 Available DOCUMENT_KEYWORDS: {list(DOCUMENT_KEYWORDS.keys())}")
             print(f"   📝 TESSERACT_AVAILABLE = {TESSERACT_AVAILABLE}")
-            
+
             if ocr_required or document_type.upper() in ["NBI", "POLICE", "CLEARANCE"]:
                 print(f"   📝 Running Tesseract OCR for {document_type}...")
                 ocr_result = self._extract_text(image)
@@ -394,11 +600,11 @@ class DocumentVerificationService:
                 }
                 
                 # Log extracted text for debugging (first 500 chars)
+                # Log extracted text for debugging (first 500 chars)
                 text_preview = extracted_text[:500].replace('\n', ' ') if extracted_text else "(empty)"
                 print(f"   📝 OCR extracted ({len(extracted_text)} chars): {text_preview}")
-                print(f"   📝 OCR result: skipped={ocr_result.get('skipped')}, error={ocr_result.get('error')}, reason={ocr_result.get('reason')}")
                 
-                # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
+                 # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
                 if ocr_result.get("skipped") or ocr_result.get("error"):
                     error_reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
                     print(f"   ❌ OCR FAILED: {error_reason}")
@@ -543,55 +749,61 @@ class DocumentVerificationService:
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
-        Detect faces in image using CompreFace
+        Detect faces in image using Face API (InsightFace microservice)
         
         Returns dict with:
             - detected: bool
             - count: number of faces
             - confidence: highest face confidence
-            - face_too_small: bool if face is too small
+            - skipped: bool if detection was skipped
         """
-        if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping face detection")
+        if not self._check_face_api_available():
+            logger.warning("Face API not available, skipping face detection")
             return {
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
                 "skipped": True,
-                "reason": "CompreFace service not available"
+                "reason": "Face API service not available"
             }
         
         try:
-            # Resize image if too large (CompreFace can struggle with very large images)
+            # Resize image if too large
             image = Image.open(io.BytesIO(image_data))
             original_size = (image.width, image.height)
-            max_dimension = 1920  # Resize to max 1920px on longest side
+            max_dimension = 1920
             
             if max(image.width, image.height) > max_dimension:
                 ratio = max_dimension / max(image.width, image.height)
                 new_size = (int(image.width * ratio), int(image.height * ratio))
                 image = image.resize(new_size, Image.Resampling.LANCZOS)
-                logger.info(f"   📐 Resized image from {original_size} to {new_size} for face detection")
+                logger.info(f"   📐 Resized image from {original_size} to {new_size}")
                 
                 # Convert back to bytes
                 buffer = io.BytesIO()
                 image.save(buffer, format="JPEG", quality=90)
                 image_data = buffer.getvalue()
             
-            # Call CompreFace face detection API
-            headers = {"x-api-key": self.compreface_api_key}
+            # Call Face API detection endpoint using shared HTTP client for connection pooling
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
             
-            response = httpx.post(
-                f"{self.compreface_url}/api/v1/detection/detect",
-                headers=headers,
-                files=files,
-                params={"limit": 5, "det_prob_threshold": 0.5},
-                timeout=30.0
-            )
+            # Use shared client if available (connection pooling + 45s timeout for cold start)
+            if _use_shared_client:
+                client = get_http_client()
+                response = client.post(
+                    f"{self.face_api_url}/detect",
+                    files=files,
+                    timeout=FACE_API_TIMEOUT
+                )
+            else:
+                response = httpx.post(
+                    f"{self.face_api_url}/detect",
+                    files=files,
+                    timeout=FACE_API_TIMEOUT
+                )
             
             if response.status_code != 200:
-                logger.warning(f"CompreFace returned {response.status_code}: {response.text}")
+                logger.warning(f"Face API returned {response.status_code}: {response.text}")
                 return {
                     "detected": False,
                     "count": 0,
@@ -600,52 +812,31 @@ class DocumentVerificationService:
                 }
             
             result = response.json()
-            faces = result.get("result", [])
             
-            if not faces:
+            # Apply confidence threshold to prevent false positives
+            confidence = result.get("confidence", 0)
+            detected = result.get("detected", False)
+            
+            # If detected but confidence is too low, treat as not detected
+            if detected and confidence < MIN_CONFIDENCE_FACE:
+                logger.warning(f"   ⚠️ Face detected but confidence too low ({confidence:.2f} < {MIN_CONFIDENCE_FACE}) - rejecting as false positive")
                 return {
                     "detected": False,
                     "count": 0,
-                    "confidence": 0
+                    "confidence": confidence,
+                    "faces": result.get("faces", []),
+                    "reason": f"Face detection confidence too low ({confidence:.2f})"
                 }
             
-            # Get image dimensions for size check
-            image = Image.open(io.BytesIO(image_data))
-            img_area = image.width * image.height
-            
-            # Check face size
-            max_confidence = 0
-            face_too_small = True
-            
-            for face in faces:
-                box = face.get("box", {})
-                face_width = box.get("x_max", 0) - box.get("x_min", 0)
-                face_height = box.get("y_max", 0) - box.get("y_min", 0)
-                face_area = face_width * face_height
-                
-                if face_area / img_area >= MIN_FACE_SIZE_RATIO:
-                    face_too_small = False
-                
-                probability = face.get("box", {}).get("probability", 0)
-                if probability > max_confidence:
-                    max_confidence = probability
-            
             return {
-                "detected": True,
-                "count": len(faces),
-                "confidence": max_confidence,
-                "face_too_small": face_too_small,
-                "faces": [
-                    {
-                        "box": f.get("box", {}),
-                        "probability": f.get("box", {}).get("probability", 0)
-                    }
-                    for f in faces
-                ]
+                "detected": detected,
+                "count": result.get("count", 0),
+                "confidence": confidence,
+                "faces": result.get("faces", [])
             }
             
         except httpx.TimeoutException:
-            logger.error("CompreFace request timed out")
+            logger.error("Face API request timed out")
             return {
                 "detected": False,
                 "count": 0,

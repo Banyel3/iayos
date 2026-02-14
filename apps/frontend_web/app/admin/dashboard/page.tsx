@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { Sidebar } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,8 +42,6 @@ interface DashboardStats {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const fetchStats = async () => {
     try {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -153,7 +154,7 @@ export default function SupportTicketsPage() {
       if (searchTerm) params.append("search", searchTerm);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/tickets?${params.toString()}`,
+        `${API_BASE}/api/adminpanel/support/tickets?${params.toString()}`,
         { credentials: "include" },
       );
       const data: TicketsResponse = await response.json();

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form_button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -44,9 +45,6 @@ export default function AgencyDashboardPage() {
   const [pendingAssignments, setPendingAssignments] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-
   const fetchStats = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/agency/profile`, {
@@ -74,7 +72,7 @@ export default function AgencyDashboardPage() {
         `${API_BASE}/api/agency/jobs?status=IN_PROGRESS&limit=5`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (res.ok) {
@@ -90,7 +88,7 @@ export default function AgencyDashboardPage() {
             updatedAt: job.updatedAt,
             assignedEmployeeId: job.assignedEmployee?.employeeId,
             assignedEmployeeName: job.assignedEmployee?.name,
-          }))
+          })),
         );
       }
     } catch (error) {
@@ -106,7 +104,7 @@ export default function AgencyDashboardPage() {
         `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE&limit=10`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (res.ok) {
@@ -115,7 +113,7 @@ export default function AgencyDashboardPage() {
         // Filter to only show unassigned jobs (jobs without an assigned employee)
         // Backend returns assignedEmployee in camelCase
         const unassigned = jobs.filter(
-          (job: any) => !job.assignedEmployee && !job.assignedEmployeeID
+          (job: any) => !job.assignedEmployee && !job.assignedEmployeeID,
         );
         setPendingAssignments(
           unassigned.slice(0, 5).map((job: any) => ({
@@ -125,7 +123,7 @@ export default function AgencyDashboardPage() {
             inviteStatus: job.inviteStatus,
             budget: job.budget,
             updatedAt: job.updatedAt,
-          }))
+          })),
         );
       }
     } catch (error) {

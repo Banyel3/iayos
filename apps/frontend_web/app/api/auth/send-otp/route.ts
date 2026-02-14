@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,20 +15,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Proxy the request to the backend's send-otp-email endpoint
-    const response = await fetch(
-      `${BACKEND_API_URL}/api/mobile/auth/send-otp-email`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          otp_code,
-          expires_in_minutes: expires_in_minutes || 5,
-        }),
+    const response = await fetch(`${API_BASE}/api/mobile/auth/send-otp-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        email,
+        otp_code,
+        expires_in_minutes: expires_in_minutes || 5,
+      }),
+    });
 
     const data = await response.json();
 

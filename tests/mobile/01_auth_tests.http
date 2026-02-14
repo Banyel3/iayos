@@ -1,0 +1,134 @@
+# ================================================================
+# MOBILE AUTH TEST SUITE
+# Tests: Login, Register, Profile, Logout, OTP Verification
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### TEST 1: Mobile Login (Worker Account)
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+### Store worker token
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 2: Mobile Login (Client Account)
+### ================================================================
+# @name clientLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testclient@example.com",
+    "password": "Test1234!"
+}
+
+### Store client token
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 3: Get Current User Profile (Worker)
+### ================================================================
+# @name getWorkerProfile
+GET {{baseUrl}}/api/mobile/auth/profile
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 4: Get Current User Profile (Client)
+### ================================================================
+# @name getClientProfile
+GET {{baseUrl}}/api/mobile/auth/profile
+Authorization: Bearer {{clientToken}}
+
+### ================================================================
+### TEST 5: Invalid Login (Wrong Password)
+### Expected: 401 Unauthorized
+### ================================================================
+# @name invalidLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "WrongPassword123!"
+}
+
+### ================================================================
+### TEST 6: Invalid Login (Non-existent User)
+### Expected: 401 Unauthorized
+### ================================================================
+# @name nonExistentUser
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "nonexistent@example.com",
+    "password": "Test1234!"
+}
+
+### ================================================================
+### TEST 7: Missing Credentials
+### Expected: 422 Unprocessable Entity
+### ================================================================
+# @name missingCredentials
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com"
+}
+
+### ================================================================
+### TEST 8: Dual Profile Status
+### ================================================================
+# @name dualProfileStatus
+GET {{baseUrl}}/api/mobile/profile/dual-status
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 9: Switch Profile (Worker to Client)
+### ================================================================
+# @name switchToClient
+POST {{baseUrl}}/api/mobile/profile/switch-profile
+Authorization: Bearer {{workerToken}}
+Content-Type: application/json
+
+{
+    "profile_type": "CLIENT"
+}
+
+### ================================================================
+### TEST 10: Switch Profile (Client to Worker)
+### ================================================================
+# @name switchToWorker
+POST {{baseUrl}}/api/mobile/profile/switch-profile
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+    "profile_type": "WORKER"
+}
+
+### ================================================================
+### TEST 11: Logout
+### ================================================================
+# @name logout
+POST {{baseUrl}}/api/mobile/auth/logout
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 12: Access After Logout (Should Fail)
+### Expected: 401 Unauthorized
+### ================================================================
+# @name accessAfterLogout
+GET {{baseUrl}}/api/mobile/auth/profile
+Authorization: Bearer {{workerToken}}

@@ -4,8 +4,7 @@
 // Agencies act as "worker entities" in the backjob workflow
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 /**
  * Client confirms backjob work has started
@@ -23,7 +22,7 @@ export function useConfirmBackjobStarted() {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -53,13 +52,7 @@ export function useMarkBackjobComplete() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      jobId,
-      notes,
-    }: {
-      jobId: number;
-      notes?: string;
-    }) => {
+    mutationFn: async ({ jobId, notes }: { jobId: number; notes?: string }) => {
       const response = await fetch(
         `${API_BASE}/api/jobs/${jobId}/backjob/mark-complete`,
         {
@@ -67,7 +60,7 @@ export function useMarkBackjobComplete() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes: notes || "" }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -97,13 +90,7 @@ export function useApproveBackjobCompletion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      jobId,
-      notes,
-    }: {
-      jobId: number;
-      notes?: string;
-    }) => {
+    mutationFn: async ({ jobId, notes }: { jobId: number; notes?: string }) => {
       const response = await fetch(
         `${API_BASE}/api/jobs/${jobId}/backjob/approve-completion`,
         {
@@ -111,7 +98,7 @@ export function useApproveBackjobCompletion() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes: notes || "" }),
-        }
+        },
       );
 
       if (!response.ok) {
