@@ -351,6 +351,17 @@ try:
     import face_recognition
     print('✅ face_recognition: OK')
     
+    import face_recognition_models
+    print('✅ face_recognition_models: OK')
+    
+    # Verify model files actually exist (catches silent install failures)
+    model_path = face_recognition_models.face_recognition_model_location()
+    predictor_path = face_recognition_models.pose_predictor_model_location()
+    import os
+    assert os.path.exists(model_path), f'Model file missing: {model_path}'
+    assert os.path.exists(predictor_path), f'Predictor file missing: {predictor_path}'
+    print(f'✅ face_recognition model files verified')
+    
     print('🎉 ALL DEPENDENCIES VERIFIED')
     print('✅ Build verification PASSED')
 except ImportError as e:
