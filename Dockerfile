@@ -101,14 +101,16 @@ WORKDIR /app/backend
 # ============================================
 FROM python:3.12-slim AS backend-deps
 
-# Install build dependencies
+# Install build dependencies (includes cmake + openblas for dlib/face-recognition)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     make \
+    cmake \
     libpq-dev \
     libffi-dev \
     libssl-dev \
+    libopenblas-dev \
     cargo \
     rustc \
     postgresql-client \
@@ -227,10 +229,13 @@ RUN groupadd -g 1001 appgroup \
 
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
-# Note: Removed OpenCV/InsightFace deps (moved to Face API service)
+# - cmake + openblas for dlib/face-recognition
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
+    cmake \
     libpq-dev \
+    libopenblas-dev \
     postgresql-client \
     cron \
     tesseract-ocr \
@@ -288,12 +293,13 @@ RUN groupadd -g 1001 appgroup \
 
 # Install only runtime dependencies (Debian syntax)
 # - tesseract-ocr for KYC document verification
-# Note: Removed OpenCV/InsightFace deps (moved to Face API service)
+# - libopenblas0 for dlib/face-recognition at runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     libpq5 \
     libffi8 \
     libssl3 \
+    libopenblas0 \
     tesseract-ocr \
     tesseract-ocr-eng \
     poppler-utils \
@@ -332,6 +338,9 @@ try:
     
     import PIL
     print(f'✅ pillow: {PIL.__version__}')
+    
+    import face_recognition
+    print('✅ face_recognition: OK')
     
     print('🎉 ALL DEPENDENCIES VERIFIED')
     print('✅ Build verification PASSED')

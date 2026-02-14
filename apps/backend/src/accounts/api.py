@@ -954,6 +954,14 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
     print(f"      - Face match score: {face_match_decimal}")
     
     if face_match_decimal < min_face_match:
+        # Check for borderline case: above hard threshold but below auto-approve threshold
+        if face_match_decimal >= Decimal('0.55'):
+            print(f"      ⚠️ Face match {face_match_decimal} is BORDERLINE (>= 0.55 but < {min_face_match})")
+            # Flag for manual review rather than silent rejection
+            if not kyc_record.notes:
+                kyc_record.notes = ""
+            kyc_record.notes += f"\n[BORDERLINE] Face match score {face_match_score:.2f} is above hard threshold (0.55) but below auto-approve threshold ({min_face_match}). Manual review recommended."
+            kyc_record.save(update_fields=['notes'])
         print(f"      ❌ Face match {face_match_decimal} < min {min_face_match}")
         return False, None
     

@@ -15,7 +15,7 @@ import os
 import re
 
 
-def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter):
+def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter, rep_selfie=None):
     """
     FAST upload for agency KYC - skips AI validation (already done per-step).
     
@@ -32,6 +32,7 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
             'BUSINESS_PERMIT': business_permit,
             'REP_ID_FRONT': rep_front,
             'REP_ID_BACK': rep_back,
+            'REP_SELFIE': rep_selfie,
             'ADDRESS_PROOF': address_proof,
             'AUTH_LETTER': auth_letter,
         }
@@ -282,6 +283,50 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
             }
         
         # ============================================
+        # FACE MATCHING: Compare rep_selfie with rep_id_front
+        # ============================================
+        face_match_ok = False
+        face_match_score = None
+
+        if rep_front and rep_selfie:
+            print("🔍 [AGENCY] Starting face matching between rep_id_front and rep_selfie...")
+            try:
+                from accounts.document_verification_service import verify_face_match
+                rep_front.seek(0)
+                rep_selfie.seek(0)
+                id_bytes = rep_front.read()
+                selfie_bytes = rep_selfie.read()
+
+                fm_result = verify_face_match(
+                    id_image_data=id_bytes,
+                    selfie_image_data=selfie_bytes,
+                    similarity_threshold=0.55,
+                )
+
+                face_match_score = fm_result.get('similarity', 0)
+                is_match = fm_result.get('match', False)
+                print(f"   Face match result: match={is_match}, similarity={face_match_score:.2f}")
+
+                if is_match:
+                    face_match_ok = True
+                elif face_match_score < 0.40:
+                    # Hard reject: clearly different people
+                    any_failed = True
+                    failure_messages.append(
+                        f"FACE_MATCH: Representative selfie does not match ID photo "
+                        f"(similarity: {face_match_score:.0%})"
+                    )
+                    print(f"   ❌ Face match hard-reject: {face_match_score:.2f} < 0.40")
+                else:
+                    # Borderline — let admin review
+                    print(f"   ⚠️ Face match borderline: {face_match_score:.2f} (needs manual review)")
+            except Exception as fm_err:
+                print(f"   ⚠️ Face matching error (non-blocking): {fm_err}")
+        else:
+            if not rep_selfie:
+                print("⏭️ Skipping face matching — rep_selfie not provided")
+
+        # ============================================
         # AUTO-APPROVAL CHECK
         # ============================================
         # If all documents passed AI validation, check if we should auto-approve
@@ -320,10 +365,11 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 print(f"      - autoApproveKYC: {settings.autoApproveKYC}")
                 print(f"      - all_passed: {all_passed}")
                 print(f"      - face_detected: {face_detected}")
+                print(f"      - face_match_ok: {face_match_ok}")
                 print(f"      - avg_confidence: {avg_confidence:.2f}")
                 print(f"      - min_confidence: {min_confidence:.2f}")
                 
-                if all_passed and face_detected and avg_confidence >= min_confidence:
+                if all_passed and face_detected and face_match_ok and avg_confidence >= min_confidence:
                     kyc_record.status = 'APPROVED'
                     kyc_record.reviewedBy = None  # Will store as system approval
                     kyc_record.reviewedAt = timezone.now()

@@ -75,6 +75,7 @@ class AgencyKycFile(models.Model):
         BUSINESS_PERMIT = "BUSINESS_PERMIT", "business_permit"
         REP_ID_FRONT = "REP_ID_FRONT", "rep_id_front"
         REP_ID_BACK = "REP_ID_BACK", "rep_id_back"
+        REP_SELFIE = "REP_SELFIE", "rep_selfie"
         ADDRESS_PROOF = "ADDRESS_PROOF", "address_proof"
         AUTH_LETTER = "AUTH_LETTER", "authorization_letter"
 
