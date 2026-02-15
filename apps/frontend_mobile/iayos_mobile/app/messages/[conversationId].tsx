@@ -1726,7 +1726,7 @@ export default function ChatScreen() {
                         contentContainerStyle={styles.teamWorkersScrollContent}
                       >
                         {conversation.attendance_today &&
-                        conversation.attendance_today.length > 0 ? (
+                          conversation.attendance_today.length > 0 ? (
                           conversation.attendance_today.map(
                             (attendance: any) => (
                               <View
@@ -1734,7 +1734,7 @@ export default function ChatScreen() {
                                 style={[
                                   styles.teamWorkerCardCompact,
                                   attendance.client_confirmed &&
-                                    styles.teamWorkerCardConfirmed,
+                                  styles.teamWorkerCardConfirmed,
                                 ]}
                               >
                                 <View style={styles.teamWorkerInfoCompact}>
@@ -2190,24 +2190,7 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
-                {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.job.clientConfirmedWorkStarted &&
-                  !conversation.job.workerMarkedComplete && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
-                      <Ionicons
-                        name="time-outline"
-                        size={20}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for worker to mark job complete...
-                      </Text>
-                    </View>
-                  )}
+
 
                 {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
@@ -2218,15 +2201,14 @@ export default function ChatScreen() {
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
                         name="time-outline"
-                        size={20}
+                        size={24}
                         color={Colors.textSecondary}
                       />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for client to confirm work started...
-                      </Text>
-                      <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4 }}>
-                        💬 You can still send messages while waiting
-                      </Text>
+                      <View style={{ flex: 1, marginLeft: 4 }}>
+                        <Text style={styles.waitingButtonText} numberOfLines={1} adjustsFontSizeToFit>
+                          Waiting for client to confirm you've arrived...
+                        </Text>
+                      </View>
                     </View>
                   )}
 
@@ -2868,8 +2850,8 @@ export default function ChatScreen() {
                   (conversation.is_team_job
                     ? conversation.all_team_workers_reviewed
                     : conversation.job.clientReviewed)) ||
-                (conversation.my_role === "WORKER" &&
-                  conversation.job.workerReviewed) ? (
+                  (conversation.my_role === "WORKER" &&
+                    conversation.job.workerReviewed) ? (
                   // User has already reviewed - show compact waiting banner
                   <View style={styles.reviewCompleteBanner}>
                     <Ionicons
@@ -2879,7 +2861,7 @@ export default function ChatScreen() {
                     />
                     <Text style={styles.reviewCompleteBannerText}>
                       {conversation.is_team_job &&
-                      conversation.my_role === "CLIENT"
+                        conversation.my_role === "CLIENT"
                         ? `✅ Reviewed all ${conversation.team_worker_assignments?.length || 0} workers`
                         : "✅ Review submitted"}
                     </Text>
@@ -2887,20 +2869,20 @@ export default function ChatScreen() {
                       !conversation.job.workerReviewed) ||
                       (conversation.my_role === "WORKER" &&
                         !conversation.job.clientReviewed)) && (
-                      <View style={styles.reviewWaitingBadge}>
-                        <Ionicons
-                          name="time-outline"
-                          size={12}
-                          color={Colors.textSecondary}
-                        />
-                        <Text style={styles.reviewWaitingBadgeText}>
-                          Waiting for{" "}
-                          {conversation.my_role === "CLIENT"
-                            ? "worker"
-                            : "client"}
-                        </Text>
-                      </View>
-                    )}
+                        <View style={styles.reviewWaitingBadge}>
+                          <Ionicons
+                            name="time-outline"
+                            size={12}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.reviewWaitingBadgeText}>
+                            Waiting for{" "}
+                            {conversation.my_role === "CLIENT"
+                              ? "worker"
+                              : "client"}
+                          </Text>
+                        </View>
+                      )}
                   </View>
                 ) : (
                   // User hasn't reviewed yet - show compact banner to open modal
@@ -2913,21 +2895,21 @@ export default function ChatScreen() {
                     <View style={styles.leaveReviewTextContainer}>
                       <Text style={styles.leaveReviewTitle}>
                         {conversation.is_team_job &&
-                        conversation.my_role === "CLIENT"
+                          conversation.my_role === "CLIENT"
                           ? (() => {
-                              const pending =
-                                conversation.pending_team_worker_reviews
-                                  ?.length || 0;
-                              const total =
-                                conversation.team_worker_assignments?.length ||
-                                0;
-                              const reviewed = total - pending;
-                              return reviewed > 0
-                                ? `Rate workers (${reviewed}/${total} done)`
-                                : `Rate ${total} worker${total > 1 ? "s" : ""}`;
-                            })()
+                            const pending =
+                              conversation.pending_team_worker_reviews
+                                ?.length || 0;
+                            const total =
+                              conversation.team_worker_assignments?.length ||
+                              0;
+                            const reviewed = total - pending;
+                            return reviewed > 0
+                              ? `Rate workers (${reviewed}/${total} done)`
+                              : `Rate ${total} worker${total > 1 ? "s" : ""}`;
+                          })()
                           : conversation.is_agency_job &&
-                              conversation.my_role === "CLIENT"
+                            conversation.my_role === "CLIENT"
                             ? reviewStep === "EMPLOYEE"
                               ? "Rate Employee"
                               : "Rate Agency"
@@ -2985,7 +2967,7 @@ export default function ChatScreen() {
                                 style={[
                                   styles.teamReviewChecklistName,
                                   isReviewed &&
-                                    styles.teamReviewChecklistNameDone,
+                                  styles.teamReviewChecklistNameDone,
                                 ]}
                                 numberOfLines={1}
                               >
@@ -3252,9 +3234,9 @@ export default function ChatScreen() {
                                             style={[
                                               styles.teamReviewModalChecklistDot,
                                               isReviewed &&
-                                                styles.teamReviewModalChecklistDotDone,
+                                              styles.teamReviewModalChecklistDotDone,
                                               isCurrent &&
-                                                styles.teamReviewModalChecklistDotCurrent,
+                                              styles.teamReviewModalChecklistDotCurrent,
                                             ]}
                                           >
                                             {isReviewed ? (
@@ -3268,7 +3250,7 @@ export default function ChatScreen() {
                                                 style={[
                                                   styles.teamReviewModalChecklistDotText,
                                                   isCurrent &&
-                                                    styles.teamReviewModalChecklistDotTextCurrent,
+                                                  styles.teamReviewModalChecklistDotTextCurrent,
                                                 ]}
                                               >
                                                 {i + 1}
@@ -3836,11 +3818,13 @@ export default function ChatScreen() {
             </Text>
           </View>
         ) : (
-          <MessageInput
-            onSend={handleSend}
-            onImagePress={handleImagePress}
-            isSending={isSending}
-          />
+          <View style={{ paddingBottom: Spacing.sm }}>
+            <MessageInput
+              onSend={handleSend}
+              onImagePress={handleImagePress}
+              isSending={isSending}
+            />
+          </View>
         )}
       </KeyboardAvoidingView>
 
@@ -4461,9 +4445,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderStyle: "dashed",
+    paddingVertical: 8,
+    paddingHorizontal: 8, // Reduced padding
   },
   waitingButtonText: {
-    ...Typography.body.medium,
+    ...Typography.body.small, // Reduced from medium
+    fontSize: 13, // Explicit compact size
     color: Colors.textPrimary,
     fontWeight: "500",
     fontStyle: "italic",
