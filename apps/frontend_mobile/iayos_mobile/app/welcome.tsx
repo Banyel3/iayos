@@ -10,7 +10,10 @@ import {
   Dimensions,
 } from "react-native";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
+
+const HAS_SEEN_WELCOME_KEY = "hasSeenWelcome";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -52,7 +55,10 @@ export default function WelcomeScreen() {
             <View style={styles.buttonsSection}>
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={() => router.push("/auth/register")}
+                onPress={() => {
+                  AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, "true").catch(() => {});
+                  router.push("/auth/register");
+                }}
                 activeOpacity={0.8}
                 testID="welcome-get-started-button"
               >
@@ -61,7 +67,10 @@ export default function WelcomeScreen() {
 
               <TouchableOpacity
                 style={styles.outlineButton}
-                onPress={() => router.push("/auth/login")}
+                onPress={() => {
+                  AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, "true").catch(() => {});
+                  router.push("/auth/login");
+                }}
                 activeOpacity={0.8}
                 testID="welcome-login-button"
               >
