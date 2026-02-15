@@ -2190,6 +2190,25 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
+                {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
+                  conversation.my_role === "CLIENT" &&
+                  conversation.job.clientConfirmedWorkStarted &&
+                  !conversation.job.workerMarkedComplete && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for worker to complete job...
+                      </Text>
+                    </View>
+                  )}
+
 
 
                 {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
@@ -2664,15 +2683,7 @@ export default function ChatScreen() {
                   })()}
 
                 {/* Status Messages (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job.clientConfirmedWorkStarted &&
-                  conversation.my_role === "WORKER" &&
-                  !conversation.job.workerMarkedComplete && (
-                    <Text style={styles.statusMessage}>
-                      ✓ Client confirmed work started
-                    </Text>
-                  )}
+
 
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
