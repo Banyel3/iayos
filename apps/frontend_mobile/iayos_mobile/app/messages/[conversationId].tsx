@@ -4252,7 +4252,7 @@ const styles = StyleSheet.create({
   },
   jobInfo: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 6,
     marginBottom: 4,
   },
@@ -4261,7 +4261,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: Colors.textPrimary,
-    flex: 1,
   },
   jobMeta: {
     flexDirection: "row",
