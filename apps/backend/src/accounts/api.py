@@ -361,10 +361,17 @@ def resend_otp(request, payload: dict = Body(...)):
     
     print(f"📧 [OTP RESEND] New OTP generated for: {email}")
     
+    # Automatically send the email server-side
+    try:
+        from accounts.mobile_api import _send_otp_email_internal
+        _send_otp_email_internal(email)
+        print(f"✅ OTP email auto-sent for resend: {email}")
+    except Exception as email_err:
+        print(f"⚠️ Failed to auto-send OTP email on resend: {email_err}")
+    
     return {
         "success": True,
         "message": "New OTP sent to your email",
-        "otp_code": otp_code,  # Frontend will use this to send email
         "expires_in_minutes": 5
     }
 

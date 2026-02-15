@@ -62,7 +62,16 @@ def mobile_register(request, payload: createAccountSchema):
 
     try:
         result = create_account_individ(payload)
-        # Registration returns accountID and verifyLink
+        
+        # Automatically send OTP email server-side (don't rely on frontend)
+        try:
+            _send_otp_email_internal(result['email'])
+            print(f"✅ OTP email auto-sent for: {result['email']}")
+        except Exception as email_err:
+            print(f"⚠️ Failed to auto-send OTP email: {email_err}")
+            # Registration still succeeds; user can use resend-otp
+        
+        # Registration returns accountID (OTP kept server-side)
         # Don't auto-login, require email verification
         return {
             'success': True,
@@ -264,14 +273,41 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
 def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
     """
     Send OTP verification email via Resend API.
-    This replaces the link-based verification with a 6-digit OTP code.
+    OTP is looked up server-side from the database - never accepted from client.
     """
-    import requests
+    return _send_otp_email_internal(payload.email)
+
+
+def _send_otp_email_internal(email: str):
+    """
+    Internal helper: look up OTP from the database and send the email.
+    Never accepts OTP from the client to prevent OTP injection.
+    """
+    import requests as http_requests
     from django.conf import settings
     
-    print(f"📧 [Mobile] Send OTP email request for: {payload.email}")
+    print(f"📧 [Mobile] Send OTP email request for: {email}")
     
     try:
+        # Look up the user and their current OTP from the database
+        user = Accounts.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({"error": "Account not found"}, status=404)
+        
+        otp_code = user.email_otp
+        if not otp_code:
+            return Response({"error": "No OTP generated. Please register or request a new OTP."}, status=400)
+        
+        # Check if OTP has expired
+        from django.utils import timezone
+        if user.email_otp_expiry and user.email_otp_expiry < timezone.now():
+            return Response({"error": "OTP has expired. Please request a new one."}, status=400)
+        
+        expires_in_minutes = 5
+        if user.email_otp_expiry:
+            remaining = (user.email_otp_expiry - timezone.now()).total_seconds() / 60
+            expires_in_minutes = max(1, int(remaining))
+        
         # Validate required environment variables
         resend_api_key = settings.RESEND_API_KEY
         resend_base_url = getattr(settings, 'RESEND_BASE_URL', 'https://api.resend.com')
@@ -311,11 +347,11 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
                                     </p>
                                     <div style="display: inline-block; padding: 20px 40px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 30px;">
                                         <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #007bff;">
-                                            {payload.otp_code}
+                                            {otp_code}
                                         </span>
                                     </div>
                                     <p style="margin: 0 0 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
-                                        This code will expire in <strong>{payload.expires_in_minutes} minutes</strong>.
+                                        This code will expire in <strong>{expires_in_minutes} minutes</strong>.
                                     </p>
                                     <p style="margin: 20px 0 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
                                         If you didn't request this code, you can safely ignore this email.
@@ -346,14 +382,14 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
         
         resend_payload = {
             "from": "team@devante.online",
-            "to": [payload.email],
-            "subject": f"Your iAyos Verification Code: {payload.otp_code}",
+            "to": [email],
+            "subject": f"Your iAyos Verification Code: {otp_code}",
             "html": html_template
         }
         
-        print(f"📧 [Mobile] Sending OTP email to: {payload.email}")
+        print(f"📧 [Mobile] Sending OTP email to: {email}")
         print(f"📧 [Mobile] Using Resend URL: {resend_url}")
-        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        response = http_requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
         print(f"📧 [Mobile] Resend API Response Status: {response.status_code}")
         
         if response.status_code == 200:
@@ -374,7 +410,7 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
                 status=502
             )
             
-    except requests.exceptions.Timeout:
+    except http_requests.exceptions.Timeout:
         print("❌ [Mobile] Resend API timeout")
         return Response(
             {"error": "Email service timeout. Please try again."},

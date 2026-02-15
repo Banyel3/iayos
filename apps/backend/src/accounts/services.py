@@ -135,15 +135,14 @@ def create_account_individ(data):
             )
             print(f"✅ Auto-created ClientProfile during registration for {user.email}")
 
-    # Return OTP for email sending (frontend will trigger email)
+    # Return registration data (OTP is kept server-side for security)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     return {
         "accountID": user.accountID,
         "verifyLink": verifyLink,  # Legacy, kept for backward compatibility
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
         "email": user.email,
-        "otp_code": otp_code,  # New: OTP code for email
-        "otp_expiry_minutes": 5  # New: Expiry time in minutes
+        "otp_expiry_minutes": 5  # Tells frontend how long OTP is valid
     }
 def create_account_agency(data):
     # 1️⃣ Check if email exists

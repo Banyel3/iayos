@@ -123,14 +123,13 @@ const triggerVerificationEmail = async (
 };
 
 // Send OTP email for new registration flow
+// Backend now sends email automatically on register, but this can be used for manual retry
 const sendOTPEmail = async (
   email: string,
-  otpCode: string,
-  expiresInMinutes: number = 5,
 ): Promise<boolean> => {
-  console.log("📧 [sendOTPEmail] Sending OTP to:", email);
+  console.log("📧 [sendOTPEmail] Requesting OTP email for:", email);
 
-  if (!email || !otpCode || !OTP_EMAIL_ENDPOINT) {
+  if (!email || !OTP_EMAIL_ENDPOINT) {
     console.warn("⚠️ Missing OTP email parameters");
     return false;
   }
@@ -139,11 +138,7 @@ const sendOTPEmail = async (
     const response = await fetch(OTP_EMAIL_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        otp_code: otpCode,
-        expires_in_minutes: expiresInMinutes,
-      }),
+      body: JSON.stringify({ email }),
     });
 
     if (!response.ok) {
@@ -387,16 +382,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         responseBody?.data || responseBody;
       console.log("📧 Registration response:", registrationData);
 
-      // Send OTP email if OTP code is present (new flow)
-      if (registrationData.otp_code) {
-        const emailSent = await sendOTPEmail(
-          registrationData.email,
-          registrationData.otp_code,
-          registrationData.otp_expiry_minutes || 5,
-        );
-        if (!emailSent) {
-          console.warn("⚠️ OTP email was not sent successfully");
-        }
+      // Backend now auto-sends OTP email on registration
+      // If it failed, try manually via the send-otp endpoint
+      if (registrationData.email) {
+        // Backend already sent the email during registration
+        // Only call sendOTPEmail as a fallback if needed
+        console.log("📧 OTP email should have been sent by backend during registration");
       } else if (registrationData.verifyLink) {
         // Fallback to old verification link flow
         const emailSent = await triggerVerificationEmail({
