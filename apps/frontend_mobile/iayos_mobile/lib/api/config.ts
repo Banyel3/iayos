@@ -292,6 +292,10 @@ export const ENDPOINTS = {
   RESEND_OTP_ENDPOINT: `${API_URL}/api/accounts/resend-otp`,
   OTP_EMAIL_ENDPOINT: `${API_URL}/api/mobile/auth/send-otp-email`,
 
+  // Forgot Password
+  FORGOT_PASSWORD_SEND: `${API_URL}/api/accounts/forgot-password/send-verify`,
+  FORGOT_PASSWORD_VERIFY: `${API_URL}/api/accounts/forgot-password/verify`,
+
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
   MY_JOBS: `${API_URL}/api/mobile/jobs/my-jobs`,

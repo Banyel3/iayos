@@ -188,6 +188,7 @@ export default function LoginScreen() {
               activeOpacity={0.7}
               disabled={isLoading}
               testID="login-forgot-password-link"
+              onPress={() => router.push('/auth/forgot-password' as any)}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
