@@ -1330,12 +1330,7 @@ export default function ChatScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.jobInfo}>
-                <Ionicons
-                  name="briefcase-outline"
-                  size={16}
-                  color={Colors.primary}
-                />
-                <View style={{ flex: 1, marginLeft: 6 }}>
+                <View style={{ flex: 1 }}>
                   {/* Job Completed Status - Compact green text */}
                   {isConversationClosed && !hasApprovedBackjob && (
                     <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 11, marginBottom: 2 }}>
@@ -4258,7 +4253,7 @@ const styles = StyleSheet.create({
   },
   jobTitle: {
     ...Typography.body.medium,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
     color: Colors.textPrimary,
   },
