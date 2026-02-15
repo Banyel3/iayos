@@ -1323,114 +1323,115 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
-          <View style={[styles.jobHeader, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              onPress={() => router.push(`/jobs/${conversation.job.id}`)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.jobInfo}>
-                <View style={{ flex: 1 }}>
-                  {/* Job Completed Status - Compact green text */}
-                  {isConversationClosed && !hasApprovedBackjob && (
-                    <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 11, marginBottom: 2 }}>
-                      Job Completed Successfully
-                    </Text>
-                  )}
-                  <Text style={styles.jobTitle} numberOfLines={1}>
-                    {conversation.job.title}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.jobMeta}>
-                <Text style={styles.jobBudget}>
-                  ₱{conversation.job.budget.toLocaleString()}
-                </Text>
-                {/* ML Estimated Completion Time - Compact mode */}
-                {(isLoading ||
-                  (conversation.job.estimatedCompletion &&
-                    conversation.job.status !== "COMPLETED")) && (
-                    <EstimatedTimeCard
-                      prediction={conversation?.job?.estimatedCompletion || null}
-                      compact={true}
-                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                      jobStartTime={
-                        conversation?.job?.clientConfirmedWorkStarted
-                          ? new Date().toISOString()
-                          : undefined
-                      }
-                      isLoading={isLoading}
-                    />
-                  )}
-              </View>
-            </TouchableOpacity>
-
-            {/* Rate/View Reviews Button (Client, Worker & Agency) */}
-            {conversation.job.clientMarkedComplete && (
+          <View style={[styles.jobHeader, { flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-start" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
               <TouchableOpacity
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  marginLeft: 12,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  borderWidth: 1,
-                  borderColor: "#FBC02D",
-                }}
-                onPress={() => {
-                  // Check if user has already reviewed
-                  const hasReviewed = conversation.my_role === "CLIENT"
-                    ? (conversation.is_team_job
-                      ? conversation.all_team_workers_reviewed
-                      : conversation.job.clientReviewed)
-                    : conversation.job.workerReviewed;
-
-                  setReviewModalMode(hasReviewed ? "view" : "submit");
-                  setShowReviewModal(true);
-                }}
+                style={{ flex: 1 }}
+                onPress={() => router.push(`/jobs/${conversation.job.id}`)}
+                activeOpacity={0.7}
               >
-                <Ionicons name="star" size={16} color="#FBC02D" />
-                <Text
+                <View style={styles.jobInfo}>
+                  <View style={{ flex: 1 }}>
+                    {/* Job Completed Status - Compact green text */}
+                    {isConversationClosed && !hasApprovedBackjob && (
+                      <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 11, marginBottom: 2 }}>
+                        Job Completed Successfully
+                      </Text>
+                    )}
+                    <Text style={styles.jobTitle} numberOfLines={1}>
+                      {conversation.job.title}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.jobMeta}>
+                  <Text style={styles.jobBudget}>
+                    ₱{conversation.job.budget.toLocaleString()}
+                  </Text>
+                  {/* ML Estimated Completion Time - Compact mode */}
+                  {(isLoading ||
+                    (conversation.job.estimatedCompletion &&
+                      conversation.job.status !== "COMPLETED")) && (
+                      <EstimatedTimeCard
+                        prediction={conversation?.job?.estimatedCompletion || null}
+                        compact={true}
+                        countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                        jobStartTime={
+                          conversation?.job?.clientConfirmedWorkStarted
+                            ? new Date().toISOString()
+                            : undefined
+                        }
+                        isLoading={isLoading}
+                      />
+                    )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Rate/View Reviews Button (Client, Worker & Agency) */}
+              {conversation.job.clientMarkedComplete && (
+                <TouchableOpacity
                   style={{
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color: "#FBC02D",
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    marginLeft: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: "#FBC02D",
                   }}
-                >
-                  {(() => {
+                  onPress={() => {
+                    // Check if user has already reviewed
                     const hasReviewed = conversation.my_role === "CLIENT"
                       ? (conversation.is_team_job
                         ? conversation.all_team_workers_reviewed
                         : conversation.job.clientReviewed)
                       : conversation.job.workerReviewed;
 
-                    if (hasReviewed) {
-                      return "View Reviews";
-                    }
+                    setReviewModalMode(hasReviewed ? "view" : "submit");
+                    setShowReviewModal(true);
+                  }}
+                >
+                  <Ionicons name="star" size={16} color="#FBC02D" />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#FBC02D",
+                    }}
+                  >
+                    {(() => {
+                      const hasReviewed = conversation.my_role === "CLIENT"
+                        ? (conversation.is_team_job
+                          ? conversation.all_team_workers_reviewed
+                          : conversation.job.clientReviewed)
+                        : conversation.job.workerReviewed;
 
-                    return conversation.my_role === "CLIENT"
-                      ? conversation.is_agency_job
-                        ? "Rate Agency"
-                        : "Rate Worker"
-                      : "Rate Client";
-                  })()}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+                      if (hasReviewed) {
+                        return "View Reviews";
+                      }
 
-          {/* View Receipt Button - Below Review Button */}
-          {conversation.job.status === "COMPLETED" && (
-            <View style={{ paddingHorizontal: Spacing.lg, marginTop: 8 }}>
+                      return conversation.my_role === "CLIENT"
+                        ? conversation.is_agency_job
+                          ? "Rate Agency"
+                          : "Rate Worker"
+                        : "Rate Client";
+                    })()}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* View Receipt Button - Below Review Button */}
+            {conversation.job.status === "COMPLETED" && (
               <TouchableOpacity
                 style={{
                   backgroundColor: "#FFFFFF",
                   paddingHorizontal: 12,
                   paddingVertical: 6,
                   borderRadius: 8,
+                  marginTop: 8,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 6,
@@ -1438,7 +1439,6 @@ export default function ChatScreen() {
                   borderColor: conversation.job.paymentBuffer?.is_payment_released
                     ? Colors.success
                     : Colors.primary,
-                  alignSelf: "flex-start",
                 }}
                 onPress={() => setShowReceiptModal(true)}
               >
@@ -1467,8 +1467,8 @@ export default function ChatScreen() {
                   View Receipt
                 </Text>
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
 
           {/* Action Buttons (replaces role banner) */}
           {conversation.job.status === "IN_PROGRESS" &&
