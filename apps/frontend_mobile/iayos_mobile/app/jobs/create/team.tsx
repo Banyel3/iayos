@@ -110,7 +110,7 @@ export default function CreateTeamJobScreen() {
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [materials, setMaterials] = useState<string[]>([]);
@@ -118,11 +118,11 @@ export default function CreateTeamJobScreen() {
 
   // Universal job fields for ML accuracy (same as single job form)
   const [jobScope, setJobScope] = useState<
-    "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION"
-  >("MODERATE_PROJECT");
+    "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION" | null
+  >(null);
   const [workEnvironment, setWorkEnvironment] = useState<
-    "INDOOR" | "OUTDOOR" | "BOTH"
-  >("BOTH");
+    "INDOOR" | "OUTDOOR" | "BOTH" | null
+  >(null);
 
   // Team-specific state
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
@@ -455,10 +455,7 @@ export default function CreateTeamJobScreen() {
   // Validate form
   const validateForm = () => {
     if (!title.trim()) return "Please enter a job title";
-    if (title.length < 10) return "Title must be at least 10 characters";
     if (!description.trim()) return "Please enter a job description";
-    if (description.length < 50)
-      return "Description must be at least 50 characters";
     if (skillSlots.length === 0)
       return "Please add at least one skill requirement";
     if (totalWorkersNeeded < 2) return "Team jobs require at least 2 workers";
@@ -644,10 +641,10 @@ export default function CreateTeamJobScreen() {
           <View style={styles.content}>
             {/* Job Details Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 Job Details</Text>
+              <Text style={styles.sectionTitle}>📋 Job Details <Text style={{ color: Colors.error }}>*</Text></Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Title *</Text>
+                <Text style={styles.label}>Job Title</Text>
                 <TextInput
                   style={styles.input}
                   value={title}
@@ -659,7 +656,7 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Description *</Text>
+                <Text style={styles.label}>Description</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={description}
@@ -676,7 +673,7 @@ export default function CreateTeamJobScreen() {
             {/* Skill Requirements Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>👥 Team Requirements</Text>
+                <Text style={styles.sectionTitle}>👥 Team Requirements <Text style={{ color: Colors.error }}>*</Text></Text>
                 <TouchableOpacity
                   style={styles.addSkillButton}
                   onPress={() => setAddSkillModalVisible(true)}
@@ -724,10 +721,10 @@ export default function CreateTeamJobScreen() {
 
             {/* Budget Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 Budget</Text>
+              <Text style={styles.sectionTitle}>💰 Budget <Text style={{ color: Colors.error }}>*</Text></Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Total Budget (₱) *</Text>
+                <Text style={styles.label}>Total Budget (₱)</Text>
                 <TextInput
                   style={styles.input}
                   value={totalBudget}
@@ -872,7 +869,7 @@ export default function CreateTeamJobScreen() {
 
             {/* Team Start Threshold */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🚀 Team Start Options</Text>
+              <Text style={styles.sectionTitle}>🚀 Team Start Options <Text style={{ color: Colors.error }}>*</Text></Text>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
@@ -911,10 +908,10 @@ export default function CreateTeamJobScreen() {
 
             {/* Location Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📍 Location</Text>
+              <Text style={styles.sectionTitle}>📍 Location <Text style={{ color: Colors.error }}>*</Text></Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Barangay *</Text>
+                <Text style={styles.label}>Barangay</Text>
                 <TouchableOpacity
                   style={styles.selectButton}
                   onPress={() => setBarangayModalVisible(true)}
@@ -937,7 +934,7 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Street / House No. *</Text>
+                <Text style={styles.label}>Street / House No.</Text>
                 <TextInput
                   style={styles.input}
                   value={street}
@@ -949,7 +946,7 @@ export default function CreateTeamJobScreen() {
 
             {/* Urgency & Date */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⏰ Timing</Text>
+              <Text style={styles.sectionTitle}>⏰ Timing (Optional)</Text>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Urgency Level</Text>
@@ -968,13 +965,16 @@ export default function CreateTeamJobScreen() {
                       style={[
                         styles.urgencyOption,
                         urgency === opt.value && {
-                          borderColor: opt.color,
-                          backgroundColor: `${opt.color}10`,
+                          borderColor: Colors.primary,
+                          backgroundColor: `${Colors.primary}10`,
                         },
                       ]}
-                      onPress={() => setUrgency(opt.value as any)}
+                      onPress={() => setUrgency(urgency === opt.value ? null : opt.value as any)}
                     >
-                      <Text style={styles.urgencyText}>{opt.label}</Text>
+                      <Text style={[
+                        styles.urgencyText,
+                        urgency === opt.value && { color: Colors.primary }
+                      ]}>{opt.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1005,7 +1005,7 @@ export default function CreateTeamJobScreen() {
             {/* Job Scope & Work Environment (for ML accuracy) */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                📊 Job Details (for better pricing)
+                📊 Job Details (Optional)
               </Text>
 
               <View style={styles.inputGroup}>
@@ -1020,14 +1020,17 @@ export default function CreateTeamJobScreen() {
                       key={opt.value}
                       style={[
                         styles.urgencyOption,
-                        jobScope === opt.value && styles.jobScopeActive,
+                        jobScope === opt.value && {
+                          borderColor: Colors.primary,
+                          backgroundColor: `${Colors.primary}10`,
+                        },
                       ]}
-                      onPress={() => setJobScope(opt.value as any)}
+                      onPress={() => setJobScope(jobScope === opt.value ? null : opt.value as any)}
                     >
                       <Text
                         style={[
                           styles.urgencyText,
-                          jobScope === opt.value && styles.activeButtonText,
+                          jobScope === opt.value && { color: Colors.primary },
                         ]}
                       >
                         {opt.label}
@@ -1049,15 +1052,17 @@ export default function CreateTeamJobScreen() {
                       key={opt.value}
                       style={[
                         styles.urgencyOption,
-                        workEnvironment === opt.value && styles.workEnvActive,
+                        workEnvironment === opt.value && {
+                          borderColor: Colors.primary,
+                          backgroundColor: `${Colors.primary}10`,
+                        },
                       ]}
-                      onPress={() => setWorkEnvironment(opt.value as any)}
+                      onPress={() => setWorkEnvironment(workEnvironment === opt.value ? null : opt.value as any)}
                     >
                       <Text
                         style={[
                           styles.urgencyText,
-                          workEnvironment === opt.value &&
-                          styles.activeButtonText,
+                          workEnvironment === opt.value && { color: Colors.primary },
                         ]}
                       >
                         {opt.label}
