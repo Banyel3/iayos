@@ -5578,46 +5578,48 @@ def mobile_create_escrow_payment(request):
         if job.escrowPaid:
             return Response({"error": "Escrow payment already made for this job"}, status=400)
         
-        # Get wallet
-        wallet, _ = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
-        )
-        
-        # Calculate escrow amount (50% of budget)
-        escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
-        
-        # Check wallet balance
-        if wallet.balance < escrow_amount:
-            return Response({
-                "error": "Insufficient wallet balance",
-                "required": float(escrow_amount),
-                "available": float(wallet.balance)
-            }, status=400)
-        
-        # Deduct from wallet and add to reserved
-        wallet.balance -= escrow_amount
-        wallet.reservedBalance += escrow_amount
-        wallet.save()
-        
-        # Update job escrow status
-        job.escrowAmount = escrow_amount
-        job.escrowPaid = True
-        job.escrowPaidAt = timezone.now()
-        job.remainingPayment = escrow_amount  # Remaining 50%
-        job.save()
-        
-        # Create transaction record
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType='PAYMENT',
-            amount=escrow_amount,
-            balanceAfter=wallet.balance,
-            status='COMPLETED',
-            description=f"Escrow payment for job: {job.title}",
-            relatedJobPosting=job,
-            paymentMethod='WALLET'
-        )
+        # Get wallet with row-level lock to prevent race conditions
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                accountFK=request.auth,
+                defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+            )
+            
+            # Calculate escrow amount (50% of budget)
+            escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
+            
+            # Check wallet balance
+            if wallet.balance < escrow_amount:
+                return Response({
+                    "error": "Insufficient wallet balance",
+                    "required": float(escrow_amount),
+                    "available": float(wallet.balance)
+                }, status=400)
+            
+            # Deduct from wallet and add to reserved
+            wallet.balance -= escrow_amount
+            wallet.reservedBalance += escrow_amount
+            wallet.save()
+            
+            # Update job escrow status
+            job.escrowAmount = escrow_amount
+            job.escrowPaid = True
+            job.escrowPaidAt = timezone.now()
+            job.remainingPayment = escrow_amount  # Remaining 50%
+            job.save()
+            
+            # Create transaction record
+            transaction = Transaction.objects.create(
+                walletID=wallet,
+                transactionType='PAYMENT',
+                amount=escrow_amount,
+                balanceAfter=wallet.balance,
+                status='COMPLETED',
+                description=f"Escrow payment for job: {job.title}",
+                relatedJobPosting=job,
+                paymentMethod='WALLET'
+            )
         
         print(f"✅ [MOBILE] Escrow ₱{escrow_amount} created for job {job_id}")
         
@@ -5972,33 +5974,35 @@ def mobile_create_final_payment(request):
         
         # For wallet payments, check balance and process
         if payment_method == 'WALLET':
-            wallet, _ = Wallet.objects.get_or_create(
-                accountFK=request.auth,
-                defaults={'balance': Decimal('0.00')}
-            )
-            
-            if wallet.balance < final_amount:
-                return Response({
-                    "error": "Insufficient wallet balance",
-                    "required": float(final_amount),
-                    "available": float(wallet.balance)
-                }, status=400)
-            
-            # Deduct from wallet
-            wallet.balance -= final_amount
-            wallet.save()
-            
-            # Create transaction
-            Transaction.objects.create(
-                walletID=wallet,
-                transactionType='PAYMENT',
-                amount=final_amount,
-                balanceAfter=wallet.balance,
-                status='COMPLETED',
-                description=f"Final payment for job: {job.title}",
-                relatedJobPosting=job,
-                paymentMethod='WALLET'
-            )
+            from django.db import transaction as db_transaction
+            with db_transaction.atomic():
+                wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': Decimal('0.00')}
+                )
+                
+                if wallet.balance < final_amount:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(final_amount),
+                        "available": float(wallet.balance)
+                    }, status=400)
+                
+                # Deduct from wallet
+                wallet.balance -= final_amount
+                wallet.save()
+                
+                # Create transaction
+                Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType='PAYMENT',
+                    amount=final_amount,
+                    balanceAfter=wallet.balance,
+                    status='COMPLETED',
+                    description=f"Final payment for job: {job.title}",
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET'
+                )
         
         # Update job payment status
         job.remainingPaymentPaid = True

@@ -159,17 +159,6 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
         print(f"   Worker Receives: ₱{data.budget} (full budget)")
         
-        # Get or create client's wallet
-        wallet, created = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00')}
-        )
-        
-        if created:
-            print(f"💼 New wallet created for {request.auth.email}")
-        
-        print(f"💳 Current wallet balance: ₱{wallet.balance}")
-        
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
         payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
@@ -177,22 +166,32 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Handle payment based on method
         if payment_method == "WALLET":
-            # Check if client has sufficient available balance for total amount (escrow + platform fee)
-            # Available balance = balance - reservedBalance
-            if wallet.availableBalance < total_to_charge:
-                return Response(
-                    {
-                        "error": "Insufficient wallet balance",
-                        "required": float(total_to_charge),
-                        "available": float(wallet.availableBalance),
-                        "reserved": float(wallet.reservedBalance),
-                        "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.availableBalance} available."
-                    },
-                    status=400
-                )
-            
-            # Use database transaction to ensure atomicity
+            # Use database transaction with row-level locking to prevent double-spend
             with db_transaction.atomic():
+                # Lock wallet row to prevent concurrent modifications
+                wallet, created = Wallet.objects.select_for_update().get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': Decimal('0.00')}
+                )
+                
+                if created:
+                    print(f"💼 New wallet created for {request.auth.email}")
+                
+                print(f"💳 Current wallet balance: ₱{wallet.balance}")
+                
+                # Check if client has sufficient available balance for total amount (escrow + platform fee)
+                # Available balance = balance - reservedBalance
+                if wallet.availableBalance < total_to_charge:
+                    return Response(
+                        {
+                            "error": "Insufficient wallet balance",
+                            "required": float(total_to_charge),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                            "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.availableBalance} available."
+                        },
+                        status=400
+                    )
                 # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
                 job_type = JobPosting.JobType.INVITE if hasattr(data, 'worker_id') and data.worker_id else JobPosting.JobType.LISTING
                 
