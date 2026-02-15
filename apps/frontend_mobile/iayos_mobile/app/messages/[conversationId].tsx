@@ -95,6 +95,7 @@ export default function ChatScreen() {
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">("submit");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   // Review state - Multi-criteria ratings
@@ -1361,15 +1362,9 @@ export default function ChatScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Rate Button (Client, Worker & Agency) */}
+            {/* Rate/View Reviews Button (Client, Worker & Agency) */}
             {conversation.job.clientMarkedComplete &&
-              !isConversationClosed &&
-              ((conversation.my_role !== "CLIENT" &&
-                !conversation.job.workerReviewed) ||
-                (conversation.my_role === "CLIENT" &&
-                  !(conversation.is_team_job
-                    ? conversation.all_team_workers_reviewed
-                    : conversation.job.clientReviewed))) && (
+              !isConversationClosed && (
                 <TouchableOpacity
                   style={{
                     backgroundColor: "#FFFFFF",
@@ -1383,7 +1378,17 @@ export default function ChatScreen() {
                     borderWidth: 1,
                     borderColor: "#FBC02D",
                   }}
-                  onPress={() => setShowReviewModal(true)}
+                  onPress={() => {
+                    // Check if user has already reviewed
+                    const hasReviewed = conversation.my_role === "CLIENT"
+                      ? (conversation.is_team_job
+                        ? conversation.all_team_workers_reviewed
+                        : conversation.job.clientReviewed)
+                      : conversation.job.workerReviewed;
+
+                    setReviewModalMode(hasReviewed ? "view" : "submit");
+                    setShowReviewModal(true);
+                  }}
                 >
                   <Ionicons name="star" size={16} color="#FBC02D" />
                   <Text
@@ -1393,11 +1398,23 @@ export default function ChatScreen() {
                       color: "#FBC02D",
                     }}
                   >
-                    {conversation.my_role === "CLIENT"
-                      ? conversation.is_agency_job
-                        ? "Rate Agency"
-                        : "Rate Worker"
-                      : "Rate Client"}
+                    {(() => {
+                      const hasReviewed = conversation.my_role === "CLIENT"
+                        ? (conversation.is_team_job
+                          ? conversation.all_team_workers_reviewed
+                          : conversation.job.clientReviewed)
+                        : conversation.job.workerReviewed;
+
+                      if (hasReviewed) {
+                        return "View Reviews";
+                      }
+
+                      return conversation.my_role === "CLIENT"
+                        ? conversation.is_agency_job
+                          ? "Rate Agency"
+                          : "Rate Worker"
+                        : "Rate Client";
+                    })()}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -2846,38 +2863,8 @@ export default function ChatScreen() {
                     : conversation.job.clientReviewed)) ||
                   (conversation.my_role === "WORKER" &&
                     conversation.job.workerReviewed) ? (
-                  // User has already reviewed - show compact waiting banner
-                  <View style={styles.reviewCompleteBanner}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={Colors.success}
-                    />
-                    <Text style={styles.reviewCompleteBannerText}>
-                      {conversation.is_team_job &&
-                        conversation.my_role === "CLIENT"
-                        ? `✅ Reviewed all ${conversation.team_worker_assignments?.length || 0} workers`
-                        : "✅ Review submitted"}
-                    </Text>
-                    {((conversation.my_role === "CLIENT" &&
-                      !conversation.job.workerReviewed) ||
-                      (conversation.my_role === "WORKER" &&
-                        !conversation.job.clientReviewed)) && (
-                        <View style={styles.reviewWaitingBadge}>
-                          <Ionicons
-                            name="time-outline"
-                            size={12}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.reviewWaitingBadgeText}>
-                            Waiting for{" "}
-                            {conversation.my_role === "CLIENT"
-                              ? "worker"
-                              : "client"}
-                          </Text>
-                        </View>
-                      )}
-                  </View>
+                  // Review submitted banner removed - replaced with View Reviews button
+                  null
                 ) : (
                   // Redundant review banner removed - use header button instead
                   null
@@ -2975,7 +2962,9 @@ export default function ChatScreen() {
                     }
                   />
                 </TouchableOpacity>
-                <Text style={styles.reviewModalTitle}>Leave a Review</Text>
+                <Text style={styles.reviewModalTitle}>
+                  {reviewModalMode === "view" ? "Reviews" : "Leave a Review"}
+                </Text>
                 <View style={{ width: 40 }} />
               </View>
 
@@ -2986,14 +2975,64 @@ export default function ChatScreen() {
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={{ paddingBottom: 40 }}
                 >
-                  {/* For team jobs: client reviewed if all_team_workers_reviewed is true */}
-                  {(conversation.my_role === "CLIENT" &&
+                  {/* Check if we're in view mode */}
+                  {reviewModalMode === "view" ? (
+                    // View Reviews Mode - Show both parties' reviews
+                    <View style={{ padding: Spacing.md }}>
+                      {/* My Review Section */}
+                      <View style={styles.reviewSection}>
+                        <Text style={styles.reviewSectionTitle}>Your Review</Text>
+                        <View style={styles.reviewCard}>
+                          <Text style={styles.reviewCardSubtitle}>
+                            You reviewed {conversation.my_role === "CLIENT" ? "the worker" : "the client"}
+                          </Text>
+                          {/* Show submitted review message */}
+                          <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                            <Text style={{ marginLeft: Spacing.xs, color: Colors.success, fontWeight: "600" }}>
+                              Review submitted
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Other Party's Review Section */}
+                      <View style={[styles.reviewSection, { marginTop: Spacing.lg }]}>
+                        <Text style={styles.reviewSectionTitle}>
+                          {conversation.my_role === "CLIENT" ? "Worker's" : "Client's"} Review
+                        </Text>
+                        {((conversation.my_role === "CLIENT" && conversation.job.workerReviewed) ||
+                          (conversation.my_role === "WORKER" && conversation.job.clientReviewed)) ? (
+                          <View style={styles.reviewCard}>
+                            <Text style={styles.reviewCardSubtitle}>
+                              {conversation.my_role === "CLIENT" ? "Worker" : "Client"} reviewed you
+                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                              <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                              <Text style={{ marginLeft: Spacing.xs, color: Colors.success, fontWeight: "600" }}>
+                                Review submitted
+                              </Text>
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={styles.reviewCard}>
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                              <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                              <Text style={{ marginLeft: Spacing.xs, color: Colors.textSecondary }}>
+                                Waiting for {conversation.my_role === "CLIENT" ? "worker" : "client"} to submit review...
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  ) : (conversation.my_role === "CLIENT" &&
                     (conversation.is_team_job
                       ? conversation.all_team_workers_reviewed
                       : conversation.job.clientReviewed)) ||
                     (conversation.my_role !== "CLIENT" &&
                       conversation.job.workerReviewed) ? (
-                    // User has already reviewed - show waiting or thank you message
+                    // User has already reviewed but opened in submit mode - show waiting message
                     <View style={styles.reviewWaitingContainer}>
                       <Ionicons
                         name="checkmark-circle"
@@ -3246,9 +3285,14 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>💬</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Communication
-                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>
+                                  Communication
+                                </Text>
+                                <Text style={styles.criteriaDescription}>
+                                  How well did the client communicate job requirements and respond to messages?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3279,9 +3323,14 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>📋</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Clarity of Job Details
-                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>
+                                  Clarity of Job Details
+                                </Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Were the job requirements, expectations, and scope clearly defined?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3314,7 +3363,12 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>💳</Text>
-                              <Text style={styles.criteriaLabel}>Payment Reliability</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>Payment Reliability</Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Did the client pay on time and honor the agreed payment terms?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3345,7 +3399,12 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>🤝</Text>
-                              <Text style={styles.criteriaLabel}>Respect & Professionalism</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>Respect & Professionalism</Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Was the client respectful, professional, and fair throughout the job?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3379,9 +3438,14 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>⏰</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Punctuality
-                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>
+                                  Punctuality
+                                </Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Did the worker arrive on time and complete the job within the agreed timeframe?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3412,9 +3476,14 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>✅</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Reliability
-                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>
+                                  Reliability
+                                </Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Was the worker dependable and consistent throughout the job?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3445,7 +3514,12 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>🔧</Text>
-                              <Text style={styles.criteriaLabel}>Skill</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>Skill</Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Did the worker demonstrate the necessary skills and expertise for the job?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3476,9 +3550,14 @@ export default function ChatScreen() {
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>🛠️</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Workmanship
-                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.criteriaLabel}>
+                                  Workmanship
+                                </Text>
+                                <Text style={styles.criteriaDescription}>
+                                  Was the quality of work delivered to a high standard?
+                                </Text>
+                              </View>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -4012,6 +4091,33 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  reviewWaitingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+  },
+  reviewSection: {
+    marginBottom: Spacing.md,
+  },
+  reviewSectionTitle: {
+    ...Typography.body.large,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  reviewCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reviewCardSubtitle: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
   },
   loadingContainer: {
     flex: 1,
@@ -4681,6 +4787,26 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
   },
+  reviewSection: {
+    marginBottom: Spacing.md,
+  },
+  reviewSectionTitle: {
+    ...Typography.body.large,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  reviewCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reviewCardSubtitle: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+  },
   conversationClosedContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -4777,6 +4903,13 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  criteriaDescription: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 14,
   },
   criteriaStarsRow: {
     flexDirection: "row",
