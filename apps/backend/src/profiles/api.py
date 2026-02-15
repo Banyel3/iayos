@@ -368,7 +368,7 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
         
         print(f"💸 Processing withdrawal for {user_name}")
         print(f"   Current balance: ₱{wallet.balance}")
-        print(f"   Withdrawing to: {payment_method.accountNumber}")
+        print(f"   Withdrawing to: ***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'}")
         
         # TEST MODE: Deduct funds immediately
         wallet.balance -= Decimal(str(amount))

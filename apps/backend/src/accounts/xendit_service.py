@@ -1,4 +1,4 @@
-\"\"\"
+"""
 [DEPRECATED] Xendit Payment Gateway Service
 ============================================
 This service is DEPRECATED as of February 2026.
@@ -14,7 +14,7 @@ Use payment_provider.get_payment_provider() instead.
 Legacy features:
 - Handles payment processing via Xendit API using direct HTTP requests
 - Circuit breaker pattern implemented for fault tolerance
-\"\"\"
+"""
 
 import requests
 from django.conf import settings
@@ -433,12 +433,12 @@ class XenditService:
                 "currency": "PHP",
             }
 
-            print("🔐 Xendit Disbursement Request (payout API):")
-            print(f"   URL: {XenditService.BASE_URL}/payouts")
-            print(f"   Amount: {amount} PHP")
-            print(f"   Reference ID: {external_id}")
-            print("   Channel: PH_GCASH")
-            print(f"   Recipient: {recipient_name} ({phone_number})")
+            logger.debug("🔐 Xendit Disbursement Request (payout API):")
+            logger.debug("   URL: %s/payouts", XenditService.BASE_URL)
+            logger.debug("   Amount: %s PHP", amount)
+            logger.debug("   Reference ID: %s", external_id)
+            logger.debug("   Channel: PH_GCASH")
+            logger.debug("   Recipient: %s (***%s)", recipient_name, phone_number[-4:] if phone_number else '****')
 
             response = requests.post(
                 f"{XenditService.BASE_URL}/payouts",
@@ -496,7 +496,7 @@ class XenditService:
                 "email_bcc": []
             }
 
-            print(f"📤 Legacy Disbursement Payload: bank_code=GCASH, account={local_number}, holder={recipient_name}")
+            logger.debug("📤 Legacy Disbursement Payload: bank_code=GCASH, account=***%s, holder=%s", local_number[-4:] if local_number else '****', recipient_name)
 
             legacy_response = requests.post(
                 f"{XenditService.BASE_URL}/disbursements",
