@@ -1955,6 +1955,8 @@ def get_agency_detail(account_id: str):
             'kyc_status': kyc_status,
             'join_date': account.createdAt.isoformat() if account.createdAt else None,
             'is_verified': account.isVerified,
+            'is_suspended': account.is_suspended,
+            'is_banned': account.is_banned,
             'employee_stats': {
                 'total_employees': total_employees,
                 'employees': employee_list,

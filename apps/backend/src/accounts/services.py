@@ -207,6 +207,27 @@ def login_account(data, request=None):
     if not user.isVerified:
         raise ValueError("Please verify your email before logging in")
     
+    # Check if account is banned (permanent)
+    if user.is_banned:
+        reason = user.banned_reason or "Your account has been permanently banned."
+        raise ValueError(f"Your account has been banned: {reason}")
+    
+    # Check if account is suspended (temporary, may auto-expire)
+    if user.is_suspended:
+        if user.suspended_until and user.suspended_until < timezone.now():
+            # Suspension expired — auto-reactivate
+            user.is_suspended = False
+            user.suspended_until = None
+            user.suspended_reason = None
+            user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason'])
+        else:
+            reason = user.suspended_reason or "Your account has been temporarily suspended."
+            raise ValueError(f"Your account has been suspended: {reason}")
+    
+    # Check if account is deactivated
+    if not user.is_active:
+        raise ValueError("Your account has been deactivated. Please contact support.")
+    
     # Log user login for audit trail
     try:
         log_action(
