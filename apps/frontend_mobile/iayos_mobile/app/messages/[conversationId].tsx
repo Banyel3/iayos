@@ -2687,6 +2687,7 @@ export default function ChatScreen() {
 
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
+                  conversation.my_role === "CLIENT" &&
                   conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete && (
                     <Text style={styles.statusMessage}>
