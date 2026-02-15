@@ -3242,39 +3242,6 @@ export default function ChatScreen() {
                       {conversation.my_role === "WORKER" ? (
                         /* Multi-Criteria Star Ratings for WORKER reviewing CLIENT */
                         <View style={styles.multiCriteriaContainer}>
-                          {/* Professionalism Rating */}
-                          <View style={styles.criteriaRow}>
-                            <View style={styles.criteriaLabelRow}>
-                              <Text style={styles.criteriaIcon}>👔</Text>
-                              <Text style={styles.criteriaLabel}>
-                                Professionalism
-                              </Text>
-                            </View>
-                            <View style={styles.criteriaStarsRow}>
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <TouchableOpacity
-                                  key={star}
-                                  onPress={() => setRatingProfessionalism(star)}
-                                  style={styles.starButtonSmall}
-                                >
-                                  <Ionicons
-                                    name={
-                                      star <= ratingProfessionalism
-                                        ? "star"
-                                        : "star-outline"
-                                    }
-                                    size={24}
-                                    color={
-                                      star <= ratingProfessionalism
-                                        ? "#FFB800"
-                                        : Colors.border
-                                    }
-                                  />
-                                </TouchableOpacity>
-                              ))}
-                            </View>
-                          </View>
-
                           {/* Communication Rating */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
@@ -3308,11 +3275,46 @@ export default function ChatScreen() {
                             </View>
                           </View>
 
-                          {/* Quality Rating */}
+                          {/* Clarity of Job Details Rating */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
-                              <Text style={styles.criteriaIcon}>🏆</Text>
-                              <Text style={styles.criteriaLabel}>Quality</Text>
+                              <Text style={styles.criteriaIcon}>📋</Text>
+                              <Text style={styles.criteriaLabel}>
+                                Clarity of Job Details
+                              </Text>
+                            </View>
+                            <View style={styles.criteriaStarsRow}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity
+                                  key={star}
+                                  onPress={() => setRatingProfessionalism(star)}
+                                  style={styles.starButtonSmall}
+                                >
+                                  <Ionicons
+                                    name={
+                                      star <= ratingProfessionalism
+                                        ? "star"
+                                        : "star-outline"
+                                    }
+                                    size={24}
+                                    color={
+                                      star <= ratingProfessionalism
+                                        ? "#FFB800"
+                                        : Colors.border
+                                    }
+                                  />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
+
+
+
+                          {/* Payment Reliability Rating */}
+                          <View style={styles.criteriaRow}>
+                            <View style={styles.criteriaLabelRow}>
+                              <Text style={styles.criteriaIcon}>💳</Text>
+                              <Text style={styles.criteriaLabel}>Payment Reliability</Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3339,11 +3341,11 @@ export default function ChatScreen() {
                             </View>
                           </View>
 
-                          {/* Value Rating - using ratingPunctuality state */}
+                          {/* Respect & Professionalism Rating - using ratingPunctuality state */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
-                              <Text style={styles.criteriaIcon}>💰</Text>
-                              <Text style={styles.criteriaLabel}>Value</Text>
+                              <Text style={styles.criteriaIcon}>🤝</Text>
+                              <Text style={styles.criteriaLabel}>Respect & Professionalism</Text>
                             </View>
                             <View style={styles.criteriaStarsRow}>
                               {[1, 2, 3, 4, 5].map((star) => (
