@@ -46,6 +46,7 @@ import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
 import { usePricePrediction } from "@/lib/hooks/usePricePrediction";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
+import SearchBar from "@/components/ui/SearchBar";
 
 interface Category {
   id: number;
@@ -70,15 +71,15 @@ interface CreateJobRequest {
   budget?: number; // Optional for daily payment model
   location: string;
   expected_duration?: string;
-  urgency_level: "LOW" | "MEDIUM" | "HIGH";
+  urgency_level: "LOW" | "MEDIUM" | "HIGH" | null;
   preferred_start_date?: string;
   downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
   // Universal job fields for ML accuracy
-  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
-  job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
-  work_environment: "INDOOR" | "OUTDOOR" | "BOTH";
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
+  job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION" | null;
+  work_environment: "INDOOR" | "OUTDOOR" | "BOTH" | null;
   // Multi-employee mode for agencies
   skill_slots?: SkillSlot[];
   // Daily payment model fields
@@ -93,9 +94,26 @@ interface CreateJobRequest {
 interface SkillSlot {
   specialization_id: number;
   workers_needed: number;
-  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
-  notes?: string;
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
 }
+
+// Predefined job title suggestions based on category
+const TITLE_SUGGESTIONS: Record<string, string[]> = {
+  Plumbing: ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
+  Electrical: ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
+  Carpentry: ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
+  Painting: ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
+  Cleaning: ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
+  Landscaping: ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
+  Masonry: ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
+  HVAC: ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
+  Roofing: ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
+  Welding: ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
+  Automotive: ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
+  "General Labor": ["Heavy lifting", "Hauling debris", "General assistance", "Packaging"],
+  Moving: ["House moving", "Office relocation", "Furniture transport"],
+  Delivery: ["Package delivery", "Food delivery", "Messenger service"],
+};
 
 export default function CreateJobScreen() {
   const { workerId, agencyId } = useLocalSearchParams<{
@@ -120,26 +138,27 @@ export default function CreateJobScreen() {
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
   const [duration, setDuration] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
   // New universal job fields for ML accuracy
   const [skillLevel, setSkillLevel] = useState<
-    "ENTRY" | "INTERMEDIATE" | "EXPERT"
-  >("INTERMEDIATE");
+    "ENTRY" | "INTERMEDIATE" | "EXPERT" | null
+  >(null);
   const [jobScope, setJobScope] = useState<
-    "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION"
-  >("MINOR_REPAIR");
+    "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION" | null
+  >(null);
   const [workEnvironment, setWorkEnvironment] = useState<
-    "INDOOR" | "OUTDOOR" | "BOTH"
-  >("INDOOR");
+    "INDOOR" | "OUTDOOR" | "BOTH" | null
+  >(null);
   // Daily payment model fields
   const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">("PROJECT");
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
   const [materialInput, setMaterialInput] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
 
   // Skill slots for worker requirements (unified model for all job types)
   // Category is derived from the first skill slot's specialization
@@ -150,9 +169,8 @@ export default function CreateJobScreen() {
   >(null);
   const [newSlotWorkersNeeded, setNewSlotWorkersNeeded] = useState("1");
   const [newSlotSkillLevel, setNewSlotSkillLevel] = useState<
-    "ENTRY" | "INTERMEDIATE" | "EXPERT"
-  >("INTERMEDIATE");
-  const [newSlotNotes, setNewSlotNotes] = useState("");
+    "ENTRY" | "INTERMEDIATE" | "EXPERT" | null
+  >(null);
 
   const queryClient = useQueryClient();
   // Jobs only use Wallet payment - deposits via QR PH (any bank/e-wallet)
@@ -247,6 +265,11 @@ export default function CreateJobScreen() {
   const effectiveCategoryId = primaryCategoryId;
   const effectiveCategory = primaryCategory;
 
+  const suggestions = React.useMemo(() => {
+    if (!effectiveCategory) return [];
+    return TITLE_SUGGESTIONS[effectiveCategory.name] || [];
+  }, [effectiveCategory]);
+
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
     // Clear existing timeout
@@ -262,10 +285,10 @@ export default function CreateJobScreen() {
           title,
           description,
           category_id: effectiveCategoryId,
-          urgency,
-          skill_level: skillLevel,
-          job_scope: jobScope,
-          work_environment: workEnvironment,
+          urgency: urgency ?? undefined,
+          skill_level: skillLevel ?? undefined,
+          job_scope: jobScope ?? undefined,
+          work_environment: workEnvironment ?? undefined,
         });
       }, 800);
     } else {
@@ -337,21 +360,18 @@ export default function CreateJobScreen() {
         specialization_id: newSlotSpecializationId,
         workers_needed: workersCount,
         skill_level_required: newSlotSkillLevel,
-        notes: newSlotNotes.trim() || undefined,
       },
     ]);
 
     // Reset form
     setNewSlotSpecializationId(null);
     setNewSlotWorkersNeeded("1");
-    setNewSlotSkillLevel("INTERMEDIATE");
-    setNewSlotNotes("");
+    setNewSlotSkillLevel(null);
     setShowAddSlotModal(false);
   }, [
     newSlotSpecializationId,
     newSlotWorkersNeeded,
     newSlotSkillLevel,
-    newSlotNotes,
     skillSlots,
   ]);
 
@@ -396,13 +416,24 @@ export default function CreateJobScreen() {
   // Filter categories to only show worker's skills when hiring specific worker
   // Categories available in slot modal: filter to worker's skills for invite jobs, all for listing
   const filteredCategories = React.useMemo(() => {
-    if (!workerId || !workerDetailsData?.skills) {
-      return categories; // Show all categories for LISTING jobs
+    if (!categories || !Array.isArray(categories)) {
+      return [];
     }
-    // For INVITE jobs, only show worker's skills
-    const workerSkillIds = workerDetailsData.skills.map((s: any) => s.id);
-    return categories.filter((cat) => workerSkillIds.includes(cat.id));
-  }, [workerId, workerDetailsData, categories]);
+
+    let list = categories;
+    if (workerId && workerDetailsData?.skills) {
+      // For INVITE jobs, only show worker's skills
+      const workerSkillIds = workerDetailsData.skills.map((s: any) => s.id);
+      list = categories.filter((cat) => workerSkillIds.includes(cat.id));
+    }
+
+    if (categorySearch.trim()) {
+      const search = categorySearch.toLowerCase();
+      list = list.filter((cat) => cat.name.toLowerCase().includes(search));
+    }
+
+    return list;
+  }, [workerId, workerDetailsData, categories, categorySearch]);
 
   // Auto-add skill slot when invite worker has exactly 1 skill
   useEffect(() => {
@@ -414,8 +445,7 @@ export default function CreateJobScreen() {
         setSkillSlots([{
           specialization_id: singleSkill.id,
           workers_needed: 1,
-          skill_level_required: 'INTERMEDIATE',
-          notes: '',
+          skill_level_required: null,
         }]);
         // Set budget from category's minimum_rate
         const matchingCat = categories.find((c) => c.id === singleSkill.id);
@@ -655,15 +685,15 @@ export default function CreateJobScreen() {
       category_id: effectiveCategoryId!,
       location: `${street.trim()}, ${barangay.trim()}`,
       expected_duration: duration.trim() || undefined,
-      urgency_level: urgency,
+      urgency_level: urgency ?? null,
       preferred_start_date: startDate
         ? startDate.toISOString().split("T")[0]
         : undefined,
       downpayment_method: "WALLET", // Jobs only use Wallet payment
       // Universal job fields for ML accuracy - explicitly passed
-      skill_level_required: skillLevel,
-      job_scope: jobScope,
-      work_environment: workEnvironment,
+      skill_level_required: skillLevel ?? null,
+      job_scope: jobScope ?? null,
+      work_environment: workEnvironment ?? null,
       // Payment model specific fields
       payment_model: paymentModel,
     };
@@ -677,7 +707,7 @@ export default function CreateJobScreen() {
           .map((m) => m.name)
         : [])
     ];
-    
+
     if (combinedMaterials.length > 0) {
       jobData.materials_needed = combinedMaterials;
     }
@@ -704,10 +734,23 @@ export default function CreateJobScreen() {
     }
     // Always include skill slots in payload (backend ignores for non-agency via is_team_job guard)
     if (skillSlots.length > 0) {
-      jobData.skill_slots = skillSlots;
+      jobData.skill_slots = skillSlots.map(slot => ({
+        ...slot,
+        skill_level_required: skillLevel // Apply global skill level to all slots
+      }));
     }
 
-    createJobMutation.mutate(jobData);
+    Alert.alert(
+      "Confirm Submission",
+      "Are you sure you want to submit this job post?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: () => createJobMutation.mutate(jobData),
+        },
+      ]
+    );
   };
 
   return (
@@ -745,12 +788,79 @@ export default function CreateJobScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            {/* Job Details Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 Job Details</Text>
+              <Text style={styles.sectionTitle}>
+                📋 Job Details <Text style={{ color: Colors.error }}>*</Text>
+              </Text>
 
+              {/* 1. Job Category Selection */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Title *</Text>
+                <Text style={styles.label}>Job Category</Text>
+                <SearchBar
+                  value={categorySearch}
+                  onChangeText={setCategorySearch}
+                  placeholder="Search categories"
+                  style={styles.categorySearchBar}
+                />
+
+                {categoriesLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.loadingText}>Loading categories...</Text>
+                  </View>
+                ) : filteredCategories.length === 0 ? (
+                  <View style={styles.emptyStateContainer}>
+                    <Text style={styles.emptyStateText}>
+                      No categories found for "{categorySearch}"
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.categoryScroll}
+                    contentContainerStyle={styles.categoryScrollContent}
+                  >
+                    {filteredCategories.map((category) => (
+                      <TouchableOpacity
+                        key={category.id}
+                        style={[
+                          styles.categoryChip,
+                          effectiveCategoryId === category.id && styles.categoryChipActive,
+                        ]}
+                        onPress={() => {
+                          // Update skill slots with the selected category
+                          setSkillSlots([{
+                            specialization_id: category.id,
+                            workers_needed: 1,
+                            skill_level_required: null,
+                          }]);
+                          // Set budget from category's minimum_rate if not already set or lower than min
+                          if (category.minimum_rate > 0) {
+                            const currentBudget = parseFloat(budget) || 0;
+                            if (currentBudget < category.minimum_rate) {
+                              setBudget(category.minimum_rate.toFixed(2));
+                            }
+                          }
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            effectiveCategoryId === category.id && styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {category.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+
+              {/* 2. Job Title */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Job Title</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., Fix leaking pipe in bathroom"
@@ -760,10 +870,31 @@ export default function CreateJobScreen() {
                   maxLength={100}
                 />
                 <Text style={styles.charCount}>{title.length}/100</Text>
+
+                {/* Title Suggestions */}
+                {suggestions.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.suggestionScroll}
+                    contentContainerStyle={styles.suggestionContent}
+                  >
+                    {suggestions.map((sug) => (
+                      <TouchableOpacity
+                        key={sug}
+                        style={styles.suggestionChip}
+                        onPress={() => setTitle(sug)}
+                      >
+                        <Text style={styles.suggestionChipText}>{sug}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Description *</Text>
+              {/* 3. Description */}
+              <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+                <Text style={styles.label}>Description</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Describe the job in detail..."
@@ -777,119 +908,57 @@ export default function CreateJobScreen() {
                 />
                 <Text style={styles.charCount}>{description.length}/500</Text>
               </View>
-            </View>
 
-            {/* Worker Requirements Section - shown for all job types */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>👥 Worker Requirements</Text>
-                <Text style={styles.sectionHint}>
-                  {workerId
-                    ? `Select the skill you need from ${workerDetailsData?.name || 'this worker'}.`
-                    : agencyId
-                      ? 'Specify the workers you need for this job. You can add multiple skill types.'
-                      : 'Select the type of worker you need for this job.'}
-                </Text>
+              {/* Worker Requirements Integrated into Job Details */}
+              {skillSlots.length > 0 && (
+                <View style={styles.slotsBreakdown}>
+                  <View style={styles.sectionHeaderRow}>
+                    {!!agencyId && (
+                      <>
+                        <View />
+                        <TouchableOpacity
+                          style={styles.addMoreBtn}
+                          onPress={() => setShowAddSlotModal(true)}
+                        >
+                          <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+                          <Text style={styles.addMoreBtnText}>Add More</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
 
-                {/* Skill Slots List */}
-                <View style={styles.skillSlotsContainer}>
-                  {skillSlots.length === 0 ? (
-                    <View style={styles.emptySlots}>
-                      <Ionicons
-                        name="people-outline"
-                        size={32}
-                        color={Colors.textHint}
-                      />
-                      <Text style={styles.emptySlotsText}>
-                        No workers added yet. Add at least one worker requirement.
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      <Text style={styles.slotsSummary}>
-                        Total: {getTotalWorkersNeeded()} worker
-                        {getTotalWorkersNeeded() !== 1 ? "s" : ""} across{" "}
-                        {skillSlots.length} requirement
-                        {skillSlots.length !== 1 ? "s" : ""}
-                      </Text>
-                      {skillSlots.map((slot, index) => (
-                        <View key={index} style={styles.slotCard}>
-                          <View style={styles.slotHeader}>
-                            <Text style={styles.slotTitle}>
-                              {getSpecializationName(slot.specialization_id)}
-                            </Text>
-                            <TouchableOpacity
-                              onPress={() => removeSkillSlot(index)}
-                              style={styles.removeSlotBtn}
-                            >
-                              <Ionicons
-                                name="close-circle"
-                                size={24}
-                                color={Colors.error}
-                              />
-                            </TouchableOpacity>
-                          </View>
-                          <View style={styles.slotDetails}>
-                            <View style={styles.slotBadge}>
-                              <Ionicons
-                                name="people"
-                                size={14}
-                                color={Colors.primary}
-                              />
-                              <Text style={styles.slotBadgeText}>
-                                {slot.workers_needed} worker
-                                {slot.workers_needed !== 1 ? "s" : ""}
-                              </Text>
-                            </View>
-                            <View
-                              style={[
-                                styles.slotBadge,
-                                styles.slotBadgeSkill,
-                              ]}
-                            >
-                              <Text style={styles.slotBadgeText}>
-                                {slot.skill_level_required === "ENTRY"
-                                  ? "🌱 Entry"
-                                  : slot.skill_level_required ===
-                                      "INTERMEDIATE"
-                                    ? "⭐ Intermediate"
-                                    : "👑 Expert"}
-                              </Text>
-                            </View>
-                          </View>
-                          {slot.notes && (
-                            <Text style={styles.slotNotes}>{slot.notes}</Text>
-                          )}
+                  {skillSlots.map((slot, index) => (
+                    <View key={index} style={styles.slotEntry}>
+                      {(skillSlots.length > 1 || !!agencyId) && (
+                        <View style={styles.slotHeader}>
+                          <Text style={styles.breakdownTitle}>
+                            {getSpecializationName(slot.specialization_id)}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => removeSkillSlot(index)}
+                            style={styles.removeSlotBtn}
+                          >
+                            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                          </TouchableOpacity>
                         </View>
-                      ))}
-                    </>
-                  )}
+                      )}
 
-                  {/* Add Worker Button - hidden for non-agency after 1 slot */}
-                  {(!!agencyId || skillSlots.length === 0) && (
-                    <TouchableOpacity
-                      style={styles.addSlotBtn}
-                      onPress={() => setShowAddSlotModal(true)}
-                    >
-                      <Ionicons
-                        name="add-circle"
-                        size={20}
-                        color={Colors.white}
-                      />
-                      <Text style={styles.addSlotBtnText}>
-                        {agencyId ? 'Add Worker Requirement' : 'Select Worker Type'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                    </View>
+                  ))}
                 </View>
+              )}
             </View>
+
 
             {/* Budget Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 Budget & Payment Model</Text>
+              <Text style={styles.sectionTitle}>
+                💰 Budget & Payment Model <Text style={{ color: Colors.error }}>*</Text>
+              </Text>
 
               {/* Payment Model Selector */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Payment Model *</Text>
+                <Text style={styles.label}>Payment Model</Text>
                 <View style={styles.buttonGroup}>
                   <TouchableOpacity
                     style={[
@@ -936,7 +1005,7 @@ export default function CreateJobScreen() {
               {/* Fixed Budget Fields */}
               {paymentModel === "PROJECT" && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Total Budget (₱) *</Text>
+                  <Text style={styles.label}>Total Budget (₱)</Text>
                   <View
                     style={[
                       styles.budgetInput,
@@ -970,7 +1039,7 @@ export default function CreateJobScreen() {
               {paymentModel === "DAILY" && (
                 <>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Daily Rate per Worker (₱) *</Text>
+                    <Text style={styles.label}>Daily Rate per Worker (₱)</Text>
                     <View
                       style={[
                         styles.budgetInput,
@@ -996,7 +1065,7 @@ export default function CreateJobScreen() {
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Duration (Days) *</Text>
+                    <Text style={styles.label}>Duration (Days)</Text>
                     <TextInput
                       style={[
                         styles.input,
@@ -1158,12 +1227,14 @@ export default function CreateJobScreen() {
 
             {/* Location Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📍 Location</Text>
+              <Text style={styles.sectionTitle}>
+                📍 Location <Text style={{ color: Colors.error }}>*</Text>
+              </Text>
 
               {/* Barangay */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Barangay <Text style={styles.required}>*</Text>
+                  Barangay
                 </Text>
                 {barangaysLoading ? (
                   <View style={styles.pickerContainer}>
@@ -1217,7 +1288,7 @@ export default function CreateJobScreen() {
               {/* Street Address */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Street Address <Text style={styles.required}>*</Text>
+                  Street Address
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -1306,7 +1377,7 @@ export default function CreateJobScreen() {
                   <ScrollView style={styles.modalBody}>
                     {/* Specialization Selection */}
                     <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Specialization *</Text>
+                      <Text style={styles.label}>Specialization</Text>
                       {categoriesLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator
@@ -1355,85 +1426,35 @@ export default function CreateJobScreen() {
 
                     {/* Workers Needed - only shown for agency jobs */}
                     {!!agencyId && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Workers Needed *</Text>
-                      <View style={styles.workersRow}>
-                        <TouchableOpacity
-                          style={styles.workerBtn}
-                          onPress={() => {
-                            const current = parseInt(newSlotWorkersNeeded) || 1;
-                            if (current > 1)
-                              setNewSlotWorkersNeeded((current - 1).toString());
-                          }}
-                        >
-                          <Text style={styles.workerBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.workersCount}>
-                          {newSlotWorkersNeeded}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.workerBtn}
-                          onPress={() => {
-                            const current = parseInt(newSlotWorkersNeeded) || 1;
-                            if (current < 10)
-                              setNewSlotWorkersNeeded((current + 1).toString());
-                          }}
-                        >
-                          <Text style={styles.workerBtnText}>+</Text>
-                        </TouchableOpacity>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Workers Needed</Text>
+                        <View style={styles.workersRow}>
+                          <TouchableOpacity
+                            style={styles.workerBtn}
+                            onPress={() => {
+                              const current = parseInt(newSlotWorkersNeeded) || 1;
+                              if (current > 1)
+                                setNewSlotWorkersNeeded((current - 1).toString());
+                            }}
+                          >
+                            <Text style={styles.workerBtnText}>−</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.workersCount}>
+                            {newSlotWorkersNeeded}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.workerBtn}
+                            onPress={() => {
+                              const current = parseInt(newSlotWorkersNeeded) || 1;
+                              if (current < 10)
+                                setNewSlotWorkersNeeded((current + 1).toString());
+                            }}
+                          >
+                            <Text style={styles.workerBtnText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </View>
                     )}
-
-                    {/* Skill Level */}
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Skill Level Required</Text>
-                      <View style={styles.skillLevelRow}>
-                        {(["ENTRY", "INTERMEDIATE", "EXPERT"] as const).map(
-                          (level) => (
-                            <TouchableOpacity
-                              key={level}
-                              style={[
-                                styles.skillLevelBtn,
-                                newSlotSkillLevel === level &&
-                                styles.skillLevelBtnActive,
-                              ]}
-                              onPress={() => setNewSlotSkillLevel(level)}
-                            >
-                              <Text
-                                style={[
-                                  styles.skillLevelText,
-                                  newSlotSkillLevel === level &&
-                                  styles.skillLevelTextActive,
-                                ]}
-                              >
-                                {level === "ENTRY"
-                                  ? "Entry"
-                                  : level === "INTERMEDIATE"
-                                    ? "Intermediate"
-                                    : "Expert"}
-                              </Text>
-                            </TouchableOpacity>
-                          ),
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Notes */}
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Notes (Optional)</Text>
-                      <TextInput
-                        style={[styles.input, styles.textArea]}
-                        placeholder="Any specific requirements for this role..."
-                        value={newSlotNotes}
-                        onChangeText={setNewSlotNotes}
-                        multiline
-                        numberOfLines={3}
-                        textAlignVertical="top"
-                        placeholderTextColor={Colors.textHint}
-                        maxLength={200}
-                      />
-                    </View>
                   </ScrollView>
 
                   {/* Add Button */}
@@ -1456,7 +1477,7 @@ export default function CreateJobScreen() {
 
             {/* Timing Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⏰ Timing & Urgency</Text>
+              <Text style={styles.sectionTitle}>⏰ Timing & Urgency (Optional)</Text>
 
               {/* Urgency Level */}
               <View style={styles.inputGroup}>
@@ -1468,17 +1489,8 @@ export default function CreateJobScreen() {
                       style={[
                         styles.urgencyButton,
                         urgency === level && styles.urgencyButtonActive,
-                        urgency === level &&
-                        level === "LOW" &&
-                        styles.urgencyLow,
-                        urgency === level &&
-                        level === "MEDIUM" &&
-                        styles.urgencyMedium,
-                        urgency === level &&
-                        level === "HIGH" &&
-                        styles.urgencyHigh,
                       ]}
-                      onPress={() => setUrgency(level)}
+                      onPress={() => setUrgency(urgency === level ? null : level)}
                     >
                       <Text
                         style={[
@@ -1499,7 +1511,7 @@ export default function CreateJobScreen() {
 
               {/* Expected Duration */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Expected Duration (Optional)</Text>
+                <Text style={styles.label}>Expected Duration</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., 2-3 hours, 1 day"
@@ -1512,7 +1524,7 @@ export default function CreateJobScreen() {
               {/* Preferred Start Date */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Preferred Start Date (Optional)
+                  Preferred Start Date
                 </Text>
                 <TouchableOpacity
                   style={styles.dateButton}
@@ -1548,7 +1560,7 @@ export default function CreateJobScreen() {
 
             {/* Job Options Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⚙️ Job Options</Text>
+              <Text style={styles.sectionTitle}>⚙️ Job Options (Optional)</Text>
 
               {/* Skill Level Required */}
               <View style={styles.inputGroup}>
@@ -1565,9 +1577,9 @@ export default function CreateJobScreen() {
                       key={level.value}
                       style={[
                         styles.urgencyButton,
-                        skillLevel === level.value && styles.skillLevelActive,
+                        skillLevel === level.value && styles.urgencyButtonActive,
                       ]}
-                      onPress={() => setSkillLevel(level.value)}
+                      onPress={() => setSkillLevel(skillLevel === level.value ? null : level.value)}
                     >
                       <Text
                         style={[
@@ -1598,9 +1610,9 @@ export default function CreateJobScreen() {
                       key={scope.value}
                       style={[
                         styles.urgencyButton,
-                        jobScope === scope.value && styles.jobScopeActive,
+                        jobScope === scope.value && styles.urgencyButtonActive,
                       ]}
-                      onPress={() => setJobScope(scope.value)}
+                      onPress={() => setJobScope(jobScope === scope.value ? null : scope.value)}
                     >
                       <Text
                         style={[
@@ -1630,9 +1642,9 @@ export default function CreateJobScreen() {
                       key={env.value}
                       style={[
                         styles.urgencyButton,
-                        workEnvironment === env.value && styles.workEnvActive,
+                        workEnvironment === env.value && styles.urgencyButtonActive,
                       ]}
-                      onPress={() => setWorkEnvironment(env.value)}
+                      onPress={() => setWorkEnvironment(workEnvironment === env.value ? null : env.value)}
                     >
                       <Text
                         style={[
@@ -2091,9 +2103,6 @@ const styles = StyleSheet.create({
     color: Colors.textHint,
     marginTop: 4,
   },
-  categoryScroll: {
-    marginHorizontal: -4,
-  },
   loadingCategories: {
     flexDirection: "row",
     alignItems: "center",
@@ -2160,16 +2169,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   urgencyButtonActive: {
-    backgroundColor: Colors.primary,
-  },
-  urgencyLow: {
-    backgroundColor: Colors.success,
-  },
-  urgencyMedium: {
-    backgroundColor: Colors.warning,
-  },
-  urgencyHigh: {
-    backgroundColor: Colors.error,
+    backgroundColor: Colors.primary + "15",
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
   },
   urgencyText: {
     fontSize: 14,
@@ -2177,19 +2179,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   urgencyTextActive: {
-    color: Colors.white,
-  },
-  // Skill Level active style
-  skillLevelActive: {
-    backgroundColor: Colors.info || "#3B82F6",
-  },
-  // Job Scope active style
-  jobScopeActive: {
-    backgroundColor: Colors.warning || "#F59E0B",
-  },
-  // Work Environment active style
-  workEnvActive: {
-    backgroundColor: Colors.success || "#10B981",
+    color: Colors.primary,
   },
   dateButton: {
     flexDirection: "row",
@@ -2876,5 +2866,108 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     fontStyle: "italic",
+  },
+  categorySearchBar: {
+    marginBottom: Spacing.md,
+  },
+  categoryScroll: {
+    marginHorizontal: -Spacing.md,
+  },
+  categoryScrollContent: {
+    paddingHorizontal: Spacing.md,
+    gap: 8,
+  },
+  // Skill Level Selector Styles (Breakdown)
+  skillLevelButtonGroup: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  skillOptionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+  },
+  skillOptionButtonActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "10",
+  },
+  skillOptionText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  skillOptionTextActive: {
+    color: Colors.primary,
+    fontWeight: "700",
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  addMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  addMoreBtnText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  emptySlotsBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  slotsBreakdown: {
+    gap: 12,
+  },
+  slotEntry: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  breakdownTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  linkText: {
+    color: Colors.primary,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  suggestionScroll: {
+    marginTop: 8,
+  },
+  suggestionContent: {
+    paddingRight: 16,
+    gap: 8,
+  },
+  suggestionChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + "10",
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
+  },
+  suggestionChipText: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: "500",
   },
 });
