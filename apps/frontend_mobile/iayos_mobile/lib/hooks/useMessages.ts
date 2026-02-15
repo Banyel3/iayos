@@ -156,6 +156,22 @@ export type ConversationDetail = {
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
+  client_review?: {
+    rating_communication: number;
+    rating_punctuality: number;
+    rating_professionalism: number;
+    rating_quality: number;
+    comment: string;
+    created_at: string;
+  } | null;
+  worker_review?: {
+    rating_communication: number;
+    rating_punctuality: number;
+    rating_professionalism: number;
+    rating_quality: number;
+    comment: string;
+    created_at: string;
+  } | null;
 };
 
 /**
@@ -180,15 +196,15 @@ export function useMessages(conversationId: number) {
         ...data,
         other_participant: data.other_participant
           ? {
-              ...data.other_participant,
-              avatar: getAbsoluteMediaUrl(data.other_participant.avatar) || "",
-            }
+            ...data.other_participant,
+            avatar: getAbsoluteMediaUrl(data.other_participant.avatar) || "",
+          }
           : null,
         assigned_employee: data.assigned_employee
           ? {
-              ...data.assigned_employee,
-              avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar) || "",
-            }
+            ...data.assigned_employee,
+            avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar) || "",
+          }
           : null,
         assigned_employees: data.assigned_employees?.map((emp: any) => ({
           ...emp,

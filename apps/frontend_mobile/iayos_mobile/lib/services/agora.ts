@@ -81,6 +81,9 @@ const createAgoraRtcEngine = (): any => {
   return stubEngine;
 };
 
+// Agora availability flag - false when using stub engine (Expo Go)
+export const AGORA_AVAILABLE = false; // Set to true when native build is created
+
 export interface CallState {
   isInitialized: boolean;
   isInCall: boolean;

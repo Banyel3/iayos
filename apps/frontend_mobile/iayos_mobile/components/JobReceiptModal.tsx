@@ -132,7 +132,7 @@ iAyos - May sira? May iAyos.
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={48} color={Colors.error} />
             <Text style={styles.errorText}>{error.message}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => {}}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => { }}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
@@ -172,6 +172,79 @@ iAyos - May sira? May iAyos.
                 </Text>
               </View>
             </View>
+
+            {/* Buffer Status Card (Payment Status) */}
+            {receipt.buffer && (
+              <View
+                style={[
+                  styles.card,
+                  receipt.buffer.is_released
+                    ? styles.releasedCard
+                    : styles.bufferCard,
+                ]}
+              >
+                <View style={styles.bufferHeader}>
+                  <Ionicons
+                    name={
+                      receipt.buffer.is_released ? "checkmark-circle" : "time"
+                    }
+                    size={24}
+                    color={
+                      receipt.buffer.is_released ? Colors.success : "#FFA000"
+                    }
+                  />
+                  <Text style={styles.cardTitle}>
+                    {receipt.buffer.is_released
+                      ? "Payment Released"
+                      : "Payment Pending"}
+                  </Text>
+                </View>
+                <View style={styles.divider} />
+
+                {receipt.buffer.is_released ? (
+                  <View style={styles.bufferContent}>
+                    <Text style={styles.bufferText}>
+                      ₱
+                      {formatCurrency(receipt.payment.worker_earnings).replace(
+                        "₱",
+                        ""
+                      )}{" "}
+                      has been added to the wallet.
+                    </Text>
+                    <Text style={styles.bufferDate}>
+                      Released on{" "}
+                      {formatReceiptDate(receipt.buffer.released_at)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.bufferContent}>
+                    <Text style={styles.bufferText}>
+                      Earnings are held for {receipt.buffer.buffer_days}{" "}
+                      days to allow for backjob requests.
+                    </Text>
+                    <View style={styles.bufferStats}>
+                      <View style={styles.bufferStat}>
+                        <Text style={styles.bufferStatValue}>
+                          {receipt.buffer.remaining_days ?? "—"}
+                        </Text>
+                        <Text style={styles.bufferStatLabel}>Days Left</Text>
+                      </View>
+                      <View style={styles.bufferStat}>
+                        <Text style={styles.bufferStatValue}>
+                          {formatReceiptDate(receipt.buffer.end_date)?.split(
+                            ","
+                          )[0] ?? "—"}
+                        </Text>
+                        <Text style={styles.bufferStatLabel}>Release Date</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.bufferReason}>
+                      Status: {getHoldReasonLabel(receipt.buffer.hold_reason)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Job Details Card */}
             <View style={styles.card}>
@@ -317,78 +390,6 @@ iAyos - May sira? May iAyos.
               />
             </View>
 
-            {/* Buffer Status Card (for workers) */}
-            {userRole === "WORKER" && receipt.buffer && (
-              <View
-                style={[
-                  styles.card,
-                  receipt.buffer.is_released
-                    ? styles.releasedCard
-                    : styles.bufferCard,
-                ]}
-              >
-                <View style={styles.bufferHeader}>
-                  <Ionicons
-                    name={
-                      receipt.buffer.is_released ? "checkmark-circle" : "time"
-                    }
-                    size={24}
-                    color={
-                      receipt.buffer.is_released ? Colors.success : "#FFA000"
-                    }
-                  />
-                  <Text style={styles.cardTitle}>
-                    {receipt.buffer.is_released
-                      ? "Payment Released"
-                      : "Payment Pending"}
-                  </Text>
-                </View>
-                <View style={styles.divider} />
-
-                {receipt.buffer.is_released ? (
-                  <View style={styles.bufferContent}>
-                    <Text style={styles.bufferText}>
-                      ₱
-                      {formatCurrency(receipt.payment.worker_earnings).replace(
-                        "₱",
-                        ""
-                      )}{" "}
-                      has been added to your wallet.
-                    </Text>
-                    <Text style={styles.bufferDate}>
-                      Released on{" "}
-                      {formatReceiptDate(receipt.buffer.released_at)}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.bufferContent}>
-                    <Text style={styles.bufferText}>
-                      Your earnings are held for {receipt.buffer.buffer_days}{" "}
-                      days to allow for backjob requests.
-                    </Text>
-                    <View style={styles.bufferStats}>
-                      <View style={styles.bufferStat}>
-                        <Text style={styles.bufferStatValue}>
-                          {receipt.buffer.remaining_days ?? "—"}
-                        </Text>
-                        <Text style={styles.bufferStatLabel}>Days Left</Text>
-                      </View>
-                      <View style={styles.bufferStat}>
-                        <Text style={styles.bufferStatValue}>
-                          {formatReceiptDate(receipt.buffer.end_date)?.split(
-                            ","
-                          )[0] ?? "—"}
-                        </Text>
-                        <Text style={styles.bufferStatLabel}>Release Date</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.bufferReason}>
-                      Status: {getHoldReasonLabel(receipt.buffer.hold_reason)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
 
             {/* Parties Card */}
             <View style={styles.card}>
@@ -469,14 +470,14 @@ iAyos - May sira? May iAyos.
                       style={[
                         styles.transactionRow,
                         index < receipt.transactions.length - 1 &&
-                          styles.transactionBorder,
+                        styles.transactionBorder,
                       ]}
                     >
                       <View style={styles.transactionIcon}>
                         <Ionicons
                           name={
                             txn.type === "EARNING" ||
-                            txn.type === "PENDING_EARNING"
+                              txn.type === "PENDING_EARNING"
                               ? "arrow-down"
                               : txn.type === "PAYMENT"
                                 ? "arrow-up"
@@ -485,7 +486,7 @@ iAyos - May sira? May iAyos.
                           size={16}
                           color={
                             txn.type === "EARNING" ||
-                            txn.type === "PENDING_EARNING"
+                              txn.type === "PENDING_EARNING"
                               ? Colors.success
                               : Colors.error
                           }
@@ -503,13 +504,13 @@ iAyos - May sira? May iAyos.
                         style={[
                           styles.transactionAmount,
                           txn.type === "EARNING" ||
-                          txn.type === "PENDING_EARNING"
+                            txn.type === "PENDING_EARNING"
                             ? styles.positiveAmount
                             : styles.negativeAmount,
                         ]}
                       >
                         {txn.type === "EARNING" ||
-                        txn.type === "PENDING_EARNING"
+                          txn.type === "PENDING_EARNING"
                           ? "+"
                           : "-"}
                         {formatCurrency(txn.amount)}
