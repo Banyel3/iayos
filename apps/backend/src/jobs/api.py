@@ -171,7 +171,8 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         print(f"💳 Current wallet balance: ₱{wallet.balance}")
         
         # Get payment method (default to WALLET)
-        payment_method = data.payment_method.upper() if data.payment_method else "WALLET"
+        # Frontend sends downpayment_method; fall back to payment_method for backward compat
+        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
@@ -491,9 +492,10 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         assigned_agency = None
 
         # If worker_id provided, validate worker exists
+        # NOTE: worker_id is the WorkerProfile auto PK (worker.id), NOT Profile.profileID
         if data.worker_id:
             try:
-                worker_profile = WorkerProfile.objects.select_related('profileID').get(profileID__profileID=data.worker_id)
+                worker_profile = WorkerProfile.objects.select_related('profileID').get(id=data.worker_id)
                 print(f"✅ Worker validated: {worker_profile.profileID.firstName} {worker_profile.profileID.lastName}")
             except WorkerProfile.DoesNotExist:
                 return Response(
@@ -582,7 +584,8 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         print(f"💳 Current wallet balance: ₱{wallet.balance}")
         
         # Get payment method (default to WALLET)
-        payment_method = data.payment_method.upper() if data.payment_method else "WALLET"
+        # Frontend sends downpayment_method; fall back to payment_method for backward compat
+        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
@@ -870,7 +873,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 
                 # If worker_id provided, auto-create application (but don't accept until payment)
                 if data.worker_id:
-                    worker_profile = WorkerProfile.objects.select_related('profileID').get(profileID__profileID=data.worker_id)
+                    worker_profile = WorkerProfile.objects.select_related('profileID').get(id=data.worker_id)
                     job_application = JobApplication.objects.create(
                         jobID=job_posting,
                         workerID=worker_profile,
@@ -4875,7 +4878,7 @@ def create_invite_job(
         
         if worker_id:
             try:
-                assigned_worker = WorkerProfile.objects.get(profileID__profileID=worker_id)
+                assigned_worker = WorkerProfile.objects.select_related('profileID').get(id=worker_id)
                 invite_target_name = f"{assigned_worker.profileID.firstName} {assigned_worker.profileID.lastName}"
             except WorkerProfile.DoesNotExist:
                 return Response(

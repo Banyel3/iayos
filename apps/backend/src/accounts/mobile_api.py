@@ -3198,10 +3198,11 @@ def mobile_upload_profile_image(request):
 
 @mobile_router.get("/workers/list", auth=jwt_auth)
 def mobile_workers_list(request, latitude: float = None, longitude: float = None,
-                        page: int = 1, limit: int = 20):
+                        page: int = 1, limit: int = 20, category: int = None):
     """
     Get list of workers for clients
     Optional location parameters for distance calculation
+    Optional category filter to show workers with specific specialization
     """
     from .mobile_services import get_workers_list_mobile
 
@@ -3213,13 +3214,16 @@ def mobile_workers_list(request, latitude: float = None, longitude: float = None
         print(f"👤 User: {user.email} (ID: {user.accountID})")
         print(f"📍 Location: lat={latitude}, lon={longitude}")
         print(f"📄 Pagination: page={page}, limit={limit}")
+        if category:
+            print(f"🏷️ Category filter: {category}")
         
         result = get_workers_list_mobile(
             user=user,
             latitude=latitude,
             longitude=longitude,
             page=page,
-            limit=limit
+            limit=limit,
+            category=category
         )
 
         if result['success']:
@@ -4764,10 +4768,28 @@ def create_client_profile(request):
         ).first()
         
         if existing_client:
-            return Response(
-                {"error": "Client profile already exists"},
-                status=400
-            )
+            # Check if ClientProfile sub-table also exists
+            # If Profile row exists but ClientProfile doesn't (orphaned state),
+            # create the missing ClientProfile instead of erroring
+            if ClientProfile.objects.filter(profileID=existing_client).exists():
+                return Response(
+                    {"error": "Client profile already exists"},
+                    status=400
+                )
+            else:
+                # Fix orphaned state: Profile exists but ClientProfile doesn't
+                print(f"⚠️ [Mobile] Fixing orphaned CLIENT profile for user {user.email} - creating missing ClientProfile")
+                ClientProfile.objects.create(
+                    profileID=existing_client,
+                    description="",
+                    totalJobsPosted=0,
+                    clientRating=0,
+                )
+                return {
+                    'success': True,
+                    'message': 'Client profile created successfully',
+                    'profile_id': existing_client.profileID,
+                }
         
         # Get worker profile to copy basic info
         worker_profile = Profile.objects.filter(
@@ -4837,10 +4859,30 @@ def create_worker_profile(request):
         ).first()
         
         if existing_worker:
-            return Response(
-                {"error": "Worker profile already exists"},
-                status=400
-            )
+            # Check if WorkerProfile sub-table also exists
+            # If Profile row exists but WorkerProfile doesn't (orphaned state),
+            # create the missing WorkerProfile instead of erroring
+            if WorkerProfile.objects.filter(profileID=existing_worker).exists():
+                return Response(
+                    {"error": "Worker profile already exists"},
+                    status=400
+                )
+            else:
+                # Fix orphaned state: Profile exists but WorkerProfile doesn't
+                print(f"⚠️ [Mobile] Fixing orphaned WORKER profile for user {user.email} - creating missing WorkerProfile")
+                WorkerProfile.objects.create(
+                    profileID=existing_worker,
+                    description="",
+                    workerRating=0,
+                    totalEarningGross=0,
+                    bio="",
+                    profile_completion_percentage=0,
+                )
+                return {
+                    'success': True,
+                    'message': 'Worker profile created successfully',
+                    'profile_id': existing_worker.profileID,
+                }
         
         # Get client profile to copy basic info
         client_profile = Profile.objects.filter(

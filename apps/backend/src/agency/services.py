@@ -740,6 +740,15 @@ def remove_agency_employee(account_id, employee_id):
     try:
         user = Accounts.objects.get(accountID=account_id)
         employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+        
+        # Check if employee is currently working on an active job
+        active_job_title = validate_employee_not_working(employee)
+        if active_job_title:
+            raise ValueError(
+                f"Cannot remove {employee.workerID.profileID.accountFK.first_name or 'this employee'} — "
+                f"currently assigned to '{active_job_title}'. Unassign them from the job first."
+            )
+        
         employee.delete()
         
         return {"message": "Employee removed successfully"}

@@ -1,6 +1,12 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, AppStateStatus, Platform, StyleSheet, View } from "react-native";
+import {
+  AppState,
+  AppStateStatus,
+  Platform,
+  StyleSheet,
+  View,
+} from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -23,7 +29,7 @@ try {
       typeof useColorScheme !== "undefined" ? "defined" : "undefined",
     useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
   });
-} catch (e) { }
+} catch (e) {}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -49,7 +55,7 @@ export default function TabLayout() {
           refetchPendingReviews();
         }
         appState.current = nextAppState;
-      }
+      },
     );
     return () => subscription.remove();
   }, [refetchPendingReviews]);
@@ -76,7 +82,9 @@ export default function TabLayout() {
         router.replace("/auth/login");
       } else if (!user?.profile_data?.profileType) {
         // Logged in but no role selected - redirect to role selection
-        console.log("🔀 [TABS] Redirecting to role selection (no profile type)");
+        console.log(
+          "🔀 [TABS] Redirecting to role selection (no profile type)",
+        );
         router.replace("/auth/select-role");
       } else {
         console.log("✅ [TABS] User authenticated, showing tabs");
@@ -88,18 +96,22 @@ export default function TabLayout() {
 
   // Wait for auth state to be determined before rendering anything
   if (isLoading) {
-    console.log("⏳ [TABS] Still loading, returning null");
-    return null; // Wait for auth state before deciding what to render
+    console.log("⏳ [TABS] Still loading, showing blank screen");
+    return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;
   }
 
   // After loading is complete, check auth state
   if (!isAuthenticated) {
-    console.log("🔀 [TABS] Not authenticated after loading, redirecting to login");
+    console.log(
+      "🔀 [TABS] Not authenticated after loading, redirecting to login",
+    );
     return <Redirect href="/auth/login" />;
   }
 
   if (!user?.profile_data?.profileType) {
-    console.log("🔀 [TABS] No profile type after loading, redirecting to role selection");
+    console.log(
+      "🔀 [TABS] No profile type after loading, redirecting to role selection",
+    );
     return <Redirect href="/auth/select-role" />;
   }
 
@@ -189,9 +201,7 @@ export default function TabLayout() {
       {/* Force Review Modal - shown when user has pending reviews */}
       <PendingReviewModal
         visible={showPendingReview}
-        pendingReview={
-          pendingReviews?.pending_reviews?.[0] ?? null
-        }
+        pendingReview={pendingReviews?.pending_reviews?.[0] ?? null}
       />
       {/* Global KYC enforcement listener */}
       <KYCRequiredListener />

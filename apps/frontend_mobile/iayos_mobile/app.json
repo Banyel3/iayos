@@ -2,7 +2,7 @@
   "expo": {
     "name": "iayos_mobile",
     "slug": "iayos_mobile",
-    "version": "3.0.2",
+    "version": "3.0.10",
     "orientation": "portrait",
     "icon": "./assets/images/android-icon-foreground.png",
     "scheme": "iayosmobile",
@@ -83,7 +83,7 @@
       "enabled": true,
       "url": "https://u.expo.dev/24252bfc-2034-404b-bc64-1bf5a808c55c",
       "fallbackToCacheTimeout": 0,
-      "checkAutomatically": "ON_LOAD"
+      "checkAutomatically": "NEVER"
     },
     "runtimeVersion": "2.0",
     "extra": {

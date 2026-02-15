@@ -370,7 +370,12 @@ export default function EmployeesPage() {
     }
   };
 
-  const removeEmployee = async (id: string | number) => {
+  const removeEmployee = async (id: string | number, name?: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to remove ${name || 'this employee'}? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`${API_BASE}/api/agency/employees/${id}`, {
         method: "DELETE",
@@ -789,7 +794,7 @@ export default function EmployeesPage() {
                             Stats
                           </Button>
                           <Button
-                            onClick={() => removeEmployee(emp.id)}
+                            onClick={() => removeEmployee(emp.id, emp.name)}
                             className="bg-red-600 hover:bg-red-700 text-white"
                             size="sm"
                           >

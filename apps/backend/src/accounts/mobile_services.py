@@ -2134,10 +2134,11 @@ def upload_profile_image_mobile(user, image_file):
 # WORKER LISTING SERVICES
 # ===========================================================================
 
-def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=20):
+def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=20, category=None):
     """
     Get list of workers for clients
     Optionally calculate distance if location provided
+    Optionally filter by category (specialization ID)
     """
     try:
         from .models import Profile, WorkerProfile
@@ -2207,6 +2208,15 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         ).exclude(
             profileID__accountFK=user  # Exclude own worker profile
         ).order_by('-profileID__accountFK__createdAt')
+
+        # Filter by category (specialization) if provided
+        if category:
+            from .models import workerSpecialization
+            worker_ids_with_category = workerSpecialization.objects.filter(
+                specializationID__specializationID=category
+            ).values_list('workerID_id', flat=True)
+            workers = workers.filter(pk__in=worker_ids_with_category)
+            print(f"  🏷️ Filtered by category {category}: {workers.count()} workers match")
 
         total_count = workers.count()
         print(f"  ✓ Total verified workers found: {total_count}")

@@ -207,6 +207,27 @@ def login_account(data, request=None):
     if not user.isVerified:
         raise ValueError("Please verify your email before logging in")
     
+    # Check if account is banned (permanent)
+    if user.is_banned:
+        reason = user.banned_reason or "Your account has been permanently banned."
+        raise ValueError(f"Your account has been banned: {reason}")
+    
+    # Check if account is suspended (temporary, may auto-expire)
+    if user.is_suspended:
+        if user.suspended_until and user.suspended_until < timezone.now():
+            # Suspension expired — auto-reactivate
+            user.is_suspended = False
+            user.suspended_until = None
+            user.suspended_reason = None
+            user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason'])
+        else:
+            reason = user.suspended_reason or "Your account has been temporarily suspended."
+            raise ValueError(f"Your account has been suspended: {reason}")
+    
+    # Check if account is deactivated
+    if not user.is_active:
+        raise ValueError("Your account has been deactivated. Please contact support.")
+    
     # Log user login for audit trail
     try:
         log_action(
@@ -945,42 +966,100 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
 
         # ============================================
         # FACE MATCHING: Compare selfie with ID photo
-        # (Skipped if skip_ai_verification=True)
+        # Runs ASYNC in background thread to avoid
+        # proxy timeout (dlib encoding takes 5-15s)
         # ============================================
         face_match_result = None
-        if skip_ai_verification:
-            print("⏭️  Skipping face matching (per-step validation already done)")
-        elif 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
-            print("🔍 Starting face matching between ID and selfie...")
-            try:
-                face_match_result = verify_face_match(
-                    id_image_data=file_data_cache['FRONTID'],
-                    selfie_image_data=file_data_cache['SELFIE'],
-                    similarity_threshold=0.40  # 40% similarity threshold (InsightFace ArcFace)
-                )
-                
-                if face_match_result.get('skipped'):
-                    print(f"⚠️  Face matching skipped: {face_match_result.get('reason')}")
-                elif face_match_result.get('match'):
-                    similarity = face_match_result.get('similarity', 0)
-                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.70)")
-                else:
-                    similarity = face_match_result.get('similarity', 0)
-                    error = face_match_result.get('error', 'Face does not match')
+        if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
+            print("🔍 Scheduling ASYNC face matching between ID and selfie...")
+            import threading
+            
+            # Copy data for the background thread (Django request data won't be available later)
+            frontid_data = file_data_cache['FRONTID']
+            selfie_data = file_data_cache['SELFIE']
+            kyc_id = kyc_record.kycID
+            user_id = user.accountID
+            
+            def _run_face_match_async(frontid_bytes, selfie_bytes, kyc_record_id, account_id):
+                """Background thread: run face comparison and store results in DB."""
+                import django
+                django.setup()  # Ensure Django is ready in this thread
+                try:
+                    from accounts.document_verification_service import verify_face_match as _verify_face_match
+                    from accounts.models import KYCExtractedData, kyc as KYCModel, Notification
                     
-                    if similarity > 0:
-                        # Faces detected but don't match
-                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.70 threshold")
-                        any_failed = True
-                        failure_messages.append(f"FACE_MATCH: Selfie does not match ID photo (similarity: {similarity:.0%})")
+                    print(f"🧵 [ASYNC FACE MATCH] Starting for kycID={kyc_record_id}...")
+                    result = _verify_face_match(
+                        id_image_data=frontid_bytes,
+                        selfie_image_data=selfie_bytes,
+                        similarity_threshold=0.55
+                    )
+                    
+                    # Store result in KYCExtractedData
+                    kyc_rec = KYCModel.objects.get(kycID=kyc_record_id)
+                    extracted, _ = KYCExtractedData.objects.get_or_create(
+                        kycID=kyc_rec,
+                        defaults={'extraction_status': 'CONFIRMED'}
+                    )
+                    
+                    if result.get('skipped'):
+                        print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('reason')}")
+                        return
+                    
+                    similarity = result.get('similarity', 0)
+                    method = result.get('method', 'unknown')
+                    is_verified = method in ('face_recognition', 'insightface', 'azure')
+                    
+                    extracted.face_match_score = similarity
+                    extracted.face_match_completed = is_verified
+                    extracted.save(update_fields=['face_match_score', 'face_match_completed'])
+                    
+                    if result.get('match'):
+                        print(f"🧵 [ASYNC FACE MATCH] ✅ PASSED: similarity={similarity:.2f} (kycID={kyc_record_id})")
                     else:
-                        # Could not extract faces - treat as warning, not failure
-                        print(f"⚠️  Face matching could not complete: {error}")
-                        # Don't fail KYC for face extraction errors - admin can verify manually
-                
-            except Exception as fm_error:
-                print(f"⚠️  Face matching error (non-blocking): {str(fm_error)}")
-                # Don't fail KYC for face matching errors - admin can verify manually
+                        if similarity > 0:
+                            # Faces detected but don't match → auto-reject
+                            print(f"🧵 [ASYNC FACE MATCH] ❌ FAILED: similarity={similarity:.2f} < 0.55 (kycID={kyc_record_id})")
+                            kyc_rec.kyc_status = 'REJECTED'
+                            kyc_rec.notes = f"Auto-rejected: Selfie does not match ID photo (similarity: {similarity:.0%})"
+                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
+                            
+                            # Notify user
+                            try:
+                                from accounts.models import Accounts
+                                account = Accounts.objects.get(accountID=account_id)
+                                Notification.objects.create(
+                                    accountFK=account,
+                                    type='KYC',
+                                    title='KYC Verification Failed ❌',
+                                    body=f'Your selfie does not match your ID photo (similarity: {similarity:.0%}). Please resubmit with matching photos.',
+                                )
+                            except Exception as notif_err:
+                                print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
+                        else:
+                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Could not extract faces: {result.get('error')}")
+                    
+                    print(f"🧵 [ASYNC FACE MATCH] Complete for kycID={kyc_record_id}")
+                    
+                except Exception as async_err:
+                    print(f"🧵 [ASYNC FACE MATCH] ❌ Error for kycID={kyc_record_id}: {str(async_err)}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Launch background thread
+            thread = threading.Thread(
+                target=_run_face_match_async,
+                args=(frontid_data, selfie_data, kyc_id, user_id),
+                daemon=True,
+                name=f"face-match-kyc-{kyc_id}"
+            )
+            thread.start()
+            print(f"🧵 Face match thread started (daemon) for kycID={kyc_id}")
+            
+            face_match_result = {
+                "status": "processing",
+                "message": "Face comparison is running in the background. Results will be stored automatically."
+            }
         else:
             missing = []
             if 'FRONTID' not in file_data_cache:

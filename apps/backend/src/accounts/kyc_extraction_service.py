@@ -263,8 +263,8 @@ def _store_face_match_score(extracted: KYCExtractedData, face_match_result: Dict
         method = face_match_result.get('method', 'unknown')
         
         # Mark as completed if a proper verification method was used
-        # InsightFace and Azure both provide verified face matching
-        is_verified = method in ('insightface', 'azure')
+        # face_recognition (dlib), InsightFace, and Azure all provide verified face matching
+        is_verified = method in ('face_recognition', 'insightface', 'azure')
         
         extracted.face_match_score = similarity
         extracted.face_match_completed = is_verified

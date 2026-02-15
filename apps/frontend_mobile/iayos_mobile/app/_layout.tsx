@@ -8,6 +8,7 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
+import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
@@ -15,11 +16,37 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
-import { useAppUpdate } from "@/lib/hooks/useAppUpdate";
-import { UpdateRequiredModal } from "@/components/UpdateRequiredModal";
 import Toast from "react-native-toast-message";
 
+console.log("[RootLayout] module evaluation start");
+// Lazy-loaded update modules — prevents import crash from killing entire app.
+// useAppUpdate imports expo-file-system SDK 54 APIs (Paths, File) and
+// expo-intent-launcher which can fail on certain environments.
+let useAppUpdateHook: any = null;
+let UpdateRequiredModalComponent: any = null;
+
+try {
+  useAppUpdateHook = require("@/lib/hooks/useAppUpdate").useAppUpdate;
+  UpdateRequiredModalComponent = require("@/components/UpdateRequiredModal").UpdateRequiredModal;
+  console.log("[RootLayout] update modules loaded");
+} catch (e) {
+  console.warn("[RootLayout] Failed to load update modules:", e);
+}
+
 const queryClient = new QueryClient();
+console.log("[RootLayout] query client initialized");
+
+// Prevent splash screen from auto-hiding before app is ready
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore errors (e.g., splash screen already hidden)
+});
+
+// SAFETY NET: Force-hide splash after 8 seconds no matter what.
+// Normally hideAsync() is called in ~100ms when RootLayout mounts.
+// This timeout only fires if something catastrophic prevents mounting.
+setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {});
+}, 8000);
 
 // DEV-only guard: detect when React.createElement is called with an undefined type.
 // Moved to module scope to prevent re-patching on every render.
@@ -146,8 +173,17 @@ export const unstable_settings = {
  * Must be rendered inside QueryClientProvider.
  */
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
-  const appUpdate = useAppUpdate();
+  const appUpdate = useAppUpdateHook ? useAppUpdateHook() : null;
   const [dismissed, setDismissed] = useState(false);
+  console.log("[RootLayout] AppUpdateWrapper render", {
+    hasUpdateHook: !!useAppUpdateHook,
+    hasModal: !!UpdateRequiredModalComponent,
+  });
+
+  // If update modules failed to load, just render children
+  if (!appUpdate || !UpdateRequiredModalComponent) {
+    return <>{children}</>;
+  }
 
   // Show modal if update is required (and not dismissed for optional updates)
   const showModal = appUpdate.updateRequired && !dismissed;
@@ -155,7 +191,7 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <UpdateRequiredModal
+      <UpdateRequiredModalComponent
         visible={showModal}
         installedVersion={appUpdate.installedVersion}
         currentVersion={appUpdate.currentVersion}
@@ -174,13 +210,21 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
 }
 
 export default function RootLayout() {
+  console.log("[RootLayout] component render");
   const colorScheme = useColorScheme();
 
   useEffect(() => {
+    console.log("[RootLayout] mount effect start");
     // Keep Android/iOS system bars consistent with our light background
     SystemUI.setBackgroundColorAsync("transparent").catch((error) => {
       console.warn("Failed to set system UI background", error);
     });
+
+    // Hide splash screen once root layout has mounted
+    SplashScreen.hideAsync().catch(() => {
+      // Ignore errors
+    });
+    console.log("[RootLayout] hideAsync invoked");
   }, []);
 
   return (

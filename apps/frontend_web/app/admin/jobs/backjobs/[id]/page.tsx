@@ -7,6 +7,15 @@ import { Sidebar } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import {
   ArrowLeft,
   AlertTriangle,
   User,
@@ -104,6 +113,10 @@ export default function DisputeDetailPage() {
   const [dispute, setDispute] = useState<JobDispute | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchDisputeDetail();
@@ -872,75 +885,18 @@ export default function DisputeDetailPage() {
                       <>
                         <Button
                           className="w-full bg-green-600 hover:bg-green-700 text-white"
-                          onClick={async () => {
-                            if (
-                              !confirm(
-                                "Approve this backjob request? The worker/agency will be notified.",
-                              )
-                            )
-                              return;
-                            try {
-                              const res = await fetch(
-                                `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/approve-backjob`,
-                                {
-                                  method: "POST",
-                                  credentials: "include",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    priority: dispute.priority,
-                                  }),
-                                },
-                              );
-                              const data = await res.json();
-                              if (data.success) {
-                                alert(
-                                  "Backjob approved! Worker/agency has been notified.",
-                                );
-                                fetchDisputeDetail();
-                              } else {
-                                alert(
-                                  data.error || "Failed to approve backjob",
-                                );
-                              }
-                            } catch (err) {
-                              alert("Error approving backjob");
-                            }
-                          }}
+                          disabled={actionLoading}
+                          onClick={() => setApproveDialogOpen(true)}
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
                           Approve Backjob
                         </Button>
                         <Button
                           className="w-full bg-red-600 hover:bg-red-700 text-white"
-                          onClick={async () => {
-                            const reason = prompt("Enter rejection reason:");
-                            if (!reason) return;
-                            try {
-                              const res = await fetch(
-                                `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/reject-backjob`,
-                                {
-                                  method: "POST",
-                                  credentials: "include",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({ reason }),
-                                },
-                              );
-                              const data = await res.json();
-                              if (data.success) {
-                                alert(
-                                  "Backjob rejected. Client has been notified.",
-                                );
-                                fetchDisputeDetail();
-                              } else {
-                                alert(data.error || "Failed to reject backjob");
-                              }
-                            } catch (err) {
-                              alert("Error rejecting backjob");
-                            }
+                          disabled={actionLoading}
+                          onClick={() => {
+                            setRejectReason("");
+                            setRejectDialogOpen(true);
                           }}
                         >
                           <XCircle className="h-4 w-4 mr-2" />
@@ -958,6 +914,137 @@ export default function DisputeDetailPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Approve Confirmation Dialog */}
+              <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      Approve Backjob Request
+                    </DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to approve this backjob request? The worker/agency will be notified and assigned to redo the work.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button
+                      variant="outline"
+                      disabled={actionLoading}
+                      onClick={() => setApproveDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      disabled={actionLoading}
+                      onClick={async () => {
+                        setActionLoading(true);
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/approve-backjob`,
+                            {
+                              method: "POST",
+                              credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ priority: dispute.priority }),
+                            },
+                          );
+                          const data = await res.json();
+                          if (data.success) {
+                            toast.success("Backjob approved! Worker/agency has been notified.");
+                            setApproveDialogOpen(false);
+                            fetchDisputeDetail();
+                          } else {
+                            toast.error(data.error || "Failed to approve backjob");
+                          }
+                        } catch (err) {
+                          toast.error("Error approving backjob. Please try again.");
+                        } finally {
+                          setActionLoading(false);
+                        }
+                      }}
+                    >
+                      {actionLoading ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Approving...</>
+                      ) : (
+                        <><CheckCircle className="h-4 w-4 mr-2" /> Confirm Approve</>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Reject Dialog with Reason Input */}
+              <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <XCircle className="h-5 w-5 text-red-600" />
+                      Reject Backjob Request
+                    </DialogTitle>
+                    <DialogDescription>
+                      Please provide a reason for rejecting this backjob request. The client will be notified with your reason.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-2">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Rejection Reason</label>
+                    <textarea
+                      className="w-full min-h-[100px] p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-y"
+                      placeholder="Enter the reason for rejection (min 10 characters)..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">{rejectReason.length}/500 characters</p>
+                  </div>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button
+                      variant="outline"
+                      disabled={actionLoading}
+                      onClick={() => setRejectDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      disabled={actionLoading || rejectReason.trim().length < 10}
+                      onClick={async () => {
+                        setActionLoading(true);
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/reject-backjob`,
+                            {
+                              method: "POST",
+                              credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ reason: rejectReason.trim() }),
+                            },
+                          );
+                          const data = await res.json();
+                          if (data.success) {
+                            toast.success("Backjob rejected. Client has been notified.");
+                            setRejectDialogOpen(false);
+                            setRejectReason("");
+                            fetchDisputeDetail();
+                          } else {
+                            toast.error(data.error || "Failed to reject backjob");
+                          }
+                        } catch (err) {
+                          toast.error("Error rejecting backjob. Please try again.");
+                        } finally {
+                          setActionLoading(false);
+                        }
+                      }}
+                    >
+                      {actionLoading ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Rejecting...</>
+                      ) : (
+                        <><XCircle className="h-4 w-4 mr-2" /> Confirm Reject</>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>

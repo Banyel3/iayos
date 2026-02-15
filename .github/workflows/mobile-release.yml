@@ -27,11 +27,6 @@ on:
         required: false
         default: false
         type: boolean
-      local_build:
-        description: "Build on GitHub Actions runner (no EAS credits needed)"
-        required: false
-        default: false
-        type: boolean
       is_qa:
         description: "Mark as QA release (adds -qa suffix to tag)"
         required: false
@@ -41,6 +36,21 @@ on:
         description: "Mark as prerelease (draft/beta release)"
         required: false
         default: false
+        type: boolean
+      include_x86:
+        description: "Include x86_64 architecture (for emulator/BlueStacks testing)"
+        required: false
+        default: false
+        type: boolean
+      new_arch_enabled:
+        description: "Enable React Native New Architecture in build (auto-forced ON when required by dependencies)"
+        required: false
+        default: false
+        type: boolean
+      hermes_enabled:
+        description: "Enable Hermes JS engine in build"
+        required: false
+        default: true
         type: boolean
 
 env:
@@ -217,54 +227,40 @@ jobs:
         run: npm ci
 
       # ============================================
-      # LOCAL GITHUB ACTIONS BUILD (No EAS Credits Required)
+      # ANDROID BUILD (Optimized for GitHub Actions)
       # ============================================
 
-      - name: Setup Java
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+      - name: Free disk space
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        run: |
+          echo "🧹 Freeing disk space for Android build..."
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk /opt/ghc /usr/share/swift || true
+          sudo apt-get clean || true
+          echo "✅ Disk space after cleanup:"
+          df -h /
+
+      - name: Add swap space for build
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        run: |
+          echo "🔧 Adding 10GB swap space for Gradle build..."
+          sudo swapoff -a || true
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "✅ Swap space added:"
+          free -h
+
+      - name: Setup JDK 17
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          java-version: "17"
+          distribution: "temurin"
 
       - name: Setup Android SDK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         uses: android-actions/setup-android@v3
-
-      - name: Setup Expo
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          # No token needed for local builds
-
-      - name: Build Android APK (Local GitHub Actions Build)
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
-        working-directory: ${{ env.MOBILE_DIR }}
-        env:
-          EXPO_PUBLIC_API_URL: "https://api.iayos.online"
-        run: |
-          echo "🏗️ LOCAL GITHUB ACTIONS BUILD"
-          echo "☁️ Building on GitHub Actions runners (no EAS credits required)"
-          echo "📦 Production build - ready for app store distribution"
-
-          # Generate native Android project using expo prebuild
-          echo "📱 Generating native Android project..."
-          npx expo prebuild --clean --platform android
-
-          # Build release APK using Gradle
-          echo "🔨 Building release APK with Gradle..."
-          cd android
-          chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
-
-          # Copy APK to expected location
-          echo "📦 Copying APK to release location..."
-          cd ..
-          cp android/app/build/outputs/apk/release/app-release.apk ./iayos-${{ steps.version.outputs.new_version }}.apk
-
-          echo "✅ Local build complete!"
-          ls -la ./iayos-${{ steps.version.outputs.new_version }}.apk
 
       - name: Download APK from latest release (if using latest build)
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
@@ -276,7 +272,7 @@ jobs:
           # Get latest release info
           RELEASE_INFO=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
-          
+
           DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -1)
           RELEASE_TAG=$(echo "$RELEASE_INFO" | jq -r '.[0].tag_name')
 
@@ -299,48 +295,124 @@ jobs:
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
-      # ============================================================================
-      # GITHUB ACTIONS LOCAL BUILD - No EAS credits needed
-      # ============================================================================
-      - name: Add swap space for local build
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
-        run: |
-          echo "🔧 Adding 10GB swap space for Gradle build..."
-          sudo swapoff -a || true
-          sudo fallocate -l 10G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo "✅ Swap space added:"
-          free -h
-
-      - name: Setup JDK 17 for local build
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Build Android APK (GitHub Actions Local Build)
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
+      - name: Build Android APK
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
+        env:
+          EXPO_PUBLIC_API_URL: "https://api.iayos.online"
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "🏗️ GITHUB ACTIONS LOCAL BUILD (No EAS credits needed)"
-          echo "💻 Building directly on runner with optimized memory settings"
+          echo "🏗️ Building Android APK on GitHub Actions"
+          echo "💻 Optimized memory settings for CI environment"
           echo ""
 
           # Generate native Android project
           echo "📱 Running expo prebuild..."
           npx expo prebuild --clean --platform android
 
+          # Configure release signing with persistent keystore
+          echo "🔐 Configuring release signing..."
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/iayos-release.keystore
+          echo "  ✅ Keystore decoded to android/app/iayos-release.keystore"
+
+          cat > /tmp/inject_signing.py << 'PYEOF'
+          import os, sys
+          p = 'android/app/build.gradle'
+          with open(p) as f:
+              c = f.read()
+          sp = os.environ.get('ANDROID_KEYSTORE_PASSWORD', '')
+          ka = os.environ.get('ANDROID_KEY_ALIAS', '')
+          kp = os.environ.get('ANDROID_KEY_PASSWORD', '')
+          if not all([sp, ka, kp]):
+              print('  ⚠️ Missing signing secrets, skipping signing config')
+              sys.exit(0)
+          rc = '\n        release {\n'
+          rc += "            storeFile file('iayos-release.keystore')\n"
+          rc += "            storePassword '" + sp + "'\n"
+          rc += "            keyAlias '" + ka + "'\n"
+          rc += "            keyPassword '" + kp + "'\n"
+          rc += '        }'
+          c = c.replace('signingConfigs {', 'signingConfigs {' + rc, 1)
+          bi = c.find('buildTypes')
+          if bi > -1:
+              ri = c.find('release {', bi)
+              if ri > -1:
+                  si = c.find('signingConfig signingConfigs.debug', ri)
+                  if si > -1:
+                      old = 'signingConfig signingConfigs.debug'
+                      c = c[:si] + 'signingConfig signingConfigs.release' + c[si+len(old):]
+          with open(p, 'w') as f:
+              f.write(c)
+          print('  ✅ Release signing config injected into build.gradle')
+          PYEOF
+          python3 /tmp/inject_signing.py
+
+          # Verify signing config
+          echo "  📋 Verifying signing config in build.gradle:"
+          grep -A 6 "release {" android/app/build.gradle | head -14 || true
+
           # Optimize Gradle settings for CI environment
           echo "🔧 Configuring Gradle for CI build..."
           sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
-          sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a/' android/gradle.properties
+
+          # Determine effective New Architecture setting
+          REQUESTED_NEW_ARCH="${{ github.event.inputs.new_arch_enabled }}"
+          REANIMATED_VERSION=$(node -e "const pkg=require('./package.json'); const v=(pkg.dependencies&&pkg.dependencies['react-native-reanimated'])||''; process.stdout.write(String(v));")
+          REANIMATED_MAJOR=$(node -e "const pkg=require('./package.json'); const v=(pkg.dependencies&&pkg.dependencies['react-native-reanimated'])||''; const m=String(v).match(/(\d+)/); process.stdout.write(m?m[1]:'0');")
+          EFFECTIVE_NEW_ARCH="$REQUESTED_NEW_ARCH"
+
+          if [ "$REANIMATED_MAJOR" -ge 4 ] && [ "$REQUESTED_NEW_ARCH" != "true" ]; then
+            echo "::warning::react-native-reanimated@$REANIMATED_VERSION requires New Architecture. Overriding new_arch_enabled=false -> true for this build."
+            EFFECTIVE_NEW_ARCH="true"
+          fi
+
+          echo "EFFECTIVE_NEW_ARCH=$EFFECTIVE_NEW_ARCH" >> $GITHUB_ENV
+          echo "REANIMATED_VERSION=$REANIMATED_VERSION" >> $GITHUB_ENV
+          echo "📦 react-native-reanimated version: $REANIMATED_VERSION"
+          echo "🏗️ New Architecture requested: $REQUESTED_NEW_ARCH"
+          echo "🏗️ New Architecture effective: $EFFECTIVE_NEW_ARCH"
+
+          if [ "$EFFECTIVE_NEW_ARCH" == "true" ]; then
+            echo "🏗️ New Architecture: ENABLED"
+            sed -i 's/newArchEnabled=.*/newArchEnabled=true/' android/gradle.properties
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.expo.newArchEnabled = true;
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+            "
+          else
+            echo "🏗️ New Architecture: DISABLED"
+            sed -i 's/newArchEnabled=.*/newArchEnabled=false/' android/gradle.properties
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.expo.newArchEnabled = false;
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+            "
+          fi
+
+          if [ "${{ github.event.inputs.hermes_enabled }}" == "true" ]; then
+            echo "🧠 Hermes: ENABLED"
+            sed -i 's/hermesEnabled=.*/hermesEnabled=true/' android/gradle.properties
+          else
+            echo "🧠 Hermes: DISABLED"
+            sed -i 's/hermesEnabled=.*/hermesEnabled=false/' android/gradle.properties
+          fi
+
+          if [ "${{ github.event.inputs.include_x86 }}" == "true" ]; then
+            echo "📱 Including x86_64 architecture (emulator/BlueStacks support)"
+            sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64/' android/gradle.properties
+          else
+            sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a/' android/gradle.properties
+          fi
           echo "org.gradle.caching=true" >> android/gradle.properties
 
           echo "📋 Gradle properties:"
-          grep -E "jvmargs|Architectures|parallel" android/gradle.properties
+          grep -E "jvmargs|Architectures|parallel|newArchEnabled|hermesEnabled" android/gradle.properties
           echo ""
 
           # Build release APK (skip lint to save memory)
@@ -445,18 +517,18 @@ jobs:
         id: changelog
         run: |
           echo "Extracting changelog for version ${{ steps.commit_version.outputs.final_version }}"
-          
+
           # Make script executable
           chmod +x .github/scripts/extract-changelog.sh
-          
+
           # Extract changelog content
           CHANGELOG_OUTPUT=$(./.github/scripts/extract-changelog.sh "${{ steps.commit_version.outputs.final_version }}")
-          
+
           # Output to GitHub Actions (multiline)
           echo "changelog_notes<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG_OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
           # Show extracted content in logs
           echo "📝 Changelog content extracted:"
           echo "$CHANGELOG_OUTPUT"
@@ -473,8 +545,12 @@ jobs:
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
             **Build Profile:** production
-            **Build Type:** ${{ github.event.inputs.local_build == 'true' && 'GitHub Actions Local Build' || github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'EAS Cloud Build' }}
+            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'GitHub Actions Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
+            **Architectures:** ${{ github.event.inputs.include_x86 == 'true' && 'arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)' || 'arm64-v8a, armeabi-v7a (ARM only)' }}
+            **New Architecture (Requested):** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}
+            **New Architecture (Effective):** ${{ env.EFFECTIVE_NEW_ARCH == 'true' && 'Enabled' || env.EFFECTIVE_NEW_ARCH == 'false' && 'Disabled' || (github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled') }}
+            **Hermes:** ${{ github.event.inputs.hermes_enabled == 'true' && 'Enabled' || 'Disabled' }}
 
             ### 📦 Production Build (Local GitHub Actions)
 
@@ -557,16 +633,20 @@ jobs:
             echo "✅ **Version:** ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
             echo "🏗️ **Profile:** production" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.event.inputs.include_x86 }}" == "true" ]; then
+              echo "📱 **Architectures:** arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "📱 **Architectures:** arm64-v8a, armeabi-v7a (ARM only)" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "🏗️ **New Architecture (requested):** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "🏗️ **New Architecture (effective):** ${{ env.EFFECTIVE_NEW_ARCH == 'true' && 'Enabled' || env.EFFECTIVE_NEW_ARCH == 'false' && 'Disabled' || (github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled') }}" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
-            elif [ "${{ github.event.inputs.local_build }}" == "true" ]; then
-              echo "�️ **Build:** GitHub Actions Local Build (no EAS credits)" >> $GITHUB_STEP_SUMMARY
-              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
               echo "♻️ **Build:** Using latest existing build from GitHub Releases" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             else
-              echo "🏗️ **Build:** Local GitHub Actions build (no EAS credits)" >> $GITHUB_STEP_SUMMARY
+              echo "🏗️ **Build:** GitHub Actions build (optimized)" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             fi
           else

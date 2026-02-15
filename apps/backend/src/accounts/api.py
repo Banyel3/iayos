@@ -1378,7 +1378,7 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
         print(f"      ❌ Confidence {overall_confidence} < min {min_confidence}")
         return False, None
     
-    # REQUIRE face match completion via verified method (InsightFace or Azure)
+    # REQUIRE face match completion via verified method (face_recognition, InsightFace, or Azure)
     if not extracted.face_match_completed:
         print(f"      ❌ Face matching not completed via verified method (required for auto-approval)")
         return False, None
@@ -1399,6 +1399,12 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
         print(f"      ❌ Face match {face_match_decimal} < min {min_face_match}")
         return False, None
     
+    # Borderline check: scores between threshold and 0.65 get flagged
+    borderline_threshold = Decimal("0.65")
+    is_borderline = face_match_decimal < borderline_threshold
+    if is_borderline:
+        print(f"      ⚠️ Borderline face match {face_match_decimal} (>{min_face_match} but <{borderline_threshold})")
+    
     # All checks passed - auto-approve the KYC
     print(f"      ✅ All thresholds met, auto-approving...")
     
@@ -1406,7 +1412,8 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
     kyc_record.kyc_status = "APPROVED"
     kyc_record.reviewedBy = "AI_AUTO_APPROVAL"
     kyc_record.reviewedAt = timezone.now()
-    kyc_record.notes = f"Auto-approved: Confidence={overall_confidence:.2f}, FaceMatch={face_match_score:.2f}, ID={id_type}"
+    borderline_note = " [BORDERLINE - manual review recommended]" if is_borderline else ""
+    kyc_record.notes = f"Auto-approved: Confidence={overall_confidence:.2f}, FaceMatch={face_match_score:.2f}, ID={id_type}{borderline_note}"
     kyc_record.save()
     
     # Create notification for user
