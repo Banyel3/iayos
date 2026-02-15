@@ -15,6 +15,7 @@ import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { ENDPOINTS, apiRequest } from '@/lib/api/config';
 
 interface Evidence {
   uri: string;
@@ -151,22 +152,35 @@ export default function CreateDisputeScreen() {
             setIsSubmitting(true);
 
             try {
-              // TODO: Implement API call
-              // const formData = new FormData();
-              // formData.append('dispute_type', disputeType);
-              // formData.append('job_id', jobId);
-              // formData.append('subject', subject);
-              // formData.append('description', description);
-              // evidence.forEach((item, index) => {
-              //   formData.append(`evidence_${index}`, {
-              //     uri: item.uri,
-              //     type: 'image/jpeg',
-              //     name: item.name,
-              //   });
-              // });
+              const jobIdNum = parseInt(jobId, 10);
+              if (isNaN(jobIdNum)) {
+                Alert.alert('Error', 'Invalid Job ID.');
+                return;
+              }
 
-              // Simulate API call
-              await new Promise((resolve) => setTimeout(resolve, 2000));
+              const formData = new FormData();
+              formData.append('reason', `[${disputeType}] ${subject}`);
+              formData.append('description', description);
+              formData.append('terms_accepted', 'true');
+              evidence.forEach((item) => {
+                formData.append('images', {
+                  uri: item.uri,
+                  type: 'image/jpeg',
+                  name: item.name,
+                } as any);
+              });
+
+              const response = await apiRequest(
+                ENDPOINTS.REQUEST_BACKJOB(jobIdNum),
+                { method: 'POST', body: formData }
+              );
+
+              const data = await response.json();
+
+              if (!response.ok) {
+                Alert.alert('Error', data.error || 'Failed to submit dispute.');
+                return;
+              }
 
               Alert.alert(
                 'Dispute Submitted',
