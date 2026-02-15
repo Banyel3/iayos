@@ -62,7 +62,16 @@ def mobile_register(request, payload: createAccountSchema):
 
     try:
         result = create_account_individ(payload)
-        # Registration returns accountID and verifyLink
+        
+        # Automatically send OTP email server-side (don't rely on frontend)
+        try:
+            _send_otp_email_internal(result['email'])
+            print(f"✅ OTP email auto-sent for: {result['email']}")
+        except Exception as email_err:
+            print(f"⚠️ Failed to auto-send OTP email: {email_err}")
+            # Registration still succeeds; user can use resend-otp
+        
+        # Registration returns accountID (OTP kept server-side)
         # Don't auto-login, require email verification
         return {
             'success': True,
@@ -264,14 +273,41 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
 def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
     """
     Send OTP verification email via Resend API.
-    This replaces the link-based verification with a 6-digit OTP code.
+    OTP is looked up server-side from the database - never accepted from client.
     """
-    import requests
+    return _send_otp_email_internal(payload.email)
+
+
+def _send_otp_email_internal(email: str):
+    """
+    Internal helper: look up OTP from the database and send the email.
+    Never accepts OTP from the client to prevent OTP injection.
+    """
+    import requests as http_requests
     from django.conf import settings
     
-    print(f"📧 [Mobile] Send OTP email request for: {payload.email}")
+    print(f"📧 [Mobile] Send OTP email request for: {email}")
     
     try:
+        # Look up the user and their current OTP from the database
+        user = Accounts.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({"error": "Account not found"}, status=404)
+        
+        otp_code = user.email_otp
+        if not otp_code:
+            return Response({"error": "No OTP generated. Please register or request a new OTP."}, status=400)
+        
+        # Check if OTP has expired
+        from django.utils import timezone
+        if user.email_otp_expiry and user.email_otp_expiry < timezone.now():
+            return Response({"error": "OTP has expired. Please request a new one."}, status=400)
+        
+        expires_in_minutes = 5
+        if user.email_otp_expiry:
+            remaining = (user.email_otp_expiry - timezone.now()).total_seconds() / 60
+            expires_in_minutes = max(1, int(remaining))
+        
         # Validate required environment variables
         resend_api_key = settings.RESEND_API_KEY
         resend_base_url = getattr(settings, 'RESEND_BASE_URL', 'https://api.resend.com')
@@ -311,11 +347,11 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
                                     </p>
                                     <div style="display: inline-block; padding: 20px 40px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 30px;">
                                         <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #007bff;">
-                                            {payload.otp_code}
+                                            {otp_code}
                                         </span>
                                     </div>
                                     <p style="margin: 0 0 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
-                                        This code will expire in <strong>{payload.expires_in_minutes} minutes</strong>.
+                                        This code will expire in <strong>{expires_in_minutes} minutes</strong>.
                                     </p>
                                     <p style="margin: 20px 0 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
                                         If you didn't request this code, you can safely ignore this email.
@@ -346,14 +382,14 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
         
         resend_payload = {
             "from": "team@devante.online",
-            "to": [payload.email],
-            "subject": f"Your iAyos Verification Code: {payload.otp_code}",
+            "to": [email],
+            "subject": f"Your iAyos Verification Code: {otp_code}",
             "html": html_template
         }
         
-        print(f"📧 [Mobile] Sending OTP email to: {payload.email}")
+        print(f"📧 [Mobile] Sending OTP email to: {email}")
         print(f"📧 [Mobile] Using Resend URL: {resend_url}")
-        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        response = http_requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
         print(f"📧 [Mobile] Resend API Response Status: {response.status_code}")
         
         if response.status_code == 200:
@@ -374,7 +410,7 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
                 status=502
             )
             
-    except requests.exceptions.Timeout:
+    except http_requests.exceptions.Timeout:
         print("❌ [Mobile] Resend API timeout")
         return Response(
             {"error": "Email service timeout. Please try again."},
@@ -3692,55 +3728,53 @@ def get_mobile_config(request):
 def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     """
     TODO: REMOVE FOR PROD - Testing only
-    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely)
+    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely).
     Directly credits wallet balance without any payment gateway validation.
     Only available when TESTING=true in environment.
     """
     from django.conf import settings
-    
+
     # Check if testing mode is enabled
     if not getattr(settings, 'TESTING', False):
         return Response(
             {"error": "Direct deposit is only available in testing mode"},
             status=404
         )
-    
+
     try:
         from .models import Wallet, Transaction, Profile
         from decimal import Decimal
         from django.utils import timezone
-        
+
         amount = payload.amount
         payment_method = "DIRECT_TEST"
 
-        print(f"📥 [Mobile] Direct Deposit request (TESTING): ₱{amount} from {request.auth.email}")
-        
         if amount <= 0:
             return Response(
                 {"error": "Amount must be greater than 0"},
                 status=400
             )
-        
+
         if amount > 100000:
             return Response(
-                {"error": "Maximum deposit is ₱100,000"},
+                {"error": "Maximum deposit is \u20b1100,000"},
                 status=400
             )
-        
+
         # Get or create wallet
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
             defaults={'balance': Decimal('0.00')}
         )
-        
+
         # Calculate new balance
         old_balance = wallet.balance
         new_balance = old_balance + Decimal(str(amount))
-        
+
         # Update wallet balance immediately
         wallet.balance = new_balance
         wallet.save()
-        
+
         # Create COMPLETED transaction (no pending state needed)
         transaction = Transaction.objects.create(
             walletID=wallet,
@@ -3748,13 +3782,11 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             amount=Decimal(str(amount)),
             balanceAfter=new_balance,
             status=Transaction.TransactionStatus.COMPLETED,
-            description=f"Direct Test Deposit - ₱{amount}",
+            description=f"Direct Test Deposit - \u20b1{amount}",
             paymentMethod=payment_method,
             completedAt=timezone.now(),
         )
-        
-        print(f"✅ [Mobile] Direct deposit completed (TESTING): ₱{amount} → New balance: ₱{new_balance}")
-        
+
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
@@ -3763,11 +3795,10 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             "provider": "direct_test",
             "method": "direct_test",
             "status": "completed",
-            "message": f"Test deposit of ₱{amount} added to your wallet instantly!"
+            "message": f"Test deposit of \u20b1{amount} added to your wallet instantly!"
         }
-        
+
     except Exception as e:
-        print(f"❌ [Mobile] Error with direct deposit: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
@@ -4039,7 +4070,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             
             print(f"📄 Manual withdrawal request created: {withdrawal_request_id}")
             print(f"📊 Status: PENDING (requires admin approval)")
-            print(f"   Recipient: {payment_method.accountName} ({payment_method.accountNumber})")
+            print(f"   Recipient: {payment_method.accountName} (***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'})")
             print(f"   Method: {payment_method.methodType}")
             if payment_method.methodType == 'BANK' and payment_method.bankName:
                 print(f"   Bank: {payment_method.bankName}")
@@ -5578,46 +5609,48 @@ def mobile_create_escrow_payment(request):
         if job.escrowPaid:
             return Response({"error": "Escrow payment already made for this job"}, status=400)
         
-        # Get wallet
-        wallet, _ = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
-        )
-        
-        # Calculate escrow amount (50% of budget)
-        escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
-        
-        # Check wallet balance
-        if wallet.balance < escrow_amount:
-            return Response({
-                "error": "Insufficient wallet balance",
-                "required": float(escrow_amount),
-                "available": float(wallet.balance)
-            }, status=400)
-        
-        # Deduct from wallet and add to reserved
-        wallet.balance -= escrow_amount
-        wallet.reservedBalance += escrow_amount
-        wallet.save()
-        
-        # Update job escrow status
-        job.escrowAmount = escrow_amount
-        job.escrowPaid = True
-        job.escrowPaidAt = timezone.now()
-        job.remainingPayment = escrow_amount  # Remaining 50%
-        job.save()
-        
-        # Create transaction record
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType='PAYMENT',
-            amount=escrow_amount,
-            balanceAfter=wallet.balance,
-            status='COMPLETED',
-            description=f"Escrow payment for job: {job.title}",
-            relatedJobPosting=job,
-            paymentMethod='WALLET'
-        )
+        # Get wallet with row-level lock to prevent race conditions
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                accountFK=request.auth,
+                defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+            )
+            
+            # Calculate escrow amount (50% of budget)
+            escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
+            
+            # Check wallet balance
+            if wallet.balance < escrow_amount:
+                return Response({
+                    "error": "Insufficient wallet balance",
+                    "required": float(escrow_amount),
+                    "available": float(wallet.balance)
+                }, status=400)
+            
+            # Deduct from wallet and add to reserved
+            wallet.balance -= escrow_amount
+            wallet.reservedBalance += escrow_amount
+            wallet.save()
+            
+            # Update job escrow status
+            job.escrowAmount = escrow_amount
+            job.escrowPaid = True
+            job.escrowPaidAt = timezone.now()
+            job.remainingPayment = escrow_amount  # Remaining 50%
+            job.save()
+            
+            # Create transaction record
+            transaction = Transaction.objects.create(
+                walletID=wallet,
+                transactionType='PAYMENT',
+                amount=escrow_amount,
+                balanceAfter=wallet.balance,
+                status='COMPLETED',
+                description=f"Escrow payment for job: {job.title}",
+                relatedJobPosting=job,
+                paymentMethod='WALLET'
+            )
         
         print(f"✅ [MOBILE] Escrow ₱{escrow_amount} created for job {job_id}")
         
@@ -5972,32 +6005,50 @@ def mobile_create_final_payment(request):
         
         # For wallet payments, check balance and process
         if payment_method == 'WALLET':
+            from django.db import transaction as db_transaction
+            with db_transaction.atomic():
+                wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': Decimal('0.00')}
+                )
+                
+                if wallet.balance < final_amount:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(final_amount),
+                        "available": float(wallet.balance)
+                    }, status=400)
+                
+                # Deduct from wallet
+                wallet.balance -= final_amount
+                wallet.save()
+                
+                # Create transaction
+                Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType='PAYMENT',
+                    amount=final_amount,
+                    balanceAfter=wallet.balance,
+                    status='COMPLETED',
+                    description=f"Final payment for job: {job.title}",
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET'
+                )
+        elif payment_method == 'CASH':
+            # Cash is handled outside the app — create a pending transaction for auditing
             wallet, _ = Wallet.objects.get_or_create(
                 accountFK=request.auth,
                 defaults={'balance': Decimal('0.00')}
             )
-            
-            if wallet.balance < final_amount:
-                return Response({
-                    "error": "Insufficient wallet balance",
-                    "required": float(final_amount),
-                    "available": float(wallet.balance)
-                }, status=400)
-            
-            # Deduct from wallet
-            wallet.balance -= final_amount
-            wallet.save()
-            
-            # Create transaction
             Transaction.objects.create(
                 walletID=wallet,
                 transactionType='PAYMENT',
                 amount=final_amount,
                 balanceAfter=wallet.balance,
-                status='COMPLETED',
-                description=f"Final payment for job: {job.title}",
+                status='PENDING',
+                description=f"Final cash payment for job: {job.title} (pending admin verification)",
                 relatedJobPosting=job,
-                paymentMethod='WALLET'
+                paymentMethod='CASH'
             )
         
         # Update job payment status
@@ -6326,11 +6377,18 @@ def cleanup_maestro_test_data(request):
     - Saved jobs from test users (worker.test@iayos.com, client.test@iayos.com)
     - Job applications from test users
     
-    SECURITY: Only works in non-production environments.
+    SECURITY: Only works when TESTING=true and in non-production environments.
     """
     import os
     from django.conf import settings
     from django.db import transaction as db_transaction
+    
+    # Gate behind TESTING flag
+    if not getattr(settings, 'TESTING', False):
+        return Response(
+            {"error": "Test cleanup only available when TESTING=true"},
+            status=403
+        )
     
     # Safety check - only allow in non-production
     env = os.environ.get('DJANGO_ENV', 'development')

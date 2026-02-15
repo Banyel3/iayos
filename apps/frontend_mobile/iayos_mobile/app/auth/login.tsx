@@ -57,10 +57,14 @@ export default function LoginScreen() {
 
       // Token exists, check user state
       if (user?.profile_data?.profileType) {
-        console.log("🔀 [LOGIN] User already authenticated, redirecting to tabs");
+        console.log(
+          "🔀 [LOGIN] User already authenticated, redirecting to tabs",
+        );
         router.replace("/(tabs)");
       } else if (user && !user.profile_data?.profileType) {
-        console.log("🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection");
+        console.log(
+          "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
+        );
         router.replace("/auth/select-role");
       }
     };
@@ -76,7 +80,7 @@ export default function LoginScreen() {
         setTimeout(() => {
           try {
             (fieldRef as any).focus?.();
-          } catch (e) { }
+          } catch (e) {}
         }, 50);
       }
     });
@@ -84,7 +88,7 @@ export default function LoginScreen() {
     return () => {
       try {
         subscription.remove();
-      } catch (e) { }
+      } catch (e) {}
     };
   }, []);
 
@@ -130,7 +134,12 @@ export default function LoginScreen() {
           <View style={styles.headerContainer}>
             <Image
               source={require("../../assets/logo-white.png")}
-              style={{ width: 120, height: 120, resizeMode: "contain", marginBottom: Spacing["2xl"] }}
+              style={{
+                width: 120,
+                height: 120,
+                resizeMode: "contain",
+                marginBottom: Spacing["2xl"],
+              }}
               accessibilityLabel="iAyos Logo"
             />
             <Text style={styles.headerTitle}>Welcome to iAyos</Text>
@@ -188,6 +197,7 @@ export default function LoginScreen() {
               activeOpacity={0.7}
               disabled={isLoading}
               testID="login-forgot-password-link"
+              onPress={() => router.push("/auth/forgot-password" as any)}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>

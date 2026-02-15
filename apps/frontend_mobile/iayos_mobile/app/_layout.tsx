@@ -220,11 +220,9 @@ export default function RootLayout() {
       console.warn("Failed to set system UI background", error);
     });
 
-    // Hide splash screen once root layout has mounted
-    SplashScreen.hideAsync().catch(() => {
-      // Ignore errors
-    });
-    console.log("[RootLayout] hideAsync invoked");
+    // NOTE: SplashScreen.hideAsync() is called in index.tsx AFTER auth state
+    // is resolved, preventing the blank flash between splash and content.
+    console.log("[RootLayout] mount effect done (splash hidden by index.tsx)");
   }, []);
 
   return (

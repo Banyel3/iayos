@@ -112,10 +112,37 @@ def google_login(request):
     
 @router.get("/auth/google/callback")
 def google_callback(request):
-    if not request.user.is_authenticated:
-        return {"error": "Authentication failed"}
+    import json
+    from django.http import HttpResponseRedirect
+    from .models import Profile
     
-    return generateCookie(request.user)
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    
+    if not request.user.is_authenticated:
+        return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_auth_failed")
+    
+    # Create Profile for new Google OAuth users (they skip normal registration)
+    if not Profile.objects.filter(accountFK=request.user).exists():
+        Profile.objects.create(
+            accountFK=request.user,
+            profileType='CLIENT',
+            firstName=getattr(request.user, 'first_name', '') or '',
+            lastName=getattr(request.user, 'last_name', '') or '',
+        )
+    
+    # Generate auth tokens via existing cookie helper
+    auth_response = generateCookie(request.user)
+    auth_data = json.loads(auth_response.content)
+    
+    # Redirect to frontend dashboard with auth cookies set
+    is_production = not settings.DEBUG
+    cookie_domain = ".iayos.online" if is_production else None
+    
+    response = HttpResponseRedirect(f"{frontend_url}/dashboard")
+    response.set_cookie('access', auth_data['access'], httponly=True, secure=is_production, samesite='Lax', max_age=3600, domain=cookie_domain)
+    response.set_cookie('refresh', auth_data['refresh'], httponly=True, secure=is_production, samesite='Lax', max_age=604800, domain=cookie_domain)
+    
+    return response
 @router.post("/register")
 def register(request, payload: createAccountSchema):
     try:
@@ -361,10 +388,17 @@ def resend_otp(request, payload: dict = Body(...)):
     
     print(f"📧 [OTP RESEND] New OTP generated for: {email}")
     
+    # Automatically send the email server-side
+    try:
+        from accounts.mobile_api import _send_otp_email_internal
+        _send_otp_email_internal(email)
+        print(f"✅ OTP email auto-sent for resend: {email}")
+    except Exception as email_err:
+        print(f"⚠️ Failed to auto-send OTP email on resend: {email_err}")
+    
     return {
         "success": True,
         "message": "New OTP sent to your email",
-        "otp_code": otp_code,  # Frontend will use this to send email
         "expires_in_minutes": 5
     }
 
@@ -2916,7 +2950,7 @@ def _handle_gcash_verification_failed(payment_method_id: int, reason: str):
         
         print(f"🗑️ Deleted unverified payment method {payment_method_id} for {user_email}")
         print(f"   Reason: {reason}")
-        print(f"   GCash: {account_number}")
+        print(f"   GCash: ***{account_number[-4:] if account_number else '****'}")
         
         return {"success": True, "message": "Verification failed - payment method removed"}
         

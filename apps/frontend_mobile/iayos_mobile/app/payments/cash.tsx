@@ -25,6 +25,7 @@ import {
   formatCurrency,
   calculateEscrowAmount,
 } from "../../lib/hooks/usePayments";
+import { useCreateFinalPayment } from "../../lib/hooks/useFinalPayment";
 import PaymentSummaryCard from "../../components/PaymentSummaryCard";
 
 /**
@@ -46,11 +47,13 @@ export default function CashPaymentScreen() {
     jobId: string;
     budget: string;
     title: string;
+    paymentType?: string;
   }>();
 
   const jobId = parseInt(params.jobId);
   const budget = parseFloat(params.budget);
   const jobTitle = params.title || "Job";
+  const isFinalPayment = params.paymentType === "final";
 
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -58,8 +61,11 @@ export default function CashPaymentScreen() {
 
   const uploadCashProofMutation = useUploadCashProof();
   const createEscrowPaymentMutation = useCreateEscrowPayment();
+  const createFinalPaymentMutation = useCreateFinalPayment();
 
-  const { halfBudget, platformFee, total } = calculateEscrowAmount(budget);
+  const escrowAmounts = calculateEscrowAmount(budget);
+  // For final payment: just the remaining 50% (no extra platform fee — already paid on escrow)
+  const total = isFinalPayment ? budget / 2 : escrowAmounts.total;
 
   // Request camera/gallery permissions
   const requestPermissions = async () => {
@@ -79,7 +85,7 @@ export default function CashPaymentScreen() {
     if (!hasPermissions) {
       Alert.alert(
         "Permissions Required",
-        "Please grant camera and gallery permissions to upload proof of payment."
+        "Please grant camera and gallery permissions to upload proof of payment.",
       );
       return;
     }
@@ -102,7 +108,7 @@ export default function CashPaymentScreen() {
     if (!hasPermissions) {
       Alert.alert(
         "Permissions Required",
-        "Please grant gallery permissions to upload proof of payment."
+        "Please grant gallery permissions to upload proof of payment.",
       );
       return;
     }
@@ -175,12 +181,20 @@ export default function CashPaymentScreen() {
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      // Create escrow payment record
-      await createEscrowPaymentMutation.mutateAsync({
-        jobId,
-        amount: total,
-        paymentMethod: "cash",
-      });
+      // Create payment record (escrow or final depending on paymentType)
+      if (isFinalPayment) {
+        await createFinalPaymentMutation.mutateAsync({
+          jobId,
+          amount: total,
+          paymentMethod: "cash",
+        });
+      } else {
+        await createEscrowPaymentMutation.mutateAsync({
+          jobId,
+          amount: total,
+          paymentMethod: "cash",
+        });
+      }
 
       // Navigate to payment status
       setTimeout(() => {
@@ -196,7 +210,7 @@ export default function CashPaymentScreen() {
     } catch (error) {
       Alert.alert(
         "Upload Failed",
-        "Failed to upload proof of payment. Please try again."
+        "Failed to upload proof of payment. Please try again.",
       );
       setUploadProgress(0);
     } finally {
@@ -216,7 +230,7 @@ export default function CashPaymentScreen() {
           style: "destructive",
           onPress: () => safeGoBack(router, "/(tabs)/profile"),
         },
-      ]
+      ],
     );
   };
 

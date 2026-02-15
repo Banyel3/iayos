@@ -4,6 +4,7 @@
 
 from decimal import Decimal
 from typing import Optional
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
@@ -130,9 +131,9 @@ def create_team_job(
     except ClientProfile.DoesNotExist:
         return {'success': False, 'error': 'Client profile not found. Only clients can create team jobs.'}
     
-    # Check wallet balance for escrow (50% of total)
+    # Check wallet balance for escrow (50% of total) + platform fee (10% of total)
     escrow_amount = Decimal(str(total_budget)) * Decimal('0.5')
-    platform_fee = escrow_amount * Decimal('0.05')  # 5% of downpayment
+    platform_fee = Decimal(str(total_budget)) * settings.PLATFORM_FEE_RATE  # 10% of total budget
     total_needed = escrow_amount + platform_fee
     
     if payment_method == 'WALLET':

@@ -292,6 +292,10 @@ export const ENDPOINTS = {
   RESEND_OTP_ENDPOINT: `${API_URL}/api/accounts/resend-otp`,
   OTP_EMAIL_ENDPOINT: `${API_URL}/api/mobile/auth/send-otp-email`,
 
+  // Forgot Password
+  FORGOT_PASSWORD_SEND: `${API_URL}/api/accounts/forgot-password/send-verify`,
+  FORGOT_PASSWORD_VERIFY: `${API_URL}/api/accounts/forgot-password/verify`,
+
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
   MY_JOBS: `${API_URL}/api/mobile/jobs/my-jobs`,
@@ -463,8 +467,6 @@ export const ENDPOINTS = {
   WALLET_PENDING_EARNINGS: `${API_URL}/api/mobile/wallet/pending-earnings`,
   TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
   DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
-  // TODO: REMOVE FOR PROD - GCash direct deposit for testing
-  DEPOSIT_GCASH: `${API_URL}/api/mobile/wallet/deposit-gcash`,
   // Mobile config endpoint (no auth required)
   MOBILE_CONFIG: `${API_URL}/api/mobile/config`,
 
@@ -631,8 +633,7 @@ export const ENDPOINTS = {
   DAILY_RATE_CHANGE_APPROVE: (jobId: number, changeId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/rate-change/${changeId}/approve`,
   // Cancellation
-  DAILY_CANCEL: (jobId: number) =>
-    `${API_URL}/api/jobs/${jobId}/daily/cancel`,
+  DAILY_CANCEL: (jobId: number) => `${API_URL}/api/jobs/${jobId}/daily/cancel`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -741,7 +742,7 @@ export const apiRequest = async (
     if (resp.status === 403) {
       try {
         const cloned = resp.clone();
-        const body = await cloned.json() as any;
+        const body = (await cloned.json()) as any;
         if (body?.error_code === "KYC_REQUIRED") {
           console.warn(`[API] KYC_REQUIRED from ${url}`);
           const { DeviceEventEmitter } = require("react-native");

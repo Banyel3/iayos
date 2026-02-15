@@ -1,6 +1,7 @@
 # mobile_services.py
 # Mobile-specific service layer for optimized API responses
 
+from django.conf import settings
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
     JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency,
@@ -1033,10 +1034,10 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
         if budget <= 0:
             return {'success': False, 'error': 'Budget must be greater than 0'}
         
-        # Calculate escrow (50%) + commission (5%)
+        # Calculate escrow (50%) + commission (10%)
         escrow_amount = budget * Decimal('0.5')
-        commission_fee = budget * Decimal('0.05')
-        downpayment_amount = escrow_amount + commission_fee  # 52.5% total
+        commission_fee = budget * settings.PLATFORM_FEE_RATE
+        downpayment_amount = escrow_amount + commission_fee  # 60% total
         remaining_payment = budget * Decimal('0.5')
         
         print(f"💰 Budget: ₱{budget} | Escrow: ₱{escrow_amount} | Commission: ₱{commission_fee} | Downpayment: ₱{downpayment_amount}")
@@ -1254,10 +1255,11 @@ def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
                 
                 wallet = Wallet.objects.get(accountFK=user)
                 
-                # Calculate total reserved (escrow + platform fee which is 5% of downpayment)
+                # Calculate total reserved (escrow + platform fee which is 10% of budget)
                 escrow_amount = job.escrowAmount or Decimal('0.00')
-                # Platform fee is 5% of the downpayment (escrow amount)
-                platform_fee = escrow_amount * Decimal('0.05') if escrow_amount > 0 else Decimal('0.00')
+                # Platform fee is 10% of the total budget
+                budget_amount = Decimal(str(job.budget)) if job.budget else Decimal('0.00')
+                platform_fee = budget_amount * settings.PLATFORM_FEE_RATE if budget_amount > 0 else Decimal('0.00')
                 total_reserved = escrow_amount + platform_fee
                 
                 if total_reserved > 0:
@@ -1492,11 +1494,11 @@ def update_mobile_job(job_id: int, user: Accounts, job_data: Dict[str, Any]) -> 
                     
                     # Calculate new escrow and fee amounts
                     old_escrow = job.escrowAmount or (old_budget * Decimal('0.5'))
-                    old_fee = old_escrow * Decimal('0.05')
+                    old_fee = old_budget * settings.PLATFORM_FEE_RATE
                     old_total_reserved = old_escrow + old_fee
                     
                     new_escrow = new_budget * Decimal('0.5')
-                    new_fee = new_escrow * Decimal('0.05')
+                    new_fee = new_budget * settings.PLATFORM_FEE_RATE
                     new_total_reserved = new_escrow + new_fee
                     
                     reserve_difference = new_total_reserved - old_total_reserved

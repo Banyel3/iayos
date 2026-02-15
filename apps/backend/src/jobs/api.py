@@ -159,17 +159,6 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
         print(f"   Worker Receives: ₱{data.budget} (full budget)")
         
-        # Get or create client's wallet
-        wallet, created = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00')}
-        )
-        
-        if created:
-            print(f"💼 New wallet created for {request.auth.email}")
-        
-        print(f"💳 Current wallet balance: ₱{wallet.balance}")
-        
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
         payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
@@ -177,22 +166,32 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Handle payment based on method
         if payment_method == "WALLET":
-            # Check if client has sufficient available balance for total amount (escrow + platform fee)
-            # Available balance = balance - reservedBalance
-            if wallet.availableBalance < total_to_charge:
-                return Response(
-                    {
-                        "error": "Insufficient wallet balance",
-                        "required": float(total_to_charge),
-                        "available": float(wallet.availableBalance),
-                        "reserved": float(wallet.reservedBalance),
-                        "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.availableBalance} available."
-                    },
-                    status=400
-                )
-            
-            # Use database transaction to ensure atomicity
+            # Use database transaction with row-level locking to prevent double-spend
             with db_transaction.atomic():
+                # Lock wallet row to prevent concurrent modifications
+                wallet, created = Wallet.objects.select_for_update().get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': Decimal('0.00')}
+                )
+                
+                if created:
+                    print(f"💼 New wallet created for {request.auth.email}")
+                
+                print(f"💳 Current wallet balance: ₱{wallet.balance}")
+                
+                # Check if client has sufficient available balance for total amount (escrow + platform fee)
+                # Available balance = balance - reservedBalance
+                if wallet.availableBalance < total_to_charge:
+                    return Response(
+                        {
+                            "error": "Insufficient wallet balance",
+                            "required": float(total_to_charge),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                            "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.availableBalance} available."
+                        },
+                        status=400
+                    )
                 # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
                 job_type = JobPosting.JobType.INVITE if hasattr(data, 'worker_id') and data.worker_id else JobPosting.JobType.LISTING
                 
@@ -560,13 +559,13 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             total_budget = Decimal(str(data.budget))
             downpayment = total_budget * Decimal('0.5')  # 50% escrow
             remaining_payment = total_budget * Decimal('0.5')  # 50% at completion
-            platform_fee = total_budget * Decimal('0.05')  # 5% platform fee
+            platform_fee = total_budget * settings.PLATFORM_FEE_RATE  # 10% platform fee
             total_to_charge = downpayment + platform_fee
             
             print(f"💰 PROJECT Payment breakdown:")
             print(f"   Total Budget: ₱{total_budget}")
             print(f"   Downpayment (50%): ₱{downpayment}")
-            print(f"   Platform Fee (5%): ₱{platform_fee}")
+            print(f"   Platform Fee (10%): ₱{platform_fee}")
             print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
             print(f"   Remaining (50%): ₱{remaining_payment}")
             print(f"   Total Client Pays: ₱{total_budget + platform_fee}")
@@ -6252,9 +6251,8 @@ def get_job_receipt(request, job_id: int):
         budget = Decimal(str(job.budget))
         escrow_amount = budget * Decimal('0.5')  # 50% downpayment
         
-        # Platform fee: 10% for regular jobs, 5% for team jobs
-        platform_fee_rate = Decimal('0.05') if job.is_team_job else Decimal('0.10')
-        platform_fee = budget * platform_fee_rate
+        # Platform fee: 10% for all jobs
+        platform_fee = budget * settings.PLATFORM_FEE_RATE
         
         # Worker receives full budget (client pays budget + fee)
         worker_earnings = budget

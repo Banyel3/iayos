@@ -44,10 +44,10 @@ export default function FinalPaymentScreen() {
   const { data: paymentStatus } = useJobPaymentStatus(jobId);
   const createFinalPaymentMutation = useCreateFinalPayment();
 
-  // Calculate final payment (remaining 50% + 10% fee on that 50%)
+  // Calculate final payment (remaining 50% + 10% fee on the remaining 50%)
   // Worker receives full budget, client pays platform fee on top
   const halfBudget = budget / 2; // 50% to worker
-  const platformFee = halfBudget * 0.1; // 10% of the 50% (5% of total budget)
+  const platformFee = halfBudget * 0.2; // 10% of total budget = 20% of the half
   const totalAmount = halfBudget + platformFee; // Total client pays
 
   const paymentBreakdown = {
@@ -58,6 +58,8 @@ export default function FinalPaymentScreen() {
 
   const insufficientBalance =
     walletBalance && walletBalance.balance < totalAmount;
+
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleProceed = () => {
     if (!selectedMethod) {
@@ -84,18 +86,48 @@ export default function FinalPaymentScreen() {
       return;
     }
 
-    // Navigate to appropriate payment screen
     switch (selectedMethod) {
       case "wallet":
-        router.push({
-          pathname: "/payments/wallet" as any,
-          params: {
-            jobId: jobId.toString(),
-            budget: budget.toString(),
-            title: jobTitle,
-            paymentType: "final",
-          },
-        });
+        Alert.alert(
+          "Confirm Payment",
+          `Pay ₱${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} from your wallet?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Confirm",
+              onPress: () => {
+                setIsProcessing(true);
+                createFinalPaymentMutation.mutate(
+                  {
+                    jobId,
+                    amount: totalAmount,
+                    paymentMethod: "wallet",
+                  },
+                  {
+                    onSuccess: () => {
+                      setIsProcessing(false);
+                      refetchBalance();
+                      Alert.alert(
+                        "Payment Successful",
+                        "Final payment processed successfully.",
+                        [
+                          {
+                            text: "View Status",
+                            onPress: () =>
+                              router.push(`/payments/status?jobId=${jobId}` as any),
+                          },
+                        ],
+                      );
+                    },
+                    onError: () => {
+                      setIsProcessing(false);
+                    },
+                  },
+                );
+              },
+            },
+          ],
+        );
         break;
       case "cash":
         router.push({
@@ -167,7 +199,7 @@ export default function FinalPaymentScreen() {
             </Text>
           </View>
           <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Platform Fee (5%)</Text>
+            <Text style={styles.breakdownLabel}>Platform Fee (10%)</Text>
             <Text style={styles.breakdownValue}>
               ₱
               {platformFee.toLocaleString("en-US", {
@@ -297,6 +329,7 @@ export default function FinalPaymentScreen() {
           ]}
           onPress={handleProceed}
           disabled={
+            isProcessing ||
             !selectedMethod ||
             (selectedMethod === "wallet" && insufficientBalance)
           }
