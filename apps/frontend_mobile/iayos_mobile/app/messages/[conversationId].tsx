@@ -2976,23 +2976,74 @@ export default function ChatScreen() {
                 >
                   {/* Check if we're in view mode */}
                   {reviewModalMode === "view" ? (
-                    // View Reviews Mode - Show both parties' reviews
+                    // View Reviews Mode - Show both parties' reviews with actual data
                     <View style={{ padding: Spacing.md }}>
                       {/* My Review Section */}
                       <View style={styles.reviewSection}>
                         <Text style={styles.reviewSectionTitle}>Your Review</Text>
-                        <View style={styles.reviewCard}>
-                          <Text style={styles.reviewCardSubtitle}>
-                            You reviewed {conversation.my_role === "CLIENT" ? "the worker" : "the client"}
-                          </Text>
-                          {/* Show submitted review message */}
-                          <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-                            <Text style={{ marginLeft: Spacing.xs, color: Colors.success, fontWeight: "600" }}>
-                              Review submitted
-                            </Text>
-                          </View>
-                        </View>
+                        {(() => {
+                          const myReview = conversation.my_role === "CLIENT"
+                            ? conversation.client_review
+                            : conversation.worker_review;
+
+                          if (!myReview) {
+                            return (
+                              <View style={styles.reviewCard}>
+                                <Text style={styles.reviewCardSubtitle}>No review data available</Text>
+                              </View>
+                            );
+                          }
+
+                          // Category labels based on role
+                          const categories = conversation.my_role === "CLIENT"
+                            ? [
+                              { key: "rating_communication", label: "Communication", icon: "💬" },
+                              { key: "rating_punctuality", label: "Punctuality", icon: "⏰" },
+                              { key: "rating_quality", label: "Quality", icon: "⭐" },
+                              { key: "rating_professionalism", label: "Professionalism", icon: "👔" },
+                            ]
+                            : [
+                              { key: "rating_communication", label: "Communication", icon: "💬" },
+                              { key: "rating_quality", label: "Clarity of Job Details", icon: "📋" },
+                              { key: "rating_punctuality", label: "Payment Reliability", icon: "💰" },
+                              { key: "rating_professionalism", label: "Respect & Professionalism", icon: "🤝" },
+                            ];
+
+                          return (
+                            <View style={styles.reviewCard}>
+                              {categories.map((cat, idx) => (
+                                <View key={cat.key} style={{ marginBottom: idx < categories.length - 1 ? Spacing.sm : 0 }}>
+                                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                                    <Text style={{ fontSize: 16, marginRight: 6 }}>{cat.icon}</Text>
+                                    <Text style={{ ...Typography.body.small, fontWeight: "600", color: Colors.textPrimary }}>
+                                      {cat.label}
+                                    </Text>
+                                  </View>
+                                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Ionicons
+                                        key={star}
+                                        name={star <= (myReview[cat.key as keyof typeof myReview] as number) ? "star" : "star-outline"}
+                                        size={18}
+                                        color="#FBC02D"
+                                        style={{ marginRight: 4 }}
+                                      />
+                                    ))}
+                                    <Text style={{ marginLeft: 4, ...Typography.body.small, color: Colors.textSecondary }}>
+                                      {myReview[cat.key as keyof typeof myReview]}/5
+                                    </Text>
+                                  </View>
+                                </View>
+                              ))}
+                              {myReview.comment && (
+                                <View style={{ marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                                  <Text style={{ ...Typography.body.small, fontWeight: "600", marginBottom: 4 }}>Comment:</Text>
+                                  <Text style={{ ...Typography.body.small, color: Colors.textSecondary }}>{myReview.comment}</Text>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
                       </View>
 
                       {/* Other Party's Review Section */}
@@ -3000,29 +3051,86 @@ export default function ChatScreen() {
                         <Text style={styles.reviewSectionTitle}>
                           {conversation.my_role === "CLIENT" ? "Worker's" : "Client's"} Review
                         </Text>
-                        {((conversation.my_role === "CLIENT" && conversation.job.workerReviewed) ||
-                          (conversation.my_role === "WORKER" && conversation.job.clientReviewed)) ? (
-                          <View style={styles.reviewCard}>
-                            <Text style={styles.reviewCardSubtitle}>
-                              {conversation.my_role === "CLIENT" ? "Worker" : "Client"} reviewed you
-                            </Text>
-                            <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                              <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-                              <Text style={{ marginLeft: Spacing.xs, color: Colors.success, fontWeight: "600" }}>
-                                Review submitted
-                              </Text>
+                        {(() => {
+                          const otherReview = conversation.my_role === "CLIENT"
+                            ? conversation.worker_review
+                            : conversation.client_review;
+
+                          const hasReviewed = conversation.my_role === "CLIENT"
+                            ? conversation.job.workerReviewed
+                            : conversation.job.clientReviewed;
+
+                          if (!hasReviewed) {
+                            return (
+                              <View style={styles.reviewCard}>
+                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                  <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
+                                  <Text style={{ marginLeft: Spacing.xs, color: Colors.textSecondary }}>
+                                    Waiting for {conversation.my_role === "CLIENT" ? "worker" : "client"} to submit review...
+                                  </Text>
+                                </View>
+                              </View>
+                            );
+                          }
+
+                          if (!otherReview) {
+                            return (
+                              <View style={styles.reviewCard}>
+                                <Text style={styles.reviewCardSubtitle}>Review data not available</Text>
+                              </View>
+                            );
+                          }
+
+                          // Category labels based on reviewer role
+                          const categories = conversation.my_role === "CLIENT"
+                            ? [
+                              { key: "rating_communication", label: "Communication", icon: "💬" },
+                              { key: "rating_quality", label: "Clarity of Job Details", icon: "📋" },
+                              { key: "rating_punctuality", label: "Payment Reliability", icon: "💰" },
+                              { key: "rating_professionalism", label: "Respect & Professionalism", icon: "🤝" },
+                            ]
+                            : [
+                              { key: "rating_communication", label: "Communication", icon: "💬" },
+                              { key: "rating_punctuality", label: "Punctuality", icon: "⏰" },
+                              { key: "rating_quality", label: "Quality", icon: "⭐" },
+                              { key: "rating_professionalism", label: "Professionalism", icon: "👔" },
+                            ];
+
+                          return (
+                            <View style={styles.reviewCard}>
+                              {categories.map((cat, idx) => (
+                                <View key={cat.key} style={{ marginBottom: idx < categories.length - 1 ? Spacing.sm : 0 }}>
+                                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                                    <Text style={{ fontSize: 16, marginRight: 6 }}>{cat.icon}</Text>
+                                    <Text style={{ ...Typography.body.small, fontWeight: "600", color: Colors.textPrimary }}>
+                                      {cat.label}
+                                    </Text>
+                                  </View>
+                                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Ionicons
+                                        key={star}
+                                        name={star <= (otherReview[cat.key as keyof typeof otherReview] as number) ? "star" : "star-outline"}
+                                        size={18}
+                                        color="#FBC02D"
+                                        style={{ marginRight: 4 }}
+                                      />
+                                    ))}
+                                    <Text style={{ marginLeft: 4, ...Typography.body.small, color: Colors.textSecondary }}>
+                                      {otherReview[cat.key as keyof typeof otherReview]}/5
+                                    </Text>
+                                  </View>
+                                </View>
+                              ))}
+                              {otherReview.comment && (
+                                <View style={{ marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                                  <Text style={{ ...Typography.body.small, fontWeight: "600", marginBottom: 4 }}>Comment:</Text>
+                                  <Text style={{ ...Typography.body.small, color: Colors.textSecondary }}>{otherReview.comment}</Text>
+                                </View>
+                              )}
                             </View>
-                          </View>
-                        ) : (
-                          <View style={styles.reviewCard}>
-                            <View style={{ flexDirection: "row", alignItems: "center" }}>
-                              <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
-                              <Text style={{ marginLeft: Spacing.xs, color: Colors.textSecondary }}>
-                                Waiting for {conversation.my_role === "CLIENT" ? "worker" : "client"} to submit review...
-                              </Text>
-                            </View>
-                          </View>
-                        )}
+                          );
+                        })()}
                       </View>
                     </View>
                   ) : (conversation.my_role === "CLIENT" &&
