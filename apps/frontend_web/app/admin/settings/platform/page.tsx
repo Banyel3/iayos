@@ -509,16 +509,18 @@ export default function PlatformSettingsPage() {
                         !settings.worker_verification_required,
                       )
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.worker_verification_required
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.worker_verification_required
                         ? "bg-green-600"
                         : "bg-gray-300"
-                      }`}
+                    }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.worker_verification_required
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.worker_verification_required
                           ? "translate-x-6"
                           : "translate-x-1"
-                        }`}
+                      }`}
                     />
                   </button>
                 </div>
@@ -540,14 +542,16 @@ export default function PlatformSettingsPage() {
                         !settings.auto_approve_kyc,
                       )
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.auto_approve_kyc ? "bg-green-600" : "bg-gray-300"
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.auto_approve_kyc ? "bg-green-600" : "bg-gray-300"
+                    }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.auto_approve_kyc
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.auto_approve_kyc
                           ? "translate-x-6"
                           : "translate-x-1"
-                        }`}
+                      }`}
                     />
                   </button>
                 </div>
@@ -577,16 +581,18 @@ export default function PlatformSettingsPage() {
                             !settings.kyc_require_user_confirmation,
                           )
                         }
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.kyc_require_user_confirmation
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          settings.kyc_require_user_confirmation
                             ? "bg-blue-600"
                             : "bg-gray-300"
-                          }`}
+                        }`}
                       >
                         <span
-                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${settings.kyc_require_user_confirmation
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            settings.kyc_require_user_confirmation
                               ? "translate-x-5"
                               : "translate-x-1"
-                            }`}
+                          }`}
                         />
                       </button>
                     </div>
@@ -727,14 +733,16 @@ export default function PlatformSettingsPage() {
                         );
                       }
                     }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.maintenance_mode ? "bg-red-600" : "bg-gray-300"
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.maintenance_mode ? "bg-red-600" : "bg-gray-300"
+                    }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.maintenance_mode
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.maintenance_mode
                           ? "translate-x-6"
                           : "translate-x-1"
-                        }`}
+                      }`}
                     />
                   </button>
                 </div>

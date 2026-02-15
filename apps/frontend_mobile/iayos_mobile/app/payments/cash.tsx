@@ -85,7 +85,7 @@ export default function CashPaymentScreen() {
     if (!hasPermissions) {
       Alert.alert(
         "Permissions Required",
-        "Please grant camera and gallery permissions to upload proof of payment."
+        "Please grant camera and gallery permissions to upload proof of payment.",
       );
       return;
     }
@@ -108,7 +108,7 @@ export default function CashPaymentScreen() {
     if (!hasPermissions) {
       Alert.alert(
         "Permissions Required",
-        "Please grant gallery permissions to upload proof of payment."
+        "Please grant gallery permissions to upload proof of payment.",
       );
       return;
     }
@@ -210,7 +210,7 @@ export default function CashPaymentScreen() {
     } catch (error) {
       Alert.alert(
         "Upload Failed",
-        "Failed to upload proof of payment. Please try again."
+        "Failed to upload proof of payment. Please try again.",
       );
       setUploadProgress(0);
     } finally {
@@ -230,7 +230,7 @@ export default function CashPaymentScreen() {
           style: "destructive",
           onPress: () => safeGoBack(router, "/(tabs)/profile"),
         },
-      ]
+      ],
     );
   };
 

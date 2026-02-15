@@ -112,7 +112,10 @@ export default function PaymentMethodScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backIcon}>
+        <TouchableOpacity
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
+          style={styles.backIcon}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>

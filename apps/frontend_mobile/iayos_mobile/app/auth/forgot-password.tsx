@@ -180,11 +180,7 @@ export default function ForgotPasswordScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={Colors.textPrimary}
-            />
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
 
           {/* Header */}
@@ -210,11 +206,7 @@ export default function ForgotPasswordScreen() {
           <View style={styles.formContainer}>
             {error ? (
               <View style={styles.errorContainer}>
-                <Ionicons
-                  name="alert-circle"
-                  size={16}
-                  color={Colors.error}
-                />
+                <Ionicons name="alert-circle" size={16} color={Colors.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
@@ -318,11 +310,7 @@ export default function ForgotPasswordScreen() {
               onPress={() => router.replace("/auth/login")}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name="arrow-back"
-                size={16}
-                color={Colors.primary}
-              />
+              <Ionicons name="arrow-back" size={16} color={Colors.primary} />
               <Text style={styles.loginLinkText}>Back to Login</Text>
             </TouchableOpacity>
           </View>
