@@ -71,18 +71,16 @@ PRODUCTION_HOSTS = [
 ]
 
 # DigitalOcean App Platform uses dynamic internal IPs (100.127.x.x range)
-# for health check probes. Since we're behind DO's load balancer which
-# validates the Host header, it's safe to allow all hosts.
-# The load balancer only forwards requests with valid Host headers.
-ALLOWED_HOSTS = ['*']
-
-# Fallback for development
+# for health check probes. Include production hosts by default and allow
+# env-based additions.
 if not ALLOWED_HOSTS:
     if DEBUG:
-        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
     else:
-        print("⚠ ALLOWED_HOSTS not set - using production defaults")
         ALLOWED_HOSTS = PRODUCTION_HOSTS.copy()
+else:
+    # Merge env-specified hosts with production hosts
+    ALLOWED_HOSTS = list(set(ALLOWED_HOSTS + PRODUCTION_HOSTS))
 
 
 # ============================================================================
