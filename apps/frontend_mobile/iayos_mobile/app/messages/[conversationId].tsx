@@ -3731,7 +3731,7 @@ export default function ChatScreen() {
             >
               <Ionicons name="construct" size={18} color={Colors.warning} />
               <Text style={styles.backjobBannerTitleCompact} numberOfLines={1}>
-                🔄 Backjob: {conversation.backjob.reason || "Rework required"}
+                Backjob: {conversation.backjob.reason || "Rework required"}
               </Text>
               <View style={styles.backjobStatusBadgeCompact}>
                 <Text style={styles.backjobStatusTextCompact}>
@@ -3754,7 +3754,10 @@ export default function ChatScreen() {
                 {conversation.my_role === "CLIENT" &&
                   !conversation.backjob?.backjob_started && (
                     <TouchableOpacity
-                      style={styles.backjobActionButtonCompact}
+                      style={[
+                        styles.backjobActionButtonCompact,
+                        { backgroundColor: Colors.warning },
+                      ]}
                       onPress={handleConfirmBackjobStarted}
                       disabled={confirmBackjobStartedMutation.isPending}
                     >
@@ -5295,7 +5298,7 @@ const styles = StyleSheet.create({
   backjobActionButtonsCompact: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.xs,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     backgroundColor: "#FFF8E1",
     gap: Spacing.sm,
