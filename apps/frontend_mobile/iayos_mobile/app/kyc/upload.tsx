@@ -169,6 +169,21 @@ export default function KYCUploadScreen() {
     }
   }, [hasSubmittedKYC, isPending, kycLoading, router]);
 
+  // Reset hasJustSubmittedRef when component unmounts or KYC status changes to rejected
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      hasJustSubmittedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Reset flag if KYC status changes to rejected (user can resubmit)
+    if (kycData?.kyc_status === "REJECTED") {
+      hasJustSubmittedRef.current = false;
+    }
+  }, [kycData?.kyc_status]);
+
   // Subscribe to camera capture events
   // When the camera screen captures a photo, it emits the URI back to us
   useEffect(() => {
