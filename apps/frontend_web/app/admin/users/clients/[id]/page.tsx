@@ -27,7 +27,9 @@ import {
   Shield,
   ArrowLeft,
   MoreVertical,
+  Trash2,
 } from "lucide-react";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { Sidebar, useMainContentClass } from "../../../components";
 
 interface Address {
@@ -73,6 +75,8 @@ interface Client {
   kyc_status: string;
   join_date: string;
   is_verified: boolean;
+  is_suspended: boolean;
+  is_banned: boolean;
   client_data: ClientData;
   job_stats: JobStats;
   review_count: number;
@@ -90,42 +94,173 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Account action modals
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [actionReason, setActionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const fetchClient = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(
+        `${API_BASE}/api/adminpanel/users/clients/${id}`,
+        {
+          credentials: "include",
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch client details");
+      }
+
+      const data = await res.json();
+
+      if (data.success && data.client) {
+        setClient(data.client);
+      } else {
+        throw new Error("Client not found");
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchClient() {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(
-          `${API_BASE}/api/adminpanel/users/clients/${id}`,
-          {
-            credentials: "include",
-          },
-        );
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch client details");
-        }
-
-        const data = await res.json();
-
-        if (data.success && data.client) {
-          setClient(data.client);
-        } else {
-          throw new Error("Client not found");
-        }
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     if (id) {
       fetchClient();
     }
   }, [id]);
+
+  // Account action handlers
+  const handleSuspend = async () => {
+    if (!actionReason.trim()) {
+      alert("Please provide a reason for suspension");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/adminpanel/users/${id}/suspend`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reason: actionReason }),
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        alert("Client suspended successfully");
+        setShowSuspendModal(false);
+        setActionReason("");
+        fetchClient();
+      } else {
+        alert(data.error || "Failed to suspend client");
+      }
+    } catch (error) {
+      console.error("Suspend error:", error);
+      alert(getErrorMessage(error, "Failed to suspend client"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBan = async () => {
+    if (!actionReason.trim()) {
+      alert("Please provide a reason for banning");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/adminpanel/users/${id}/ban`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reason: actionReason }),
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        alert("Client banned successfully");
+        setShowBanModal(false);
+        setActionReason("");
+        fetchClient();
+      } else {
+        alert(data.error || "Failed to ban client");
+      }
+    } catch (error) {
+      console.error("Ban error:", error);
+      alert(getErrorMessage(error, "Failed to ban client"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/adminpanel/users/${id}/activate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        alert("Client activated successfully");
+        setShowActivateModal(false);
+        fetchClient();
+      } else {
+        alert(data.error || "Failed to activate client");
+      }
+    } catch (error) {
+      console.error("Activate error:", error);
+      alert(getErrorMessage(error, "Failed to activate client"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteConfirmText !== "DELETE") {
+      alert('Please type "DELETE" to confirm');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/adminpanel/users/${id}/delete`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        alert("Client deleted successfully");
+        router.push("/admin/users/clients");
+      } else {
+        alert(data.error || "Failed to delete client");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert(getErrorMessage(error, "Failed to delete client"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<
@@ -255,58 +390,56 @@ export default function ClientDetailPage() {
 
               {/* Account Action Buttons */}
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={async () => {
-                    if (!confirm('Are you sure you want to suspend this client?')) return;
-                    setActionLoading(true);
-                    try {
-                      const res = await fetch(`${API_BASE}/api/adminpanel/users/${id}/suspend`, {
-                        method: 'POST',
-                        credentials: 'include',
-                      });
-                      if (res.ok) {
-                        alert('Client suspended successfully');
-                        window.location.reload();
-                      } else {
-                        alert('Failed to suspend client');
-                      }
-                    } catch (e) {
-                      alert('Error suspending client');
+                {!client.is_banned && (
+                  <Button
+                    variant={client.is_suspended ? "default" : "outline"}
+                    size="sm"
+                    onClick={() =>
+                      client.is_suspended
+                        ? setShowActivateModal(true)
+                        : setShowSuspendModal(true)
                     }
-                    setActionLoading(false);
-                  }}
-                  disabled={actionLoading}
-                >
-                  <Clock className="h-3 w-3 mr-1" />
-                  Suspend
-                </Button>
-                <Button 
-                  variant="destructive" 
+                  >
+                    {client.is_suspended ? (
+                      <>
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Unsuspend
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-3 w-3 mr-1" />
+                        Suspend
+                      </>
+                    )}
+                  </Button>
+                )}
+                {!client.is_suspended && !client.is_banned && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowBanModal(true)}
+                  >
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Ban
+                  </Button>
+                )}
+                {client.is_banned && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => setShowActivateModal(true)}
+                  >
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Unban
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
                   size="sm"
-                  onClick={async () => {
-                    if (!confirm('Are you sure you want to DELETE this client? This action cannot be undone.')) return;
-                    setActionLoading(true);
-                    try {
-                      const res = await fetch(`${API_BASE}/api/adminpanel/users/${id}`, {
-                        method: 'DELETE',
-                        credentials: 'include',
-                      });
-                      if (res.ok) {
-                        alert('Client deleted successfully');
-                        router.push('/admin/users/clients');
-                      } else {
-                        alert('Failed to delete client');
-                      }
-                    } catch (e) {
-                      alert('Error deleting client');
-                    }
-                    setActionLoading(false);
-                  }}
-                  disabled={actionLoading}
+                  onClick={() => setShowDeleteModal(true)}
                 >
-                  <XCircle className="h-3 w-3 mr-1" />
+                  <Trash2 className="h-3 w-3 mr-1" />
                   Delete
                 </Button>
               </div>
@@ -618,6 +751,239 @@ export default function ClientDetailPage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Modals - Outside main to overlay entire page */}
+      {/* Suspend Modal */}
+      {showSuspendModal && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Suspend Client Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  This will temporarily suspend the client&apos;s account. They
+                  won&apos;t be able to post jobs or access services.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason for Suspension *
+                  </label>
+                  <textarea
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    rows={3}
+                    placeholder="Enter reason for suspension..."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSuspendModal(false);
+                  setActionReason("");
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSuspend}
+                disabled={actionLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Suspending...
+                  </>
+                ) : (
+                  "Confirm Suspension"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ban Modal */}
+      {showBanModal && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-red-600">
+                  Ban Client Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  ⚠️ <strong>PERMANENT ACTION:</strong> This will permanently
+                  ban the client&apos;s account. They will lose all access to
+                  the platform.
+                </p>
+                <p className="text-sm text-gray-600 mb-4">
+                  This action cannot be easily reversed.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason for Ban *
+                  </label>
+                  <textarea
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    rows={3}
+                    placeholder="Enter reason for permanent ban..."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBanModal(false);
+                  setActionReason("");
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBan}
+                disabled={actionLoading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Banning...
+                  </>
+                ) : (
+                  "Confirm Ban"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activate Modal */}
+      {showActivateModal && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-green-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  {client?.is_banned ? "Unban" : "Unsuspend"} Client Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  This will reactivate the client&apos;s account and restore
+                  full access to the platform.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowActivateModal(false)}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleActivate}
+                disabled={actionLoading}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {client?.is_banned ? "Unbanning..." : "Unsuspending..."}
+                  </>
+                ) : client?.is_banned ? (
+                  "Confirm Unban"
+                ) : (
+                  "Confirm Unsuspend"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-red-600">
+                  Delete Client Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  🚨 <strong>IRREVERSIBLE ACTION:</strong> This will permanently
+                  delete all client data including:
+                </p>
+                <ul className="text-sm text-gray-600 mb-4 ml-6 list-disc">
+                  <li>Profile information</li>
+                  <li>Job history & postings</li>
+                  <li>Transaction records</li>
+                  <li>Reviews and ratings</li>
+                </ul>
+                <p className="text-sm font-semibold text-red-600 mb-4">
+                  This action CANNOT be undone.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Type <strong>DELETE</strong> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Type DELETE"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText("");
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={actionLoading || deleteConfirmText !== "DELETE"}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Permanently"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

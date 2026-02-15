@@ -80,6 +80,8 @@ interface Agency {
   job_stats: JobStats;
   rating: number;
   review_count: number;
+  is_suspended: boolean;
+  is_banned: boolean;
 }
 
 export default function AgencyDetailPage() {
@@ -372,22 +374,50 @@ export default function AgencyDetailPage() {
 
               {/* Account Action Buttons */}
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSuspendModal(true)}
-                >
-                  <Clock className="h-3 w-3 mr-1" />
-                  Suspend
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowBanModal(true)}
-                >
-                  <XCircle className="h-3 w-3 mr-1" />
-                  Ban
-                </Button>
+                {!agency.is_banned && (
+                  <Button
+                    variant={agency.is_suspended ? "default" : "outline"}
+                    size="sm"
+                    onClick={() =>
+                      agency.is_suspended
+                        ? setShowActivateModal(true)
+                        : setShowSuspendModal(true)
+                    }
+                  >
+                    {agency.is_suspended ? (
+                      <>
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Unsuspend
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-3 w-3 mr-1" />
+                        Suspend
+                      </>
+                    )}
+                  </Button>
+                )}
+                {!agency.is_suspended && !agency.is_banned && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowBanModal(true)}
+                  >
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Ban
+                  </Button>
+                )}
+                {agency.is_banned && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => setShowActivateModal(true)}
+                  >
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Unban
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -877,7 +907,7 @@ export default function AgencyDetailPage() {
                 <AlertCircle className="h-6 w-6 text-green-500 flex-shrink-0 mt-1" />
                 <div>
                   <h3 className="text-lg font-semibold mb-2">
-                    Activate Agency Account
+                    {agency?.is_banned ? "Unban" : "Unsuspend"} Agency Account
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
                     This will reactivate the agency&apos;s account and restore
@@ -901,10 +931,12 @@ export default function AgencyDetailPage() {
                   {actionLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Activating...
+                      {agency?.is_banned ? "Unbanning..." : "Unsuspending..."}
                     </>
+                  ) : agency?.is_banned ? (
+                    "Confirm Unban"
                   ) : (
-                    "Confirm Activation"
+                    "Confirm Unsuspend"
                   )}
                 </Button>
               </div>
