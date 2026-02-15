@@ -59,6 +59,8 @@ export default function FinalPaymentScreen() {
   const insufficientBalance =
     walletBalance && walletBalance.balance < totalAmount;
 
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleProceed = () => {
     if (!selectedMethod) {
       Alert.alert(
@@ -84,18 +86,48 @@ export default function FinalPaymentScreen() {
       return;
     }
 
-    // Navigate to appropriate payment screen
     switch (selectedMethod) {
       case "wallet":
-        router.push({
-          pathname: "/payments/wallet" as any,
-          params: {
-            jobId: jobId.toString(),
-            budget: budget.toString(),
-            title: jobTitle,
-            paymentType: "final",
-          },
-        });
+        Alert.alert(
+          "Confirm Payment",
+          `Pay ₱${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} from your wallet?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Confirm",
+              onPress: () => {
+                setIsProcessing(true);
+                createFinalPaymentMutation.mutate(
+                  {
+                    jobId,
+                    amount: totalAmount,
+                    paymentMethod: "wallet",
+                  },
+                  {
+                    onSuccess: () => {
+                      setIsProcessing(false);
+                      refetchBalance();
+                      Alert.alert(
+                        "Payment Successful",
+                        "Final payment processed successfully.",
+                        [
+                          {
+                            text: "View Status",
+                            onPress: () =>
+                              router.push(`/payments/status?jobId=${jobId}` as any),
+                          },
+                        ],
+                      );
+                    },
+                    onError: () => {
+                      setIsProcessing(false);
+                    },
+                  },
+                );
+              },
+            },
+          ],
+        );
         break;
       case "cash":
         router.push({
@@ -297,6 +329,7 @@ export default function FinalPaymentScreen() {
           ]}
           onPress={handleProceed}
           disabled={
+            isProcessing ||
             !selectedMethod ||
             (selectedMethod === "wallet" && insufficientBalance)
           }

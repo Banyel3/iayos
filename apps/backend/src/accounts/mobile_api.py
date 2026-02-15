@@ -6039,6 +6039,22 @@ def mobile_create_final_payment(request):
                     relatedJobPosting=job,
                     paymentMethod='WALLET'
                 )
+        elif payment_method == 'CASH':
+            # Cash is handled outside the app — create a pending transaction for auditing
+            wallet, _ = Wallet.objects.get_or_create(
+                accountFK=request.auth,
+                defaults={'balance': Decimal('0.00')}
+            )
+            Transaction.objects.create(
+                walletID=wallet,
+                transactionType='PAYMENT',
+                amount=final_amount,
+                balanceAfter=wallet.balance,
+                status='PENDING',
+                description=f"Final cash payment for job: {job.title} (pending admin verification)",
+                relatedJobPosting=job,
+                paymentMethod='CASH'
+            )
         
         # Update job payment status
         job.remainingPaymentPaid = True
