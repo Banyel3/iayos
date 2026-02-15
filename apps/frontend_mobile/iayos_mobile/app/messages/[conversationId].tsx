@@ -1335,15 +1335,17 @@ export default function ChatScreen() {
                   size={16}
                   color={Colors.primary}
                 />
-                {/* Job Completed Status - Compact green text */}
-                {isConversationClosed && !hasApprovedBackjob && (
-                  <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 12, marginLeft: 6 }}>
-                    Job Completed Successfully
+                <View style={{ flex: 1, marginLeft: 6 }}>
+                  {/* Job Completed Status - Compact green text */}
+                  {isConversationClosed && !hasApprovedBackjob && (
+                    <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 11, marginBottom: 2 }}>
+                      Job Completed Successfully
+                    </Text>
+                  )}
+                  <Text style={styles.jobTitle} numberOfLines={1}>
+                    {conversation.job.title}
                   </Text>
-                )}
-                <Text style={styles.jobTitle} numberOfLines={1}>
-                  {conversation.job.title}
-                </Text>
+                </View>
               </View>
               <View style={styles.jobMeta}>
                 <Text style={styles.jobBudget}>
