@@ -1420,16 +1420,17 @@ export default function ChatScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+          </View>
 
-            {/* View Receipt Button */}
-            {conversation.job.status === "COMPLETED" && (
+          {/* View Receipt Button - Below Review Button */}
+          {conversation.job.status === "COMPLETED" && (
+            <View style={{ paddingHorizontal: Spacing.lg, marginTop: 8 }}>
               <TouchableOpacity
                 style={{
                   backgroundColor: "#FFFFFF",
                   paddingHorizontal: 12,
                   paddingVertical: 6,
                   borderRadius: 8,
-                  marginLeft: 12,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 6,
@@ -1437,6 +1438,7 @@ export default function ChatScreen() {
                   borderColor: conversation.job.paymentBuffer?.is_payment_released
                     ? Colors.success
                     : Colors.primary,
+                  alignSelf: "flex-start",
                 }}
                 onPress={() => setShowReceiptModal(true)}
               >
@@ -1465,8 +1467,8 @@ export default function ChatScreen() {
                   View Receipt
                 </Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Action Buttons (replaces role banner) */}
           {conversation.job.status === "IN_PROGRESS" &&
