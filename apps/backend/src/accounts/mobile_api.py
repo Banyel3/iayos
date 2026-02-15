@@ -3702,7 +3702,6 @@ def get_mobile_config(request):
     return {
         "testing": getattr(settings, 'TESTING', False),
         "features": {
-            "gcash_direct_deposit": getattr(settings, 'TESTING', False),  # TODO: REMOVE FOR PROD
             "qrph_deposit": True,
             "auto_withdraw": True,
         },
@@ -3720,96 +3719,6 @@ def get_mobile_config(request):
             "download_url": download_url,
         }
     }
-
-
-# TODO: REMOVE FOR PROD - Testing only direct deposit (bypasses PayMongo)
-@mobile_router.post("/wallet/deposit-gcash", auth=jwt_auth)
-@require_kyc
-def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
-    """
-    TODO: REMOVE FOR PROD - Testing only
-    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely)
-    Directly credits wallet balance without any payment gateway validation.
-    Only available when TESTING=true in environment.
-    """
-    from django.conf import settings
-    
-    # Check if testing mode is enabled
-    if not getattr(settings, 'TESTING', False):
-        return Response(
-            {"error": "Direct deposit is only available in testing mode"},
-            status=404
-        )
-    
-    try:
-        from .models import Wallet, Transaction, Profile
-        from decimal import Decimal
-        from django.utils import timezone
-        
-        amount = payload.amount
-        payment_method = "DIRECT_TEST"
-
-        print(f"📥 [Mobile] Direct Deposit request (TESTING): ₱{amount} from {request.auth.email}")
-        
-        if amount <= 0:
-            return Response(
-                {"error": "Amount must be greater than 0"},
-                status=400
-            )
-        
-        if amount > 100000:
-            return Response(
-                {"error": "Maximum deposit is ₱100,000"},
-                status=400
-            )
-        
-        # Get or create wallet
-        wallet, created = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00')}
-        )
-        
-        # Calculate new balance
-        old_balance = wallet.balance
-        new_balance = old_balance + Decimal(str(amount))
-        
-        # Update wallet balance immediately
-        wallet.balance = new_balance
-        wallet.save()
-        
-        # Create COMPLETED transaction (no pending state needed)
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType=Transaction.TransactionType.DEPOSIT,
-            amount=Decimal(str(amount)),
-            balanceAfter=new_balance,
-            status=Transaction.TransactionStatus.COMPLETED,
-            description=f"Direct Test Deposit - ₱{amount}",
-            paymentMethod=payment_method,
-            completedAt=timezone.now(),
-        )
-        
-        print(f"✅ [Mobile] Direct deposit completed (TESTING): ₱{amount} → New balance: ₱{new_balance}")
-        
-        return {
-            "success": True,
-            "transaction_id": transaction.transactionID,
-            "amount": amount,
-            "new_balance": float(new_balance),
-            "provider": "direct_test",
-            "method": "direct_test",
-            "status": "completed",
-            "message": f"Test deposit of ₱{amount} added to your wallet instantly!"
-        }
-        
-    except Exception as e:
-        print(f"❌ [Mobile] Error with direct deposit: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response(
-            {"error": "Failed to process direct deposit"},
-            status=500
-        )
 
 
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
@@ -4075,7 +3984,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             
             print(f"📄 Manual withdrawal request created: {withdrawal_request_id}")
             print(f"📊 Status: PENDING (requires admin approval)")
-            print(f"   Recipient: {payment_method.accountName} ({payment_method.accountNumber})")
+            print(f"   Recipient: {payment_method.accountName} (***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'})")
             print(f"   Method: {payment_method.methodType}")
             if payment_method.methodType == 'BANK' and payment_method.bankName:
                 print(f"   Bank: {payment_method.bankName}")
@@ -6382,11 +6291,18 @@ def cleanup_maestro_test_data(request):
     - Saved jobs from test users (worker.test@iayos.com, client.test@iayos.com)
     - Job applications from test users
     
-    SECURITY: Only works in non-production environments.
+    SECURITY: Only works when TESTING=true and in non-production environments.
     """
     import os
     from django.conf import settings
     from django.db import transaction as db_transaction
+    
+    # Gate behind TESTING flag
+    if not getattr(settings, 'TESTING', False):
+        return Response(
+            {"error": "Test cleanup only available when TESTING=true"},
+            status=403
+        )
     
     # Safety check - only allow in non-production
     env = os.environ.get('DJANGO_ENV', 'development')
