@@ -560,13 +560,13 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             total_budget = Decimal(str(data.budget))
             downpayment = total_budget * Decimal('0.5')  # 50% escrow
             remaining_payment = total_budget * Decimal('0.5')  # 50% at completion
-            platform_fee = total_budget * Decimal('0.05')  # 5% platform fee
+            platform_fee = total_budget * settings.PLATFORM_FEE_RATE  # 10% platform fee
             total_to_charge = downpayment + platform_fee
             
             print(f"💰 PROJECT Payment breakdown:")
             print(f"   Total Budget: ₱{total_budget}")
             print(f"   Downpayment (50%): ₱{downpayment}")
-            print(f"   Platform Fee (5%): ₱{platform_fee}")
+            print(f"   Platform Fee (10%): ₱{platform_fee}")
             print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
             print(f"   Remaining (50%): ₱{remaining_payment}")
             print(f"   Total Client Pays: ₱{total_budget + platform_fee}")
@@ -6252,9 +6252,8 @@ def get_job_receipt(request, job_id: int):
         budget = Decimal(str(job.budget))
         escrow_amount = budget * Decimal('0.5')  # 50% downpayment
         
-        # Platform fee: 10% for regular jobs, 5% for team jobs
-        platform_fee_rate = Decimal('0.05') if job.is_team_job else Decimal('0.10')
-        platform_fee = budget * platform_fee_rate
+        # Platform fee: 10% for all jobs
+        platform_fee = budget * settings.PLATFORM_FEE_RATE
         
         # Worker receives full budget (client pays budget + fee)
         worker_earnings = budget

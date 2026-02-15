@@ -86,6 +86,15 @@ if not ALLOWED_HOSTS:
 
 
 # ============================================================================
+# PLATFORM FEE CONFIGURATION
+# ============================================================================
+# Single source of truth for platform fee percentage.
+# Applied to the TOTAL job budget. Client pays budget + fee.
+# e.g. ₱1000 budget → ₱100 fee → client pays ₱1100, worker gets ₱1000.
+from decimal import Decimal
+PLATFORM_FEE_RATE = Decimal('0.10')  # 10% of total budget
+
+# ============================================================================
 # FILE UPLOAD LIMITS
 # ============================================================================
 # Allow up to 15MB for KYC document uploads (phone cameras produce large images)

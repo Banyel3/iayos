@@ -43,7 +43,7 @@ export default function PlatformSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<PlatformSettings>({
-    platform_fee_percentage: 5,
+    platform_fee_percentage: 10,
     escrow_holding_days: 7,
     max_job_budget: 100000,
     min_job_budget: 100,
@@ -197,7 +197,7 @@ export default function PlatformSettingsPage() {
     }
 
     const defaults: PlatformSettings = {
-      platform_fee_percentage: 5,
+      platform_fee_percentage: 10,
       escrow_holding_days: 7,
       max_job_budget: 100000,
       min_job_budget: 100,

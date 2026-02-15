@@ -44,10 +44,10 @@ export default function FinalPaymentScreen() {
   const { data: paymentStatus } = useJobPaymentStatus(jobId);
   const createFinalPaymentMutation = useCreateFinalPayment();
 
-  // Calculate final payment (remaining 50% + 10% fee on that 50%)
+  // Calculate final payment (remaining 50% + 10% fee on the remaining 50%)
   // Worker receives full budget, client pays platform fee on top
   const halfBudget = budget / 2; // 50% to worker
-  const platformFee = halfBudget * 0.1; // 10% of the 50% (5% of total budget)
+  const platformFee = halfBudget * 0.2; // 10% of total budget = 20% of the half
   const totalAmount = halfBudget + platformFee; // Total client pays
 
   const paymentBreakdown = {
@@ -167,7 +167,7 @@ export default function FinalPaymentScreen() {
             </Text>
           </View>
           <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Platform Fee (5%)</Text>
+            <Text style={styles.breakdownLabel}>Platform Fee (10%)</Text>
             <Text style={styles.breakdownValue}>
               ₱
               {platformFee.toLocaleString("en-US", {
