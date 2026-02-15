@@ -3702,6 +3702,7 @@ def get_mobile_config(request):
     return {
         "testing": getattr(settings, 'TESTING', False),
         "features": {
+            "gcash_direct_deposit": getattr(settings, 'TESTING', False),  # TODO: REMOVE FOR PROD
             "qrph_deposit": True,
             "auto_withdraw": True,
         },
@@ -3719,6 +3720,91 @@ def get_mobile_config(request):
             "download_url": download_url,
         }
     }
+
+
+# TODO: REMOVE FOR PROD - Testing only direct deposit (bypasses PayMongo)
+@mobile_router.post("/wallet/deposit-gcash", auth=jwt_auth)
+@require_kyc
+def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
+    """
+    TODO: REMOVE FOR PROD - Testing only
+    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely).
+    Directly credits wallet balance without any payment gateway validation.
+    Only available when TESTING=true in environment.
+    """
+    from django.conf import settings
+
+    # Check if testing mode is enabled
+    if not getattr(settings, 'TESTING', False):
+        return Response(
+            {"error": "Direct deposit is only available in testing mode"},
+            status=404
+        )
+
+    try:
+        from .models import Wallet, Transaction, Profile
+        from decimal import Decimal
+        from django.utils import timezone
+
+        amount = payload.amount
+        payment_method = "DIRECT_TEST"
+
+        if amount <= 0:
+            return Response(
+                {"error": "Amount must be greater than 0"},
+                status=400
+            )
+
+        if amount > 100000:
+            return Response(
+                {"error": "Maximum deposit is \u20b1100,000"},
+                status=400
+            )
+
+        # Get or create wallet
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00')}
+        )
+
+        # Calculate new balance
+        old_balance = wallet.balance
+        new_balance = old_balance + Decimal(str(amount))
+
+        # Update wallet balance immediately
+        wallet.balance = new_balance
+        wallet.save()
+
+        # Create COMPLETED transaction (no pending state needed)
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType=Transaction.TransactionType.DEPOSIT,
+            amount=Decimal(str(amount)),
+            balanceAfter=new_balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f"Direct Test Deposit - \u20b1{amount}",
+            paymentMethod=payment_method,
+            completedAt=timezone.now(),
+        )
+
+        return {
+            "success": True,
+            "transaction_id": transaction.transactionID,
+            "amount": amount,
+            "new_balance": float(new_balance),
+            "provider": "direct_test",
+            "method": "direct_test",
+            "status": "completed",
+            "message": f"Test deposit of \u20b1{amount} added to your wallet instantly!"
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to process direct deposit"},
+            status=500
+        )
 
 
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
