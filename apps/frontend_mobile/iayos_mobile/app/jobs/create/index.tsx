@@ -708,8 +708,10 @@ export default function CreateJobScreen() {
         : [])
     ];
 
+    // Deduplicate materials to avoid sending duplicates to backend
     if (combinedMaterials.length > 0) {
-      jobData.materials_needed = combinedMaterials;
+      const uniqueMaterials = Array.from(new Set(combinedMaterials));
+      jobData.materials_needed = uniqueMaterials;
     }
 
     // Add payment model specific fields
@@ -736,7 +738,8 @@ export default function CreateJobScreen() {
     if (skillSlots.length > 0) {
       jobData.skill_slots = skillSlots.map(slot => ({
         ...slot,
-        skill_level_required: skillLevel // Apply global skill level to all slots
+        // Preserve per-slot skill level if set; otherwise fall back to global skillLevel
+        skill_level_required: slot.skill_level_required ?? skillLevel
       }));
     }
 

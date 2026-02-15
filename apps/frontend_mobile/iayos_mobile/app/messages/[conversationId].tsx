@@ -56,6 +56,7 @@ import {
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
+import { AGORA_AVAILABLE } from "../../lib/services/agora";
 import {
   useWorkerCheckIn,
   useWorkerCheckOut,
@@ -1284,6 +1285,14 @@ export default function ChatScreen() {
           {!isConversationClosed && !conversation.is_team_job && (
             <TouchableOpacity
               onPress={() => {
+                if (!AGORA_AVAILABLE) {
+                  Alert.alert(
+                    "Voice Calling Unavailable",
+                    "Voice calling is temporarily disabled in this version. Please use text messaging. Voice calls will be available in the production app.",
+                    [{ text: "OK" }]
+                  );
+                  return;
+                }
                 const recipientName =
                   conversation.other_participant?.name || "Unknown";
                 initiateCall(conversationId, recipientName);
@@ -2934,6 +2943,15 @@ export default function ChatScreen() {
                       <View style={styles.reviewSection}>
                         <Text style={styles.reviewSectionTitle}>Your Review</Text>
                         {(() => {
+                          // Add null safety check for conversation
+                          if (!conversation) {
+                            return (
+                              <View style={styles.reviewCard}>
+                                <Text style={styles.reviewCardSubtitle}>Conversation data not available</Text>
+                              </View>
+                            );
+                          }
+
                           const myReview = conversation.my_role === "CLIENT"
                             ? conversation.client_review
                             : conversation.worker_review;
@@ -3001,16 +3019,25 @@ export default function ChatScreen() {
                       {/* Other Party's Review Section */}
                       <View style={[styles.reviewSection, { marginTop: Spacing.lg }]}>
                         <Text style={styles.reviewSectionTitle}>
-                          {conversation.my_role === "CLIENT" ? "Worker's" : "Client's"} Review
+                          {conversation?.my_role === "CLIENT" ? "Worker's" : "Client's"} Review
                         </Text>
                         {(() => {
+                          // Add null safety check for conversation
+                          if (!conversation) {
+                            return (
+                              <View style={styles.reviewCard}>
+                                <Text style={styles.reviewCardSubtitle}>Conversation data not available</Text>
+                              </View>
+                            );
+                          }
+
                           const otherReview = conversation.my_role === "CLIENT"
                             ? conversation.worker_review
                             : conversation.client_review;
 
                           const hasReviewed = conversation.my_role === "CLIENT"
-                            ? conversation.job.workerReviewed
-                            : conversation.job.clientReviewed;
+                            ? conversation.job?.workerReviewed
+                            : conversation.job?.clientReviewed;
 
                           if (!hasReviewed) {
                             return (
@@ -3395,18 +3422,18 @@ export default function ChatScreen() {
                               {[1, 2, 3, 4, 5].map((star) => (
                                 <TouchableOpacity
                                   key={star}
-                                  onPress={() => setRatingProfessionalism(star)}
+                                  onPress={() => setRatingQuality(star)}
                                   style={styles.starButtonSmall}
                                 >
                                   <Ionicons
                                     name={
-                                      star <= ratingProfessionalism
+                                      star <= ratingQuality
                                         ? "star"
                                         : "star-outline"
                                     }
                                     size={24}
                                     color={
-                                      star <= ratingProfessionalism
+                                      star <= ratingQuality
                                         ? "#FFB800"
                                         : Colors.border
                                     }
@@ -3433,18 +3460,18 @@ export default function ChatScreen() {
                               {[1, 2, 3, 4, 5].map((star) => (
                                 <TouchableOpacity
                                   key={star}
-                                  onPress={() => setRatingQuality(star)}
+                                  onPress={() => setRatingPunctuality(star)}
                                   style={styles.starButtonSmall}
                                 >
                                   <Ionicons
                                     name={
-                                      star <= ratingQuality
+                                      star <= ratingPunctuality
                                         ? "star"
                                         : "star-outline"
                                     }
                                     size={24}
                                     color={
-                                      star <= ratingQuality
+                                      star <= ratingPunctuality
                                         ? "#FFB800"
                                         : Colors.border
                                     }
@@ -3454,7 +3481,7 @@ export default function ChatScreen() {
                             </View>
                           </View>
 
-                          {/* Respect & Professionalism Rating - using ratingPunctuality state */}
+                          {/* Respect & Professionalism Rating */}
                           <View style={styles.criteriaRow}>
                             <View style={styles.criteriaLabelRow}>
                               <Text style={styles.criteriaIcon}>🤝</Text>
@@ -3469,18 +3496,18 @@ export default function ChatScreen() {
                               {[1, 2, 3, 4, 5].map((star) => (
                                 <TouchableOpacity
                                   key={star}
-                                  onPress={() => setRatingPunctuality(star)}
+                                  onPress={() => setRatingProfessionalism(star)}
                                   style={styles.starButtonSmall}
                                 >
                                   <Ionicons
                                     name={
-                                      star <= ratingPunctuality
+                                      star <= ratingProfessionalism
                                         ? "star"
                                         : "star-outline"
                                     }
                                     size={24}
                                     color={
-                                      star <= ratingPunctuality
+                                      star <= ratingProfessionalism
                                         ? "#FFB800"
                                         : Colors.border
                                     }

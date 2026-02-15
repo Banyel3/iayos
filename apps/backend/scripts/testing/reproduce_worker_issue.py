@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 import requests
 from datetime import datetime
+import os
 
-BASE_URL = 'http://localhost:8000/api'
+# Use environment variable for base URL, default to localhost for local development
+BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000/api')
 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 
 def reproduce():
     print('=' * 70)
     print(' REPRODUCING WORKER PROFILE MISSING ERROR')
+    print(f' API Base URL: {BASE_URL}')
     print('=' * 70)
 
     # 1. Register as WORKER
