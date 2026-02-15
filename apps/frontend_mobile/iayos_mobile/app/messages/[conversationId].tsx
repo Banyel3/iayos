@@ -1363,61 +1363,60 @@ export default function ChatScreen() {
             </TouchableOpacity>
 
             {/* Rate/View Reviews Button (Client, Worker & Agency) */}
-            {conversation.job.clientMarkedComplete &&
-              !isConversationClosed && (
-                <TouchableOpacity
+            {conversation.job.clientMarkedComplete && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  marginLeft: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  borderWidth: 1,
+                  borderColor: "#FBC02D",
+                }}
+                onPress={() => {
+                  // Check if user has already reviewed
+                  const hasReviewed = conversation.my_role === "CLIENT"
+                    ? (conversation.is_team_job
+                      ? conversation.all_team_workers_reviewed
+                      : conversation.job.clientReviewed)
+                    : conversation.job.workerReviewed;
+
+                  setReviewModalMode(hasReviewed ? "view" : "submit");
+                  setShowReviewModal(true);
+                }}
+              >
+                <Ionicons name="star" size={16} color="#FBC02D" />
+                <Text
                   style={{
-                    backgroundColor: "#FFFFFF",
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                    marginLeft: 12,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    borderWidth: 1,
-                    borderColor: "#FBC02D",
+                    fontSize: 12,
+                    fontWeight: "700",
+                    color: "#FBC02D",
                   }}
-                  onPress={() => {
-                    // Check if user has already reviewed
+                >
+                  {(() => {
                     const hasReviewed = conversation.my_role === "CLIENT"
                       ? (conversation.is_team_job
                         ? conversation.all_team_workers_reviewed
                         : conversation.job.clientReviewed)
                       : conversation.job.workerReviewed;
 
-                    setReviewModalMode(hasReviewed ? "view" : "submit");
-                    setShowReviewModal(true);
-                  }}
-                >
-                  <Ionicons name="star" size={16} color="#FBC02D" />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: "#FBC02D",
-                    }}
-                  >
-                    {(() => {
-                      const hasReviewed = conversation.my_role === "CLIENT"
-                        ? (conversation.is_team_job
-                          ? conversation.all_team_workers_reviewed
-                          : conversation.job.clientReviewed)
-                        : conversation.job.workerReviewed;
+                    if (hasReviewed) {
+                      return "View Reviews";
+                    }
 
-                      if (hasReviewed) {
-                        return "View Reviews";
-                      }
-
-                      return conversation.my_role === "CLIENT"
-                        ? conversation.is_agency_job
-                          ? "Rate Agency"
-                          : "Rate Worker"
-                        : "Rate Client";
-                    })()}
-                  </Text>
-                </TouchableOpacity>
-              )}
+                    return conversation.my_role === "CLIENT"
+                      ? conversation.is_agency_job
+                        ? "Rate Agency"
+                        : "Rate Worker"
+                      : "Rate Client";
+                  })()}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Action Buttons (replaces role banner) */}
