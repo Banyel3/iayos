@@ -186,25 +186,7 @@ export default function ChatScreen() {
       (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
   );
 
-  // Block hardware back button when review is needed
-  useEffect(() => {
-    if (!needsReview) return;
-    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-      Alert.alert(
-        "Review Required",
-        "Please leave a review before exiting this conversation. Your feedback helps improve the platform.",
-        [
-          {
-            text: "Leave Review",
-            onPress: () => setShowReviewModal(true),
-          },
-        ],
-        { cancelable: false },
-      );
-      return true; // Block back
-    });
-    return () => handler.remove();
-  }, [needsReview]);
+  // Block hardware back button when review is needed - REMOVED to allow users to exit freely
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -2897,48 +2879,8 @@ export default function ChatScreen() {
                       )}
                   </View>
                 ) : (
-                  // User hasn't reviewed yet - show compact banner to open modal
-                  <TouchableOpacity
-                    style={styles.leaveReviewBanner}
-                    onPress={() => setShowReviewModal(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="star" size={20} color="#FFB800" />
-                    <View style={styles.leaveReviewTextContainer}>
-                      <Text style={styles.leaveReviewTitle}>
-                        {conversation.is_team_job &&
-                          conversation.my_role === "CLIENT"
-                          ? (() => {
-                            const pending =
-                              conversation.pending_team_worker_reviews
-                                ?.length || 0;
-                            const total =
-                              conversation.team_worker_assignments?.length ||
-                              0;
-                            const reviewed = total - pending;
-                            return reviewed > 0
-                              ? `Rate workers (${reviewed}/${total} done)`
-                              : `Rate ${total} worker${total > 1 ? "s" : ""}`;
-                          })()
-                          : conversation.is_agency_job &&
-                            conversation.my_role === "CLIENT"
-                            ? reviewStep === "EMPLOYEE"
-                              ? "Rate Employee"
-                              : "Rate Agency"
-                            : `Rate ${conversation.my_role === "CLIENT" ? "Worker" : "Client"}`}
-                      </Text>
-                    </View>
-                    <View style={styles.leaveReviewBadge}>
-                      <Text style={styles.leaveReviewBadgeText}>
-                        Tap to review
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color={Colors.primary}
-                    />
-                  </TouchableOpacity>
+                  // Redundant review banner removed - use header button instead
+                  null
                 )}
 
                 {/* Team job worker review checklist - show who's been reviewed */}
