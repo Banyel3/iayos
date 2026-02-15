@@ -1323,50 +1323,51 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
-          <View style={[styles.jobHeader, { flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-start" }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-              <TouchableOpacity
-                style={{ flex: 1 }}
-                onPress={() => router.push(`/jobs/${conversation.job.id}`)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.jobInfo}>
-                  <View style={{ flex: 1 }}>
-                    {/* Job Completed Status - Compact green text */}
-                    {isConversationClosed && !hasApprovedBackjob && (
-                      <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 11, marginBottom: 2 }}>
-                        Job Completed Successfully
-                      </Text>
-                    )}
-                    <Text style={styles.jobTitle} numberOfLines={1}>
-                      {conversation.job.title}
+          <View style={[styles.jobHeader, { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }]}>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              onPress={() => router.push(`/jobs/${conversation.job.id}`)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.jobInfo}>
+                <View style={{ flex: 1 }}>
+                  {/* Job Completed Status - Compact green text */}
+                  {isConversationClosed && !hasApprovedBackjob && (
+                    <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 11, marginBottom: 2 }}>
+                      Job Completed Successfully
                     </Text>
-                  </View>
-                </View>
-                <View style={styles.jobMeta}>
-                  <Text style={styles.jobBudget}>
-                    ₱{conversation.job.budget.toLocaleString()}
+                  )}
+                  <Text style={styles.jobTitle} numberOfLines={1}>
+                    {conversation.job.title}
                   </Text>
-                  {/* ML Estimated Completion Time - Compact mode */}
-                  {(isLoading ||
-                    (conversation.job.estimatedCompletion &&
-                      conversation.job.status !== "COMPLETED")) && (
-                      <EstimatedTimeCard
-                        prediction={conversation?.job?.estimatedCompletion || null}
-                        compact={true}
-                        countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                        jobStartTime={
-                          conversation?.job?.clientConfirmedWorkStarted
-                            ? new Date().toISOString()
-                            : undefined
-                        }
-                        isLoading={isLoading}
-                      />
-                    )}
                 </View>
-              </TouchableOpacity>
+              </View>
+              <View style={styles.jobMeta}>
+                <Text style={styles.jobBudget}>
+                  ₱{conversation.job.budget.toLocaleString()}
+                </Text>
+                {/* ML Estimated Completion Time - Compact mode */}
+                {(isLoading ||
+                  (conversation.job.estimatedCompletion &&
+                    conversation.job.status !== "COMPLETED")) && (
+                    <EstimatedTimeCard
+                      prediction={conversation?.job?.estimatedCompletion || null}
+                      compact={true}
+                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                      jobStartTime={
+                        conversation?.job?.clientConfirmedWorkStarted
+                          ? new Date().toISOString()
+                          : undefined
+                      }
+                      isLoading={isLoading}
+                    />
+                  )}
+              </View>
+            </TouchableOpacity>
 
-              {/* Rate/View Reviews Button (Client, Worker & Agency) */}
+            {/* Buttons Column - stacked vertically, right-aligned */}
+            <View style={{ marginLeft: 12, alignItems: "flex-end", gap: 6 }}>
+              {/* Rate/View Reviews Button */}
               {conversation.job.clientMarkedComplete && (
                 <TouchableOpacity
                   style={{
@@ -1374,7 +1375,6 @@ export default function ChatScreen() {
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 8,
-                    marginLeft: 12,
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 6,
@@ -1382,7 +1382,6 @@ export default function ChatScreen() {
                     borderColor: "#FBC02D",
                   }}
                   onPress={() => {
-                    // Check if user has already reviewed
                     const hasReviewed = conversation.my_role === "CLIENT"
                       ? (conversation.is_team_job
                         ? conversation.all_team_workers_reviewed
@@ -1421,53 +1420,52 @@ export default function ChatScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-            </View>
 
-            {/* View Receipt Button - Below Review Button */}
-            {conversation.job.status === "COMPLETED" && (
-              <TouchableOpacity
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  marginTop: 8,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  borderWidth: 1,
-                  borderColor: conversation.job.paymentBuffer?.is_payment_released
-                    ? Colors.success
-                    : Colors.primary,
-                }}
-                onPress={() => setShowReceiptModal(true)}
-              >
-                <Ionicons
-                  name={
-                    conversation.job.paymentBuffer?.is_payment_released
-                      ? "checkmark-circle"
-                      : "receipt-outline"
-                  }
-                  size={16}
-                  color={
-                    conversation.job.paymentBuffer?.is_payment_released
-                      ? Colors.success
-                      : Colors.primary
-                  }
-                />
-                <Text
+              {/* View Receipt Button */}
+              {conversation.job.status === "COMPLETED" && (
+                <TouchableOpacity
                   style={{
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color: conversation.job.paymentBuffer?.is_payment_released
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: conversation.job.paymentBuffer?.is_payment_released
                       ? Colors.success
                       : Colors.primary,
                   }}
+                  onPress={() => setShowReceiptModal(true)}
                 >
-                  View Receipt
-                </Text>
-              </TouchableOpacity>
-            )}
+                  <Ionicons
+                    name={
+                      conversation.job.paymentBuffer?.is_payment_released
+                        ? "checkmark-circle"
+                        : "receipt-outline"
+                    }
+                    size={16}
+                    color={
+                      conversation.job.paymentBuffer?.is_payment_released
+                        ? Colors.success
+                        : Colors.primary
+                    }
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: conversation.job.paymentBuffer?.is_payment_released
+                        ? Colors.success
+                        : Colors.primary,
+                    }}
+                  >
+                    View Receipt
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Action Buttons (replaces role banner) */}
