@@ -1366,7 +1366,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
 
             {/* Buttons Column - stacked vertically, right-aligned */}
-            <View style={{ marginLeft: 12, alignItems: "flex-end", gap: 6 }}>
+            <View style={{ marginLeft: 12, alignItems: "stretch", gap: 6 }}>
               {/* Rate/View Reviews Button */}
               {conversation.job.clientMarkedComplete && (
                 <TouchableOpacity
