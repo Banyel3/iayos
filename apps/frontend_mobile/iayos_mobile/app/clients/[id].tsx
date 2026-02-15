@@ -270,6 +270,17 @@ export default function ClientDetailScreen() {
             </View>
           )}
 
+          {/* Joined Date */}
+          <View style={styles.joinedRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={14}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.joinedText}>
+              Joined {formatJoinedDate(client.joinedDate)}
+            </Text>
+          </View>
           {/* Rating */}
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={18} color="#F59E0B" />
@@ -481,7 +492,7 @@ export default function ClientDetailScreen() {
                         style={[
                           styles.paginationButton,
                           reviewsPage === reviewsData.total_pages &&
-                            styles.paginationButtonDisabled,
+                          styles.paginationButtonDisabled,
                         ]}
                         onPress={() =>
                           setReviewsPage(
@@ -520,43 +531,6 @@ export default function ClientDetailScreen() {
           )}
         </View>
 
-        {/* Contact Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Information</Text>
-          <View style={styles.card}>
-            {client.phoneNumber && (
-              <View style={styles.infoRow}>
-                <Ionicons
-                  name="call-outline"
-                  size={20}
-                  color={Colors.primary}
-                />
-                <Text style={styles.infoText}>{client.phoneNumber}</Text>
-              </View>
-            )}
-            <View style={styles.infoRow}>
-              <Ionicons name="mail-outline" size={20} color={Colors.primary} />
-              <Text style={styles.infoText}>{client.email}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Member Since Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Member Since</Text>
-          <View style={styles.card}>
-            <View style={styles.infoRow}>
-              <Ionicons
-                name="calendar-outline"
-                size={20}
-                color={Colors.primary}
-              />
-              <Text style={styles.infoText}>
-                {formatJoinedDate(client.joinedDate)}
-              </Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -627,6 +601,16 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
+  },
+  joinedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  joinedText: {
+    fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
   },
   ratingRow: {

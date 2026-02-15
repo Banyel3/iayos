@@ -450,6 +450,21 @@ export default function WorkerDetailScreen() {
                 )}
               </View>
             )}
+
+            {/* Joined Date */}
+            <View style={styles.joinedRow}>
+              <Ionicons
+                name="calendar-outline"
+                size={14}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.joinedText}>
+                Joined {new Date(data.joinedDate).toLocaleDateString("en-US", {
+                  month: "long",
+                  year: "numeric"
+                })}
+              </Text>
+            </View>
           </View>
 
           {/* Bio */}
@@ -1278,30 +1293,6 @@ export default function WorkerDetailScreen() {
             )}
           </View>
 
-          {/* Contact Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contact Information</Text>
-            {data.phoneNumber && (
-              <View style={styles.contactRow}>
-                <Ionicons name="call" size={20} color={Colors.textSecondary} />
-                <Text style={styles.contactText}>{data.phoneNumber}</Text>
-              </View>
-            )}
-            <View style={styles.contactRow}>
-              <Ionicons name="mail" size={20} color={Colors.textSecondary} />
-              <Text style={styles.contactText}>{data.email}</Text>
-            </View>
-            <View style={styles.contactRow}>
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.contactText}>
-                Joined {new Date(data.joinedDate).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
         </ScrollView>
 
         {/* Bottom Action Button */}
@@ -1357,7 +1348,7 @@ export default function WorkerDetailScreen() {
             </>
           )}
         </View>
-      </SafeAreaView>
+      </SafeAreaView >
     </>
   );
 }
@@ -1508,6 +1499,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginLeft: 4,
+  },
+  joinedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  joinedText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   statsSection: {
     flexDirection: "row",

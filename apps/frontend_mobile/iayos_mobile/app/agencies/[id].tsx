@@ -258,6 +258,18 @@ export default function AgencyDetailScreen() {
                 </Text>
               </View>
             )}
+
+            {/* Established Date */}
+            <View style={styles.establishedRow}>
+              <Ionicons
+                name="calendar-outline"
+                size={14}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.establishedText}>
+                Established {new Date(data.establishedDate).getFullYear()}
+              </Text>
+            </View>
           </View>
 
           {/* Stats Cards */}
@@ -325,31 +337,6 @@ export default function AgencyDetailScreen() {
             </View>
           )}
 
-          {/* Contact Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contact Information</Text>
-            {data.phoneNumber && (
-              <View style={styles.contactRow}>
-                <Ionicons name="call" size={20} color={Colors.textSecondary} />
-                <Text style={styles.contactText}>{data.phoneNumber}</Text>
-              </View>
-            )}
-            <View style={styles.contactRow}>
-              <Ionicons name="mail" size={20} color={Colors.textSecondary} />
-              <Text style={styles.contactText}>{data.email}</Text>
-            </View>
-            <View style={styles.contactRow}>
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.contactText}>
-                Established{" "}
-                {new Date(data.establishedDate).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
         </ScrollView>
 
         {/* Bottom Action Button */}
@@ -489,6 +476,16 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  establishedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  establishedText: {
+    fontSize: 13,
     color: Colors.textSecondary,
   },
   statsSection: {

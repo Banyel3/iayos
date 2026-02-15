@@ -197,38 +197,38 @@ export default function EditClientProfileScreen() {
         <View style={styles.formSection}>
           {/* First Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name</Text>
+            <Text style={styles.label}>First Name (Read-only)</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.firstName}
               editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>First name cannot be changed</Text>
+            <Text style={styles.helperText}>Identity verification prevents name changes</Text>
           </View>
 
           {/* Last Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name</Text>
+            <Text style={styles.label}>Last Name (Read-only)</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.lastName}
               editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>Last name cannot be changed</Text>
+            <Text style={styles.helperText}>Identity verification prevents name changes</Text>
           </View>
 
           {/* Email (Read-only) */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>Email Address (Read-only)</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.email}
               editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>Email cannot be changed</Text>
+            <Text style={styles.helperText}>Email cannot be changed for security</Text>
           </View>
 
           {/* Contact Number */}

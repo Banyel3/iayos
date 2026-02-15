@@ -20,7 +20,6 @@ import React, { useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import {
   Colors,
@@ -71,26 +70,21 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
         onPressOut={handlePressOut}
         activeOpacity={1}
       >
-        {/* Gradient accent bar at top */}
-        <LinearGradient
-          colors={["#8B5CF6", "#6366F1"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.gradientAccent}
-        />
 
         <View style={styles.cardContent}>
           {/* Agency Header */}
           <View style={styles.header}>
             {/* Agency Avatar (Generated) */}
-            <LinearGradient
-              colors={[Colors.primary, Colors.primaryDark || "#0EA5E9"]}
-              style={styles.avatar}
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: Colors.primary }
+              ]}
             >
               <Text style={styles.avatarText}>
                 {agency.name.charAt(0).toUpperCase()}
               </Text>
-            </LinearGradient>
+            </View>
 
             {/* Agency Info */}
             <View style={styles.headerInfo}>
@@ -98,13 +92,6 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
                 <Text style={styles.name} numberOfLines={1}>
                   {agency.name}
                 </Text>
-                {agency.isVerified && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={18}
-                    color={Colors.success}
-                  />
-                )}
               </View>
 
               {/* Rating */}
@@ -112,9 +99,6 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
                 <View style={styles.ratingRow}>
                   <Ionicons name="star" size={14} color={Colors.warning} />
                   <Text style={styles.ratingText}>{agency.rating.toFixed(1)}</Text>
-                  <Text style={styles.reviewCount}>
-                    ({agency.reviewCount} reviews)
-                  </Text>
                 </View>
               ) : (
                 <Text style={styles.noReviews}>No reviews yet</Text>
@@ -143,27 +127,6 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
             </View>
           )}
 
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Ionicons
-                name="briefcase-outline"
-                size={16}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.statValue}>{agency.completedJobs}</Text>
-              <Text style={styles.statLabel}>completed</Text>
-            </View>
-            {agency.activeJobs > 0 && (
-              <View style={styles.stat}>
-                <Ionicons name="time-outline" size={16} color={Colors.success} />
-                <Text style={[styles.statValue, { color: Colors.success }]}>
-                  {agency.activeJobs}
-                </Text>
-                <Text style={styles.statLabel}>active</Text>
-              </View>
-            )}
-          </View>
 
           {/* Specializations */}
           {agency.specializations && agency.specializations.length > 0 && (
@@ -184,8 +147,8 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
           )}
 
           {/* View Profile Button */}
-          <TouchableOpacity 
-            style={styles.viewButton} 
+          <TouchableOpacity
+            style={styles.viewButton}
             onPress={handlePress}
             activeOpacity={0.8}
           >
@@ -211,10 +174,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 6,
-  },
-  gradientAccent: {
-    height: 4,
-    width: "100%",
   },
   cardContent: {
     padding: Spacing.md,
@@ -319,16 +278,16 @@ const styles = StyleSheet.create({
   },
   specChip: {
     backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: BorderRadius.sm,
     marginRight: Spacing.xs,
     marginBottom: Spacing.xs,
   },
   specText: {
-    fontSize: 11,
+    fontSize: 13,
     color: Colors.primary,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   moreSpecs: {
     fontSize: 11,
