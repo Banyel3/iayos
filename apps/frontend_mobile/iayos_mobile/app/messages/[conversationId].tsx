@@ -1335,6 +1335,12 @@ export default function ChatScreen() {
                   size={16}
                   color={Colors.primary}
                 />
+                {/* Job Completed Status - Compact green text */}
+                {isConversationClosed && !hasApprovedBackjob && (
+                  <Text style={{ color: Colors.success, fontWeight: "700", fontSize: 12, marginLeft: 6 }}>
+                    Job Completed Successfully
+                  </Text>
+                )}
                 <Text style={styles.jobTitle} numberOfLines={1}>
                   {conversation.job.title}
                 </Text>
@@ -2704,26 +2710,6 @@ export default function ChatScreen() {
               </View>
             )}
 
-          {/* Both Parties Reviewed - Job Fully Complete Banner */}
-          {/* Only show when truly closed (no approved backjob) */}
-          {isConversationClosed && !hasApprovedBackjob && (
-            <View style={styles.jobCompleteBanner}>
-              <Ionicons
-                name="checkmark-circle"
-                size={28}
-                color={Colors.success}
-              />
-              <View style={styles.jobCompleteTextContainer}>
-                <Text style={styles.jobCompleteTitle}>
-                  Job Completed Successfully!
-                </Text>
-                <Text style={styles.jobCompleteSubtitle}>
-                  Both parties have reviewed each other. This conversation is
-                  now closed.
-                </Text>
-              </View>
-            </View>
-          )}
 
           {/* View Receipt Banner - Merged with Payment Buffer Info */}
           {conversation.job.status === "COMPLETED" && (
