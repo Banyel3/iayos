@@ -1789,6 +1789,44 @@ def get_conversation_messages(request, conversation_id: int):
             
             print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
 
+        # Fetch actual review data (ratings and comments) for both parties
+        client_review_data = None
+        worker_review_data = None
+        
+        if client_reviewed and client_account:
+            # Get client's review of worker/employee
+            client_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account
+            ).first()
+            
+            if client_review:
+                client_review_data = {
+                    "rating_communication": float(client_review.ratingCommunication) if client_review.ratingCommunication else 0,
+                    "rating_punctuality": float(client_review.ratingPunctuality) if client_review.ratingPunctuality else 0,
+                    "rating_professionalism": float(client_review.ratingProfessionalism) if client_review.ratingProfessionalism else 0,
+                    "rating_quality": float(client_review.ratingQuality) if client_review.ratingQuality else 0,
+                    "comment": client_review.message or "",
+                    "created_at": client_review.createdAt.isoformat() if client_review.createdAt else None,
+                }
+        
+        if worker_reviewed and worker_account:
+            # Get worker's review of client
+            worker_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=worker_account
+            ).first()
+            
+            if worker_review:
+                worker_review_data = {
+                    "rating_communication": float(worker_review.ratingCommunication) if worker_review.ratingCommunication else 0,
+                    "rating_punctuality": float(worker_review.ratingPunctuality) if worker_review.ratingPunctuality else 0,
+                    "rating_professionalism": float(worker_review.ratingProfessionalism) if worker_review.ratingProfessionalism else 0,
+                    "rating_quality": float(worker_review.ratingQuality) if worker_review.ratingQuality else 0,
+                    "comment": worker_review.message or "",
+                    "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
+                }
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1830,6 +1868,8 @@ def get_conversation_messages(request, conversation_id: int):
             "total_messages": len(formatted_messages),
             "backjob": backjob_info,
             "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
+            "client_review": client_review_data,  # Actual review data from client
+            "worker_review": worker_review_data,  # Actual review data from worker
         }
         
     except Exception as e:
