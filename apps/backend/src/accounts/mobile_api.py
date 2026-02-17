@@ -439,6 +439,7 @@ def _send_otp_email_internal(email: str):
     """
     import requests as http_requests
     from django.conf import settings
+    from .models import Accounts
     
     print(f"📧 [Mobile] Send OTP email request for: {email}")
     
@@ -545,8 +546,9 @@ def _send_otp_email_internal(email: str):
         print(f"📧 [Mobile] Using Resend URL: {resend_url}")
         response = http_requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
         print(f"📧 [Mobile] Resend API Response Status: {response.status_code}")
+        print(f"📧 [Mobile] Resend API Response Body: {response.text[:500]}")
         
-        if response.status_code == 200:
+        if response.status_code in (200, 201, 202):
             result = response.json()
             print(f"✅ [Mobile] OTP email sent successfully. ID: {result.get('id')}")
             return {
