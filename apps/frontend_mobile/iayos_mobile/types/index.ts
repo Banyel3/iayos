@@ -180,11 +180,13 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<RegistrationResponse>;
-  googleSignIn: (idToken: string, profileType?: "WORKER" | "CLIENT") => Promise<User>;
+  googleSignIn: (
+    idToken: string,
+    profileType?: "WORKER" | "CLIENT",
+  ) => Promise<User>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   assignRole: (profileType: "WORKER" | "CLIENT") => Promise<boolean>;
   switchProfile: (profileType: "WORKER" | "CLIENT") => Promise<void>;
   refreshUserData: () => Promise<void>;
 }
-

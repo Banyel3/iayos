@@ -233,7 +233,9 @@ const Login = () => {
       if (userResponse.ok) {
         const userData = await userResponse.json();
         const backendRole = (userData.role || "").toString().toUpperCase();
-        const accountType = (userData.accountType || "").toString().toLowerCase();
+        const accountType = (userData.accountType || "")
+          .toString()
+          .toLowerCase();
         if (backendRole === "WORKER" || backendRole === "CLIENT") {
           await fetch(`${API_BASE}/api/accounts/logout`, {
             method: "POST",
@@ -364,10 +366,11 @@ const Login = () => {
                               type="email"
                               autoComplete="email"
                               disabled={isLoading}
-                              className={`h-11 ${form.formState.errors.email
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                : ""
-                                }`}
+                              className={`h-11 ${
+                                form.formState.errors.email
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                  : ""
+                              }`}
                               {...field}
                             />
                           </FormControl>
@@ -390,10 +393,11 @@ const Login = () => {
                                 placeholder="Enter your password"
                                 autoComplete="current-password"
                                 disabled={isLoading}
-                                className={`h-11 pr-10 ${form.formState.errors.password
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                  : ""
-                                  }`}
+                                className={`h-11 pr-10 ${
+                                  form.formState.errors.password
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                    : ""
+                                }`}
                                 {...field}
                               />
                               <button
@@ -518,7 +522,10 @@ const Login = () => {
                     className="h-50 w-auto mx-auto mb-6"
                   />
                   <h1 className="text-3xl font-bold mb-4 text-slate-900">
-                    May Sira? May <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">iAyos</span>
+                    May Sira? May{" "}
+                    <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">
+                      iAyos
+                    </span>
                   </h1>
                   <div className="space-y-4 text-gray-800">
                     <div className="flex items-center space-x-3">
@@ -545,7 +552,8 @@ const Login = () => {
                     <div>
                       <p className="text-sm text-slate-900 mb-2">
                         <strong>
-                          Looking to get something done or work as a freelance worker?
+                          Looking to get something done or work as a freelance
+                          worker?
                         </strong>
                       </p>
                       {/* <p className="text-xs text-blue-700 mb-3">
@@ -632,10 +640,11 @@ const Login = () => {
                                 type="email"
                                 autoComplete="email"
                                 disabled={isLoading}
-                                className={`h-12 ${form.formState.errors.email
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                  : ""
-                                  }`}
+                                className={`h-12 ${
+                                  form.formState.errors.email
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                    : ""
+                                }`}
                                 {...field}
                               />
                             </FormControl>
@@ -659,10 +668,11 @@ const Login = () => {
                                   placeholder="Enter your password"
                                   autoComplete="current-password"
                                   disabled={isLoading}
-                                  className={`h-12 pr-10 ${form.formState.errors.password
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                    : ""
-                                    }`}
+                                  className={`h-12 pr-10 ${
+                                    form.formState.errors.password
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                      : ""
+                                  }`}
                                   {...field}
                                 />
                                 <button
