@@ -438,7 +438,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await queryClient.cancelQueries();
         queryClient.clear();
       } catch (e) {
-        console.warn("⚠️ Failed to clear React Query cache on Google sign-in:", e);
+        console.warn(
+          "⚠️ Failed to clear React Query cache on Google sign-in:",
+          e,
+        );
       }
       await AsyncStorage.multiRemove([
         "access_token",
