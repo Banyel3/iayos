@@ -1,6 +1,7 @@
 # mobile_api.py
 # Mobile-specific API endpoints optimized for Flutter app
 
+import os
 from ninja import Router
 from ninja.responses import Response
 from typing import Optional
@@ -28,6 +29,7 @@ from .schemas import (
     AddSkillSchema,
     UpdateSkillSchema,
     UpdateProfileMobileSchema,
+    GoogleIdTokenSchema,
 )
 from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -132,6 +134,158 @@ def mobile_login(request, payload: logInSchema):
             {"error": "Login failed. Please check your credentials."},
             status=500
         )
+
+
+@mobile_router.post("/auth/google")
+def mobile_google_signin(request, payload: GoogleIdTokenSchema):
+    """
+    Mobile Google Sign-In via ID token verification.
+
+    Flow:
+    1. Mobile app uses expo-auth-session to get a Google ID token
+    2. Mobile sends the ID token to this endpoint
+    3. Backend verifies the token with Google
+    4. Creates or logs in the user, returns JWT tokens
+
+    Returns tokens in JSON body (not cookies) for mobile storage.
+    """
+    import requests as http_requests
+    import json
+    from django.conf import settings as django_settings
+    from .models import Accounts, Profile, ClientProfile, WorkerProfile
+    from .services import generateCookie
+
+    id_token = payload.id_token
+    profile_type = payload.profile_type or 'CLIENT'
+
+    _log_mobile("GOOGLE_SIGNIN", step="verify_token")
+
+    # 1. Verify the ID token with Google
+    try:
+        google_verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+        verify_resp = http_requests.get(google_verify_url, timeout=10)
+
+        if verify_resp.status_code != 200:
+            _log_mobile("GOOGLE_SIGNIN", error="invalid_token", status=verify_resp.status_code)
+            return Response({"error": "Invalid Google ID token"}, status=401)
+
+        token_data = verify_resp.json()
+    except Exception as e:
+        _log_mobile("GOOGLE_SIGNIN", error=f"token_verify_failed: {e}")
+        return Response({"error": "Failed to verify Google token"}, status=500)
+
+    # 2. Validate the audience (must match our Google Client ID)
+    google_client_id = django_settings.SOCIALACCOUNT_PROVIDERS.get('google', {}).get('APP', {}).get('client_id', '')
+    # Also accept Android/iOS client IDs from env
+    allowed_client_ids = [
+        google_client_id,
+        os.getenv('GOOGLE_ANDROID_CLIENT_ID', ''),
+        os.getenv('GOOGLE_IOS_CLIENT_ID', ''),
+        os.getenv('GOOGLE_EXPO_CLIENT_ID', ''),
+    ]
+    allowed_client_ids = [cid for cid in allowed_client_ids if cid]  # Remove empty
+
+    token_aud = token_data.get('aud', '')
+    if token_aud not in allowed_client_ids:
+        _log_mobile("GOOGLE_SIGNIN", error="audience_mismatch", aud=token_aud)
+        return Response({"error": "Token audience mismatch"}, status=401)
+
+    # 3. Extract user info from the verified token
+    email = token_data.get('email')
+    email_verified = token_data.get('email_verified', 'false') == 'true'
+    first_name = token_data.get('given_name', '')
+    last_name = token_data.get('family_name', '')
+    picture = token_data.get('picture', '')
+
+    if not email:
+        return Response({"error": "No email in Google token"}, status=400)
+
+    _log_mobile("GOOGLE_SIGNIN", email=email, email_verified=str(email_verified))
+
+    # 4. Find or create the user account
+    try:
+        user = Accounts.objects.get(email=email)
+        created = False
+        _log_mobile("GOOGLE_SIGNIN", step="existing_user", user_id=user.accountID)
+    except Accounts.DoesNotExist:
+        # Create new account (Google-verified email, no password needed)
+        user = Accounts.objects.create(
+            email=email,
+            password='',  # No password for Google users
+            isVerified=True,  # Google verified the email
+        )
+        # Set first/last name if available
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        user.save()
+        created = True
+        _log_mobile("GOOGLE_SIGNIN", step="created_user", user_id=user.accountID)
+
+    # 5. Auto-verify email if not already
+    if not user.isVerified and email_verified:
+        user.isVerified = True
+        user.save(update_fields=['isVerified'])
+
+    # 6. Create Profile if user is new
+    needs_profile_completion = False
+    if not Profile.objects.filter(accountFK=user).exists():
+        profile = Profile.objects.create(
+            accountFK=user,
+            profileType=profile_type.upper(),
+            firstName=first_name,
+            lastName=last_name,
+            profileImg=picture or None,
+        )
+        _log_mobile("GOOGLE_SIGNIN", step="created_profile", profile_type=profile_type)
+
+        # Create the type-specific profile
+        if profile_type.upper() == 'WORKER':
+            WorkerProfile.objects.create(
+                profileID=profile,
+                description='',
+                totalEarningGross=0,
+                workerRating=0,
+            )
+        else:
+            ClientProfile.objects.create(
+                profileID=profile,
+                description='',
+                totalJobsPosted=0,
+                clientRating=0,
+            )
+
+        needs_profile_completion = True
+    else:
+        profile = Profile.objects.filter(accountFK=user).first()
+        if not profile.contactNum or not profile.birthDate:
+            needs_profile_completion = True
+        # Update profile picture from Google if not set
+        if not profile.profileImg and picture:
+            profile.profileImg = picture
+            profile.save(update_fields=['profileImg'])
+
+    # 7. Generate JWT tokens
+    auth_response = generateCookie(user, profile_type=profile.profileType if not created else profile_type.upper())
+    auth_data = json.loads(auth_response.content)
+
+    return {
+        'success': True,
+        'access': auth_data['access'],
+        'refresh': auth_data['refresh'],
+        'user': {
+            'accountID': user.accountID,
+            'email': user.email,
+            'isVerified': user.isVerified,
+            'firstName': first_name,
+            'lastName': last_name,
+            'profileImg': picture,
+            'profileType': profile.profileType if profile else profile_type.upper(),
+            'needs_profile_completion': needs_profile_completion,
+        },
+        'message': 'Google sign-in successful',
+    }
 
 
 @mobile_router.post("/auth/logout", auth=jwt_auth)

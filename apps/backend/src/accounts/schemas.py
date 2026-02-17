@@ -32,6 +32,10 @@ class assignRoleSchema(Schema):
 class SwitchProfileSchema(Schema):
     profile_type: str
 
+class GoogleIdTokenSchema(Schema):
+    id_token: str
+    profile_type: Optional[Literal["CLIENT", "WORKER"]] = "CLIENT"
+
 class createAgencySchema(Schema):
     email: EmailStr
     password: str

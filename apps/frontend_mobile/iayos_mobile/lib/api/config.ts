@@ -286,6 +286,7 @@ export const ENDPOINTS = {
   ME: `${API_URL}/api/mobile/auth/profile`,
   ASSIGN_ROLE: `${API_URL}/api/mobile/auth/assign-role`,
   UPDATE_PROFILE: `${API_URL}/api/mobile/profile/update`, // For client profile updates
+  GOOGLE_SIGNIN: `${API_URL}/api/mobile/auth/google`,
 
   // OTP Verification
   VERIFY_OTP_ENDPOINT: `${API_URL}/api/accounts/verify-otp`,
