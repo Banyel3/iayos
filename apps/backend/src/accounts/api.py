@@ -8,7 +8,7 @@ from .schemas import (
     KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
     UpdateLocationSchema, LocationResponseSchema,
     ToggleLocationSharingSchema, NearbyWorkersSchema,
-    DepositFundsSchema,
+    DepositFundsSchema, CompleteProfileSchema,
     # Worker Phase 1 schemas
     WorkerProfileUpdateSchema, WorkerProfileResponse, ProfileCompletionResponse,
     CertificationSchema, AddCertificationRequest, UpdateCertificationRequest, CertificationResponse,
@@ -114,31 +114,79 @@ def google_login(request):
 def google_callback(request):
     import json
     from django.http import HttpResponseRedirect
-    from .models import Profile
+    from .models import Profile, ClientProfile
     
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
     
     if not request.user.is_authenticated:
         return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_auth_failed")
     
+    # Google-verified email → auto-verify the account
+    if not request.user.isVerified:
+        request.user.isVerified = True
+        request.user.save(update_fields=['isVerified'])
+        print(f"✅ Google OAuth: Auto-verified email for {request.user.email}")
+    
+    # Capture Google profile picture from allauth social account
+    google_profile_img = None
+    try:
+        from allauth.socialaccount.models import SocialAccount
+        social_account = SocialAccount.objects.filter(user=request.user, provider='google').first()
+        if social_account and social_account.extra_data:
+            google_profile_img = social_account.extra_data.get('picture', None)
+            print(f"🖼️  Google OAuth: Captured profile picture URL for {request.user.email}")
+    except Exception as e:
+        print(f"⚠️  Google OAuth: Could not fetch profile picture: {e}")
+    
+    # Determine redirect destination
+    needs_profile_completion = False
+    
     # Create Profile for new Google OAuth users (they skip normal registration)
     if not Profile.objects.filter(accountFK=request.user).exists():
-        Profile.objects.create(
+        profile = Profile.objects.create(
             accountFK=request.user,
             profileType='CLIENT',
             firstName=getattr(request.user, 'first_name', '') or '',
             lastName=getattr(request.user, 'last_name', '') or '',
+            profileImg=google_profile_img,
+            # contactNum and birthDate are nullable — user completes profile later
         )
+        print(f"✅ Google OAuth: Created CLIENT profile for {request.user.email}")
+        
+        # Auto-create ClientProfile (matches normal registration flow)
+        ClientProfile.objects.create(
+            profileID=profile,
+            description='',
+            totalJobsPosted=0,
+            clientRating=0
+        )
+        print(f"✅ Google OAuth: Auto-created ClientProfile for {request.user.email}")
+        needs_profile_completion = True
+    else:
+        # Existing profile — check if it's incomplete
+        profile = Profile.objects.filter(accountFK=request.user).first()
+        if not profile.contactNum or not profile.birthDate:
+            needs_profile_completion = True
+        # Update profile picture from Google if not already set
+        if not profile.profileImg and google_profile_img:
+            profile.profileImg = google_profile_img
+            profile.save(update_fields=['profileImg'])
+            print(f"🖼️  Google OAuth: Updated profile picture for {request.user.email}")
     
     # Generate auth tokens via existing cookie helper
     auth_response = generateCookie(request.user)
     auth_data = json.loads(auth_response.content)
     
-    # Redirect to frontend dashboard with auth cookies set
+    # Redirect to complete-profile if missing required fields, otherwise dashboard
+    if needs_profile_completion:
+        redirect_url = f"{frontend_url}/auth/complete-profile"
+    else:
+        redirect_url = f"{frontend_url}/dashboard"
+    
     is_production = not settings.DEBUG
     cookie_domain = ".iayos.online" if is_production else None
     
-    response = HttpResponseRedirect(f"{frontend_url}/dashboard")
+    response = HttpResponseRedirect(redirect_url)
     response.set_cookie('access', auth_data['access'], httponly=True, secure=is_production, samesite='Lax', max_age=3600, domain=cookie_domain)
     response.set_cookie('refresh', auth_data['refresh'], httponly=True, secure=is_production, samesite='Lax', max_age=604800, domain=cookie_domain)
     
@@ -217,6 +265,61 @@ def get_user_profile(request):
     except Exception as e:
         print(f"❌ /me error: {str(e)}")
         return {"error": [{"message": "Failed to fetch user profile"}]}
+
+
+@router.post("/complete-profile", auth=dual_auth)  
+def complete_profile(request, payload: CompleteProfileSchema):
+    """
+    Complete profile for Google OAuth users who are missing required fields.
+    Accepts: contactNum, birthDate, and address fields.
+    """
+    from datetime import date
+    from django.utils.dateparse import parse_date
+    from .models import Profile
+    
+    try:
+        user = request.auth
+        
+        # Parse and validate birth date
+        birth_date = parse_date(payload.birthDate)
+        if not birth_date:
+            return Response({"error": "Invalid birth date format, use YYYY-MM-DD"}, status=400)
+        
+        # Age check (must be 18+)
+        today = date.today()
+        age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+        if age < 18:
+            return Response({"error": "You must be at least 18 years old"}, status=400)
+        
+        # Validate contact number
+        if not payload.contactNum or len(payload.contactNum) < 10:
+            return Response({"error": "Contact number must be at least 10 digits"}, status=400)
+        
+        # Update Profile fields
+        profile = Profile.objects.filter(accountFK=user).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        profile.contactNum = payload.contactNum
+        profile.birthDate = birth_date
+        profile.save(update_fields=['contactNum', 'birthDate'])
+        print(f"✅ complete-profile: Updated contactNum and birthDate for {user.email}")
+        
+        # Update Account address fields
+        user.street_address = payload.street_address or user.street_address
+        user.barangay = payload.barangay or user.barangay
+        user.city = payload.city or user.city
+        user.province = payload.province or user.province
+        user.postal_code = payload.postal_code or user.postal_code
+        user.save(update_fields=['street_address', 'barangay', 'city', 'province', 'postal_code'])
+        print(f"✅ complete-profile: Updated address fields for {user.email}")
+        
+        return {"success": True, "message": "Profile completed successfully"}
+    except Exception as e:
+        print(f"❌ complete-profile error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to complete profile"}, status=500)
 
 
 @router.get("/profile/metrics", auth=dual_auth)

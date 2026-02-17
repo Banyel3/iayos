@@ -86,8 +86,8 @@ class Profile(models.Model):
     firstName = models.CharField(max_length=24)
     middleName = models.CharField(max_length=24, null=True, blank=True)
     lastName = models.CharField(max_length=24)
-    contactNum = models.CharField(max_length=11)
-    birthDate = models.DateField()
+    contactNum = models.CharField(max_length=11, null=True, blank=True)
+    birthDate = models.DateField(null=True, blank=True)
 
     class ProfileType(models.TextChoices):
         WORKER = "WORKER", "Worker"

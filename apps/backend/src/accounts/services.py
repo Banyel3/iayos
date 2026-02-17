@@ -616,6 +616,7 @@ def fetch_currentUser(accountID, profile_type=None):
             print(f"   👤 Profile Data for {account.email}: Type={profile.profileType} (Raw: {repr(profile.profileType)})")
 
             # If a Profile exists we treat this as an "individual" account
+            needs_profile_completion = not profile.contactNum or not profile.birthDate
             return {
                 "accountID": account.accountID,
                 "email": account.email,
@@ -623,6 +624,7 @@ def fetch_currentUser(accountID, profile_type=None):
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
                 "accountType": "individual",
+                "needs_profile_completion": needs_profile_completion,
             }
 
         except Profile.DoesNotExist:

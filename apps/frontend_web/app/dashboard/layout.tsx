@@ -64,6 +64,12 @@ export default async function DashboardLayout({
       `[DASHBOARD LAYOUT] User: ${user?.email}, accountType=${accountType}, role=${role}, profileType=${profileType}`,
     );
 
+    // Google OAuth users with incomplete profiles must complete their profile first
+    if (user?.needs_profile_completion) {
+      console.log("[DASHBOARD LAYOUT] Redirecting to /auth/complete-profile - profile incomplete");
+      redirect("/auth/complete-profile");
+    }
+
     // Admin users should use admin dashboard
     if (role === "ADMIN") {
       console.log("[DASHBOARD LAYOUT] Redirecting ADMIN to /admin/dashboard");
