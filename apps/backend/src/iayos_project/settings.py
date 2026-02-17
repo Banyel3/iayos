@@ -407,6 +407,11 @@ RESEND_BASE_URL = "https://api.resend.com"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
+# After allauth processes the Google OAuth callback, redirect to our custom
+# Ninja endpoint that creates the Profile, generates JWT cookies, and redirects
+# to the frontend. Without this, allauth defaults to /accounts/profile/ (404).
+LOGIN_REDIRECT_URL = "/api/accounts/auth/google/callback"
+
 # Import custom Supabase adapter for new secret API keys
 from iayos_project.supabase_adapter import create_supabase_client
 

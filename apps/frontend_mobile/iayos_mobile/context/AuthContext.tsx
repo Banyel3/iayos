@@ -427,6 +427,99 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Google Sign-In: send ID token to backend, receive JWT
+  const googleSignIn = async (
+    idToken: string,
+    profileType: "WORKER" | "CLIENT" = "CLIENT",
+  ): Promise<User> => {
+    try {
+      // Clear previous session
+      try {
+        await queryClient.cancelQueries();
+        queryClient.clear();
+      } catch (e) {
+        console.warn("⚠️ Failed to clear React Query cache on Google sign-in:", e);
+      }
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
+      setUser(null);
+
+      await preflightBackendReachability("googleSignIn");
+
+      console.log("🔐 [GOOGLE] Sending ID token to backend...");
+      const response = await apiRequest(ENDPOINTS.GOOGLE_SIGNIN, {
+        method: "POST",
+        body: JSON.stringify({ id_token: idToken, profile_type: profileType }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const errorMessage = getErrorMessage(
+          errorBody,
+          "Google sign-in failed",
+        );
+        console.error("❌ [GOOGLE] Sign-in failed:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log("✅ [GOOGLE] Backend response received");
+
+      const token =
+        data?.access ||
+        data?.access_token ||
+        data?.data?.access ||
+        data?.data?.access_token ||
+        null;
+
+      if (!token) {
+        console.error("❌ [GOOGLE] No access token in response:", data);
+        throw new Error("No access token received from Google sign-in");
+      }
+
+      await AsyncStorage.setItem("access_token", token);
+      console.log("✅ [GOOGLE] Access token stored");
+
+      // Fetch user data
+      const userDataResponse = await apiRequest(ENDPOINTS.ME);
+
+      if (userDataResponse.ok) {
+        const userData = await userDataResponse.json();
+        setUser(userData);
+
+        await AsyncStorage.setItem(
+          "cached_user",
+          JSON.stringify({
+            user: userData,
+            timestamp: Date.now(),
+          }),
+        );
+
+        console.log("✅ [GOOGLE] User signed in:", userData?.email);
+        return userData;
+      } else {
+        setUser(null);
+        await AsyncStorage.multiRemove([
+          "access_token",
+          "cached_user",
+          "cached_worker_availability",
+        ]);
+        throw new Error("Failed to fetch user data after Google sign-in");
+      }
+    } catch (error) {
+      setUser(null);
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
+      throw error;
+    }
+  };
+
   // Assign role (WORKER or CLIENT)
   const assignRole = async (
     profileType: "WORKER" | "CLIENT",
@@ -743,6 +836,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       login,
       register,
+      googleSignIn,
       logout,
       checkAuth,
       assignRole,
@@ -755,6 +849,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       login,
       register,
+      googleSignIn,
       logout,
       checkAuth,
       assignRole,
