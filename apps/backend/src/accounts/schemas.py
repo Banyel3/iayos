@@ -53,6 +53,16 @@ class resetPasswordSchema(Schema):
     newPassword: str
     confirmPassword: str
 
+class CompleteProfileSchema(Schema):
+    """Schema for completing profile after Google OAuth signup"""
+    contactNum: str
+    birthDate: str  # YYYY-MM-DD format
+    street_address: str = ""
+    barangay: str = ""
+    city: str = ""
+    province: str = ""
+    postal_code: str = ""
+
 class SendVerificationEmailSchema(Schema):
     email: EmailStr
     verifyLink: str
