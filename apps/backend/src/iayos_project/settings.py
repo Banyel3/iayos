@@ -100,6 +100,17 @@ PLATFORM_FEE_RATE = Decimal('0.10')  # 10% of total budget
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 
+# ============================================================================
+# PROXY / SSL SETTINGS
+# ============================================================================
+# DigitalOcean App Platform (and most PaaS) terminates SSL at the load balancer
+# and forwards requests via HTTP internally. Django must trust the
+# X-Forwarded-Proto header so it constructs https:// URLs (critical for
+# allauth OAuth redirect_uri and CSRF checks).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Tell allauth to always generate https callback URLs in production
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https' if not DEBUG else 'http'
 
 # Application definition
 
