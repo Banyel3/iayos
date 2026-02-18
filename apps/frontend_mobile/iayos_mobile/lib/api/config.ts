@@ -603,6 +603,8 @@ export const ENDPOINTS = {
   // ML/AI Prediction Endpoints
   // Price prediction for job creation - returns min/suggested/max price range
   PREDICT_PRICE: `${API_URL}/api/ml/predict-price`,
+  // Job field suggestions mined from completed jobs database
+  JOB_SUGGESTIONS: `${API_URL}/api/ml/job-suggestions`,
   // Worker profile score for improvement suggestions (worker's own profile only)
   WORKER_PROFILE_SCORE: (workerId: number) =>
     `${API_URL}/api/ml/worker-rating-for-profile/${workerId}`,

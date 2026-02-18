@@ -45,7 +45,10 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
 import { usePricePrediction } from "@/lib/hooks/usePricePrediction";
+import { useJobSuggestions } from "@/lib/hooks/useJobSuggestions";
+import type { JobSuggestion } from "@/lib/hooks/useJobSuggestions";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
+import SuggestionBubbles from "@/components/SuggestionBubbles";
 import SearchBar from "@/components/ui/SearchBar";
 
 interface Category {
@@ -237,6 +240,96 @@ export default function CreateJobScreen() {
 
   // Debounce timer ref for price prediction
   const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Database-driven job field suggestions
+  const {
+    mutate: fetchSuggestions,
+  } = useJobSuggestions();
+
+  // Suggestion state per field
+  const [titleSuggestions, setTitleSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [descriptionSuggestions, setDescriptionSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [materialSuggestions, setMaterialSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [durationSuggestions, setDurationSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [loadingSuggestionFields, setLoadingSuggestionFields] = React.useState<Set<string>>(new Set());
+
+  // Fetch all suggestion fields when category changes
+  React.useEffect(() => {
+    if (!effectiveCategoryId) {
+      setTitleSuggestions([]);
+      setDescriptionSuggestions([]);
+      setMaterialSuggestions([]);
+      setDurationSuggestions([]);
+      return;
+    }
+
+    // Fetch title suggestions
+    setLoadingSuggestionFields(new Set(["title", "description", "materials", "duration"]));
+    fetchSuggestions(
+      { category_id: effectiveCategoryId, field: "title", limit: 8 },
+      {
+        onSuccess: (resp) => {
+          if (resp.field === "title") setTitleSuggestions(resp.suggestions);
+          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+        },
+        onError: () => {
+          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+        },
+      },
+    );
+
+    // Small stagger to avoid simultaneous calls
+    const t1 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "description", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "description") setDescriptionSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+          },
+        },
+      );
+    }, 200);
+
+    const t2 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "materials", limit: 8 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "materials") setMaterialSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("materials"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("materials"); return n; });
+          },
+        },
+      );
+    }, 400);
+
+    const t3 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "duration", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "duration") setDurationSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+          },
+        },
+      );
+    }, 600);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [effectiveCategoryId, fetchSuggestions]);
 
   // Fetch categories
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
@@ -875,25 +968,17 @@ export default function CreateJobScreen() {
                 />
                 <Text style={styles.charCount}>{title.length}/100</Text>
 
-                {/* Title Suggestions */}
-                {suggestions.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.suggestionScroll}
-                    contentContainerStyle={styles.suggestionContent}
-                  >
-                    {suggestions.map((sug) => (
-                      <TouchableOpacity
-                        key={sug}
-                        style={styles.suggestionChip}
-                        onPress={() => setTitle(sug)}
-                      >
-                        <Text style={styles.suggestionChipText}>{sug}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
+                {/* Title Suggestions - Database-driven */}
+                <SuggestionBubbles
+                  suggestions={titleSuggestions.length > 0
+                    ? titleSuggestions
+                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
+                  onSelect={setTitle}
+                  isLoading={loadingSuggestionFields.has('title')}
+                  label="Suggestions"
+                  icon="sparkles-outline"
+                  showFrequency
+                />
               </View>
 
               {/* 3. Description */}
@@ -911,6 +996,15 @@ export default function CreateJobScreen() {
                   maxLength={500}
                 />
                 <Text style={styles.charCount}>{description.length}/500</Text>
+
+                {/* Description Suggestions - Database-driven */}
+                <SuggestionBubbles
+                  suggestions={descriptionSuggestions}
+                  onSelect={(text) => setDescription(text)}
+                  isLoading={loadingSuggestionFields.has('description')}
+                  label="Common descriptions"
+                  icon="document-text-outline"
+                />
               </View>
 
               {/* Worker Requirements Integrated into Job Details */}
@@ -1523,6 +1617,13 @@ export default function CreateJobScreen() {
                   onChangeText={setDuration}
                   placeholderTextColor={Colors.textHint}
                 />
+                <SuggestionBubbles
+                  suggestions={durationSuggestions}
+                  onSelect={setDuration}
+                  isLoading={loadingSuggestionFields.has('duration')}
+                  label="Common durations"
+                  icon="time-outline"
+                />
               </View>
 
               {/* Preferred Start Date */}
@@ -1696,6 +1797,20 @@ export default function CreateJobScreen() {
                   <Ionicons name="add" size={24} color={Colors.white} />
                 </TouchableOpacity>
               </View>
+
+              {/* Material Suggestions from DB */}
+              <SuggestionBubbles
+                suggestions={materialSuggestions}
+                onSelect={(text) => {
+                  if (!manualMaterials.includes(text)) {
+                    setManualMaterials(prev => [...prev, text]);
+                  }
+                }}
+                isLoading={loadingSuggestionFields.has('materials')}
+                label="Common materials"
+                icon="construct-outline"
+                showFrequency
+              />
 
               {/* Manual Materials List */}
               {manualMaterials.length > 0 && (

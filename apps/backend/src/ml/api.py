@@ -1248,3 +1248,193 @@ def trigger_worker_rating_training(request: HttpRequest, data: WorkerRatingTrain
             message="Training error",
             error=str(e)
         )
+
+
+# ============================================================================
+# Job Suggestions Endpoint - Database-Driven
+# ============================================================================
+
+class JobSuggestionsRequest(Schema):
+    category_id: int
+    field: str = "title"  # title, description, materials, duration
+    query: Optional[str] = None  # Optional partial text to filter
+    limit: int = 8
+
+class JobSuggestion(Schema):
+    text: str
+    frequency: int  # How many completed jobs used this
+
+class JobSuggestionsResponse(Schema):
+    suggestions: List[JobSuggestion]
+    field: str
+    category_name: Optional[str] = None
+    source: str  # "database" or "fallback"
+
+
+@router.post("/job-suggestions", response=JobSuggestionsResponse)
+def get_job_suggestions(request: HttpRequest, data: JobSuggestionsRequest):
+    """
+    Returns suggestions for job fields (title, description, materials, duration)
+    mined from completed/in-progress jobs in the same category.
+    Falls back to hardcoded suggestions when DB has insufficient data.
+    """
+    from accounts.models import Job, Specializations
+    from django.db.models import Count
+    from django.db.models.functions import Lower
+
+    category_name = None
+    try:
+        spec = Specializations.objects.get(specializationID=data.category_id)
+        category_name = spec.specializationName
+    except Specializations.DoesNotExist:
+        pass
+
+    suggestions = []
+
+    # Query completed/in-progress jobs in this category
+    base_qs = Job.objects.filter(
+        categoryID_id=data.category_id,
+        status__in=["COMPLETED", "IN_PROGRESS"],
+    )
+
+    if data.field == "title":
+        # Get distinct titles, optionally filtered by partial match
+        qs = base_qs.values_list("title", flat=True)
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(title__icontains=data.query)
+
+        # Count frequency of each title (case-insensitive)
+        title_counts = (
+            base_qs.annotate(lower_title=Lower("title"))
+            .values("lower_title")
+            .annotate(freq=Count("jobID"))
+            .order_by("-freq")
+        )
+        if data.query and len(data.query) >= 2:
+            title_counts = title_counts.filter(title__icontains=data.query)
+        title_counts = title_counts[: data.limit]
+
+        # Get original-cased titles for display
+        seen = set()
+        for entry in title_counts:
+            lower_t = entry["lower_title"]
+            if lower_t not in seen:
+                seen.add(lower_t)
+                # Find an original-cased version
+                original = base_qs.filter(title__iexact=lower_t).values_list("title", flat=True).first()
+                if original:
+                    suggestions.append(JobSuggestion(text=original, frequency=entry["freq"]))
+
+    elif data.field == "description":
+        # Get description snippets (first 120 chars) from completed jobs
+        qs = base_qs.exclude(description="").exclude(description__isnull=True)
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(description__icontains=data.query)
+        descs = qs.order_by("-jobID").values_list("description", flat=True)[: data.limit * 2]
+
+        seen_lower = set()
+        for desc in descs:
+            snippet = desc[:120].strip()
+            if snippet.lower() not in seen_lower:
+                seen_lower.add(snippet.lower())
+                suggestions.append(JobSuggestion(text=snippet, frequency=1))
+            if len(suggestions) >= data.limit:
+                break
+
+    elif data.field == "materials":
+        # Mine materialsNeeded JSON field for common material items
+        qs = base_qs.exclude(materialsNeeded__isnull=True)
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(materialsNeeded__icontains=data.query)
+
+        material_freq: dict = {}
+        for materials_list in qs.values_list("materialsNeeded", flat=True)[: 200]:
+            if isinstance(materials_list, list):
+                for item in materials_list:
+                    if isinstance(item, str) and item.strip():
+                        key = item.strip().lower()
+                        if data.query and len(data.query) >= 2 and data.query.lower() not in key:
+                            continue
+                        if key not in material_freq:
+                            material_freq[key] = {"original": item.strip(), "count": 0}
+                        material_freq[key]["count"] += 1
+
+        sorted_materials = sorted(material_freq.values(), key=lambda x: -x["count"])
+        for m in sorted_materials[: data.limit]:
+            suggestions.append(JobSuggestion(text=m["original"], frequency=m["count"]))
+
+    elif data.field == "duration":
+        # Get common duration values
+        qs = base_qs.exclude(expectedDuration__isnull=True).exclude(expectedDuration="")
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(expectedDuration__icontains=data.query)
+
+        dur_counts = (
+            qs.values("expectedDuration")
+            .annotate(freq=Count("jobID"))
+            .order_by("-freq")
+        )[: data.limit]
+
+        for entry in dur_counts:
+            suggestions.append(
+                JobSuggestion(text=entry["expectedDuration"], frequency=entry["freq"])
+            )
+
+    # Determine source
+    source = "database" if suggestions else "fallback"
+
+    # Fallback to hardcoded if DB returned nothing
+    if not suggestions and data.field == "title" and category_name:
+        FALLBACK_TITLES = {
+            "Plumbing": ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
+            "Electrical": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
+            "Carpentry": ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
+            "Painting": ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
+            "Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
+            "Landscaping": ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
+            "Masonry": ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
+            "HVAC": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
+            "Roofing": ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
+            "Welding": ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
+            "Automotive": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
+            "General Labor": ["Heavy lifting", "Hauling debris", "General assistance", "Packaging"],
+            "Moving": ["House moving", "Office relocation", "Furniture transport"],
+            "Delivery": ["Package delivery", "Food delivery", "Messenger service"],
+        }
+        fallback = FALLBACK_TITLES.get(category_name, [])
+        if data.query and len(data.query) >= 2:
+            fallback = [t for t in fallback if data.query.lower() in t.lower()]
+        for t in fallback[: data.limit]:
+            suggestions.append(JobSuggestion(text=t, frequency=0))
+
+    if not suggestions and data.field == "materials" and category_name:
+        FALLBACK_MATERIALS = {
+            "Plumbing": ["PVC pipe", "Pipe wrench", "Teflon tape", "Faucet set", "Sealant"],
+            "Electrical": ["Wire", "Electrical tape", "Circuit breaker", "LED bulb", "Outlet box"],
+            "Carpentry": ["Plywood", "Nails", "Wood glue", "Sandpaper", "Hinges"],
+            "Painting": ["Paint (latex)", "Paint roller", "Primer", "Brush set", "Masking tape"],
+            "Cleaning": ["Cleaning solution", "Mop", "Sponge", "Disinfectant", "Trash bags"],
+            "Masonry": ["Cement", "Sand", "Gravel", "Tiles", "Grout"],
+            "HVAC": ["Refrigerant", "AC filter", "Copper tube", "Insulation tape"],
+            "Roofing": ["Roofing nails", "GI sheet", "Waterproof sealant", "Gutter"],
+            "Welding": ["Welding rod", "Steel bar", "Grinder disc", "Paint (anti-rust)"],
+        }
+        fallback = FALLBACK_MATERIALS.get(category_name, [])
+        if data.query and len(data.query) >= 2:
+            fallback = [m for m in fallback if data.query.lower() in m.lower()]
+        for m in fallback[: data.limit]:
+            suggestions.append(JobSuggestion(text=m, frequency=0))
+
+    if not suggestions and data.field == "duration":
+        FALLBACK_DURATIONS = ["1 hour", "2 hours", "3 hours", "Half day", "1 day", "2 days", "3 days", "1 week"]
+        if data.query and len(data.query) >= 2:
+            FALLBACK_DURATIONS = [d for d in FALLBACK_DURATIONS if data.query.lower() in d.lower()]
+        for d in FALLBACK_DURATIONS[: data.limit]:
+            suggestions.append(JobSuggestion(text=d, frequency=0))
+
+    return JobSuggestionsResponse(
+        suggestions=suggestions,
+        field=data.field,
+        category_name=category_name,
+        source=source,
+    )
