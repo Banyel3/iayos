@@ -19,7 +19,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "../components";
+import { Sidebar, useMainContentClass } from "../components";
 import { useToast } from "@/components/ui/toast";
 
 interface AdminUser {
@@ -40,6 +40,7 @@ export default function AdminProfilePage() {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const mainClass = useMainContentClass("p-8 min-h-screen");
 
   // Password change state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -159,7 +160,7 @@ export default function AdminProfilePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
@@ -180,7 +181,7 @@ export default function AdminProfilePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="pl-72 p-8 min-h-screen">
+        <main className={mainClass}>
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
@@ -201,7 +202,7 @@ export default function AdminProfilePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="pl-72 p-8 min-h-screen">
+      <main className={mainClass}>
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Header */}
           <div className="relative rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-8 shadow-2xl overflow-hidden">
