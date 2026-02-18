@@ -23,7 +23,7 @@ import {
   User,
   AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 
 interface PendingUser {
   id: string;
@@ -44,6 +44,7 @@ export default function PendingVerificationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const [typeFilter, setTypeFilter] = useState<
     "all" | "worker" | "client" | "agency"
   >("all");
@@ -199,9 +200,9 @@ export default function PendingVerificationPage() {
   };
 
   return (
-    <div className="flex">
+    <div>
       <Sidebar />
-      <main className="flex-1 p-6">
+      <main className={mainClass}>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>

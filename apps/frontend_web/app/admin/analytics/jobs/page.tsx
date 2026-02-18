@@ -123,7 +123,7 @@ export default function JobAnalytics() {
 
         <div className="px-8 py-6 space-y-6">
           {/* Job Volume Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">

@@ -153,7 +153,7 @@ export default function JobCategoriesPage() {
           </div>
 
           {/* Modern Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">

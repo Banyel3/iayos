@@ -43,6 +43,8 @@ import {
   Package,
   Activity,
   ArrowDownToLine,
+  Menu,
+  X,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -322,7 +324,7 @@ const navigation: NavItem[] = [
 ];
 
 export default function Sidebar({ className }: SidebarProps) {
-  const { collapsed, setCollapsed } = useSidebar();
+  const { collapsed, setCollapsed, mobileOpen, setMobileOpen, isMobile } = useSidebar();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
@@ -532,23 +534,89 @@ export default function Sidebar({ className }: SidebarProps) {
     }
   };
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    if (isMobile) setMobileOpen(false);
+  }, [pathname, isMobile, setMobileOpen]);
+
+  // Total badge count for mobile top bar
+  const totalBadge = pendingKYCCount + pendingCertsCount + pendingWithdrawalsCount;
+
+  // On mobile, sidebar drawer is always expanded (never collapsed)
+  const showExpanded = isMobile || !collapsed;
+
   return (
-    <div
-      className={cn(
-        "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] z-40",
-        collapsed ? "w-16" : "w-64",
-        className,
+    <>
+      {/* ===== Mobile Top Bar (visible < md) ===== */}
+      <div className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-200 z-30 flex items-center justify-between px-4 md:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5 text-gray-700" />
+        </button>
+        <img src="/logo.png" alt="iAyos" className="h-7 w-auto" />
+        <div className="flex items-center gap-1">
+          {totalBadge > 0 && (
+            <span className="relative flex items-center justify-center w-8 h-8">
+              <Bell className="h-5 w-5 text-gray-500" />
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {totalBadge > 9 ? "9+" : totalBadge}
+              </span>
+            </span>
+          )}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-semibold"
+          >
+            {adminUser?.name ? adminUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
+          </button>
+        </div>
+      </div>
+
+      {/* ===== Backdrop (mobile only) ===== */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden animate-in fade-in duration-200"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
-    >
+
+      {/* ===== Sidebar Drawer ===== */}
+      <div
+        className={cn(
+          "fixed left-0 top-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
+          // Mobile: slide off-screen by default, slide in when open, always full width
+          "max-md:-translate-x-full max-md:w-72",
+          mobileOpen && "max-md:translate-x-0",
+          // Mobile: higher z-index than backdrop
+          "max-md:z-50",
+          // Desktop: static, respects collapsed state
+          "md:z-40",
+          collapsed ? "md:w-16" : "md:w-64",
+          className,
+        )}
+      >
       {/* Header */}
       <div 
         className={cn(
           "flex items-center justify-between p-4 border-b border-sidebar-border",
-          !collapsed && "cursor-pointer hover:bg-gray-50 transition-colors"
+          !collapsed && "md:cursor-pointer md:hover:bg-gray-50 transition-colors"
         )}
-        onClick={() => !collapsed && setCollapsed(true)}
+        onClick={() => !collapsed && !isMobile && setCollapsed(true)}
       >
-        {!collapsed && (
+        {/* Mobile close button */}
+        {isMobile && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setMobileOpen(false); }}
+            className="p-1 rounded-lg hover:bg-gray-100 transition-colors md:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
+        )}
+        {showExpanded && (
           <div className="flex items-end space-x-2">
             {/* Logo Image */}
             <img
@@ -558,7 +626,7 @@ export default function Sidebar({ className }: SidebarProps) {
             />
           </div>
         )}
-        {collapsed && (
+        {(collapsed && !isMobile) && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -573,8 +641,8 @@ export default function Sidebar({ className }: SidebarProps) {
             />
           </button>
         )}
-        {!collapsed && (
-          <div className="flex items-center gap-2">
+        {showExpanded && (
+          <div className="flex items-center gap-2 max-md:hidden">
             <ChevronLeft className="h-4 w-4 text-sidebar-foreground" />
           </div>
         )}
@@ -584,13 +652,13 @@ export default function Sidebar({ className }: SidebarProps) {
       <nav 
         className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide"
         onClick={(e) => {
-          if (collapsed && e.target === e.currentTarget) {
+          if (collapsed && !isMobile && e.target === e.currentTarget) {
             setCollapsed(false);
           }
         }}
       >
         {/* Search Bar */}
-        {!collapsed && (
+        {showExpanded && (
           <div className="mb-4">
             <button
               onClick={() => setShowSearchModal(true)}
@@ -601,7 +669,7 @@ export default function Sidebar({ className }: SidebarProps) {
             </button>
           </div>
         )}
-        {collapsed && (
+        {(collapsed && !isMobile) && (
           <div className="mb-4">
             <button
               onClick={() => setShowSearchModal(true)}
@@ -624,7 +692,7 @@ export default function Sidebar({ className }: SidebarProps) {
                 {item.children ? (
                   <button
                     onClick={() => {
-                      if (collapsed) {
+                      if (collapsed && !isMobile) {
                         setCollapsed(false);
                         setTimeout(() => toggleExpanded(item.name), 100);
                       } else {
@@ -645,11 +713,11 @@ export default function Sidebar({ className }: SidebarProps) {
                           hasActiveChild ? "text-blue-600" : "text-gray-400",
                         )}
                       />
-                      {!collapsed && (
+                      {showExpanded && (
                         <span className="font-semibold animate-in fade-in duration-500 delay-150">{item.name}</span>
                       )}
                     </div>
-                    {!collapsed && (
+                    {showExpanded && (
                       <div className="flex items-center space-x-2">
                         {item.count !== undefined &&
                           item.count !== null &&
@@ -671,7 +739,7 @@ export default function Sidebar({ className }: SidebarProps) {
                   <Link
                     href={item.href}
                     onClick={(e) => {
-                      if (collapsed && item.href === "#") {
+                      if (collapsed && !isMobile && item.href === "#") {
                         e.preventDefault();
                         setCollapsed(false);
                       }
@@ -690,9 +758,9 @@ export default function Sidebar({ className }: SidebarProps) {
                           isItemActive ? "text-blue-600" : "text-gray-400",
                         )}
                       />
-                      {!collapsed && <span className="animate-in fade-in duration-500 delay-150">{item.name}</span>}
+                      {showExpanded && <span className="animate-in fade-in duration-500 delay-150">{item.name}</span>}
                     </div>
-                    {!collapsed &&
+                    {showExpanded &&
                       item.count !== undefined &&
                       item.count !== null &&
                       item.count > 0 && (
@@ -705,7 +773,7 @@ export default function Sidebar({ className }: SidebarProps) {
               </div>
 
               {/* Submenu */}
-              {item.children && isExpanded && !collapsed && (
+              {item.children && isExpanded && showExpanded && (
                 <div className="mt-1 ml-6 space-y-1 animate-in slide-in-from-top-2 fade-in duration-300">
                   {item.children.map((child) => {
                     const isChildActiveItem = child.href === item.children![0]?.href && item.children!.length > 1
@@ -758,7 +826,7 @@ export default function Sidebar({ className }: SidebarProps) {
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
               {adminUser?.name ? adminUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
             </div>
-            {!collapsed && (
+            {showExpanded && (
               <div className="text-left">
                 <div className="text-sm font-medium text-gray-700">
                   {adminUser?.name || 'Admin User'}
@@ -767,7 +835,7 @@ export default function Sidebar({ className }: SidebarProps) {
               </div>
             )}
           </div>
-          {!collapsed && (
+          {showExpanded && (
             <ChevronDown
               className={cn(
                 "h-4 w-4 text-gray-400 transition-transform",
@@ -778,7 +846,7 @@ export default function Sidebar({ className }: SidebarProps) {
         </button>
 
         {/* Dropdown Menu */}
-        {showUserMenu && !collapsed && (
+        {showUserMenu && showExpanded && (
           <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
             <Link
               href="/admin/profile"
@@ -814,5 +882,6 @@ export default function Sidebar({ className }: SidebarProps) {
         onClose={() => setShowSearchModal(false)}
       />
     </div>
+    </>
   );
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
-import { Sidebar } from "../../../components";
+import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import {
@@ -194,11 +194,13 @@ export default function DisputeDetailPage() {
     }
   };
 
+  const mainClass = useMainContentClass("p-6 bg-gray-50 min-h-screen");
+
   if (loading) {
     return (
-      <div className="flex">
+      <div>
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className={mainClass}>
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="flex flex-col items-center space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
@@ -214,9 +216,9 @@ export default function DisputeDetailPage() {
 
   if (error || !dispute) {
     return (
-      <div className="flex">
+      <div>
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className={mainClass}>
           <div className="max-w-7xl mx-auto">
             <Card>
               <CardContent className="p-12 text-center">
@@ -287,9 +289,9 @@ export default function DisputeDetailPage() {
   };
 
   return (
-    <div className="flex">
+    <div>
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className={mainClass}>
         <div className="max-w-7xl mx-auto">
           {/* Back Button */}
           <div className="mb-6">

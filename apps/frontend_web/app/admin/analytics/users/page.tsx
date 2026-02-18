@@ -136,7 +136,7 @@ export default function UserAnalytics() {
 
         <div className="px-8 py-6 space-y-6">
           {/* User Growth Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -457,7 +457,7 @@ export default function UserAnalytics() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 <div className="text-center p-6 bg-orange-50 rounded-xl">
                   <p className="text-4xl font-bold text-orange-600 mb-2">
                     {churnRate.toFixed(1)}%

@@ -411,7 +411,7 @@ export default function CertificationHistoryPage() {
                             </h3>
                             {getActionBadge(log.action)}
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-gray-600">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-gray-600">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-gray-400" />
                               <span>Worker: {log.worker_name}</span>
