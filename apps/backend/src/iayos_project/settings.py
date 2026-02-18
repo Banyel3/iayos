@@ -430,6 +430,8 @@ ACCOUNT_EMAIL_REQUIRED = True              # Email is required (it's the login f
 ACCOUNT_AUTHENTICATION_METHOD = 'email'    # Authenticate by email, not username
 ACCOUNT_EMAIL_VERIFICATION = 'none'        # iAyos uses its own OTP verification system
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True  # Auto-link social account to existing email
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'              # Don't verify email for social signups (Google already verified)
+SOCIALACCOUNT_ADAPTER = 'accounts.social_adapter.IayosSocialAccountAdapter'  # Custom adapter for auto-connect
 
 # After allauth processes the Google OAuth callback, redirect to our custom
 # Ninja endpoint that creates the Profile, generates JWT cookies, and redirects

@@ -9,11 +9,15 @@ from django.core.exceptions import ValidationError
 class AccountsManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
 
-          # Remove fields that don't belong in Accounts
-        extra_fields.pop("createdAt", None)
-        extra_fields.pop("created_at", None)
-        extra_fields.pop("updatedAt", None)
-        extra_fields.pop("updated_at", None)
+        # Remove fields that don't belong in Accounts.
+        # allauth / social signup may pass first_name, last_name, username, etc.
+        # which exist on Profile, not Accounts.  Strip them to avoid TypeError.
+        _discard = [
+            'createdAt', 'created_at', 'updatedAt', 'updated_at',
+            'first_name', 'last_name', 'username', 'name',
+        ]
+        for field in _discard:
+            extra_fields.pop(field, None)
 
         if not email:
             raise ValueError("The Email field must be set")
