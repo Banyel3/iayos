@@ -84,6 +84,7 @@ import {
 } from "../../lib/services/offline-queue";
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
+import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
 export default function ChatScreen() {
   const params = useLocalSearchParams();
@@ -99,6 +100,17 @@ export default function ChatScreen() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">("submit");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [countdownConfig, setCountdownConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmStyle?: "default" | "destructive";
+    countdownSeconds: number;
+    onConfirm: () => void;
+    icon?: string;
+    iconColor?: string;
+  } | null>(null);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -366,17 +378,19 @@ export default function ChatScreen() {
       ? (conversation.job.budget * 0.5).toFixed(2)
       : "0.00";
 
-    Alert.alert(
-      "Approve Team Job & Pay",
-      `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => setShowPaymentModal(true),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Approve Team Job & Pay",
+      message: `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
   };
 
   // Handle mark complete (WORKER only)
@@ -421,17 +435,19 @@ export default function ChatScreen() {
       ? (conversation.job.budget * 0.5).toFixed(2)
       : "0.00";
 
-    Alert.alert(
-      "Approve Completion & Pay",
-      `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => setShowPaymentModal(true),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Approve Completion & Pay",
+      message: `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
   };
 
   // Handle payment method selection
@@ -1902,23 +1918,21 @@ export default function ChatScreen() {
                                   <TouchableOpacity
                                     style={styles.confirmArrivalButtonCompact}
                                     onPress={() =>
-                                      Alert.alert(
-                                        "Confirm Attendance",
-                                        `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          {
-                                            text: "Confirm & Pay",
-                                            onPress: () =>
-                                              clientConfirmAttendanceMutation.mutate(
-                                                {
-                                                  attendanceId:
-                                                    attendance.attendance_id,
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
+                                      setCountdownConfig({
+                                        visible: true,
+                                        title: "Confirm Attendance",
+                                        message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
+                                        confirmLabel: "Confirm & Pay",
+                                        countdownSeconds: 7,
+                                        onConfirm: () => {
+                                          setCountdownConfig(null);
+                                          clientConfirmAttendanceMutation.mutate({
+                                            attendanceId: attendance.attendance_id,
+                                          });
+                                        },
+                                        icon: "wallet",
+                                        iconColor: Colors.warning,
+                                      })
                                     }
                                     disabled={
                                       clientConfirmAttendanceMutation.isPending
@@ -4158,6 +4172,22 @@ export default function ChatScreen() {
         jobId={conversation?.job?.id || null}
         userRole={conversation?.my_role === "WORKER" ? "WORKER" : "CLIENT"}
       />
+
+      {/* Countdown Confirmation Modal */}
+      {countdownConfig && (
+        <CountdownConfirmModal
+          visible={countdownConfig.visible}
+          title={countdownConfig.title}
+          message={countdownConfig.message}
+          confirmLabel={countdownConfig.confirmLabel}
+          confirmStyle={countdownConfig.confirmStyle}
+          countdownSeconds={countdownConfig.countdownSeconds}
+          onConfirm={countdownConfig.onConfirm}
+          onCancel={() => setCountdownConfig(null)}
+          icon={countdownConfig.icon as any}
+          iconColor={countdownConfig.iconColor}
+        />
+      )}
     </SafeAreaView>
   );
 }

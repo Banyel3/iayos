@@ -42,6 +42,7 @@ import {
   ReceiptTransaction,
 } from "../lib/hooks/useJobReceipt";
 import { getAbsoluteMediaUrl } from "../lib/api/config";
+import ReceiptDisclaimer, { RECEIPT_DISCLAIMER_TEXT } from "./ReceiptDisclaimer";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -79,6 +80,8 @@ Status: ${receipt.status}
 📅 Completed: ${formatReceiptDate(receipt.completed_at)}
 
 iAyos - May sira? May iAyos.
+
+${RECEIPT_DISCLAIMER_TEXT}
       `.trim();
 
       await Share.share({
@@ -172,6 +175,9 @@ iAyos - May sira? May iAyos.
                 </Text>
               </View>
             </View>
+
+            {/* Receipt Disclaimer */}
+            <ReceiptDisclaimer />
 
             {/* Buffer Status Card (Payment Status) */}
             {receipt.buffer && (

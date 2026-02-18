@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Countdown Confirmation Timer for Critical Actions**
+  - Added 5-second countdown timer on standard confirmations (job creation, accept/reject application, withdraw application, delete job, accept invite)
+  - Added 7-second countdown timer on financial confirmations (approve completion & pay, approve team job & pay, confirm daily attendance & pay, wallet withdrawal)
+  - Animated progress bar, haptic feedback on countdown complete, always-available cancel button
+  - Prevents accidental taps on irreversible or financial actions
+  - **Impact**: Users have a safety window to cancel before critical/financial actions execute
+
+- **BIR Receipt Disclaimer on All Transaction Summaries**
+  - Added amber compliance banner: "This is NOT an Official Receipt (O.R.) as defined by the Bureau of Internal Revenue (BIR)"
+  - Applied to Job Receipt Modal, Payment Receipt Modal, and Withdrawal Success screen
+  - Disclaimer text included in Share Receipt text output
+  - **Impact**: Legal compliance — all in-app receipts clearly marked as non-O.R. transaction summaries
+
 ### Fixed
 - **KYC Upload Screen Crash - "Property 'kycData' doesn't exist"**
   - Fixed undefined variable reference `kycData` in upload.tsx useEffect that crashed the KYC screen
