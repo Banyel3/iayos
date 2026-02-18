@@ -138,11 +138,12 @@ def google_callback(request):
             print(f"✅ Google OAuth: Auto-verified email for {user.email}")
 
         # Web Google OAuth creates AGENCY accounts (client/worker use mobile)
-        # Check if Agency already exists for this user
+        # If user already has an Agency → they're a returning user, just log them in.
+        # Only redirect to complete-profile for brand-new Google signups.
         needs_profile_completion = False
         existing_agency = Agency.objects.filter(accountFK=user).first()
         if not existing_agency:
-            # Extract name from Google social account to use as business name
+            # Brand-new Google signup — create Agency and ask them to complete profile
             business_name = ''
             try:
                 from allauth.socialaccount.models import SocialAccount
@@ -160,9 +161,8 @@ def google_callback(request):
             print(f"✅ Google OAuth: Created AGENCY for {user.email}")
             needs_profile_completion = True
         else:
-            # Existing agency — check if profile still needs completion
-            if not existing_agency.businessName or not existing_agency.contactNumber:
-                needs_profile_completion = True
+            # Existing agency account — just log them in, no forced completion
+            print(f"✅ Google OAuth: Existing agency found for {user.email}, logging in")
 
         # Generate auth tokens — explicitly set profile_type to AGENCY
         auth_response = generateCookie(user, profile_type='AGENCY')
