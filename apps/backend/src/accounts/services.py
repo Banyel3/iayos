@@ -630,22 +630,38 @@ def fetch_currentUser(accountID, profile_type=None):
         except Profile.DoesNotExist:
             # No Profile found - check if this account has an Agency record
             try:
-                is_agency = Agency.objects.filter(accountFK=account).exists()
+                agency = Agency.objects.filter(accountFK=account).first()
             except Exception:
-                is_agency = False
+                agency = None
 
-            account_type = "agency" if is_agency else "individual"
-
-            return {
-                "accountID": account.accountID,
-                "email": account.email,
-                "role": user_role,
-                "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
-                "profile_data": None,
-                "user_data": {},
-                "skill_categories": [],
-                "accountType": account_type,
-            }
+            if agency:
+                # Agency user — return agency-specific data
+                needs_completion = not agency.businessName or not agency.contactNumber
+                return {
+                    "accountID": account.accountID,
+                    "email": account.email,
+                    "role": user_role,
+                    "kycVerified": account.KYCVerified,
+                    "profile_data": {
+                        "profileType": "AGENCY",
+                        "businessName": agency.businessName or "",
+                        "contactNumber": agency.contactNumber or "",
+                        "businessDesc": agency.businessDesc or "",
+                    },
+                    "accountType": "agency",
+                    "needs_profile_completion": needs_completion,
+                }
+            else:
+                return {
+                    "accountID": account.accountID,
+                    "email": account.email,
+                    "role": user_role,
+                    "kycVerified": account.KYCVerified,
+                    "profile_data": None,
+                    "user_data": {},
+                    "skill_categories": [],
+                    "accountType": "individual",
+                }
 
     except Accounts.DoesNotExist:
         raise ValueError("User not found")

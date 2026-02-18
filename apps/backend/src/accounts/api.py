@@ -117,7 +117,7 @@ def google_callback(request):
     import traceback
     from urllib.parse import quote
     from django.http import HttpResponseRedirect
-    from .models import Profile, ClientProfile
+    from .models import Agency
 
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
     is_production = not settings.DEBUG
@@ -137,73 +137,42 @@ def google_callback(request):
             user.save(update_fields=['isVerified'])
             print(f"✅ Google OAuth: Auto-verified email for {user.email}")
 
-        # Capture Google profile picture from allauth social account
-        google_profile_img = None
-        try:
-            from allauth.socialaccount.models import SocialAccount
-            social_account = SocialAccount.objects.filter(user=user, provider='google').first()
-            if social_account and social_account.extra_data:
-                google_profile_img = social_account.extra_data.get('picture', None)
-                print(f"🖼️  Google OAuth: Captured profile picture URL for {user.email}")
-        except Exception as e:
-            print(f"⚠️  Google OAuth: Could not fetch profile picture: {e}")
-
-        # Determine redirect destination
+        # Web Google OAuth creates AGENCY accounts (client/worker use mobile)
+        # Check if Agency already exists for this user
         needs_profile_completion = False
-
-        # Create Profile for new Google OAuth users (they skip normal registration)
-        existing_profile = Profile.objects.filter(accountFK=user).first()
-        if not existing_profile:
-            # Extract name from Google social account data if available
-            first_name = ''
-            last_name = ''
+        existing_agency = Agency.objects.filter(accountFK=user).first()
+        if not existing_agency:
+            # Extract name from Google social account to use as business name
+            business_name = ''
             try:
                 from allauth.socialaccount.models import SocialAccount
                 sa = SocialAccount.objects.filter(user=user, provider='google').first()
                 if sa and sa.extra_data:
-                    first_name = sa.extra_data.get('given_name', '') or sa.extra_data.get('name', '') or ''
-                    last_name = sa.extra_data.get('family_name', '') or ''
+                    full_name = sa.extra_data.get('name', '') or ''
+                    business_name = full_name
             except Exception:
                 pass
 
-            profile = Profile.objects.create(
+            Agency.objects.create(
                 accountFK=user,
-                profileType='CLIENT',
-                firstName=first_name[:24] or 'Google',
-                lastName=last_name[:24] or 'User',
-                profileImg=google_profile_img,
+                businessName=business_name[:50] or user.email.split('@')[0][:50],
             )
-            print(f"✅ Google OAuth: Created CLIENT profile for {user.email}")
-
-            # Auto-create ClientProfile if it doesn't already exist
-            if not ClientProfile.objects.filter(profileID=profile).exists():
-                ClientProfile.objects.create(
-                    profileID=profile,
-                    description='',
-                    totalJobsPosted=0,
-                    clientRating=0
-                )
-                print(f"✅ Google OAuth: Auto-created ClientProfile for {user.email}")
+            print(f"✅ Google OAuth: Created AGENCY for {user.email}")
             needs_profile_completion = True
         else:
-            profile = existing_profile
-            if not profile.contactNum or not profile.birthDate:
+            # Existing agency — check if profile still needs completion
+            if not existing_agency.businessName or not existing_agency.contactNumber:
                 needs_profile_completion = True
-            # Update profile picture from Google if not already set
-            if not profile.profileImg and google_profile_img:
-                profile.profileImg = google_profile_img
-                profile.save(update_fields=['profileImg'])
-                print(f"🖼️  Google OAuth: Updated profile picture for {user.email}")
 
-        # Generate auth tokens via existing cookie helper
-        auth_response = generateCookie(user)
+        # Generate auth tokens — explicitly set profile_type to AGENCY
+        auth_response = generateCookie(user, profile_type='AGENCY')
         auth_data = json.loads(auth_response.content)
 
-        # Redirect to complete-profile if missing required fields, otherwise dashboard
+        # Redirect to complete-profile if missing required fields, otherwise agency dashboard
         if needs_profile_completion:
             redirect_url = f"{frontend_url}/auth/complete-profile"
         else:
-            redirect_url = f"{frontend_url}/dashboard"
+            redirect_url = f"{frontend_url}/agency/dashboard"
 
         response = HttpResponseRedirect(redirect_url)
         response.set_cookie('access', auth_data['access'], httponly=True, secure=is_production, samesite='Lax', max_age=3600, domain=cookie_domain)
@@ -301,51 +270,36 @@ def get_user_profile(request):
 @router.post("/complete-profile", auth=dual_auth)  
 def complete_profile(request, payload: CompleteProfileSchema):
     """
-    Complete profile for Google OAuth users who are missing required fields.
-    Accepts: contactNum, birthDate, and address fields.
+    Complete agency profile for Google OAuth users who are missing required fields.
+    Accepts: businessName, contactNumber, businessDesc, and address fields.
     """
-    from datetime import date
-    from django.utils.dateparse import parse_date
-    from .models import Profile
+    from .models import Agency
     
     try:
         user = request.auth
         
-        # Parse and validate birth date
-        birth_date = parse_date(payload.birthDate)
-        if not birth_date:
-            return Response({"error": "Invalid birth date format, use YYYY-MM-DD"}, status=400)
+        # Validate business name
+        if not payload.businessName or len(payload.businessName.strip()) < 2:
+            return Response({"error": "Business name is required (at least 2 characters)"}, status=400)
         
-        # Age check (must be 18+)
-        today = date.today()
-        age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-        if age < 18:
-            return Response({"error": "You must be at least 18 years old"}, status=400)
+        # Find the agency record for this user
+        agency = Agency.objects.filter(accountFK=user).first()
+        if not agency:
+            return Response({"error": "Agency record not found"}, status=404)
         
-        # Validate contact number
-        if not payload.contactNum or len(payload.contactNum) < 10:
-            return Response({"error": "Contact number must be at least 10 digits"}, status=400)
+        # Update Agency fields
+        agency.businessName = payload.businessName.strip()[:50]
+        agency.contactNumber = payload.contactNumber.strip()[:11] if payload.contactNumber else ''
+        agency.businessDesc = payload.businessDesc.strip()[:255] if payload.businessDesc else ''
+        agency.street_address = payload.street_address or agency.street_address
+        agency.barangay = payload.barangay or agency.barangay
+        agency.city = payload.city or agency.city
+        agency.province = payload.province or agency.province
+        agency.postal_code = payload.postal_code or agency.postal_code
+        agency.save()
+        print(f"✅ complete-profile: Updated agency profile for {user.email}")
         
-        # Update Profile fields
-        profile = Profile.objects.filter(accountFK=user).first()
-        if not profile:
-            return Response({"error": "Profile not found"}, status=404)
-        
-        profile.contactNum = payload.contactNum
-        profile.birthDate = birth_date
-        profile.save(update_fields=['contactNum', 'birthDate'])
-        print(f"✅ complete-profile: Updated contactNum and birthDate for {user.email}")
-        
-        # Update Account address fields
-        user.street_address = payload.street_address or user.street_address
-        user.barangay = payload.barangay or user.barangay
-        user.city = payload.city or user.city
-        user.province = payload.province or user.province
-        user.postal_code = payload.postal_code or user.postal_code
-        user.save(update_fields=['street_address', 'barangay', 'city', 'province', 'postal_code'])
-        print(f"✅ complete-profile: Updated address fields for {user.email}")
-        
-        return {"success": True, "message": "Profile completed successfully"}
+        return {"success": True, "message": "Agency profile completed successfully"}
     except Exception as e:
         print(f"❌ complete-profile error: {str(e)}")
         import traceback
