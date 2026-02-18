@@ -522,14 +522,16 @@ def fetch_currentUser(accountID, profile_type=None):
             user_role = "ADMIN"
             print(f"✅ fetch_currentUser: User {account.email} is staff/superuser, setting role to ADMIN")
 
-        # AGENCY CHECK FIRST: If JWT says AGENCY, or user has an Agency record,
-        # return agency data immediately — don't fall into the Profile path.
-        # This prevents users with BOTH a Profile (CLIENT) and an Agency from
-        # being misidentified as "individual" accountType.
-        if profile_type and profile_type.upper() == 'AGENCY':
+        # AGENCY CHECK FIRST: Unless the JWT explicitly says WORKER or CLIENT
+        # (mobile app), always check Agency before Profile. This prevents users
+        # who have BOTH a stale CLIENT Profile and an Agency from being
+        # misidentified as "individual".  Covers: profile_type=AGENCY,
+        # profile_type=None (old cookie / web default), or any other value.
+        _pt = (profile_type or '').upper()
+        if _pt not in ('WORKER', 'CLIENT'):
             agency = Agency.objects.filter(accountFK=account).first()
             if agency:
-                print(f"✅ fetch_currentUser: JWT profile_type=AGENCY, found Agency for {account.email}")
+                print(f"✅ fetch_currentUser: Agency found for {account.email} (profile_type={profile_type})")
                 needs_completion = not agency.businessName or not agency.contactNumber
                 return {
                     "accountID": account.accountID,
@@ -546,7 +548,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "needs_profile_completion": needs_completion,
                 }
             else:
-                print(f"⚠️  fetch_currentUser: JWT says AGENCY but no Agency record for {account.email}")
+                print(f"⚠️  fetch_currentUser: No Agency record for {account.email}, falling through to Profile")
 
         try:
             # If profile_type is specified (from JWT), fetch that specific profile
