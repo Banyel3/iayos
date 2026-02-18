@@ -418,6 +418,18 @@ RESEND_BASE_URL = "https://api.resend.com"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
+# ---------------------------------------------------------------------------
+# django-allauth settings for custom user model (accounts.Accounts)
+# The Accounts model uses email as USERNAME_FIELD and has NO username field.
+# Without these settings, allauth tries to access .username → AttributeError → 500.
+# ---------------------------------------------------------------------------
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None   # No username field on Accounts model
+ACCOUNT_USERNAME_REQUIRED = False          # Don't require username during signup
+ACCOUNT_EMAIL_REQUIRED = True              # Email is required (it's the login field)
+ACCOUNT_AUTHENTICATION_METHOD = 'email'    # Authenticate by email, not username
+ACCOUNT_EMAIL_VERIFICATION = 'none'        # iAyos uses its own OTP verification system
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True  # Auto-link social account to existing email
+
 # After allauth processes the Google OAuth callback, redirect to our custom
 # Ninja endpoint that creates the Profile, generates JWT cookies, and redirects
 # to the frontend. Without this, allauth defaults to /accounts/profile/ (404).
