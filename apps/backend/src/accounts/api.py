@@ -259,8 +259,9 @@ def refresh(request):
 def get_user_profile(request):
     try:
         user = request.auth  # This comes from our dual_auth (cookie or JWT Bearer)
-        print(f"✅ /me - Authenticated user: {user.email}")
-        result = fetch_currentUser(user.accountID)
+        profile_type = getattr(user, 'profile_type', None)
+        print(f"✅ /me - Authenticated user: {user.email}, profile_type from JWT: {profile_type}")
+        result = fetch_currentUser(user.accountID, profile_type=profile_type)
         return result
     except Exception as e:
         print(f"❌ /me error: {str(e)}")
