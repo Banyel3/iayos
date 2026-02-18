@@ -522,6 +522,32 @@ def fetch_currentUser(accountID, profile_type=None):
             user_role = "ADMIN"
             print(f"✅ fetch_currentUser: User {account.email} is staff/superuser, setting role to ADMIN")
 
+        # AGENCY CHECK FIRST: If JWT says AGENCY, or user has an Agency record,
+        # return agency data immediately — don't fall into the Profile path.
+        # This prevents users with BOTH a Profile (CLIENT) and an Agency from
+        # being misidentified as "individual" accountType.
+        if profile_type and profile_type.upper() == 'AGENCY':
+            agency = Agency.objects.filter(accountFK=account).first()
+            if agency:
+                print(f"✅ fetch_currentUser: JWT profile_type=AGENCY, found Agency for {account.email}")
+                needs_completion = not agency.businessName or not agency.contactNumber
+                return {
+                    "accountID": account.accountID,
+                    "email": account.email,
+                    "role": user_role,
+                    "kycVerified": account.KYCVerified,
+                    "profile_data": {
+                        "profileType": "AGENCY",
+                        "businessName": agency.businessName or "",
+                        "contactNumber": agency.contactNumber or "",
+                        "businessDesc": agency.businessDesc or "",
+                    },
+                    "accountType": "agency",
+                    "needs_profile_completion": needs_completion,
+                }
+            else:
+                print(f"⚠️  fetch_currentUser: JWT says AGENCY but no Agency record for {account.email}")
+
         try:
             # If profile_type is specified (from JWT), fetch that specific profile
             if profile_type:
