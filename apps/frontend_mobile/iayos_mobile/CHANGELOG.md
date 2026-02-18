@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **KYC Upload Screen Crash - "Property 'kycData' doesn't exist"**
+  - Fixed undefined variable reference `kycData` in upload.tsx useEffect that crashed the KYC screen
+  - `kycData` was used at lines 200-203 but never destructured from the `useKYC()` hook
+  - Replaced with already-available `isRejected` boolean which performs the same check
+  - **Impact**: KYC upload screen no longer crashes on load
+
 - **Android APK Startup Crash / Reanimated New-Arch Build Guard**
   - Updated `mobile-release.yml` to synchronize `newArchEnabled` in both `android/gradle.properties` and `app.json` before build
   - Added automatic override: if `react-native-reanimated` requires New Architecture, workflow forces it ON to prevent CI build failure
