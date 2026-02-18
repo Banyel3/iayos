@@ -58,9 +58,10 @@ class resetPasswordSchema(Schema):
     confirmPassword: str
 
 class CompleteProfileSchema(Schema):
-    """Schema for completing profile after Google OAuth signup"""
-    contactNum: str
-    birthDate: str  # YYYY-MM-DD format
+    """Schema for completing agency profile after Google OAuth signup"""
+    businessName: str
+    contactNumber: str = ""
+    businessDesc: str = ""
     street_address: str = ""
     barangay: str = ""
     city: str = ""

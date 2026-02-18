@@ -17,30 +17,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE } from "@/lib/api/config";
-import { CheckCircle, Loader2, User, MapPin, Phone, Calendar } from "lucide-react";
+import { CheckCircle, Loader2, Building2, MapPin, Phone, FileText } from "lucide-react";
 
 const formSchema = z.object({
-  contactNum: z
+  businessName: z
+    .string()
+    .min(2, "Business name must be at least 2 characters")
+    .max(50, "Business name must be at most 50 characters"),
+  contactNumber: z
     .string()
     .min(10, "Phone number must be at least 10 digits")
     .max(11, "Phone number must be at most 11 digits")
     .regex(/^\d+$/, "Phone number must contain only digits"),
-  birthDate: z
-    .string()
-    .min(1, "Birth date is required")
-    .refine((val) => {
-      const date = new Date(val);
-      const today = new Date();
-      const age = today.getFullYear() - date.getFullYear();
-      const monthDiff = today.getMonth() - date.getMonth();
-      const adjustedAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate()) ? age - 1 : age;
-      return adjustedAge >= 18;
-    }, "You must be at least 18 years old"),
-  street_address: z.string().optional(),
-  barangay: z.string().optional(),
-  city: z.string().optional(),
-  province: z.string().optional(),
-  postal_code: z.string().optional(),
+  businessDesc: z.string().max(255, "Description must be at most 255 characters").optional().default(""),
+  street_address: z.string().optional().default(""),
+  barangay: z.string().optional().default(""),
+  city: z.string().optional().default(""),
+  province: z.string().optional().default(""),
+  postal_code: z.string().optional().default(""),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -56,8 +50,9 @@ export default function CompleteProfilePage() {
     resolver: zodResolver(formSchema),
     mode: "onChange",
     defaultValues: {
-      contactNum: "",
-      birthDate: "",
+      businessName: "",
+      contactNumber: "",
+      businessDesc: "",
       street_address: "",
       barangay: "",
       city: "",
@@ -66,13 +61,10 @@ export default function CompleteProfilePage() {
     },
   });
 
-  // Redirect if not authenticated or profile already complete
+  // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/auth/login");
-    }
-    if (!authLoading && user && !user.needs_profile_completion) {
-      router.replace("/dashboard");
     }
   }, [authLoading, user, router]);
 
@@ -95,10 +87,10 @@ export default function CompleteProfilePage() {
 
       setIsSuccess(true);
 
-      // Refresh auth state and redirect after a brief success display
+      // Refresh auth state and redirect to agency dashboard
       await checkAuth();
       setTimeout(() => {
-        router.replace("/dashboard");
+        router.replace("/agency/dashboard");
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -122,8 +114,8 @@ export default function CompleteProfilePage() {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Profile Complete!</h2>
-          <p className="text-gray-600">Redirecting you to the app...</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Agency Profile Complete!</h2>
+          <p className="text-gray-600">Redirecting you to your agency dashboard...</p>
         </div>
       </div>
     );
@@ -135,12 +127,11 @@ export default function CompleteProfilePage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <User className="w-8 h-8 text-blue-600" />
+            <Building2 className="w-8 h-8 text-blue-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Complete Your Profile</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Complete Your Agency Profile</h1>
           <p className="text-gray-500 mt-2">
-            Welcome{user?.profile_data?.firstName ? `, ${user.profile_data.firstName}` : ""}! 
-            Please fill in a few more details to get started.
+            Welcome! Please fill in your agency details to get started.
           </p>
         </div>
 
@@ -152,19 +143,40 @@ export default function CompleteProfilePage() {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            {/* Required Fields Section */}
+            {/* Business Information Section */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                Required Information
+                <Building2 className="w-4 h-4" />
+                Business Information
               </h3>
 
               <FormField
                 control={form.control}
-                name="contactNum"
+                name="businessName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
+                    <FormLabel>Business Name *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Your Agency Name"
+                        maxLength={50}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="contactNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5" />
+                      Contact Number *
+                    </FormLabel>
                     <FormControl>
                       <Input
                         placeholder="09171234567"
@@ -179,15 +191,19 @@ export default function CompleteProfilePage() {
 
               <FormField
                 control={form.control}
-                name="birthDate"
+                name="businessDesc"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Date of Birth
+                      <FileText className="w-3.5 h-3.5" />
+                      Business Description
                     </FormLabel>
                     <FormControl>
-                      <Input type="date" max={new Date().toISOString().split("T")[0]} {...field} />
+                      <Input
+                        placeholder="Briefly describe your agency services"
+                        maxLength={255}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -283,7 +299,7 @@ export default function CompleteProfilePage() {
                   Saving...
                 </>
               ) : (
-                "Complete Profile"
+                "Complete Agency Profile"
               )}
             </Button>
           </form>
