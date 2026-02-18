@@ -417,6 +417,7 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_BASE_URL = "https://api.resend.com"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_AUTO_SIGNUP = True           # Auto-create account from Google data (skip /auth/3rdparty/signup/ form)
 
 # ---------------------------------------------------------------------------
 # django-allauth settings for custom user model (accounts.Accounts)
