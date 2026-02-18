@@ -197,10 +197,10 @@ export default function KYCUploadScreen() {
 
   useEffect(() => {
     // Reset flag if KYC status changes to rejected (user can resubmit)
-    if (kycData?.kyc_status === "REJECTED") {
+    if (isRejected) {
       hasJustSubmittedRef.current = false;
     }
-  }, [kycData?.kyc_status]);
+  }, [isRejected]);
 
   // Subscribe to camera capture events
   // When the camera screen captures a photo, it emits the URI back to us
