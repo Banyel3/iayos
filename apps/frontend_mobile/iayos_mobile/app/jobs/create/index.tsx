@@ -32,6 +32,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 import {
   Colors,
   Typography,
@@ -135,6 +136,8 @@ export default function CreateJobScreen() {
 
   // Form state
   const [title, setTitle] = useState("");
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [pendingJobData, setPendingJobData] = useState<any>(null);
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
@@ -837,17 +840,8 @@ export default function CreateJobScreen() {
       }));
     }
 
-    Alert.alert(
-      "Confirm Submission",
-      "Are you sure you want to submit this job post?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Submit",
-          onPress: () => createJobMutation.mutate(jobData),
-        },
-      ]
-    );
+    setPendingJobData(jobData);
+    setShowSubmitConfirm(true);
   };
 
   return (
@@ -2027,6 +2021,23 @@ export default function CreateJobScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Countdown Confirmation Modal */}
+      <CountdownConfirmModal
+        visible={showSubmitConfirm}
+        title="Confirm Submission"
+        message="Are you sure you want to submit this job post?"
+        confirmLabel="Submit"
+        countdownSeconds={5}
+        onConfirm={() => {
+          if (pendingJobData) createJobMutation.mutate(pendingJobData);
+          setShowSubmitConfirm(false);
+        }}
+        onCancel={() => setShowSubmitConfirm(false)}
+        isLoading={createJobMutation.isPending}
+        icon="document-text"
+        iconColor={Colors.primary}
+      />
     </SafeAreaView>
   );
 }

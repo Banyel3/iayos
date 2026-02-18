@@ -36,6 +36,8 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
+import ReceiptDisclaimer from "@/components/ReceiptDisclaimer";
 import { useWallet, useWithdraw } from "@/lib/hooks/useWallet";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useQuery } from "@tanstack/react-query";
@@ -71,6 +73,8 @@ export default function WithdrawScreen() {
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [withdrawConfirmMessage, setWithdrawConfirmMessage] = useState("");
 
   // Fetch wallet balance
   const { data: walletData, isLoading: walletLoading } = useWallet();
@@ -202,43 +206,38 @@ export default function WithdrawScreen() {
         ? `${selectedMethod.bank_name} - ${selectedMethod.account_number}`
         : selectedMethod?.account_number;
 
-    Alert.alert(
-      "Confirm Withdrawal",
-      `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Withdraw",
-          style: "default",
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-            try {
-              await withdrawMutation.mutateAsync({
-                amount: amountNum,
-                payment_method_id: selectedMethodId,
-                notes: notes || undefined,
-              });
-
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success,
-              );
-
-              // Show success modal directly (manual processing, no receipt URL)
-              setShowSuccess(true);
-              setTimeout(() => {
-                safeGoBack(router, "/(tabs)/profile");
-              }, 2000);
-            } catch (error: unknown) {
-              Alert.alert(
-                "Withdrawal Failed",
-                getErrorMessage(error, "An error occurred"),
-              );
-            }
-          },
-        },
-      ],
+    setWithdrawConfirmMessage(
+      `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`
     );
+    setShowWithdrawConfirm(true);
+  };
+
+  const executeWithdrawal = async () => {
+    setShowWithdrawConfirm(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      await withdrawMutation.mutateAsync({
+        amount: amountNum,
+        payment_method_id: selectedMethodId,
+        notes: notes || undefined,
+      });
+
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      );
+
+      // Show success modal directly (manual processing, no receipt URL)
+      setShowSuccess(true);
+      setTimeout(() => {
+        safeGoBack(router, "/(tabs)/profile");
+      }, 2000);
+    } catch (error: unknown) {
+      Alert.alert(
+        "Withdrawal Failed",
+        getErrorMessage(error, "An error occurred"),
+      );
+    }
   };
 
   if (walletLoading || methodsLoading) {
@@ -337,6 +336,8 @@ export default function WithdrawScreen() {
               Your withdrawal will be processed within 1-3 business days. You'll receive the funds via your selected payment method.
             </Text>
           </View>
+
+          <ReceiptDisclaimer />
 
           <TouchableOpacity
             style={styles.doneButton}
@@ -653,6 +654,20 @@ export default function WithdrawScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Countdown Confirmation Modal */}
+      <CountdownConfirmModal
+        visible={showWithdrawConfirm}
+        title="Confirm Withdrawal"
+        message={withdrawConfirmMessage}
+        confirmLabel="Withdraw"
+        countdownSeconds={7}
+        onConfirm={executeWithdrawal}
+        onCancel={() => setShowWithdrawConfirm(false)}
+        isLoading={withdrawMutation.isPending}
+        icon="wallet"
+        iconColor={Colors.warning}
+      />
     </SafeAreaView>
   );
 }

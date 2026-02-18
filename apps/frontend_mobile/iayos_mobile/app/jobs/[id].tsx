@@ -32,6 +32,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
 import JobReceiptModal from "@/components/JobReceiptModal";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 import {
   useTeamJobDetail,
   useApplyToSkillSlot,
@@ -196,6 +197,17 @@ export default function JobDetailScreen() {
 
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [countdownConfig, setCountdownConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmStyle: "default" | "destructive";
+    countdownSeconds: number;
+    onConfirm: () => void;
+    icon?: string;
+    iconColor?: string;
+  } | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
@@ -616,36 +628,34 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Accept Application",
-      `Are you sure you want to accept ${workerName}'s application? This will assign them to the job and reject all other applications.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () => acceptApplicationMutation.mutate(applicationId),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Application",
+      message: `Are you sure you want to accept ${workerName}'s application? This will assign them to the job and reject all other applications.`,
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 5,
+      onConfirm: () => acceptApplicationMutation.mutate(applicationId),
+      icon: "checkmark-circle",
+      iconColor: Colors.success,
+    });
   };
 
   const handleRejectApplication = (
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Reject Application",
-      `Are you sure you want to reject ${workerName}'s application?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: () => rejectApplicationMutation.mutate(applicationId),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Reject Application",
+      message: `Are you sure you want to reject ${workerName}'s application?`,
+      confirmLabel: "Reject",
+      confirmStyle: "destructive",
+      countdownSeconds: 5,
+      onConfirm: () => rejectApplicationMutation.mutate(applicationId),
+      icon: "close-circle",
+      iconColor: Colors.error,
+    });
   };
 
   const handleDeleteJob = () => {
@@ -657,21 +667,17 @@ export default function JobDetailScreen() {
       return;
     }
 
-    Alert.alert(
-      "Delete Job Request",
-      "Are you sure you want to delete this job request? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteJobMutation.mutate(),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Delete Job Request",
+      message: "Are you sure you want to delete this job request? This action cannot be undone.",
+      confirmLabel: "Delete",
+      confirmStyle: "destructive",
+      countdownSeconds: 5,
+      onConfirm: () => deleteJobMutation.mutate(),
+      icon: "trash",
+      iconColor: Colors.error,
+    });
   };
 
   const handleApply = () => {
@@ -712,21 +718,17 @@ export default function JobDetailScreen() {
   };
 
   const handleAcceptInvite = () => {
-    Alert.alert(
-      "Accept Job Invitation",
-      "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () => acceptInviteMutation.mutate(),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Job Invitation",
+      message: "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 5,
+      onConfirm: () => acceptInviteMutation.mutate(),
+      icon: "briefcase",
+      iconColor: Colors.primary,
+    });
   };
 
   const handleRejectInvite = () => {
@@ -2844,6 +2846,25 @@ export default function JobDetailScreen() {
         jobId={parseInt(id)}
         userRole={isWorker ? "WORKER" : "CLIENT"}
       />
+
+      {/* Countdown Confirmation Modal */}
+      {countdownConfig && (
+        <CountdownConfirmModal
+          visible={countdownConfig.visible}
+          title={countdownConfig.title}
+          message={countdownConfig.message}
+          confirmLabel={countdownConfig.confirmLabel}
+          confirmStyle={countdownConfig.confirmStyle}
+          countdownSeconds={countdownConfig.countdownSeconds}
+          onConfirm={() => {
+            countdownConfig.onConfirm();
+            setCountdownConfig(null);
+          }}
+          onCancel={() => setCountdownConfig(null)}
+          icon={countdownConfig.icon as any}
+          iconColor={countdownConfig.iconColor}
+        />
+      )}
     </SafeAreaView>
   );
 }

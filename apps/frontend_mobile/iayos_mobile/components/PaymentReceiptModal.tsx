@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 import PaymentStatusBadge, { PaymentStatus } from "./PaymentStatusBadge";
 import { formatCurrency } from "../lib/hooks/usePayments";
+import ReceiptDisclaimer, { RECEIPT_DISCLAIMER_TEXT } from "./ReceiptDisclaimer";
 
 /**
  * PaymentReceiptModal Component
@@ -78,6 +79,8 @@ Date: ${new Date(receipt.created_at).toLocaleString()}
 ${receipt.job ? `Job: ${receipt.job.title}` : ""}
 
 Thank you for using iAyos!
+
+${RECEIPT_DISCLAIMER_TEXT}
       `.trim();
 
       await Share.share({
@@ -242,18 +245,8 @@ Thank you for using iAyos!
             </View>
           )}
 
-          {/* Footer Note */}
-          <View style={styles.footerNote}>
-            <Ionicons
-              name="information-circle"
-              size={20}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.footerNoteText}>
-              This is an official receipt from iAyos. Keep this for your
-              records.
-            </Text>
-          </View>
+          {/* Receipt Disclaimer */}
+          <ReceiptDisclaimer />
         </ScrollView>
       </View>
     </Modal>
