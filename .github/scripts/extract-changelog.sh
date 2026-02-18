@@ -17,22 +17,24 @@ if [ ! -f "$CHANGELOG_FILE" ]; then
   exit 1
 fi
 
-# Extract section between ## [VERSION] and next ##
-# Remove the heading line, keep only the content
+# Strip Windows carriage returns from the file for reliable awk parsing
+CLEAN_FILE=$(mktemp)
+tr -d '\r' < "$CHANGELOG_FILE" > "$CLEAN_FILE"
+
+# Extract section between ## [VERSION] and next ## heading
+# Preserve markdown formatting (indentation matters for nested lists)
 CHANGELOG_CONTENT=$(awk "/^## \[$VERSION\]/,/^## \[/ { 
   if (/^## \[$VERSION\]/) { 
-    # Skip the version heading line
     next 
   } 
   if (/^## \[/ && !/^## \[$VERSION\]/) { 
-    # Stop at next version heading
     exit 
   } 
   print 
-}" "$CHANGELOG_FILE" | sed '/^$/d' | sed 's/^[ \t]*//')
+}" "$CLEAN_FILE")
 
 # If no content found for specific version, try extracting [Unreleased] section
-if [ -z "$CHANGELOG_CONTENT" ]; then
+if [ -z "$(echo "$CHANGELOG_CONTENT" | tr -d '[:space:]')" ]; then
   echo "No entry for [$VERSION], extracting [Unreleased] section..." >&2
   CHANGELOG_CONTENT=$(awk '/^## \[Unreleased\]/,/^## \[/ { 
     if (/^## \[Unreleased\]/) { 
@@ -42,11 +44,17 @@ if [ -z "$CHANGELOG_CONTENT" ]; then
       exit 
     } 
     print 
-  }' "$CHANGELOG_FILE" | sed '/^$/d' | sed 's/^[ \t]*//')
+  }' "$CLEAN_FILE")
 fi
 
+# Clean up temp file
+rm -f "$CLEAN_FILE"
+
+# Trim leading/trailing blank lines but preserve internal formatting
+CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed -e '/./,$!d' -e :a -e '/^\s*$/{ $d; N; ba; }')
+
 # Check if we found content
-if [ -z "$CHANGELOG_CONTENT" ]; then
+if [ -z "$(echo "$CHANGELOG_CONTENT" | tr -d '[:space:]')" ]; then
   echo "No changelog entry found for version $VERSION. See commit history for detailed changes."
 else
   echo "$CHANGELOG_CONTENT"
