@@ -53,6 +53,7 @@ from .review_service import (
 )
 from ninja.responses import Response
 from .authentication import cookie_auth, dual_auth
+from django.conf import settings
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -113,84 +114,114 @@ def google_login(request):
 @router.get("/auth/google/callback")
 def google_callback(request):
     import json
+    import traceback
+    from urllib.parse import quote
     from django.http import HttpResponseRedirect
     from .models import Profile, ClientProfile
-    
+
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    
-    if not request.user.is_authenticated:
-        return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_auth_failed")
-    
-    # Google-verified email → auto-verify the account
-    if not request.user.isVerified:
-        request.user.isVerified = True
-        request.user.save(update_fields=['isVerified'])
-        print(f"✅ Google OAuth: Auto-verified email for {request.user.email}")
-    
-    # Capture Google profile picture from allauth social account
-    google_profile_img = None
-    try:
-        from allauth.socialaccount.models import SocialAccount
-        social_account = SocialAccount.objects.filter(user=request.user, provider='google').first()
-        if social_account and social_account.extra_data:
-            google_profile_img = social_account.extra_data.get('picture', None)
-            print(f"🖼️  Google OAuth: Captured profile picture URL for {request.user.email}")
-    except Exception as e:
-        print(f"⚠️  Google OAuth: Could not fetch profile picture: {e}")
-    
-    # Determine redirect destination
-    needs_profile_completion = False
-    
-    # Create Profile for new Google OAuth users (they skip normal registration)
-    if not Profile.objects.filter(accountFK=request.user).exists():
-        profile = Profile.objects.create(
-            accountFK=request.user,
-            profileType='CLIENT',
-            firstName=getattr(request.user, 'first_name', '') or '',
-            lastName=getattr(request.user, 'last_name', '') or '',
-            profileImg=google_profile_img,
-            # contactNum and birthDate are nullable — user completes profile later
-        )
-        print(f"✅ Google OAuth: Created CLIENT profile for {request.user.email}")
-        
-        # Auto-create ClientProfile (matches normal registration flow)
-        ClientProfile.objects.create(
-            profileID=profile,
-            description='',
-            totalJobsPosted=0,
-            clientRating=0
-        )
-        print(f"✅ Google OAuth: Auto-created ClientProfile for {request.user.email}")
-        needs_profile_completion = True
-    else:
-        # Existing profile — check if it's incomplete
-        profile = Profile.objects.filter(accountFK=request.user).first()
-        if not profile.contactNum or not profile.birthDate:
-            needs_profile_completion = True
-        # Update profile picture from Google if not already set
-        if not profile.profileImg and google_profile_img:
-            profile.profileImg = google_profile_img
-            profile.save(update_fields=['profileImg'])
-            print(f"🖼️  Google OAuth: Updated profile picture for {request.user.email}")
-    
-    # Generate auth tokens via existing cookie helper
-    auth_response = generateCookie(request.user)
-    auth_data = json.loads(auth_response.content)
-    
-    # Redirect to complete-profile if missing required fields, otherwise dashboard
-    if needs_profile_completion:
-        redirect_url = f"{frontend_url}/auth/complete-profile"
-    else:
-        redirect_url = f"{frontend_url}/dashboard"
-    
     is_production = not settings.DEBUG
     cookie_domain = ".iayos.online" if is_production else None
-    
-    response = HttpResponseRedirect(redirect_url)
-    response.set_cookie('access', auth_data['access'], httponly=True, secure=is_production, samesite='Lax', max_age=3600, domain=cookie_domain)
-    response.set_cookie('refresh', auth_data['refresh'], httponly=True, secure=is_production, samesite='Lax', max_age=604800, domain=cookie_domain)
-    
-    return response
+
+    try:
+        if not request.user.is_authenticated:
+            print("❌ Google OAuth callback: user NOT authenticated")
+            return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_auth_failed")
+
+        user = request.user
+        print(f"✅ Google OAuth callback: user={user.email}, pk={user.pk}")
+
+        # Google-verified email → auto-verify the account
+        if not user.isVerified:
+            user.isVerified = True
+            user.save(update_fields=['isVerified'])
+            print(f"✅ Google OAuth: Auto-verified email for {user.email}")
+
+        # Capture Google profile picture from allauth social account
+        google_profile_img = None
+        try:
+            from allauth.socialaccount.models import SocialAccount
+            social_account = SocialAccount.objects.filter(user=user, provider='google').first()
+            if social_account and social_account.extra_data:
+                google_profile_img = social_account.extra_data.get('picture', None)
+                print(f"🖼️  Google OAuth: Captured profile picture URL for {user.email}")
+        except Exception as e:
+            print(f"⚠️  Google OAuth: Could not fetch profile picture: {e}")
+
+        # Determine redirect destination
+        needs_profile_completion = False
+
+        # Create Profile for new Google OAuth users (they skip normal registration)
+        existing_profile = Profile.objects.filter(accountFK=user).first()
+        if not existing_profile:
+            # Extract name from Google social account data if available
+            first_name = ''
+            last_name = ''
+            try:
+                from allauth.socialaccount.models import SocialAccount
+                sa = SocialAccount.objects.filter(user=user, provider='google').first()
+                if sa and sa.extra_data:
+                    first_name = sa.extra_data.get('given_name', '') or sa.extra_data.get('name', '') or ''
+                    last_name = sa.extra_data.get('family_name', '') or ''
+            except Exception:
+                pass
+
+            profile = Profile.objects.create(
+                accountFK=user,
+                profileType='CLIENT',
+                firstName=first_name[:24] or 'Google',
+                lastName=last_name[:24] or 'User',
+                profileImg=google_profile_img,
+            )
+            print(f"✅ Google OAuth: Created CLIENT profile for {user.email}")
+
+            # Auto-create ClientProfile if it doesn't already exist
+            if not ClientProfile.objects.filter(profileID=profile).exists():
+                ClientProfile.objects.create(
+                    profileID=profile,
+                    description='',
+                    totalJobsPosted=0,
+                    clientRating=0
+                )
+                print(f"✅ Google OAuth: Auto-created ClientProfile for {user.email}")
+            needs_profile_completion = True
+        else:
+            profile = existing_profile
+            if not profile.contactNum or not profile.birthDate:
+                needs_profile_completion = True
+            # Update profile picture from Google if not already set
+            if not profile.profileImg and google_profile_img:
+                profile.profileImg = google_profile_img
+                profile.save(update_fields=['profileImg'])
+                print(f"🖼️  Google OAuth: Updated profile picture for {user.email}")
+
+        # Generate auth tokens via existing cookie helper
+        auth_response = generateCookie(user)
+        auth_data = json.loads(auth_response.content)
+
+        # Redirect to complete-profile if missing required fields, otherwise dashboard
+        if needs_profile_completion:
+            redirect_url = f"{frontend_url}/auth/complete-profile"
+        else:
+            redirect_url = f"{frontend_url}/dashboard"
+
+        response = HttpResponseRedirect(redirect_url)
+        response.set_cookie('access', auth_data['access'], httponly=True, secure=is_production, samesite='Lax', max_age=3600, domain=cookie_domain)
+        response.set_cookie('refresh', auth_data['refresh'], httponly=True, secure=is_production, samesite='Lax', max_age=604800, domain=cookie_domain)
+
+        print(f"✅ Google OAuth callback complete: redirecting to {redirect_url}")
+        return response
+
+    except Exception as exc:
+        # Log full traceback so we can diagnose from Docker logs
+        tb = traceback.format_exc()
+        print(f"❌ Google OAuth callback CRASHED: {exc}")
+        print(tb)
+        # Surface the error in the redirect URL so the user/developer can see it
+        error_msg = quote(str(exc)[:200])
+        return HttpResponseRedirect(
+            f"{frontend_url}/auth/login?error=google_callback_error&detail={error_msg}"
+        )
 @router.post("/register")
 def register(request, payload: createAccountSchema):
     try:
