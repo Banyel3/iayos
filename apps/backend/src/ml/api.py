@@ -465,11 +465,12 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
         # Based on DOLE daily wage rates + market research for Zamboanga region
         PH_CATEGORY_PRICING = {
             # Category Name: (min, suggested, max) for moderate project
+            # Names MUST match Specializations.specializationName from seed_data.py exactly
             'Plumbing': (500, 1500, 5000),
             'Electrical Work': (600, 2000, 8000),
             'Carpentry': (800, 2500, 10000),
-            'Cleaning': (400, 800, 3000),
-            'HVAC': (1000, 3500, 15000),
+            'General Cleaning': (400, 800, 3000),
+            'HVAC (Aircon Services)': (1000, 3500, 15000),
             'Painting': (800, 2000, 8000),
             'Masonry': (1000, 3000, 12000),
             'Welding': (800, 2500, 10000),
@@ -479,8 +480,18 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
             'Landscaping': (600, 1500, 6000),
             'Flooring': (1200, 3500, 15000),
             'Pest Control': (800, 2000, 6000),
-            'Moving': (500, 1500, 8000),
+            'Moving Services': (500, 1500, 8000),
             'Demolition': (1000, 3000, 15000),
+            'Tiling': (800, 3000, 15000),
+            'Auto Mechanic': (500, 2000, 10000),
+            'Motorcycle Repair': (350, 1000, 5000),
+            'Furniture Assembly': (300, 800, 2000),
+            'Glass Installation': (500, 2000, 8000),
+            'Drywall Installation': (450, 2000, 10000),
+            'Security System Installation': (1500, 4000, 25000),
+            'Pool Service': (600, 1500, 10000),
+            'General Labor': (400, 1000, 5000),
+            'Handyman': (500, 1500, 5000),
         }
         
         fallback_min = 500.0

@@ -145,6 +145,8 @@ export function getSourceLabel(source: string): string {
       return "AI Service";
     case "fallback":
       return "Category Average";
+    case "fallback_ph":
+      return "Category Average (PH)";
     default:
       return "Estimate";
   }
