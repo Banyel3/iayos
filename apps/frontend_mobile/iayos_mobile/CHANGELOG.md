@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **APK Auto-Update Stuck on "Installing" on Real Devices**
+  - Added `REQUEST_INSTALL_PACKAGES` permission to AndroidManifest (required by Android 8+ / API 26+)
+  - Switched install intent from `ACTION_VIEW` to `ACTION_INSTALL_PACKAGE` for better compatibility
+  - Added 15-second timeout with fallback alert offering "Open Settings" and "Retry Install" options
+  - Updated error dialog to offer "Open Settings" shortcut instead of generic message
+  - **Impact**: APK installs now work on real phones, not just emulators. Users get clear guidance if permission is needed.
+
 ### Added
 - **Countdown Confirmation Timer for Critical Actions**
   - Added 5-second countdown timer on standard confirmations (job creation, accept/reject application, withdraw application, delete job, accept invite)
