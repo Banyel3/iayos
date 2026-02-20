@@ -261,13 +261,7 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 # Verify face_recognition and its model data files are present.
 # dlib compilation can fail silently at build time; this turns it into a
 # hard build error so the dev container never starts with a broken install.
-RUN python -c "
-import face_recognition_models, os, sys
-p = face_recognition_models.face_recognition_model_location()
-if not os.path.exists(p): sys.exit('face_recognition_models .dat file missing: ' + p)
-import face_recognition
-print('✅ face_recognition OK:', face_recognition.__version__)
-"
+RUN python -c "import face_recognition_models, os, sys; p = face_recognition_models.face_recognition_model_location(); sys.exit('face_recognition_models .dat missing: ' + p) if not os.path.exists(p) else None; import face_recognition; print('face_recognition OK:', face_recognition.__version__)"
 
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
@@ -341,47 +335,21 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # CRITICAL: Fix Windows line endings (CRLF) if present
 RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
 
-# CRITICAL: Verify all dependencies are accessible at build time
-# Virtualenv PATH ensures python finds all packages automatically
-RUN python << 'EOF'
-import sys
-try:
-    # Test all critical dependencies and their transitive deps
-    import django
-    print(f'✅ django: {django.__version__}')
-    
-    import psycopg2
-    print('✅ psycopg2: OK')
-    
-    import packaging
-    print(f'✅ packaging: {packaging.__version__}')
-    
-    import pytesseract
-    print('✅ pytesseract: OK')
-    
-    import PIL
-    print(f'✅ pillow: {PIL.__version__}')
-    
-    import face_recognition
-    print('✅ face_recognition: OK')
-    
-    import face_recognition_models
-    print('✅ face_recognition_models: OK')
-    
-    # Verify model files actually exist (catches silent install failures)
-    model_path = face_recognition_models.face_recognition_model_location()
-    predictor_path = face_recognition_models.pose_predictor_model_location()
-    import os
-    assert os.path.exists(model_path), f'Model file missing: {model_path}'
-    assert os.path.exists(predictor_path), f'Predictor file missing: {predictor_path}'
-    print(f'✅ face_recognition model files verified')
-    
-    print('🎉 ALL DEPENDENCIES VERIFIED')
-    print('✅ Build verification PASSED')
-except ImportError as e:
-    print(f'❌ IMPORT FAILED: {e}')
-    sys.exit(1)
-EOF
+# CRITICAL: Verify all dependencies are accessible at build time.
+# Use individual python -c one-liners (not heredoc) so each check is
+# guaranteed to actually execute and fail the build on any missing import.
+# The heredoc RUN python<<'EOF' syntax can be silently skipped on some
+# Docker build environments (e.g. DigitalOcean App Platform) – that was
+# hiding the pkg_resources / face_recognition_models failures until runtime.
+RUN python -c "import pkg_resources; print('pkg_resources:', pkg_resources.__version__)" \
+ && python -c "import django; print('django:', django.__version__)" \
+ && python -c "import psycopg2; print('psycopg2: OK')" \
+ && python -c "import packaging; print('packaging:', packaging.__version__)" \
+ && python -c "import pytesseract; print('pytesseract: OK')" \
+ && python -c "from PIL import Image; print('pillow:', Image.__version__)" \
+ && python -c "import face_recognition_models, os, sys; m=face_recognition_models.face_recognition_model_location(); p=face_recognition_models.pose_predictor_model_location(); [sys.exit('MISSING MODEL FILE: '+x) for x in [m,p] if not os.path.exists(x)]; print('face_recognition_models: models verified')" \
+ && python -c "import face_recognition; print('face_recognition OK:', face_recognition.__version__)" \
+ && echo "ALL DEPENDENCIES VERIFIED - BUILD PASSED"
 
 # Switch to non-root user
 USER appuser
