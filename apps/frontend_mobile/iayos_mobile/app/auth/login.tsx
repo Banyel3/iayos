@@ -41,16 +41,18 @@ export default function LoginScreen() {
   const { login, googleSignIn, user } = useAuth();
   const router = useRouter();
 
-  // Google OAuth - uses web client ID for ID token flow
+  // Google OAuth - uses authorization code flow (auto-exchanged for tokens)
   const [googleRequest, googleResponse, promptGoogleAsync] =
-    Google.useIdTokenAuthRequest({
+    Google.useAuthRequest({
       clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
+      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? "",
+      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "",
     });
 
   // Handle Google OAuth response
   useEffect(() => {
     if (googleResponse?.type === "success") {
-      const idToken = googleResponse.params.id_token;
+      const idToken = googleResponse.authentication?.idToken;
       if (idToken) {
         handleGoogleSignIn(idToken);
       }
