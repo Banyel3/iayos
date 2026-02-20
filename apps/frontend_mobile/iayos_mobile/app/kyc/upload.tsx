@@ -447,11 +447,11 @@ export default function KYCUploadScreen() {
       );
 
       // Use apiRequest instead of raw fetch for better error handling and auto-auth
-      // Use VALIDATION_TIMEOUT (30s) instead of OCR_TIMEOUT (5min) - validation doesn't do OCR
+      // Use VALIDATION_TIMEOUT (60s) for quality checks (no OCR)
       const response = await apiRequest(endpointUrl, {
         method: "POST",
         body: formData as any,
-        timeout: VALIDATION_TIMEOUT, // 30s for quality checks (no OCR)
+        timeout: VALIDATION_TIMEOUT, // 60s for quality checks (no OCR)
       });
 
       console.log(`[KYC Validate] Response status: ${response.status}`);
@@ -878,7 +878,7 @@ export default function KYCUploadScreen() {
       const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
         method: "POST",
         body: formData as any, // React Native FormData compatible with apiRequest
-        timeout: KYC_UPLOAD_TIMEOUT, // 2 minutes for large file uploads
+        timeout: KYC_UPLOAD_TIMEOUT, // 5 minutes for large file uploads
       });
 
       const responseData = (await response.json().catch(() => ({}))) as {

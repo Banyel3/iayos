@@ -644,7 +644,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // HTTP Request helper with credentials
 // API request helper with built-in timeout using AbortController
 export const DEFAULT_REQUEST_TIMEOUT = 120000; // 2 minutes (increased for slow networks)
-export const VALIDATION_TIMEOUT = 300000; // 5 minutes for document validation (Render cold start + processing)
+export const VALIDATION_TIMEOUT = 60000; // 60 seconds for document validation (dlib + quality checks on DigitalOcean)
 export const OCR_TIMEOUT = 300000; // 5 minutes for OCR extraction operations (Tesseract can take 2-4 min)
 export const KYC_UPLOAD_TIMEOUT = 300000; // 5 minutes for KYC upload (multiple compressed images)
 

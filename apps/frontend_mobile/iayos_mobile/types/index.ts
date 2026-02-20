@@ -127,16 +127,7 @@ export interface Notification {
   createdAt: string;
 }
 
-export interface WalletBalance {
-  success: boolean;
-  balance: number;
-  pending: number;
-  this_month: number;
-  total_earned: number;
-  last_updated: string | null;
-  currency: string;
-  created: boolean;
-}
+// WalletBalance removed – use WalletData from lib/hooks/useWallet.ts instead
 
 export interface Transaction {
   id: number;

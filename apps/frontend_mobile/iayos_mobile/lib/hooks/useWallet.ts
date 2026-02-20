@@ -29,7 +29,7 @@ export interface WalletData {
   availableBalance: number;
   // Pending earnings (Due Balance) - held for 7-day buffer period
   pendingEarnings: number;
-  pendingEarningsList: PendingEarningItem[];
+  pendingEarningsList?: PendingEarningItem[];
   pendingEarningsCount: number;
   pending: number;
   this_month: number;

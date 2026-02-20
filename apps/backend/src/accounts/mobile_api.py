@@ -4076,7 +4076,8 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
             "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
             "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "current_balance": float(wallet.balance),  # Show current balance, not new
+            "current_balance": float(wallet.balance),  # Alias kept for backward compat
+            "new_balance": float(wallet.balance),  # Frontend expects this field name
             "expiry_date": payment_result.get('expiry_date'),
             "provider": provider_name,
             "status": "pending",
