@@ -36,6 +36,7 @@ import {
 } from "@/lib/hooks/usePortfolioManagement";
 import { useCertifications } from "@/lib/hooks/useCertifications";
 import { useMaterials } from "@/lib/hooks/useMaterials";
+import { useMySkills } from "@/lib/hooks/useSkills";
 import { useWorkerProfileScore } from "@/lib/hooks/useWorkerProfileScore";
 import { ProfileSkeleton } from "@/components/ui/SkeletonLoader";
 import ProfileImprovementCard from "@/components/ProfileImprovementCard";
@@ -190,6 +191,9 @@ export default function ProfileScreen() {
 
   // Fetch materials (only for workers)
   const { data: materials = [] } = useMaterials();
+
+  // Fetch fresh skills data (avoids stale profile.skills from auth context)
+  const { data: freshSkills = [] } = useMySkills();
 
   // Fetch AI-powered profile improvement score
   // This provides personalized suggestions for profile improvement
@@ -515,7 +519,8 @@ export default function ProfileScreen() {
       )}
 
       {/* Skills Section with Nested Certifications */}
-      {profile.skills.length > 0 ? (
+      {/* Use freshSkills from useMySkills() hook instead of profile.skills to avoid stale names */}
+      {(freshSkills.length > 0 ? freshSkills : profile.skills).length > 0 ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Skills & Certifications</Text>
@@ -527,7 +532,13 @@ export default function ProfileScreen() {
             Tap a skill to view certifications
           </Text>
 
-          {profile.skills.map((skill) => {
+          {(freshSkills.length > 0 ? freshSkills.map(s => ({
+            id: s.id,
+            specializationId: s.specializationId,
+            name: s.name,
+            experienceYears: s.experienceYears,
+            certificationCount: certifications.filter(c => c.specializationId === s.id).length,
+          })) : profile.skills).map((skill) => {
             const isExpanded = expandedSkills.has(skill.id);
             const skillCertifications = certifications.filter(
               (cert) =>
