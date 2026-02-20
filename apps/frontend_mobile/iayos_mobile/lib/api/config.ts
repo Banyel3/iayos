@@ -313,6 +313,10 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/accept-invite`,
   REJECT_INVITE: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/reject-invite`,
+  INVITE_WORKER: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/invite-worker`,
+  INVITED_WORKERS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/invited-workers`,
   APPLY_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_URL}/api/mobile/jobs/applications/my`,
   APPLICATION_DETAIL: (applicationId: number) =>

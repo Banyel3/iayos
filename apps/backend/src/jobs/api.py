@@ -2609,6 +2609,179 @@ def reject_application(request, job_id: int, application_id: int):
         )
 
 
+@router.post("/{job_id}/invite-worker", auth=dual_auth)
+@require_kyc
+def invite_worker_to_job(request, job_id: int, data: dict = None):
+    """
+    Client invites a worker to apply for their LISTING job.
+    Creates a JOB_INVITATION notification for the worker.
+    The worker sees the notification and can navigate to the job to apply.
+    
+    Body: { "worker_id": int }
+    """
+    try:
+        from accounts.models import Notification, WorkerProfile, Profile
+
+        # Parse worker_id from request body
+        import json
+        body = json.loads(request.body) if request.body else {}
+        worker_id = body.get('worker_id')
+        
+        if not worker_id:
+            return Response(
+                {"error": "worker_id is required"},
+                status=400
+            )
+
+        # Get client profile
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "CLIENT":
+            return Response(
+                {"error": "Only clients can invite workers"},
+                status=403
+            )
+
+        # Get the job and verify ownership
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID != profile:
+            return Response(
+                {"error": "You can only invite workers to your own jobs"},
+                status=403
+            )
+
+        # Job must be ACTIVE and be a LISTING type
+        if job.status != "ACTIVE":
+            return Response(
+                {"error": "Job is no longer active"},
+                status=400
+            )
+        if job.jobType != "LISTING":
+            return Response(
+                {"error": "Can only invite workers to LISTING jobs"},
+                status=400
+            )
+
+        # Get the worker
+        try:
+            worker = WorkerProfile.objects.select_related(
+                'profileID', 'profileID__accountFK'
+            ).get(id=worker_id)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker not found"}, status=404)
+
+        worker_account = worker.profileID.accountFK
+        worker_name = f"{worker.profileID.firstName or ''} {worker.profileID.lastName or ''}".strip() or "Worker"
+
+        # Prevent inviting yourself
+        if worker_account == request.auth:
+            return Response(
+                {"error": "You cannot invite yourself"},
+                status=400
+            )
+
+        # Check for duplicate invitation
+        existing = Notification.objects.filter(
+            accountFK=worker_account,
+            notificationType=Notification.NotificationType.JOB_INVITATION,
+            relatedJobID=job_id,
+        ).exists()
+
+        if existing:
+            return Response(
+                {"error": f"{worker_name} has already been invited to this job"},
+                status=400
+            )
+
+        # Check if worker already applied to this job
+        from accounts.models import JobApplication
+        already_applied = JobApplication.objects.filter(
+            jobID=job,
+            workerID=worker
+        ).exists()
+
+        if already_applied:
+            return Response(
+                {"error": f"{worker_name} has already applied to this job"},
+                status=400
+            )
+
+        # Create notification for the worker
+        client_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "A client"
+
+        Notification.objects.create(
+            accountFK=worker_account,
+            notificationType=Notification.NotificationType.JOB_INVITATION,
+            title=f"Job Invitation: {job.title}",
+            message=f"{client_name} has invited you to apply for \"{job.title}\" (₱{job.budget:,.0f}). Tap to view and apply.",
+            relatedJobID=job_id,
+            profile_type="WORKER",
+        )
+
+        print(f"✅ Worker {worker_name} (id={worker_id}) invited to job {job_id} ({job.title})")
+
+        return {
+            "success": True,
+            "message": f"Invitation sent to {worker_name}",
+            "worker_id": worker_id,
+            "worker_name": worker_name,
+            "job_id": job_id,
+        }
+
+    except Exception as e:
+        print(f"❌ Error inviting worker: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to invite worker: {str(e)}"},
+            status=500
+        )
+
+
+@router.get("/{job_id}/invited-workers", auth=dual_auth)
+def get_invited_workers(request, job_id: int):
+    """
+    Get list of worker IDs that have been invited to this job.
+    Used by frontend to show "Invited" badge on worker cards.
+    """
+    try:
+        from accounts.models import Notification
+
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "CLIENT":
+            return Response({"error": "Only clients can view invited workers"}, status=403)
+
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID != profile:
+            return Response({"error": "Not your job"}, status=403)
+
+        invited_account_ids = Notification.objects.filter(
+            notificationType=Notification.NotificationType.JOB_INVITATION,
+            relatedJobID=job_id,
+        ).values_list('accountFK_id', flat=True)
+
+        # Map account IDs to worker IDs
+        from accounts.models import WorkerProfile
+        invited_workers = WorkerProfile.objects.filter(
+            profileID__accountFK__accountID__in=invited_account_ids
+        ).values_list('id', flat=True)
+
+        return {
+            "success": True,
+            "invited_worker_ids": list(invited_workers),
+        }
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
 @router.post("/{job_id}/reject-invite", auth=dual_auth)
 @require_kyc
 def reject_job_invite_worker(request, job_id: int, reason: str | None = None):
@@ -3663,23 +3836,9 @@ def client_approve_job_completion(
 
         print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
         
-        # Close the conversation for this job
-        from profiles.models import Conversation
-        try:
-            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-            if conversation:
-                conversation.status = Conversation.ConversationStatus.COMPLETED
-                conversation.save()
-                print(f"✅ Conversation {conversation.conversationID} closed for completed job {job_id}")
-                
-                # Auto-archive if both parties have reviewed
-                from profiles.conversation_service import archive_conversation, should_auto_archive
-                if should_auto_archive(conversation):
-                    archive_result = archive_conversation(conversation)
-                    print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
-        except Exception as e:
-            print(f"⚠️ Failed to close conversation: {str(e)}")
-            # Don't fail job completion if conversation closing fails
+        # NOTE: Do NOT close conversation here - keep it ACTIVE until both parties have reviewed.
+        # Conversation will be closed in the review submission endpoint after both reviews are submitted.
+        # Previously this closed the conversation prematurely, preventing the other party from reviewing.
         
         # Log this action for admin verification and audit trail
         approval_time = timezone.now()
@@ -4412,6 +4571,23 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     ]
                     message = f"Agency review submitted! Please also review {len(pending_employee_reviews)} remaining employee(s)."
                 
+                # Close conversation after all agency reviews are done
+                if job_completed:
+                    from profiles.models import Conversation
+                    try:
+                        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+                        if conversation:
+                            conversation.status = Conversation.ConversationStatus.COMPLETED
+                            conversation.save()
+                            print(f"✅ Conversation {conversation.conversationID} closed after all agency reviews submitted")
+                            
+                            from profiles.conversation_service import archive_conversation, should_auto_archive
+                            if should_auto_archive(conversation):
+                                archive_result = archive_conversation(conversation)
+                                print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
+                    except Exception as e:
+                        print(f"⚠️ Failed to close conversation: {str(e)}")
+                
                 return {
                     "success": True,
                     "message": message,
@@ -4658,6 +4834,23 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 job.save()
                 job_completed = True
                 print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
+            
+            # Close the conversation after both parties have reviewed
+            if job_completed:
+                from profiles.models import Conversation
+                try:
+                    conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+                    if conversation:
+                        conversation.status = Conversation.ConversationStatus.COMPLETED
+                        conversation.save()
+                        print(f"✅ Conversation {conversation.conversationID} closed after all reviews submitted")
+                        
+                        from profiles.conversation_service import archive_conversation, should_auto_archive
+                        if should_auto_archive(conversation):
+                            archive_result = archive_conversation(conversation)
+                            print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
+                except Exception as e:
+                    print(f"⚠️ Failed to close conversation: {str(e)}")
             
             # Build response
             response = {
