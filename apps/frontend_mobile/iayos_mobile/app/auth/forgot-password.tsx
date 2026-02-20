@@ -162,10 +162,15 @@ export default function ForgotPasswordScreen() {
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        enabled={Platform.OS === "ios"}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardDismissMode="on-drag"
         >
           {/* Back Button */}
           <TouchableOpacity
