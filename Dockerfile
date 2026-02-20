@@ -258,6 +258,17 @@ COPY apps/backend/requirements.txt ./
 RUN python -m pip install --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
+# Verify face_recognition and its model data files are present.
+# dlib compilation can fail silently at build time; this turns it into a
+# hard build error so the dev container never starts with a broken install.
+RUN python -c "
+import face_recognition_models, os, sys
+p = face_recognition_models.face_recognition_model_location()
+if not os.path.exists(p): sys.exit('face_recognition_models .dat file missing: ' + p)
+import face_recognition
+print('✅ face_recognition OK:', face_recognition.__version__)
+"
+
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
 RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
