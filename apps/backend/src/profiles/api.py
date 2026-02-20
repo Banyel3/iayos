@@ -1811,7 +1811,7 @@ def get_conversation_messages(request, conversation_id: int):
                     "rating_punctuality": float(client_review.rating_punctuality) if client_review.rating_punctuality else 0,
                     "rating_professionalism": float(client_review.rating_professionalism) if client_review.rating_professionalism else 0,
                     "rating_quality": float(client_review.rating_quality) if client_review.rating_quality else 0,
-                    "comment": client_review.message or "",
+                    "comment": client_review.comment or "",
                     "created_at": client_review.createdAt.isoformat() if client_review.createdAt else None,
                 }
         
@@ -1828,7 +1828,7 @@ def get_conversation_messages(request, conversation_id: int):
                     "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
                     "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
                     "rating_quality": float(worker_review.rating_quality) if worker_review.rating_quality else 0,
-                    "comment": worker_review.message or "",
+                    "comment": worker_review.comment or "",
                     "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
                 }
 
