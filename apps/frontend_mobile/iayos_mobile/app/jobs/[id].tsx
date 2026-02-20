@@ -1909,13 +1909,38 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
-                {applications.length > 0 && (
-                  <View style={styles.applicationsBadge}>
-                    <Text style={styles.applicationsBadgeText}>
-                      {applications.length}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {applications.length > 0 && (
+                    <View style={styles.applicationsBadge}>
+                      <Text style={styles.applicationsBadgeText}>
+                        {applications.length}
+                      </Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: Colors.primary,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      gap: 4,
+                    }}
+                    onPress={() => {
+                      const catId = typeof job.category === 'object' ? job.category.id : undefined;
+                      router.push({
+                        pathname: '/jobs/invite-workers' as any,
+                        params: { jobId: id, categoryId: catId?.toString() || '' },
+                      });
+                    }}
+                  >
+                    <Ionicons name="person-add-outline" size={14} color={Colors.white} />
+                    <Text style={{ color: Colors.white, fontSize: 12, fontWeight: '600' }}>
+                      Invite Workers
                     </Text>
-                  </View>
-                )}
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {applicationsLoading ? (

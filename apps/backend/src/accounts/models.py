@@ -1189,6 +1189,9 @@ class Notification(models.Model):
         # Job Edit Notifications
         JOB_UPDATED = "JOB_UPDATED", "Job Updated"
 
+        # Job Invitation Notifications
+        JOB_INVITATION = "JOB_INVITATION", "Job Invitation"
+
         # System Notifications
         SYSTEM = "SYSTEM", "System"
     

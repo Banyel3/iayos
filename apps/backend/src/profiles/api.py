@@ -895,6 +895,10 @@ def get_conversations(request, filter: str = "all"):
                     status='ACTIVE',
                     relatedJobPosting__status='COMPLETED',
                     relatedJobPosting__disputes__status='UNDER_REVIEW'
+                ) |
+                Q(  # Completed job with reviews still pending - conversation stays open
+                    status='ACTIVE',
+                    relatedJobPosting__status='COMPLETED'
                 )
             )
         else:
