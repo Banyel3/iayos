@@ -133,7 +133,7 @@ RUN python -m venv /app/venv \
     && /app/venv/bin/pip install 'setuptools>=70.0.0' \
     && /app/venv/bin/pip check \
     && echo '✅ All dependencies installed to virtualenv' \
-    && /app/venv/bin/python -c "import pkg_resources; print(f'✅ pkg_resources {pkg_resources.__version__} OK in deps stage')" \
+    && /app/venv/bin/python -c "import importlib.metadata; v=importlib.metadata.version('setuptools'); print(f'✅ setuptools {v} OK in deps stage')" \
     && /app/venv/bin/python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" \
     && find /app/venv -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -342,13 +342,23 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # CRITICAL: Fix Windows line endings (CRLF) if present
 RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
 
+# Safety net: guarantee setuptools is present regardless of deps cache state.
+# The backend-deps stage installs it, but GHA layer caching (--cache-from type=gha)
+# can serve a stale deps layer where pip 25.3+ removed setuptools during bulk
+# dependency resolution.  This uncached RUN in the production stage ensures
+# pkg_resources is always available for face_recognition_models at runtime.
+RUN /app/venv/bin/pip install --no-cache-dir 'setuptools>=70.0.0' \
+ && /app/venv/bin/python -c "import importlib.metadata; v=importlib.metadata.version('setuptools'); print('setuptools safety-net:', v)"
+
 # CRITICAL: Verify all dependencies are accessible at build time.
 # Use /app/venv/bin/python EXPLICITLY (not just 'python') to guarantee we
 # are testing the venv interpreter and its site-packages, not the system
 # Python which has no setuptools/pkg_resources. Even though PATH includes
 # /app/venv/bin, some CI Docker builders (GitHub Actions, DigitalOcean) do
 # not honour ENV PATH in RUN shells reliably – explicit path is foolproof.
-RUN /app/venv/bin/python -c "import pkg_resources; print('pkg_resources:', pkg_resources.__version__)" \
+# NOTE: We check setuptools via importlib.metadata (stdlib) rather than
+# "import pkg_resources" to avoid the very failure we're guarding against.
+RUN /app/venv/bin/python -c "import importlib.metadata; print('setuptools:', importlib.metadata.version('setuptools'))" \
  && /app/venv/bin/python -c "import django; print('django:', django.__version__)" \
  && /app/venv/bin/python -c "import psycopg2; print('psycopg2: OK')" \
  && /app/venv/bin/python -c "import packaging; print('packaging:', packaging.__version__)" \
