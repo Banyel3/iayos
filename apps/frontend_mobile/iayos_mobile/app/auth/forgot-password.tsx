@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Keyboard,
+  TextInput as RNTextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,6 +40,32 @@ export default function ForgotPasswordScreen() {
   // Stored from step 1 response
   const [verifyToken, setVerifyToken] = useState("");
   const [accountId, setAccountId] = useState<number | null>(null);
+
+  // Refs for inputs — needed for the keyboardDidHide re-focus workaround
+  const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
+  const newPasswordRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
+  const confirmPasswordRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
+  const lastFocusedRef = useRef<any>(null);
+
+  // iOS: KAV padding-mode can trigger a layout scroll that fires keyboardDismissMode.
+  // Re-focus the last focused field if the keyboard hides unexpectedly.
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      const fieldRef = lastFocusedRef.current?.current ?? null;
+      if (fieldRef && (fieldRef as any).isFocused?.()) {
+        setTimeout(() => {
+          try {
+            (fieldRef as any).focus?.();
+          } catch (e) {}
+        }, 50);
+      }
+    });
+    return () => {
+      try {
+        subscription.remove();
+      } catch (e) {}
+    };
+  }, []);
 
   const handleSendReset = async () => {
     if (!email.trim()) {
@@ -170,7 +198,7 @@ export default function ForgotPasswordScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode="none"
         >
           {/* Back Button */}
           <TouchableOpacity
@@ -219,6 +247,7 @@ export default function ForgotPasswordScreen() {
             {step === "email" ? (
               <>
                 <Input
+                  ref={emailRef}
                   label="Email Address"
                   placeholder="Enter your email"
                   value={email}
@@ -226,6 +255,7 @@ export default function ForgotPasswordScreen() {
                     setEmail(text);
                     setError("");
                   }}
+                  onFocus={() => { lastFocusedRef.current = emailRef; }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
@@ -254,6 +284,7 @@ export default function ForgotPasswordScreen() {
             ) : (
               <>
                 <Input
+                  ref={newPasswordRef}
                   label="New Password"
                   placeholder="Enter new password"
                   value={newPassword}
@@ -261,6 +292,7 @@ export default function ForgotPasswordScreen() {
                     setNewPassword(text);
                     setError("");
                   }}
+                  onFocus={() => { lastFocusedRef.current = newPasswordRef; }}
                   secureTextEntry
                   autoCapitalize="none"
                   editable={!isLoading}
@@ -274,6 +306,7 @@ export default function ForgotPasswordScreen() {
                 />
 
                 <Input
+                  ref={confirmPasswordRef}
                   label="Confirm Password"
                   placeholder="Confirm new password"
                   value={confirmPassword}
@@ -281,6 +314,7 @@ export default function ForgotPasswordScreen() {
                     setConfirmPassword(text);
                     setError("");
                   }}
+                  onFocus={() => { lastFocusedRef.current = confirmPasswordRef; }}
                   secureTextEntry
                   autoCapitalize="none"
                   editable={!isLoading}
