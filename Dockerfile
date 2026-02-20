@@ -122,11 +122,18 @@ COPY apps/backend/requirements.txt .
 
 # Install Python dependencies using virtualenv (reliable isolation)
 # FIXED: virtualenv ensures ALL packages install to /app/venv (no system escapes)
+# NOTE: setuptools is installed BOTH before AND after requirements.txt because
+# pip 25.3+ can remove setuptools during bulk dependency resolution if no other
+# installed package has an explicit Requires-Dist on it. The post-install ensures
+# pkg_resources (provided by setuptools) is always available at runtime for
+# face_detection_service.py which uses it to locate face_recognition model files.
 RUN python -m venv /app/venv \
     && /app/venv/bin/pip install --upgrade 'pip>=25.3' setuptools wheel \
     && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
+    && /app/venv/bin/pip install 'setuptools>=70.0.0' \
     && /app/venv/bin/pip check \
     && echo '✅ All dependencies installed to virtualenv' \
+    && /app/venv/bin/python -c "import pkg_resources; print(f'✅ pkg_resources {pkg_resources.__version__} OK in deps stage')" \
     && /app/venv/bin/python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" \
     && find /app/venv -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
