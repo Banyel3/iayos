@@ -1034,6 +1034,26 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
         # Runs ASYNC in background thread to avoid
         # proxy timeout (dlib encoding takes 5-15s)
         # ============================================
+        # Ensure pre-staged FRONTID/SELFIE bytes are in cache so face matching
+        # runs even when files were uploaded in a prior request (pre-staged flow).
+        for _face_key in ['FRONTID', 'SELFIE']:
+            if _face_key not in file_data_cache and pre_uploaded_urls and _face_key in pre_uploaded_urls:
+                try:
+                    _pre_path = pre_uploaded_urls[_face_key]
+                    # Extract storage path from full URL if needed
+                    if '/object/public/' in _pre_path:
+                        _pre_path = _pre_path.split('/object/public/kyc-docs/')[-1]
+                    elif '/object/sign/' in _pre_path:
+                        _pre_path = _pre_path.split('/object/sign/kyc-docs/')[-1].split('?')[0]
+                    _face_bytes = settings.STORAGE.storage().from_('kyc-docs').download(_pre_path)
+                    if _face_bytes:
+                        file_data_cache[_face_key] = _face_bytes
+                        print(f"📥 Downloaded {_face_key} bytes from storage for face matching ({len(_face_bytes):,} bytes)")
+                    else:
+                        print(f"⚠️ Could not download {_face_key} for face matching: empty response")
+                except Exception as _face_dl_err:
+                    print(f"⚠️ Could not download {_face_key} for face matching: {_face_dl_err}")
+
         face_match_result = None
         if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
             print("🔍 Scheduling ASYNC face matching between ID and selfie...")
