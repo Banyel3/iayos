@@ -551,6 +551,7 @@ export const ENDPOINTS = {
   KYC_STATUS: `${API_URL}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_URL}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_URL}/api/accounts/upload/kyc`, // Matches Next.js endpoint
+  KYC_STAGE_FILE: `${API_URL}/api/accounts/kyc/stage-file`, // Per-file pre-upload before final submission
   KYC_VALIDATE_DOCUMENT: `${API_URL}/api/accounts/kyc/validate-document`, // Per-step validation
   KYC_EXTRACT_ID: `${API_URL}/api/accounts/kyc/extract-id`, // Per-step OCR extraction for ID
   KYC_EXTRACT_CLEARANCE: `${API_URL}/api/accounts/kyc/extract-clearance`, // Per-step OCR extraction for clearance
@@ -650,7 +651,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const DEFAULT_REQUEST_TIMEOUT = 120000; // 2 minutes (increased for slow networks)
 export const VALIDATION_TIMEOUT = 180000; // 3 minutes for document validation (images can be 1-2MB; ~40-60s upload on slow 3G)
 export const OCR_TIMEOUT = 300000; // 5 minutes for OCR extraction operations (Tesseract can take 2-4 min)
-export const KYC_UPLOAD_TIMEOUT = 300000; // 5 minutes for KYC upload (multiple compressed images)
+export const KYC_UPLOAD_TIMEOUT = 600000; // 10 minutes for final KYC upload (4 compressed images ~1.8MB total; can exceed 5 min on poor 2G/3G connections)
+export const KYC_STAGE_FILE_TIMEOUT = 120000; // 2 minutes per individual file staging
 
 export const apiRequest = async (
   url: string,

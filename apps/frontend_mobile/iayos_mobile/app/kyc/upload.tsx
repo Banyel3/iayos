@@ -49,6 +49,7 @@ import {
   VALIDATION_TIMEOUT,
   OCR_TIMEOUT,
   KYC_UPLOAD_TIMEOUT,
+  KYC_STAGE_FILE_TIMEOUT,
 } from "@/lib/api/config";
 import { cameraEvents } from "@/lib/utils/cameraEvents";
 import { compressImage } from "@/lib/utils/image-utils";
@@ -142,6 +143,11 @@ export default function KYCUploadScreen() {
   // Track if extraction is happening
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+  } | null>(null);
 
   // Per-document validation states (validate on upload like agency KYC)
   // This spreads memory usage over time instead of batching all validations on "Next"
@@ -934,48 +940,87 @@ export default function KYCUploadScreen() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setUploadProgress(null);
+
+    // Stage files one at a time so the user sees clear per-file progress
+    const stages = [
+      { key: "FRONTID", label: "Front ID", file: frontIDFile },
+      { key: "BACKID", label: "Back ID", file: backIDFile },
+      { key: "CLEARANCE", label: "Clearance document", file: clearanceFile },
+      { key: "SELFIE", label: "Selfie photo", file: selfieFile },
+    ] as const;
+
+    const preUploadedUrls: Record<string, string> = {};
 
     try {
-      // Get Bearer token for authentication
-      const token = await AsyncStorage.getItem("access_token");
+      // ── Step 1-4: upload each file individually ────────────────────────────────
+      for (let i = 0; i < stages.length; i++) {
+        const { key, label, file } = stages[i];
+        if (!file) continue;
 
-      const formData = new FormData();
-      formData.append("accountID", user?.accountID?.toString() || "");
-      formData.append("IDType", selectedIDType);
-      formData.append("clearanceType", selectedClearanceType);
+        setUploadProgress({
+          current: i + 1,
+          total: stages.length,
+          label: `Uploading ${label} (${i + 1}/${stages.length})...`,
+        });
 
-      formData.append("frontID", {
-        uri: frontIDFile!.uri,
-        name: frontIDFile!.name,
-        type: frontIDFile!.type,
-      } as any);
+        const stageFormData = new FormData();
+        stageFormData.append("file_key", key);
+        stageFormData.append("file", {
+          uri: file.uri,
+          name: file.name || `${key.toLowerCase()}.jpg`,
+          type: file.type || "image/jpeg",
+        } as unknown as Blob);
 
-      formData.append("backID", {
-        uri: backIDFile!.uri,
-        name: backIDFile!.name,
-        type: backIDFile!.type,
-      } as any);
+        const stageRes = await apiRequest(ENDPOINTS.KYC_STAGE_FILE, {
+          method: "POST",
+          body: stageFormData as any,
+          timeout: KYC_STAGE_FILE_TIMEOUT,
+        });
 
-      formData.append("clearance", {
-        uri: clearanceFile!.uri,
-        name: clearanceFile!.name,
-        type: clearanceFile!.type,
-      } as any);
+        const stageData = (await stageRes.json().catch(() => ({}))) as {
+          success?: boolean;
+          file_key?: string;
+          file_url?: string;
+          error?: { message: string }[] | string;
+        };
 
-      formData.append("selfie", {
-        uri: selfieFile!.uri,
-        name: selfieFile!.name,
-        type: selfieFile!.type,
-      } as any);
+        if (!stageRes.ok || !stageData.success) {
+          const msg =
+            (Array.isArray(stageData.error)
+              ? stageData.error[0]?.message
+              : stageData.error) ||
+            `Failed to upload ${label}. Please try again.`;
+          throw new Error(String(msg));
+        }
 
-      // Include extracted/edited ID fields
-      if (Object.keys(idFormValues).length > 0) {
-        formData.append("extracted_id_data", JSON.stringify(idFormValues));
+        preUploadedUrls[key] = stageData.file_url!;
       }
 
-      // Include extracted/edited clearance fields
+      // ── Step 5: submit metadata + pre-uploaded URLs (no files in body) ────────
+      setUploadProgress({
+        current: stages.length,
+        total: stages.length,
+        label: "Finalising submission...",
+      });
+
+      const finalFormData = new FormData();
+      finalFormData.append("IDType", selectedIDType || "");
+      finalFormData.append("clearanceType", selectedClearanceType || "");
+      if (preUploadedUrls.FRONTID)
+        finalFormData.append("frontID_url", preUploadedUrls.FRONTID);
+      if (preUploadedUrls.BACKID)
+        finalFormData.append("backID_url", preUploadedUrls.BACKID);
+      if (preUploadedUrls.CLEARANCE)
+        finalFormData.append("clearance_url", preUploadedUrls.CLEARANCE);
+      if (preUploadedUrls.SELFIE)
+        finalFormData.append("selfie_url", preUploadedUrls.SELFIE);
+
+      if (Object.keys(idFormValues).length > 0) {
+        finalFormData.append("extracted_id_data", JSON.stringify(idFormValues));
+      }
       if (Object.keys(clearanceFormValues).length > 0) {
-        formData.append(
+        finalFormData.append(
           "extracted_clearance_data",
           JSON.stringify(clearanceFormValues),
         );
@@ -983,8 +1028,8 @@ export default function KYCUploadScreen() {
 
       const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
         method: "POST",
-        body: formData as any, // React Native FormData compatible with apiRequest
-        timeout: KYC_UPLOAD_TIMEOUT, // 5 minutes for large file uploads
+        body: finalFormData as any,
+        timeout: KYC_UPLOAD_TIMEOUT,
       });
 
       const responseData = (await response.json().catch(() => ({}))) as {
@@ -995,25 +1040,20 @@ export default function KYCUploadScreen() {
       };
 
       if (!response.ok) {
-        // Upload failed on backend - don't invalidate cache
-        throw new Error(responseData.message || "Upload failed");
+        throw new Error(responseData.message || "Submission failed");
       }
 
-      // SUCCESS: Invalidate KYC status cache so banner and status page update immediately
-      // Force refetch by setting staleTime to 0 temporarily
+      // ── Success ────────────────────────────────────────────────────────────
       hasJustSubmittedRef.current = true;
       queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
-      // Also invalidate auto-fill cache to trigger extraction data fetch
       queryClient.invalidateQueries({ queryKey: ["kycAutofill"] });
 
-      // Check if auto-rejected by AI verification
       if (responseData.auto_rejected || responseData.status === "REJECTED") {
         const reasons = responseData.rejection_reasons || [];
         const formattedReasons =
           reasons.length > 0
             ? reasons.map((r) => `• ${r}`).join("\n")
             : "Please ensure your documents are clear and readable.";
-
         Alert.alert(
           "Verification Failed",
           `Your documents could not be verified automatically:\n\n${formattedReasons}\n\nPlease resubmit with clearer images.`,
@@ -1025,7 +1065,6 @@ export default function KYCUploadScreen() {
           ],
         );
       } else {
-        // Success - redirect to status
         Alert.alert(
           "Documents Uploaded!",
           isRejected
@@ -1040,7 +1079,6 @@ export default function KYCUploadScreen() {
         );
       }
     } catch (error) {
-      // Network error or backend error - show failed message
       console.error("KYC upload error:", error);
       Alert.alert(
         "Upload Failed",
@@ -1050,6 +1088,7 @@ export default function KYCUploadScreen() {
       );
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -1661,7 +1700,9 @@ export default function KYCUploadScreen() {
                   ? "Extracting..."
                   : isValidating
                     ? "Validating..."
-                    : "Submitting..."}
+                    : uploadProgress
+                      ? uploadProgress.label
+                      : "Submitting..."}
               </Text>
             </View>
           ) : (

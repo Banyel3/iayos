@@ -535,10 +535,19 @@ def upload_kyc(request):
             IDType=IDType,
             clearanceType=clearanceType
         )
+        # Collect any pre-staged file URLs (sent instead of raw files)
+        pre_uploaded_urls = {}
+        for _key, _field in [("FRONTID", "frontID_url"), ("BACKID", "backID_url"),
+                              ("CLEARANCE", "clearance_url"), ("SELFIE", "selfie_url")]:
+            _url_val = request.POST.get(_field)
+            if _url_val:
+                pre_uploaded_urls[_key] = _url_val
+
         result = upload_kyc_document(
             payload, frontID, backID, clearance, selfie,
             extracted_id_data=extracted_id_data,
-            extracted_clearance_data=extracted_clearance_data
+            extracted_clearance_data=extracted_clearance_data,
+            pre_uploaded_urls=pre_uploaded_urls or None
         )
         return result
     except ValueError as e:
@@ -549,6 +558,62 @@ def upload_kyc(request):
         import traceback
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
+
+
+@router.post("/kyc/stage-file", auth=dual_auth)
+def stage_kyc_file(request):
+    """
+    Stage a single KYC file to Supabase before the final metadata submission.
+    Call this for each of the 4 KYC documents individually, then POST only
+    the returned URLs (no files) to /upload/kyc.
+
+    Request: multipart/form-data
+    - file_key: one of FRONTID, BACKID, CLEARANCE, SELFIE
+    - file: the image file (JPEG/PNG/PDF, max 5 MB)
+
+    Response:
+    - success: bool
+    - file_key: str
+    - file_url: str
+    """
+    try:
+        from iayos_project.utils import upload_kyc_doc
+        from uuid import uuid4
+        from time import time
+        import os
+
+        user = request.auth
+        file_key = request.POST.get("file_key", "").upper()
+        valid_keys = ("FRONTID", "BACKID", "CLEARANCE", "SELFIE")
+        if file_key not in valid_keys:
+            return {"error": [{"message": f"file_key must be one of {valid_keys}"}]}
+
+        file = request.FILES.get("file")
+        if not file:
+            return {"error": [{"message": "No file provided"}]}
+
+        allowed_mime_types = ["image/jpeg", "image/jpg", "image/png", "application/pdf"]
+        if file.content_type not in allowed_mime_types:
+            return {"error": [{"message": "Invalid file type. Allowed: JPEG, PNG, PDF"}]}
+
+        if file.size > 5 * 1024 * 1024:
+            return {"error": [{"message": "File too large. Maximum size is 5 MB"}]}
+
+        ext = os.path.splitext(file.name)[1] or ".jpg"
+        unique_filename = f"{file_key.lower()}_{uuid4().hex}_{int(time())}{ext}"
+
+        file_url = upload_kyc_doc(file=file, user_id=user.accountID, file_name=unique_filename)
+        if not file_url:
+            return {"error": [{"message": f"Failed to upload {file_key} to storage. Please try again."}]}
+
+        print(f"✅ Staged KYC file {file_key} for user {user.accountID}: {file_url}")
+        return {"success": True, "file_key": file_key, "file_url": file_url}
+
+    except Exception as e:
+        print(f"❌ stage_kyc_file error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": [{"message": "Failed to stage file. Please try again."}]}
 
 
 @router.post("/kyc/validate-document", auth=dual_auth)

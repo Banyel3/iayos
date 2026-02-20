@@ -773,7 +773,7 @@ def assign_role(data):
         print(f"❌ Error assigning role: {str(e)}")
         raise ValueError(f"Failed to assign role: {str(e)}")
 
-def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None):
+def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, selfie=None, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None, pre_uploaded_urls=None):
     """
     Upload KYC documents to storage and create database records.
     
@@ -804,9 +804,11 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         
         # Log which files were received
         received_files = [key for key, file in images.items() if file]
+        pre_url_keys = list(pre_uploaded_urls.keys()) if pre_uploaded_urls else []
         print(f"📎 Files received: {', '.join(received_files) if received_files else 'NONE'}")
+        print(f"📎 Pre-uploaded URLs: {', '.join(pre_url_keys) if pre_url_keys else 'NONE'}")
         
-        if not received_files:
+        if not received_files and not pre_url_keys:
             print("❌ CRITICAL: No files received in upload request!")
             raise ValueError("No files were provided for upload")
 
@@ -881,6 +883,24 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         # Upload each file
         for key, file in images.items():
             if not file:
+                # Check if a pre-uploaded URL exists for this key
+                if pre_uploaded_urls and key in pre_uploaded_urls:
+                    pre_url = pre_uploaded_urls[key]
+                    if key in ['FRONTID', 'BACKID']:
+                        _id_type = payload.IDType.upper() if payload.IDType else key
+                    elif key == 'CLEARANCE':
+                        _id_type = payload.clearanceType.upper() if payload.clearanceType else key
+                    else:
+                        _id_type = None  # SELFIE has no IDType (field is null=True)
+                    kycFiles.objects.create(
+                        kycID=kyc_record,
+                        idType=_id_type,
+                        fileURL=pre_url,
+                        fileName=f"{key.lower()}_staged",
+                        fileSize=0
+                    )
+                    uploaded_files.append({'key': key, 'url': pre_url, 'pre_staged': True})
+                    print(f"✅ Using pre-staged URL for {key}: {pre_url}")
                 continue
 
             if file.content_type not in allowed_mime_types:
@@ -1014,6 +1034,26 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         # Runs ASYNC in background thread to avoid
         # proxy timeout (dlib encoding takes 5-15s)
         # ============================================
+        # Ensure pre-staged FRONTID/SELFIE bytes are in cache so face matching
+        # runs even when files were uploaded in a prior request (pre-staged flow).
+        for _face_key in ['FRONTID', 'SELFIE']:
+            if _face_key not in file_data_cache and pre_uploaded_urls and _face_key in pre_uploaded_urls:
+                try:
+                    _pre_path = pre_uploaded_urls[_face_key]
+                    # Extract storage path from full URL if needed
+                    if '/object/public/' in _pre_path:
+                        _pre_path = _pre_path.split('/object/public/kyc-docs/')[-1]
+                    elif '/object/sign/' in _pre_path:
+                        _pre_path = _pre_path.split('/object/sign/kyc-docs/')[-1].split('?')[0]
+                    _face_bytes = settings.STORAGE.storage().from_('kyc-docs').download(_pre_path)
+                    if _face_bytes:
+                        file_data_cache[_face_key] = _face_bytes
+                        print(f"📥 Downloaded {_face_key} bytes from storage for face matching ({len(_face_bytes):,} bytes)")
+                    else:
+                        print(f"⚠️ Could not download {_face_key} for face matching: empty response")
+                except Exception as _face_dl_err:
+                    print(f"⚠️ Could not download {_face_key} for face matching: {_face_dl_err}")
+
         face_match_result = None
         if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
             print("🔍 Scheduling ASYNC face matching between ID and selfie...")
