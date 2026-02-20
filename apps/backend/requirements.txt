@@ -3,7 +3,7 @@
 # InsightFace and other packages depend on packaging/setuptools at import time
 # ============================================================================
 packaging>=23.0
-setuptools>=70.0.0
+setuptools>=70.0.0,<78.0.0
 
 # Core Django with security patches (CRITICAL SECURITY UPDATE - CVE-2025-64459)
 django>=5.2.8
