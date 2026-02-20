@@ -1414,6 +1414,7 @@ def get_conversation_messages(request, conversation_id: int):
                 })
             
             message_data = {
+                "message_id": msg.messageID,
                 "sender_name": sender_name,
                 "sender_avatar": sender_avatar,
                 "message_text": msg.messageText,
@@ -1968,6 +1969,7 @@ def send_message(request, data: SendMessageSchema):
         return {
             "success": True,
             "message": {
+                "message_id": message.messageID,
                 "conversation_id": conversation.conversationID,
                 "sender_name": sender_name,
                 "message_text": message.messageText,
