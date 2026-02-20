@@ -69,18 +69,22 @@ def _get_face_recognition():
         # SystemExit in an ASGI worker causes a full server restart – importing
         # face_recognition first would trigger that crash before we can guard against it.
         try:
-            # Pre-validate that pkg_resources (from setuptools) is importable.
-            # face_recognition_models imports pkg_resources at module level, so if
-            # setuptools is missing the subsequent import raises a confusing
-            # "No module named 'pkg_resources'" error that looks like the models
-            # package itself is absent.  This explicit check surfaces the real cause
-            # with an actionable message.
+            # Pre-validate that setuptools is installed.
+            # face_recognition_models imports pkg_resources (a setuptools sub-module)
+            # at module level.  If setuptools was removed by pip 25.3+ during
+            # dependency resolution, the subsequent import surfaces a confusing
+            # "No module named 'pkg_resources'" error.  This check uses stdlib-only
+            # importlib.metadata (Python 3.8+) to verify setuptools is present
+            # *without* importing pkg_resources itself, so it works even when
+            # setuptools is installed but pkg_resources can't be imported for
+            # some other reason (e.g. __pycache__ corruption).
             try:
-                import pkg_resources  # noqa: F401 – required by face_recognition_models
-            except ImportError as _pkg_err:
+                import importlib.metadata as _il_meta
+                _il_meta.version('setuptools')
+            except Exception as _pkg_err:
                 raise ImportError(
-                    f"pkg_resources is not importable ({_pkg_err}). "
-                    "setuptools must be installed in the Python environment: "
+                    f"setuptools is not installed ({_pkg_err}). "
+                    "pkg_resources must be available for face_recognition_models: "
                     "pip install --upgrade setuptools"
                 ) from _pkg_err
 
