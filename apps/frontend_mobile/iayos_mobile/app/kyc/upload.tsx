@@ -656,16 +656,73 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 3: ID verification - just check form values exist
+    // Step 3: ID verification - validate form fields
     if (currentStep === 3) {
-      if (!idFormValues.full_name?.trim() || !idFormValues.id_number?.trim()) {
-        Alert.alert(
-          "Required",
-          "Please fill in at least your full name and ID number",
-        );
-        return;
-      }
-      // Proceed to step 4
+      const validateIDForm = (): boolean => {
+        const name = idFormValues.full_name?.trim() ?? "";
+        if (!name) {
+          Alert.alert("Required", "Please enter your full name");
+          return false;
+        }
+        if (!name.includes(" ")) {
+          Alert.alert("Required", "Please enter your full name (first and last name)");
+          return false;
+        }
+
+        const idNum = idFormValues.id_number?.trim() ?? "";
+        if (!idNum) {
+          Alert.alert("Required", "Please enter your ID number");
+          return false;
+        }
+        const idNumDigitsOnly = idNum.replace(/[\s\-]/g, "");
+        let idValid = true;
+        if (selectedIDType === "NATIONALID") {
+          idValid = /^\d{12,16}$/.test(idNumDigitsOnly);
+        } else if (selectedIDType === "DRIVERSLICENSE") {
+          idValid = /^[A-Za-z][0-9\-]{7,}$/.test(idNum);
+        } else if (selectedIDType === "PASSPORT") {
+          idValid = /^[A-Za-z]{1,2}\d{5,7}$/.test(idNum);
+        } else if (selectedIDType === "UMID" || selectedIDType === "PHILHEALTH") {
+          idValid = /^\d{12}$/.test(idNumDigitsOnly);
+        }
+        if (!idValid) {
+          Alert.alert("Invalid ID Number", "ID number format doesn't match the selected ID type");
+          return false;
+        }
+
+        const birthDate = idFormValues.birth_date?.trim() ?? "";
+        if (!birthDate) {
+          Alert.alert("Required", "Date of birth is required");
+          return false;
+        }
+        const bDate = new Date(birthDate);
+        if (isNaN(bDate.getTime())) {
+          Alert.alert("Invalid Date", "Please enter a valid date of birth");
+          return false;
+        }
+        const ageCutoff = new Date();
+        ageCutoff.setFullYear(ageCutoff.getFullYear() - 18);
+        if (bDate > ageCutoff) {
+          Alert.alert("Age Requirement", "You must be at least 18 years old");
+          return false;
+        }
+
+        const address = idFormValues.address?.trim() ?? "";
+        if (address && address.length < 5) {
+          Alert.alert("Invalid Address", "Address is too short");
+          return false;
+        }
+
+        const sex = idFormValues.sex?.trim().toUpperCase() ?? "";
+        if (sex && !["MALE", "FEMALE", "M", "F"].includes(sex)) {
+          Alert.alert("Invalid Value", "Sex must be Male or Female");
+          return false;
+        }
+
+        return true;
+      };
+
+      if (!validateIDForm()) return;
       setCurrentStep(4);
       return;
     }
@@ -749,13 +806,62 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 5: Clearance verification - just check form values exist
+    // Step 5: Clearance verification - validate form fields
     if (currentStep === 5) {
-      if (!clearanceFormValues.clearance_number?.trim()) {
-        Alert.alert("Required", "Please fill in the clearance number");
-        return;
-      }
-      // Proceed to step 6
+      const validateClearanceForm = (): boolean => {
+        const holderName = clearanceFormValues.holder_name?.trim() ?? "";
+        if (!holderName) {
+          Alert.alert("Required", "Please enter the certificate holder's full name");
+          return false;
+        }
+        if (!holderName.includes(" ")) {
+          Alert.alert("Required", "Please enter the holder's full name (first and last name)");
+          return false;
+        }
+
+        const clearanceNum = clearanceFormValues.clearance_number?.trim() ?? "";
+        if (!clearanceNum) {
+          Alert.alert("Required", "Please fill in the clearance number");
+          return false;
+        }
+        if (!/^[\d\-]{6,}$/.test(clearanceNum)) {
+          Alert.alert("Invalid Clearance Number", "Please enter a valid clearance number (digits only, at least 6 characters)");
+          return false;
+        }
+
+        const issueDate = clearanceFormValues.issue_date?.trim() ?? "";
+        if (issueDate) {
+          const iDate = new Date(issueDate);
+          if (isNaN(iDate.getTime())) {
+            Alert.alert("Invalid Date", "Please enter a valid issue date");
+            return false;
+          }
+          if (iDate > new Date()) {
+            Alert.alert("Invalid Date", "Issue date cannot be in the future");
+            return false;
+          }
+        }
+
+        const validityDate = clearanceFormValues.validity_date?.trim() ?? "";
+        if (validityDate) {
+          const vDate = new Date(validityDate);
+          if (isNaN(vDate.getTime())) {
+            Alert.alert("Invalid Date", "Please enter a valid validity date");
+            return false;
+          }
+          if (issueDate) {
+            const iDate = new Date(issueDate);
+            if (!isNaN(iDate.getTime()) && vDate <= iDate) {
+              Alert.alert("Invalid Date", "Validity date must be after the issue date");
+              return false;
+            }
+          }
+        }
+
+        return true;
+      };
+
+      if (!validateClearanceForm()) return;
       setCurrentStep(6);
       return;
     }

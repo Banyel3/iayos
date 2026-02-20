@@ -339,7 +339,7 @@ class DocumentVerificationService:
                         # CompreFace not available - mark for manual review with warning
                         face_detection_skipped = True
                         face_detection_warning = "Face detection service temporarily unavailable. Your document will be reviewed manually."
-                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable) - marked for manual review")
+                        logger.warning("   ⚠️ Face detection skipped (face_recognition/dlib unavailable) - marked for manual review")
                     else:
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
