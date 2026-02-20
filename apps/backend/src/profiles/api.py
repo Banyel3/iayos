@@ -1807,10 +1807,10 @@ def get_conversation_messages(request, conversation_id: int):
             
             if client_review:
                 client_review_data = {
-                    "rating_communication": float(client_review.ratingCommunication) if client_review.ratingCommunication else 0,
-                    "rating_punctuality": float(client_review.ratingPunctuality) if client_review.ratingPunctuality else 0,
-                    "rating_professionalism": float(client_review.ratingProfessionalism) if client_review.ratingProfessionalism else 0,
-                    "rating_quality": float(client_review.ratingQuality) if client_review.ratingQuality else 0,
+                    "rating_communication": float(client_review.rating_communication) if client_review.rating_communication else 0,
+                    "rating_punctuality": float(client_review.rating_punctuality) if client_review.rating_punctuality else 0,
+                    "rating_professionalism": float(client_review.rating_professionalism) if client_review.rating_professionalism else 0,
+                    "rating_quality": float(client_review.rating_quality) if client_review.rating_quality else 0,
                     "comment": client_review.message or "",
                     "created_at": client_review.createdAt.isoformat() if client_review.createdAt else None,
                 }
@@ -1824,10 +1824,10 @@ def get_conversation_messages(request, conversation_id: int):
             
             if worker_review:
                 worker_review_data = {
-                    "rating_communication": float(worker_review.ratingCommunication) if worker_review.ratingCommunication else 0,
-                    "rating_punctuality": float(worker_review.ratingPunctuality) if worker_review.ratingPunctuality else 0,
-                    "rating_professionalism": float(worker_review.ratingProfessionalism) if worker_review.ratingProfessionalism else 0,
-                    "rating_quality": float(worker_review.ratingQuality) if worker_review.ratingQuality else 0,
+                    "rating_communication": float(worker_review.rating_communication) if worker_review.rating_communication else 0,
+                    "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
+                    "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
+                    "rating_quality": float(worker_review.rating_quality) if worker_review.rating_quality else 0,
                     "comment": worker_review.message or "",
                     "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
                 }
