@@ -84,12 +84,15 @@ class AccountsConfig(AppConfig):
         import os
         import sys
         
-        # Skip during migrations/test contexts
-        is_management_command = len(sys.argv) > 1 and sys.argv[1] in [
-            'migrate', 'makemigrations', 'shell', 'test', 'collectstatic',
-            'showmigrations', 'check', 'create_admin', 'create_test_users'
-        ]
-        
+        # Skip heavy startup work for ANY manage.py command invocation.
+        # This prevents face recognition / Tesseract pre-warming from running
+        # 5+ times during the start.sh setup sequence (seed_data, clear_rate_limits,
+        # migrate, create_admin, create_test_users all each trigger ready()).
+        is_management_command = (
+            os.path.basename(sys.argv[0]) == 'manage.py'
+            or (len(sys.argv) > 1 and sys.argv[0].endswith('manage.py'))
+        )
+
         if is_management_command:
             return
         

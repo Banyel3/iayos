@@ -35,11 +35,11 @@ services:
     # Health Check
     health_check:
       http_path: /health/status
-      initial_delay_seconds: 60 # Wait for migrations
+      initial_delay_seconds: 120 # Wait for migrations + seeding
       period_seconds: 30
       timeout_seconds: 10
       success_threshold: 1
-      failure_threshold: 5
+      failure_threshold: 8
 
     # Run Command (uses Dockerfile ENTRYPOINT by default)
     # Uncomment only if you need to override
