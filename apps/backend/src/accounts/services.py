@@ -438,10 +438,13 @@ def reset_password_verify(verifyToken, userID, data, request=None):
     if user.verifyTokenExpiry < timezone.now():
         raise ValueError("Reset token has expired")
     
-    # 5️⃣ Update password and clear reset token
+    # 5️⃣ Update password, clear reset token, and mark email as verified
+    # The user proved email access via OTP during the forgot-password flow,
+    # so auto-verify their account if it isn't already.
     user.set_password(data.newPassword)  # This properly hashes the password
     user.verifyToken = None
     user.verifyTokenExpiry = None
+    user.isVerified = True
     user.save()
     
     # 6️⃣ Log password reset for audit trail
