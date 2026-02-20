@@ -128,15 +128,14 @@ COPY apps/backend/requirements.txt .
 # pkg_resources (provided by setuptools) is always available at runtime for
 # face_detection_service.py which uses it to locate face_recognition model files.
 RUN python -m venv /app/venv \
-    && /app/venv/bin/pip install --upgrade 'pip>=25.3' setuptools wheel \
+    && /app/venv/bin/pip install --upgrade 'pip>=25.3' 'setuptools>=70.0.0,<78.0.0' wheel \
     && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
-    && /app/venv/bin/pip install 'setuptools>=70.0.0' \
+    && /app/venv/bin/pip install --force-reinstall --no-deps --no-cache-dir 'setuptools>=70.0.0,<78.0.0' \
     && /app/venv/bin/pip check \
     && echo '✅ All dependencies installed to virtualenv' \
-    && /app/venv/bin/python -c "import importlib.metadata; v=importlib.metadata.version('setuptools'); print(f'✅ setuptools {v} OK in deps stage')" \
+    && /app/venv/bin/python -c "from pkg_resources import resource_filename; print('✅ pkg_resources OK in deps stage')" \
     && /app/venv/bin/python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" \
-    && find /app/venv -name "*.pyc" -delete 2>/dev/null || true \
-    && find /app/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    && (find /app/venv -name '*.pyc' -delete 2>/dev/null; find /app/venv -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null; true)
 
 # ============================================
 # Stage 9: Backend Builder
@@ -262,7 +261,7 @@ WORKDIR /app/apps/backend
 
 # Install Python dependencies
 COPY apps/backend/requirements.txt ./
-RUN python -m pip install --upgrade pip setuptools wheel \
+RUN python -m pip install --upgrade pip 'setuptools>=70.0.0,<78.0.0' wheel \
     && pip install --no-cache-dir -r requirements.txt
 
 # Verify face_recognition and its model data files are present.
@@ -342,23 +341,20 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # CRITICAL: Fix Windows line endings (CRLF) if present
 RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
 
-# Safety net: guarantee setuptools is present regardless of deps cache state.
-# The backend-deps stage installs it, but GHA layer caching (--cache-from type=gha)
-# can serve a stale deps layer where pip 25.3+ removed setuptools during bulk
-# dependency resolution.  This uncached RUN in the production stage ensures
-# pkg_resources is always available for face_recognition_models at runtime.
-RUN /app/venv/bin/pip install --no-cache-dir 'setuptools>=70.0.0' \
- && /app/venv/bin/python -c "import importlib.metadata; v=importlib.metadata.version('setuptools'); print('setuptools safety-net:', v)"
+# Safety net: force-reinstall setuptools <78 regardless of deps cache state.
+# setuptools 78+ removed pkg_resources as a bundled subpackage, but
+# face_recognition_models depends on it. --force-reinstall ensures actual module
+# files are written even when pip thinks "already satisfied" from dist-info metadata.
+# The <78 pin guarantees pkg_resources is included in the distribution.
+RUN /app/venv/bin/pip install --force-reinstall --no-deps --no-cache-dir 'setuptools>=70.0.0,<78.0.0' \
+ && /app/venv/bin/python -c "from pkg_resources import resource_filename; print('setuptools safety-net: pkg_resources OK')"
 
 # CRITICAL: Verify all dependencies are accessible at build time.
 # Use /app/venv/bin/python EXPLICITLY (not just 'python') to guarantee we
-# are testing the venv interpreter and its site-packages, not the system
-# Python which has no setuptools/pkg_resources. Even though PATH includes
-# /app/venv/bin, some CI Docker builders (GitHub Actions, DigitalOcean) do
-# not honour ENV PATH in RUN shells reliably – explicit path is foolproof.
-# NOTE: We check setuptools via importlib.metadata (stdlib) rather than
-# "import pkg_resources" to avoid the very failure we're guarding against.
-RUN /app/venv/bin/python -c "import importlib.metadata; print('setuptools:', importlib.metadata.version('setuptools'))" \
+# test the venv interpreter. We import pkg_resources directly (not just
+# importlib.metadata) to verify the actual module files exist, not just
+# the dist-info metadata which can be present even when pkg_resources is gone.
+RUN /app/venv/bin/python -c "from pkg_resources import resource_filename; import importlib.metadata; print('setuptools:', importlib.metadata.version('setuptools'), '- pkg_resources OK')" \
  && /app/venv/bin/python -c "import django; print('django:', django.__version__)" \
  && /app/venv/bin/python -c "import psycopg2; print('psycopg2: OK')" \
  && /app/venv/bin/python -c "import packaging; print('packaging:', packaging.__version__)" \
