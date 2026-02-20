@@ -67,7 +67,7 @@ def _prewarm_face_api_async():
             print("✅ Face Recognition: PRE-WARMED (dlib model loaded, ready for requests)")
         else:
             print("⚠️ Face Recognition: Pre-warm failed (will retry on first request)")
-    except Exception as e:
+    except BaseException as e:
         print(f"⚠️ Face Recognition pre-warm error: {e}")
 
 

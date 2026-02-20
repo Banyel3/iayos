@@ -63,36 +63,39 @@ def _get_face_recognition():
         return None
 
     if _face_recognition is None:
+        # IMPORTANT: Check face_recognition_models FIRST before importing face_recognition.
+        # When face_recognition_models is absent, face_recognition/__init__.py calls quit()
+        # which raises SystemExit (a BaseException, not Exception/ImportError).
+        # SystemExit in an ASGI worker causes a full server restart – importing
+        # face_recognition first would trigger that crash before we can guard against it.
+        try:
+            import face_recognition_models
+            import os
+            model_path = face_recognition_models.face_recognition_model_location()
+            predictor_path = face_recognition_models.pose_predictor_model_location()
+            if not os.path.exists(model_path) or not os.path.exists(predictor_path):
+                raise FileNotFoundError(
+                    f"face_recognition model files not found: "
+                    f"model={os.path.exists(model_path)}, predictor={os.path.exists(predictor_path)}"
+                )
+        except (ImportError, FileNotFoundError) as model_err:
+            logger.error(
+                f"face_recognition_models NOT available: {model_err}. "
+                "Face detection will be skipped (documents will go to manual review)."
+            )
+            _face_recognition_available = False
+            return None
+
+        # Models confirmed present – now safe to import face_recognition.
+        # Use BaseException (not just ImportError) to catch SystemExit in case
+        # face_recognition itself calls quit() for any unexpected reason.
         try:
             import face_recognition as _fr
-
-            # Verify model data files are actually installed.
-            # The face_recognition library imports fine even when
-            # face_recognition_models is missing – it only fails at
-            # the point it tries to load model paths.
-            try:
-                import face_recognition_models
-                model_path = face_recognition_models.face_recognition_model_location()
-                predictor_path = face_recognition_models.pose_predictor_model_location()
-                import os
-                if not os.path.exists(model_path) or not os.path.exists(predictor_path):
-                    raise FileNotFoundError(
-                        f"face_recognition model files not found: "
-                        f"model={os.path.exists(model_path)}, predictor={os.path.exists(predictor_path)}"
-                    )
-            except (ImportError, FileNotFoundError) as model_err:
-                logger.error(
-                    f"face_recognition_models NOT available: {model_err}. "
-                    "Face detection will be skipped (documents will go to manual review)."
-                )
-                _face_recognition_available = False
-                return None
-
             _face_recognition = _fr
             _face_recognition_available = True
             logger.info("face_recognition library loaded (dlib models verified and ready)")
-        except ImportError as e:
-            logger.error(f"face_recognition library not installed: {e}")
+        except BaseException as e:
+            logger.error(f"face_recognition import failed: {e}")
             _face_recognition_available = False
             return None
 
@@ -137,7 +140,7 @@ def prewarm_face_api() -> bool:
             return False
         logger.info("face_recognition pre-warmed successfully")
         return True
-    except Exception as e:
+    except BaseException as e:
         logger.warning(f"face_recognition pre-warm failed: {e}")
         return False
 
