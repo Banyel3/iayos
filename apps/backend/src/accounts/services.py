@@ -1090,29 +1090,26 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                     # Fix A: key is 'error' not 'reason' in FaceComparisonResult.to_dict()
                     if result.get('skipped'):
                         print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('error')}")
-                        # Fix B: per-step /validate-document already passed for every
-                        # document (skip_ai_verification=True), so auto-approve instead
-                        # of silently returning and leaving KYC stuck in PENDING forever.
+                        # face_recognition model not installed — leave KYC as PENDING
+                        # for manual admin review instead of auto-approving.
+                        kyc_rec.notes = (
+                            "Pending manual review: Face comparison unavailable "
+                            "(face_recognition model not installed on server). "
+                            "Please verify ID and selfie match manually."
+                        )
+                        kyc_rec.save(update_fields=['notes'])
                         try:
                             from accounts.models import Accounts
-                            kyc_rec.kyc_status = 'APPROVED'
-                            kyc_rec.notes = (
-                                "Auto-approved: Documents validated per-step; "
-                                "face comparison unavailable (model not installed)."
-                            )
-                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
                             account = Accounts.objects.get(accountID=account_id)
-                            account.KYCVerified = True
-                            account.save(update_fields=['KYCVerified'])
                             Notification.objects.create(
                                 accountFK=account,
-                                type='KYC',
-                                title='KYC Verified ✅',
-                                body='Your identity documents have been verified successfully.',
+                                notificationType=Notification.NotificationType.KYC_APPROVED,
+                                title='KYC Under Manual Review 🔍',
+                                message='Your KYC submission is being reviewed by our team. You will be notified within 1-2 business days.',
                             )
-                            print(f"🧵 [ASYNC FACE MATCH] ✅ Auto-approved (kycID={kyc_record_id}) — face model unavailable but docs passed per-step")
-                        except Exception as approve_err:
-                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Auto-approve error: {approve_err}")
+                            print(f"🧵 [ASYNC FACE MATCH] 🔍 KYC flagged for manual review (kycID={kyc_record_id}) — face model unavailable")
+                        except Exception as notif_err:
+                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
                         return
                     
                     similarity = result.get('similarity', 0)
@@ -1138,9 +1135,9 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                             account.save(update_fields=['KYCVerified'])
                             Notification.objects.create(
                                 accountFK=account,
-                                type='KYC',
+                                notificationType=Notification.NotificationType.KYC_APPROVED,
                                 title='KYC Verified ✅',
-                                body='Your identity documents have been verified successfully.',
+                                message='Your identity documents have been verified successfully.',
                             )
                             print(f"🧵 [ASYNC FACE MATCH] ✅ KYC auto-approved (kycID={kyc_record_id})")
                         except Exception as approve_err:
@@ -1159,9 +1156,9 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                                 account = Accounts.objects.get(accountID=account_id)
                                 Notification.objects.create(
                                     accountFK=account,
-                                    type='KYC',
+                                    notificationType=Notification.NotificationType.KYC_REJECTED,
                                     title='KYC Verification Failed ❌',
-                                    body=f'Your selfie does not match your ID photo (similarity: {similarity:.0%}). Please resubmit with matching photos.',
+                                    message=f'Your selfie does not match your ID photo (similarity: {similarity:.0%}). Please resubmit with matching photos.',
                                 )
                             except Exception as notif_err:
                                 print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
@@ -1180,9 +1177,9 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                                 account = Accounts.objects.get(accountID=account_id)
                                 Notification.objects.create(
                                     accountFK=account,
-                                    type='KYC',
+                                    notificationType=Notification.NotificationType.KYC_APPROVED,
                                     title='KYC Under Review 🔍',
-                                    body='Your KYC submission is being reviewed manually by our team. You will be notified within 1-2 business days.',
+                                    message='Your KYC submission is being reviewed manually by our team. You will be notified within 1-2 business days.',
                                 )
                             except Exception as notif_err:
                                 print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
