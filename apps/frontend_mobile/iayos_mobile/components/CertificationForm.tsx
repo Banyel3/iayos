@@ -40,8 +40,8 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 // ===== TYPES =====
 
 interface Skill {
-  id: number; // Specialization ID (used to link certification)
-  specializationId: number; // Specializations ID
+  id: number; // workerSpecialization ID (used to link certification to backend)
+  specializationId: number; // Specializations table PK
   name: string;
   experienceYears: number;
   certificationCount: number;
@@ -148,8 +148,8 @@ export default function CertificationForm({
 
   // Map the skills data to the format expected by the skill picker
   const skills: Skill[] = (skillsData?.data || []).map((s) => ({
-    id: s.id, // This is specializationID, used to link certification
-    specializationId: s.id,
+    id: s.id, // workerSpecialization PK — used as specialization_id when creating certs
+    specializationId: (s as any).specializationId || s.id, // Specializations table PK
     name: s.name,
     experienceYears: s.experienceYears || 0,
     certificationCount: 0,

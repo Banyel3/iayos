@@ -2429,6 +2429,45 @@ def accept_application(request, job_id: int, application_id: int):
 
             # Update status
             other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
+            
+            # CROSS-JOB AUTO-REJECTION: Reject this worker's pending applications on OTHER jobs
+            # Freelance workers can only have 1 in-progress job at a time
+            cross_job_apps = JobApplication.objects.filter(
+                workerID=application.workerID,
+                status=JobApplication.ApplicationStatus.PENDING
+            ).exclude(
+                jobID=job
+            ).select_related('jobID__clientID__profileID__accountFK')
+            
+            cross_job_count = cross_job_apps.count()
+            if cross_job_count > 0:
+                print(f"🔄 Auto-rejecting {cross_job_count} cross-job pending applications for worker {application.workerID.profileID.firstName}")
+                
+                # Notify each affected client that the worker is no longer available
+                for cross_app in cross_job_apps:
+                    try:
+                        Notification.objects.create(
+                            accountFK=cross_app.jobID.clientID.profileID.accountFK,
+                            notificationType="APPLICATION_REJECTED",
+                            title="Worker No Longer Available",
+                            message=f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName} has been hired for another job and is no longer available for '{cross_app.jobID.title}'.",
+                            relatedJobID=cross_app.jobID.jobID,
+                            relatedApplicationID=cross_app.applicationID
+                        )
+                    except Exception as notify_err:
+                        print(f"⚠️ Failed to notify client for cross-job rejection: {notify_err}")
+                
+                cross_job_apps.update(status=JobApplication.ApplicationStatus.REJECTED)
+                
+                # Notify the worker about auto-withdrawal
+                Notification.objects.create(
+                    accountFK=application.workerID.profileID.accountFK,
+                    notificationType="APPLICATIONS_AUTO_WITHDRAWN",
+                    title="Other Applications Withdrawn",
+                    message=f"Since you've been hired for '{job.title}', your {cross_job_count} other pending application{'s' if cross_job_count > 1 else ''} {'have' if cross_job_count > 1 else 'has'} been automatically withdrawn.",
+                    relatedJobID=job.jobID
+                )
+                print(f"✅ Auto-rejected {cross_job_count} cross-job applications")
 
         # Create notification for accepted worker
         client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"

@@ -2160,13 +2160,58 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 status=404
             )
         
-        # Accept this application
-        application.status = "ACCEPTED"
-        application.save()
+        # Check if application is still pending
+        if application.status != "PENDING":
+            return Response(
+                {"error": f"Application is already {application.status.lower()}"},
+                status=400
+            )
+        
+        # CRITICAL: Prevent accepting if worker already has an active job (race condition prevention)
+        # Freelance workers can only have 1 in-progress job at a time
+        from accounts.models import JobWorkerAssignment
+        
+        worker = application.workerID
+        
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker,
+            status=JobPosting.JobStatus.IN_PROGRESS
+        ).first()
+        
+        if active_regular_job:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_regular_job.jobID,
+                    "worker_active_job_title": active_regular_job.title
+                },
+                status=400
+            )
+        
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker,
+            assignment_status='ACTIVE'
+        ).select_related('jobID').first()
+        
+        if active_team_assignment:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_team_assignment.jobID.jobID,
+                    "worker_active_job_title": active_team_assignment.jobID.title
+                },
+                status=400
+            )
         
         # Use database transaction for atomicity
         from django.db import transaction as db_transaction
         with db_transaction.atomic():
+            # Accept application inside atomic block to prevent race conditions
+            application.status = "ACCEPTED"
+            application.save()
+            
             # Update job status to IN_PROGRESS and assign the worker
             job.status = JobPosting.JobStatus.IN_PROGRESS
             job.assignedWorkerID = application.workerID
@@ -2307,11 +2352,64 @@ def mobile_accept_application(request, job_id: int, application_id: int):
         # Only reject other applications for non-team (single-worker) jobs
         # Team jobs use separate accept_team_application endpoint and should not auto-reject
         if not job.is_team_job:
-            JobApplication.objects.filter(
-                jobID=job
+            # 1. Reject same-job pending applications and notify those workers
+            same_job_apps = JobApplication.objects.filter(
+                jobID=job,
+                status="PENDING"
             ).exclude(
                 applicationID=application_id
-            ).update(status="REJECTED")
+            ).select_related('workerID__profileID__accountFK')
+            
+            for other_app in same_job_apps:
+                Notification.objects.create(
+                    accountFK=other_app.workerID.profileID.accountFK,
+                    notificationType="APPLICATION_REJECTED",
+                    title="Application Not Selected",
+                    message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
+                    relatedJobID=job.jobID,
+                    relatedApplicationID=other_app.applicationID
+                )
+            same_job_apps.update(status="REJECTED")
+            
+            # 2. CROSS-JOB AUTO-REJECTION: Reject this worker's pending applications on OTHER jobs
+            # Freelance workers can only have 1 in-progress job at a time
+            # Note: Agencies can't apply to LISTING jobs (blocked at apply time), so this only affects freelancers
+            cross_job_apps = JobApplication.objects.filter(
+                workerID=application.workerID,
+                status="PENDING"
+            ).exclude(
+                jobID=job
+            ).select_related('jobID__clientID__profileID__accountFK')
+            
+            cross_job_count = cross_job_apps.count()
+            if cross_job_count > 0:
+                print(f"🔄 [MOBILE] Auto-rejecting {cross_job_count} cross-job pending applications for worker {application.workerID.profileID.firstName}")
+                
+                # Notify each affected client that the worker is no longer available
+                for cross_app in cross_job_apps:
+                    try:
+                        Notification.objects.create(
+                            accountFK=cross_app.jobID.clientID.profileID.accountFK,
+                            notificationType="APPLICATION_REJECTED",
+                            title="Worker No Longer Available",
+                            message=f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName} has been hired for another job and is no longer available for '{cross_app.jobID.title}'.",
+                            relatedJobID=cross_app.jobID.jobID,
+                            relatedApplicationID=cross_app.applicationID
+                        )
+                    except Exception as notify_err:
+                        print(f"⚠️ [MOBILE] Failed to notify client for cross-job rejection: {notify_err}")
+                
+                cross_job_apps.update(status="REJECTED")
+                
+                # Notify the worker about auto-withdrawal
+                Notification.objects.create(
+                    accountFK=application.workerID.profileID.accountFK,
+                    notificationType="APPLICATIONS_AUTO_WITHDRAWN",
+                    title="Other Applications Withdrawn",
+                    message=f"Since you've been hired for '{job.title}', your {cross_job_count} other pending application{'s' if cross_job_count > 1 else ''} {'have' if cross_job_count > 1 else 'has'} been automatically withdrawn.",
+                    relatedJobID=job.jobID
+                )
+                print(f"✅ [MOBILE] Auto-rejected {cross_job_count} cross-job applications")
         
         print(f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created")
         
