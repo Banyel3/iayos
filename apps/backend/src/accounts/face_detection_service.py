@@ -69,6 +69,21 @@ def _get_face_recognition():
         # SystemExit in an ASGI worker causes a full server restart – importing
         # face_recognition first would trigger that crash before we can guard against it.
         try:
+            # Pre-validate that pkg_resources (from setuptools) is importable.
+            # face_recognition_models imports pkg_resources at module level, so if
+            # setuptools is missing the subsequent import raises a confusing
+            # "No module named 'pkg_resources'" error that looks like the models
+            # package itself is absent.  This explicit check surfaces the real cause
+            # with an actionable message.
+            try:
+                import pkg_resources  # noqa: F401 – required by face_recognition_models
+            except ImportError as _pkg_err:
+                raise ImportError(
+                    f"pkg_resources is not importable ({_pkg_err}). "
+                    "setuptools must be installed in the Python environment: "
+                    "pip install --upgrade setuptools"
+                ) from _pkg_err
+
             import face_recognition_models
             import os
             model_path = face_recognition_models.face_recognition_model_location()
