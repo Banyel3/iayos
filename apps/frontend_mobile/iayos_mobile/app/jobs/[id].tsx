@@ -788,6 +788,14 @@ export default function JobDetailScreen() {
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
 
+  // Track worker IDs that are already accepted/assigned on this job
+  // Used to disable accept button for workers who already have another accepted application
+  const assignedWorkerIds = new Set(
+    teamApplications
+      .filter((a: any) => a.status === "ACCEPTED")
+      .map((a: any) => a.worker_id),
+  );
+
   const handleTeamSlotApply = (slot: SkillSlot) => {
     if (!isWorker) {
       Alert.alert("Error", "Only workers can apply to team jobs");
@@ -1762,7 +1770,7 @@ export default function JobDetailScreen() {
                   </View>
                 </View>
 
-                {app.status === "PENDING" && (
+                {app.status === "PENDING" && !assignedWorkerIds.has(app.worker_id) && (
                   <View style={styles.applicationActions}>
                     <TouchableOpacity
                       style={styles.acceptButton}
@@ -1810,6 +1818,16 @@ export default function JobDetailScreen() {
                         </>
                       )}
                     </TouchableOpacity>
+                  </View>
+                )}
+                {app.status === "PENDING" && assignedWorkerIds.has(app.worker_id) && (
+                  <View style={[styles.applicationActions, { justifyContent: 'center' }]}>
+                    <View style={[styles.applicationStatusBadge, styles.statusAccepted, { paddingHorizontal: 12, paddingVertical: 6 }]}>
+                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} style={{ marginRight: 4 }} />
+                      <Text style={[styles.applicationStatusText, { color: Colors.success }]}>
+                        Already Assigned to Another Slot
+                      </Text>
+                    </View>
                   </View>
                 )}
               </View>

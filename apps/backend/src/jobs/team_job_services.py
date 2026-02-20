@@ -412,6 +412,25 @@ def accept_team_application(
     if not skill_slot:
         return {'success': False, 'error': 'Application not associated with a skill slot'}
     
+    # CRITICAL: Check if worker is already assigned to another slot on this job
+    # A worker can only fill one slot per team job (unique_worker_per_job constraint)
+    existing_assignment = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        workerID=application.workerID,
+        assignment_status__in=['ACTIVE', 'COMPLETED']
+    ).select_related('skillSlotID__specializationID').first()
+    
+    if existing_assignment:
+        existing_slot_name = existing_assignment.skillSlotID.specializationID.specializationName
+        worker_name = f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}"
+        # Auto-reject this application since worker is already assigned
+        application.status = 'REJECTED'
+        application.save()
+        return {
+            'success': False,
+            'error': f'{worker_name} is already assigned to the "{existing_slot_name}" slot on this job. A worker can only fill one slot per job. This application has been automatically rejected.'
+        }
+    
     # Check if slot has openings
     current_assigned = JobWorkerAssignment.objects.filter(
         skillSlotID=skill_slot,
@@ -441,6 +460,19 @@ def accept_team_application(
     # Update application status
     application.status = 'ACCEPTED'
     application.save()
+    
+    # Auto-reject other pending applications from the same worker on this job
+    # (since they can't be assigned to multiple slots anyway)
+    other_pending_apps = JobApplication.objects.filter(
+        jobID=job,
+        workerID=application.workerID,
+        status='PENDING'
+    ).exclude(applicationID=application.applicationID)
+    
+    rejected_count = other_pending_apps.count()
+    if rejected_count > 0:
+        other_pending_apps.update(status='REJECTED')
+        print(f"📋 Auto-rejected {rejected_count} other pending application(s) from same worker on job #{job_id}")
     
     # Update slot status
     new_assigned = current_assigned + 1
