@@ -336,19 +336,19 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
 
 # CRITICAL: Verify all dependencies are accessible at build time.
-# Use individual python -c one-liners (not heredoc) so each check is
-# guaranteed to actually execute and fail the build on any missing import.
-# The heredoc RUN python<<'EOF' syntax can be silently skipped on some
-# Docker build environments (e.g. DigitalOcean App Platform) – that was
-# hiding the pkg_resources / face_recognition_models failures until runtime.
-RUN python -c "import pkg_resources; print('pkg_resources:', pkg_resources.__version__)" \
- && python -c "import django; print('django:', django.__version__)" \
- && python -c "import psycopg2; print('psycopg2: OK')" \
- && python -c "import packaging; print('packaging:', packaging.__version__)" \
- && python -c "import pytesseract; print('pytesseract: OK')" \
- && python -c "from PIL import Image; print('pillow:', Image.__version__)" \
- && python -c "import face_recognition_models, os, sys; m=face_recognition_models.face_recognition_model_location(); p=face_recognition_models.pose_predictor_model_location(); [sys.exit('MISSING MODEL FILE: '+x) for x in [m,p] if not os.path.exists(x)]; print('face_recognition_models: models verified')" \
- && python -c "import face_recognition; print('face_recognition OK:', face_recognition.__version__)" \
+# Use /app/venv/bin/python EXPLICITLY (not just 'python') to guarantee we
+# are testing the venv interpreter and its site-packages, not the system
+# Python which has no setuptools/pkg_resources. Even though PATH includes
+# /app/venv/bin, some CI Docker builders (GitHub Actions, DigitalOcean) do
+# not honour ENV PATH in RUN shells reliably – explicit path is foolproof.
+RUN /app/venv/bin/python -c "import pkg_resources; print('pkg_resources:', pkg_resources.__version__)" \
+ && /app/venv/bin/python -c "import django; print('django:', django.__version__)" \
+ && /app/venv/bin/python -c "import psycopg2; print('psycopg2: OK')" \
+ && /app/venv/bin/python -c "import packaging; print('packaging:', packaging.__version__)" \
+ && /app/venv/bin/python -c "import pytesseract; print('pytesseract: OK')" \
+ && /app/venv/bin/python -c "from PIL import Image; print('pillow:', Image.__version__)" \
+ && /app/venv/bin/python -c "import face_recognition_models, os, sys; m=face_recognition_models.face_recognition_model_location(); p=face_recognition_models.pose_predictor_model_location(); [sys.exit('MISSING MODEL FILE: '+x) for x in [m,p] if not os.path.exists(x)]; print('face_recognition_models: models verified')" \
+ && /app/venv/bin/python -c "import face_recognition; print('face_recognition OK:', face_recognition.__version__)" \
  && echo "ALL DEPENDENCIES VERIFIED - BUILD PASSED"
 
 # Switch to non-root user
@@ -356,7 +356,7 @@ USER appuser
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
 
 # Expose port for Django
 EXPOSE 8000
