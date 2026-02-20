@@ -4,7 +4,7 @@ from ninja import Router, Form as NinjaForm, File as NinjaFile, Body
 from ninja.files import UploadedFile
 from .schemas import (
     createAccountSchema, logInSchema, createAgencySchema,
-    forgotPasswordSchema, resetPasswordSchema, assignRoleSchema,
+    forgotPasswordSchema, resetPasswordSchema, ForgotPasswordOTPVerifySchema, assignRoleSchema,
     KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
     UpdateLocationSchema, LocationResponseSchema,
     ToggleLocationSharingSchema, NearbyWorkersSchema,
@@ -493,14 +493,75 @@ def resend_otp(request, payload: dict = Body(...)):
 
 @router.post("/forgot-password/send-verify")
 def forgot_password_send_verify(request, payload: forgotPasswordSchema):
-    """Send password reset verification email"""
+    """Send 6-digit OTP to email for password reset (mobile flow)"""
+    from .services import forgot_password_send_otp
     try:
-        result = forgot_password_request(payload)
+        result = forgot_password_send_otp(payload.email)
+        try:
+            from accounts.mobile_api import _send_otp_email_internal
+            _send_otp_email_internal(payload.email)
+        except Exception as email_err:
+            print(f"⚠️ Failed to send password reset OTP email: {email_err}")
         return result
-    except ValueError as e:
-        return {"error": [{"message": str(e)}]}
     except Exception as e:
         return {"error": [{"message": "Password reset request failed"}]}
+
+@router.post("/forgot-password/verify-otp")
+def forgot_password_verify_otp_code(request, payload: ForgotPasswordOTPVerifySchema):
+    """Verify OTP for password reset — issues a resetToken on success."""
+    from django.utils import timezone as tz
+    import uuid as uuid_lib
+    import hashlib
+
+    email = payload.email.strip().lower()
+    otp = str(payload.otp).strip()
+
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        return {"success": False, "error": "Account not found"}
+
+    if not user.email_otp:
+        return {"success": False, "error": "No reset code found. Please request a new one."}
+
+    if user.email_otp_attempts >= 5:
+        return {
+            "success": False,
+            "error": "Too many failed attempts. Please request a new code.",
+            "max_attempts_reached": True,
+        }
+
+    if user.email_otp_expiry and user.email_otp_expiry < tz.now():
+        return {
+            "success": False,
+            "error": "Reset code has expired. Please request a new one.",
+            "expired": True,
+        }
+
+    if user.email_otp != otp:
+        user.email_otp_attempts += 1
+        user.save()
+        remaining = 5 - user.email_otp_attempts
+        return {
+            "success": False,
+            "error": f"Invalid code. {remaining} attempt{'s' if remaining != 1 else ''} remaining.",
+            "remaining_attempts": remaining,
+        }
+
+    # OTP valid — generate reset token and clear OTP
+    reset_token = str(uuid_lib.uuid4())
+    user.verifyToken = hashlib.sha256(reset_token.encode()).hexdigest()
+    user.email_otp = None
+    user.email_otp_expiry = None
+    user.email_otp_attempts = 0
+    user.save()
+
+    return {
+        "success": True,
+        "message": "Code verified successfully.",
+        "resetToken": reset_token,
+        "accountId": user.accountID,
+    }
 
 @router.post("/forgot-password/verify")
 def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: str, id: int):

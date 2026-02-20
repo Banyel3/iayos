@@ -296,6 +296,7 @@ export const ENDPOINTS = {
   // Forgot Password
   FORGOT_PASSWORD_SEND: `${API_URL}/api/accounts/forgot-password/send-verify`,
   FORGOT_PASSWORD_VERIFY: `${API_URL}/api/accounts/forgot-password/verify`,
+  FORGOT_PASSWORD_VERIFY_OTP: `${API_URL}/api/accounts/forgot-password/verify-otp`,
 
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
