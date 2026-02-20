@@ -773,7 +773,7 @@ def assign_role(data):
         print(f"❌ Error assigning role: {str(e)}")
         raise ValueError(f"Failed to assign role: {str(e)}")
 
-def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None):
+def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, selfie=None, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None, pre_uploaded_urls=None):
     """
     Upload KYC documents to storage and create database records.
     
@@ -804,9 +804,11 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         
         # Log which files were received
         received_files = [key for key, file in images.items() if file]
+        pre_url_keys = list(pre_uploaded_urls.keys()) if pre_uploaded_urls else []
         print(f"📎 Files received: {', '.join(received_files) if received_files else 'NONE'}")
+        print(f"📎 Pre-uploaded URLs: {', '.join(pre_url_keys) if pre_url_keys else 'NONE'}")
         
-        if not received_files:
+        if not received_files and not pre_url_keys:
             print("❌ CRITICAL: No files received in upload request!")
             raise ValueError("No files were provided for upload")
 
@@ -881,6 +883,24 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         # Upload each file
         for key, file in images.items():
             if not file:
+                # Check if a pre-uploaded URL exists for this key
+                if pre_uploaded_urls and key in pre_uploaded_urls:
+                    pre_url = pre_uploaded_urls[key]
+                    if key in ['FRONTID', 'BACKID']:
+                        _id_type = payload.IDType.upper() if payload.IDType else key
+                    elif key == 'CLEARANCE':
+                        _id_type = payload.clearanceType.upper() if payload.clearanceType else key
+                    else:
+                        _id_type = key
+                    kycFiles.objects.create(
+                        kycID=kyc_record,
+                        idType=_id_type,
+                        fileURL=pre_url,
+                        fileName=f"{key.lower()}_staged",
+                        fileSize=0
+                    )
+                    uploaded_files.append({'key': key, 'url': pre_url, 'pre_staged': True})
+                    print(f"✅ Using pre-staged URL for {key}: {pre_url}")
                 continue
 
             if file.content_type not in allowed_mime_types:
