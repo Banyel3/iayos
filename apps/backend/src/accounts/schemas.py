@@ -53,6 +53,10 @@ class createAgencySchema(Schema):
 class forgotPasswordSchema(Schema):
     email: EmailStr
 
+class ForgotPasswordOTPVerifySchema(Schema):
+    email: EmailStr
+    otp: str
+
 class resetPasswordSchema(Schema):
     newPassword: str
     confirmPassword: str

@@ -395,6 +395,29 @@ def forgot_password_request(data):
         "email": user.email
     }
 
+def forgot_password_send_otp(email: str):
+    """Generate and store a 6-digit OTP for password reset (mobile flow)."""
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        # Return generic success to prevent email enumeration
+        return {
+            "success": True,
+            "message": "If an account with that email exists, a reset code has been sent.",
+            "email": email.lower(),
+        }
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0
+    user.save()
+    return {
+        "success": True,
+        "email": user.email,
+        "expires_in_minutes": 5,
+    }
+
+
 def reset_password_verify(verifyToken, userID, data, request=None):
     """Reset user password with verification token"""
     
