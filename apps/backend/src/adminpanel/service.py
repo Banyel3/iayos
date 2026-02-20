@@ -495,6 +495,7 @@ def reject_kyc(request):
         
         # Update KYC status to REJECTED
         kyc_record.kyc_status = "Rejected"
+        kyc_record.notes = reason  # persist reason so GET /kyc-status returns it to mobile
         kyc_record.reviewedAt = timezone.now()
         
         # Get the authenticated admin user from request.auth (set by CookieJWTAuth)
