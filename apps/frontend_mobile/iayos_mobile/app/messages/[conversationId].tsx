@@ -3990,7 +3990,7 @@ export default function ChatScreen() {
         <FlatList
           ref={flatListRef}
           data={conversation.messages}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item, index) => item.message_id ? String(item.message_id) : `msg_${index}_${item.created_at}`}
           renderItem={renderMessage}
           ListFooterComponent={renderTypingIndicator}
           contentContainerStyle={styles.messagesContent}
