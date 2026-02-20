@@ -53,11 +53,28 @@ def _get_face_recognition():
     return _face_recognition
 
 
-def _bytes_to_image(data: bytes):
-    """Convert raw image bytes to a numpy RGB array that face_recognition expects."""
+def _bytes_to_image(data: bytes, max_dim: int = 1024):
+    """Convert raw image bytes to a numpy RGB array that face_recognition expects.
+    
+    Downscales the longest edge to *max_dim* (default 1024 px) using
+    Lanczos resampling.  Phone cameras produce 12-48 MP images whose
+    raw numpy arrays exceed 36 MB – far too large for the HOG detector
+    on a single-vCPU instance.  Down-scaling to 1024 px keeps the face
+    well above the 64 px minimum HOG needs while cutting detection time
+    from ~10 s to < 1 s.
+    """
     from PIL import Image
     import numpy as np
     img = Image.open(io.BytesIO(data)).convert("RGB")
+    
+    # Downscale if either dimension exceeds max_dim
+    w, h = img.size
+    if max(w, h) > max_dim:
+        scale = max_dim / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+        logger.info(f"Image downscaled from {w}x{h} to {new_w}x{new_h} for face detection")
+    
     return np.array(img)
 
 

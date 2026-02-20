@@ -28,8 +28,8 @@ import {
 export default function FinalPaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const jobId = parseInt(params.jobId as string);
-  const budget = parseFloat(params.budget as string);
+  const jobId = parseInt(params.jobId as string) || 0;
+  const budget = parseFloat(params.budget as string) || 0;
   const jobTitle = (params.title as string) || "Job";
 
   const [selectedMethod, setSelectedMethod] = useState<
@@ -259,7 +259,7 @@ export default function FinalPaymentScreen() {
             method="wallet"
             icon="wallet"
             label="Wallet"
-            description={`Available: ₱${walletBalance?.balance.toLocaleString("en-US", { minimumFractionDigits: 2 }) || "0.00"}`}
+            description={`Available: ₱${(walletBalance?.balance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 }) || "0.00"}`}
             selected={selectedMethod === "wallet"}
             disabled={insufficientBalance}
             onPress={() => setSelectedMethod("wallet")}

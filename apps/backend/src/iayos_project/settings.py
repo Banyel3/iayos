@@ -537,6 +537,10 @@ NGROK_URL = os.getenv("NGROK_URL", None)
 # Backend URL (used for payment redirects in production)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
+# Face API (MediaPipe fallback) – used when local dlib detection fails.
+# Deployed on Render free tier; cold-starts may take 30-60 s.
+FACE_API_URL = os.getenv("FACE_API_URL", "")
+
 # Django Channels Configuration
 ASGI_APPLICATION = "iayos_project.asgi.application"
 

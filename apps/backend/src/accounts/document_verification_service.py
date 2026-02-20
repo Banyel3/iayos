@@ -2,9 +2,10 @@
 Document Verification Service for KYC Uploads
 
 This service provides automated verification of KYC documents using:
-1. Face API (InsightFace microservice) - Face detection for government IDs
-2. Tesseract OCR - Text extraction for clearances and permits
-3. Image quality checks - Blur detection, resolution, orientation
+1. face_recognition (dlib) - Local face detection + comparison (primary)
+2. MediaPipe Face API (Render) - HTTP fallback when dlib fails
+3. Tesseract OCR - Text extraction for clearances and permits
+4. Image quality checks - Blur detection, resolution, orientation
 
 Integration points:
 - Called during upload_kyc_document() after Supabase upload
@@ -246,7 +247,8 @@ class DocumentVerificationService:
     Service for automated document verification using AI/ML
     
     Uses:
-    - Face API (InsightFace microservice) for face detection
+    - face_recognition (dlib) for local face detection (primary)
+    - MediaPipe Face API for remote fallback face detection
     - Tesseract OCR for text extraction
     """
 
@@ -716,6 +718,7 @@ class DocumentVerificationService:
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
         Detect faces in image using local face_recognition (dlib) library.
+        Falls back to MediaPipe Face API (Render) if local detection fails.
         
         Returns dict with:
             - detected: bool
@@ -737,27 +740,51 @@ class DocumentVerificationService:
         try:
             face_service = self._get_local_face_service()
             if face_service is None:
-                logger.warning("Local face_detection_service not available, skipping")
-                return {
-                    "detected": False,
-                    "count": 0,
-                    "confidence": 0,
-                    "skipped": True,
-                    "error": "face_recognition library not available"
-                }
-            
-            result = face_service.detect_face(image_data)
-            return result.to_dict()
+                logger.warning("Local face_detection_service not available, trying MediaPipe fallback")
+            else:
+                result = face_service.detect_face(image_data)
+                return result.to_dict()
             
         except Exception as e:
-            logger.error(f"Face detection error: {e}", exc_info=True)
-            return {
-                "detected": False,
-                "count": 0,
-                "confidence": 0,
-                "skipped": True,
-                "error": str(e)
-            }
+            logger.error(f"Local face detection error: {e}", exc_info=True)
+        
+        # ── MediaPipe fallback (Render free-tier service) ──
+        face_api_url = getattr(settings, "FACE_API_URL", "")
+        if face_api_url:
+            try:
+                import requests as _requests
+                logger.info(f"Trying MediaPipe fallback at {face_api_url}/detect")
+                resp = _requests.post(
+                    f"{face_api_url}/detect",
+                    files={"file": ("image.jpg", image_data, "image/jpeg")},
+                    timeout=15,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    detected = data.get("face_detected", False)
+                    count = data.get("face_count", 0)
+                    confidence = data.get("confidence", 0)
+                    logger.info(f"MediaPipe fallback result: detected={detected}, count={count}")
+                    return {
+                        "detected": detected,
+                        "count": count,
+                        "confidence": confidence,
+                        "skipped": False,
+                        "source": "mediapipe_fallback",
+                    }
+                else:
+                    logger.warning(f"MediaPipe fallback returned {resp.status_code}")
+            except Exception as fb_err:
+                logger.warning(f"MediaPipe fallback failed: {fb_err}")
+        
+        # Both methods failed – flag for manual review
+        return {
+            "detected": False,
+            "count": 0,
+            "confidence": 0,
+            "skipped": True,
+            "error": "All face detection methods failed"
+        }
 
     def compare_faces(
         self, 
