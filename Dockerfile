@@ -231,6 +231,7 @@ RUN groupadd -g 1001 appgroup \
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
 # - cmake/g++/libopenblas-dev for dlib/face_recognition compilation
+# - git for pip installs from git URLs (e.g. face_recognition_models @ git+https://...)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -246,6 +247,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     zlib1g-dev \
     libpng-dev \
+    git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
