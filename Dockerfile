@@ -261,13 +261,7 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 # Verify face_recognition and its model data files are present.
 # dlib compilation can fail silently at build time; this turns it into a
 # hard build error so the dev container never starts with a broken install.
-RUN python -c "
-import face_recognition_models, os, sys
-p = face_recognition_models.face_recognition_model_location()
-if not os.path.exists(p): sys.exit('face_recognition_models .dat file missing: ' + p)
-import face_recognition
-print('✅ face_recognition OK:', face_recognition.__version__)
-"
+RUN python -c "import face_recognition_models, os, sys; p = face_recognition_models.face_recognition_model_location(); sys.exit('face_recognition_models .dat missing: ' + p) if not os.path.exists(p) else None; import face_recognition; print('face_recognition OK:', face_recognition.__version__)"
 
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
