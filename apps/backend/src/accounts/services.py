@@ -891,7 +891,7 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                     elif key == 'CLEARANCE':
                         _id_type = payload.clearanceType.upper() if payload.clearanceType else key
                     else:
-                        _id_type = key
+                        _id_type = None  # SELFIE has no IDType (field is null=True)
                     kycFiles.objects.create(
                         kycID=kyc_record,
                         idType=_id_type,
