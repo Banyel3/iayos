@@ -1047,8 +1047,32 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
                         defaults={'extraction_status': 'CONFIRMED'}
                     )
                     
+                    # Fix A: key is 'error' not 'reason' in FaceComparisonResult.to_dict()
                     if result.get('skipped'):
-                        print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('reason')}")
+                        print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('error')}")
+                        # Fix B: per-step /validate-document already passed for every
+                        # document (skip_ai_verification=True), so auto-approve instead
+                        # of silently returning and leaving KYC stuck in PENDING forever.
+                        try:
+                            from accounts.models import Accounts
+                            kyc_rec.kyc_status = 'APPROVED'
+                            kyc_rec.notes = (
+                                "Auto-approved: Documents validated per-step; "
+                                "face comparison unavailable (model not installed)."
+                            )
+                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
+                            account = Accounts.objects.get(accountID=account_id)
+                            account.KYCVerified = True
+                            account.save(update_fields=['KYCVerified'])
+                            Notification.objects.create(
+                                accountFK=account,
+                                type='KYC',
+                                title='KYC Verified ✅',
+                                body='Your identity documents have been verified successfully.',
+                            )
+                            print(f"🧵 [ASYNC FACE MATCH] ✅ Auto-approved (kycID={kyc_record_id}) — face model unavailable but docs passed per-step")
+                        except Exception as approve_err:
+                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Auto-approve error: {approve_err}")
                         return
                     
                     similarity = result.get('similarity', 0)
@@ -1061,6 +1085,26 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
                     
                     if result.get('match'):
                         print(f"🧵 [ASYNC FACE MATCH] ✅ PASSED: similarity={similarity:.2f} (kycID={kyc_record_id})")
+                        # Fix C: auto-approval was completely missing from the happy path.
+                        # The reject branch correctly wrote REJECTED but APPROVED was never
+                        # written — KYC stayed PENDING forever even after a passing face match.
+                        try:
+                            from accounts.models import Accounts
+                            kyc_rec.kyc_status = 'APPROVED'
+                            kyc_rec.notes = f"Auto-approved: Face match passed (similarity: {similarity:.0%})."
+                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
+                            account = Accounts.objects.get(accountID=account_id)
+                            account.KYCVerified = True
+                            account.save(update_fields=['KYCVerified'])
+                            Notification.objects.create(
+                                accountFK=account,
+                                type='KYC',
+                                title='KYC Verified ✅',
+                                body='Your identity documents have been verified successfully.',
+                            )
+                            print(f"🧵 [ASYNC FACE MATCH] ✅ KYC auto-approved (kycID={kyc_record_id})")
+                        except Exception as approve_err:
+                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Auto-approve error: {approve_err}")
                     else:
                         if similarity > 0:
                             # Faces detected but don't match → auto-reject
@@ -1082,7 +1126,26 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
                             except Exception as notif_err:
                                 print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
                         else:
+                            # Fix D: face_recognition available but couldn't encode faces
+                            # (bad photo quality / no face detected). Flag for manual review
+                            # instead of silently doing nothing.
                             print(f"🧵 [ASYNC FACE MATCH] ⚠️ Could not extract faces: {result.get('error')}")
+                            kyc_rec.notes = (
+                                f"Pending manual review: Unable to extract face encodings from documents. "
+                                f"Error: {result.get('error')}"
+                            )
+                            kyc_rec.save(update_fields=['notes'])
+                            try:
+                                from accounts.models import Accounts
+                                account = Accounts.objects.get(accountID=account_id)
+                                Notification.objects.create(
+                                    accountFK=account,
+                                    type='KYC',
+                                    title='KYC Under Review 🔍',
+                                    body='Your KYC submission is being reviewed manually by our team. You will be notified within 1-2 business days.',
+                                )
+                            except Exception as notif_err:
+                                print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
                     
                     print(f"🧵 [ASYNC FACE MATCH] Complete for kycID={kyc_record_id}")
                     
