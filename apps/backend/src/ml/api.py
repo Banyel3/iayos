@@ -1395,22 +1395,29 @@ def get_job_suggestions(request: HttpRequest, data: JobSuggestionsRequest):
     source = "database" if suggestions else "fallback"
 
     # Fallback to hardcoded if DB returned nothing
+    # Keys MUST match Specializations.specializationName from seed_data.py
     if not suggestions and data.field == "title" and category_name:
         FALLBACK_TITLES = {
             "Plumbing": ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
-            "Electrical": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
+            "Electrical Work": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
             "Carpentry": ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
             "Painting": ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
-            "Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
+            "General Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
             "Landscaping": ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
             "Masonry": ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
-            "HVAC": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
+            "HVAC (Aircon Services)": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
             "Roofing": ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
             "Welding": ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
-            "Automotive": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
-            "General Labor": ["Heavy lifting", "Hauling debris", "General assistance", "Packaging"],
-            "Moving": ["House moving", "Office relocation", "Furniture transport"],
-            "Delivery": ["Package delivery", "Food delivery", "Messenger service"],
+            "Auto Mechanic": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
+            "Motorcycle Repair": ["Engine overhaul", "Brake pad replacement", "Oil change", "Chain adjustment"],
+            "Tiling": ["Floor tiling", "Wall tiling", "Bathroom retiling", "Kitchen backsplash"],
+            "Appliance Repair": ["Repair washing machine", "Fix refrigerator", "AC unit repair", "Oven repair"],
+            "Pest Control": ["Termite treatment", "General pest spray", "Rodent control", "Ant treatment"],
+            "Furniture Assembly": ["Assemble cabinet", "Build bed frame", "Install wall shelf", "Desk assembly"],
+            "Moving Services": ["House moving", "Office relocation", "Furniture transport", "Appliance delivery"],
+            "Glass Installation": ["Window glass replacement", "Shower glass door", "Glass partition", "Mirror installation"],
+            "Drywall Installation": ["Wall partition", "Ceiling repair", "Drywall patching", "Room divider"],
+            "Security System Installation": ["CCTV installation", "Alarm system setup", "Smart lock install", "Doorbell camera"],
         }
         fallback = FALLBACK_TITLES.get(category_name, [])
         if data.query and len(data.query) >= 2:
@@ -1418,17 +1425,98 @@ def get_job_suggestions(request: HttpRequest, data: JobSuggestionsRequest):
         for t in fallback[: data.limit]:
             suggestions.append(JobSuggestion(text=t, frequency=0))
 
+    # Description fallbacks - Keys MUST match Specializations.specializationName
+    if not suggestions and data.field == "description" and category_name:
+        FALLBACK_DESCRIPTIONS = {
+            "Plumbing": [
+                "Need a plumber to fix a leaking pipe under the kitchen sink. Water is dripping and causing damage to the cabinet.",
+                "Looking for someone to install a new faucet in the bathroom. Old one is broken and needs replacement.",
+                "Toilet is clogged and won't flush properly. Need professional help to unclog and check the drainage.",
+            ],
+            "Electrical Work": [
+                "Light fixture in the living room stopped working. Need an electrician to check the wiring and replace if needed.",
+                "Need rewiring for an old house. Some outlets are not working and breakers keep tripping.",
+                "Install a new ceiling fan in the bedroom. Wiring is already available from the previous fixture.",
+            ],
+            "Carpentry": [
+                "Wooden cabinet door is broken and needs repair. Hinges are loose and the door won't close properly.",
+                "Looking for a carpenter to build custom shelving for the living room wall.",
+                "Door lock is damaged and difficult to open. Need replacement lock and realignment of the door.",
+            ],
+            "Painting": [
+                "Need the exterior walls of my house repainted. Current paint is peeling and faded.",
+                "Looking for a painter to paint two bedrooms. Walls need minor patching before painting.",
+            ],
+            "General Cleaning": [
+                "Deep cleaning needed for a 3-bedroom house. Includes kitchen, bathrooms, and all living areas.",
+                "Post-construction cleaning needed. There is dust, debris, and paint residue throughout the house.",
+            ],
+            "HVAC (Aircon Services)": [
+                "AC unit is not cooling properly. Need cleaning and inspection of the split type unit.",
+                "Install a new 1.5HP split type AC in the master bedroom. Wall bracket mounting needed.",
+            ],
+            "Roofing": [
+                "Roof is leaking during heavy rain. Need someone to find and fix the leak.",
+                "Gutter cleaning and repair needed. Some sections are clogged and sagging.",
+            ],
+            "Masonry": [
+                "Bathroom wall tiles are cracked and need replacement. Approximately 2 square meters area.",
+                "Concrete floor has cracks that need repair. Area is about 10 square meters.",
+            ],
+            "Welding": [
+                "Metal gate is rusted and difficult to open. Need repair and fresh anti-rust paint.",
+                "Need new window grills fabricated and installed for 3 windows.",
+            ],
+            "Auto Mechanic": [
+                "Car engine needs tune-up. Having trouble starting and fuel consumption seems high.",
+                "Brake pads need replacement. Hearing grinding noise when braking.",
+            ],
+            "Tiling": [
+                "Need floor tiles installed in the kitchen area, approximately 15 square meters.",
+                "Bathroom wall tiles are cracked and need retiling. Existing tiles need removal.",
+            ],
+            "Appliance Repair": [
+                "Washing machine is not draining water properly. Makes unusual noise during spin cycle.",
+                "Refrigerator is not cooling. Compressor seems to be running but temperature stays warm.",
+            ],
+            "Pest Control": [
+                "Termite infestation in wooden furniture and door frames. Need professional treatment.",
+                "General pest control spray needed for a 2-story house. Cockroaches and ants problem.",
+            ],
+            "Moving Services": [
+                "Need help moving furniture and boxes from a 2-bedroom apartment to a new location across the city.",
+                "Office relocation. Need to move desks, chairs, and equipment to new office building.",
+            ],
+        }
+        fallback = FALLBACK_DESCRIPTIONS.get(category_name, [])
+        if data.query and len(data.query) >= 2:
+            fallback = [d for d in fallback if data.query.lower() in d.lower()]
+        for d in fallback[: data.limit]:
+            suggestions.append(JobSuggestion(text=d, frequency=0))
+
+    # Keys MUST match Specializations.specializationName from seed_data.py
     if not suggestions and data.field == "materials" and category_name:
         FALLBACK_MATERIALS = {
             "Plumbing": ["PVC pipe", "Pipe wrench", "Teflon tape", "Faucet set", "Sealant"],
-            "Electrical": ["Wire", "Electrical tape", "Circuit breaker", "LED bulb", "Outlet box"],
+            "Electrical Work": ["Wire", "Electrical tape", "Circuit breaker", "LED bulb", "Outlet box"],
             "Carpentry": ["Plywood", "Nails", "Wood glue", "Sandpaper", "Hinges"],
             "Painting": ["Paint (latex)", "Paint roller", "Primer", "Brush set", "Masking tape"],
-            "Cleaning": ["Cleaning solution", "Mop", "Sponge", "Disinfectant", "Trash bags"],
+            "General Cleaning": ["Cleaning solution", "Mop", "Sponge", "Disinfectant", "Trash bags"],
             "Masonry": ["Cement", "Sand", "Gravel", "Tiles", "Grout"],
-            "HVAC": ["Refrigerant", "AC filter", "Copper tube", "Insulation tape"],
+            "HVAC (Aircon Services)": ["Refrigerant", "AC filter", "Copper tube", "Insulation tape"],
             "Roofing": ["Roofing nails", "GI sheet", "Waterproof sealant", "Gutter"],
             "Welding": ["Welding rod", "Steel bar", "Grinder disc", "Paint (anti-rust)"],
+            "Auto Mechanic": ["Engine oil", "Oil filter", "Spark plug", "Brake pads", "Coolant"],
+            "Motorcycle Repair": ["Engine oil", "Brake pads", "Chain lube", "Spark plug"],
+            "Tiling": ["Tiles", "Tile adhesive", "Grout", "Tile spacers", "Tile cutter blade"],
+            "Appliance Repair": ["Replacement parts", "Multimeter", "Screwdriver set", "Sealant"],
+            "Pest Control": ["Pesticide", "Bait traps", "Spray equipment", "Protective gear"],
+            "Furniture Assembly": ["Screws", "Allen wrench", "Wood glue", "Brackets", "Felt pads"],
+            "Moving Services": ["Moving boxes", "Bubble wrap", "Packing tape", "Furniture blankets"],
+            "Landscaping": ["Garden soil", "Fertilizer", "Plant pots", "Mulch", "Garden hose"],
+            "Glass Installation": ["Glass panel", "Silicone sealant", "Glass cutter", "Suction cups"],
+            "Drywall Installation": ["Drywall board", "Joint compound", "Drywall screws", "Tape"],
+            "Security System Installation": ["CCTV camera", "DVR unit", "BNC cable", "Power supply"],
         }
         fallback = FALLBACK_MATERIALS.get(category_name, [])
         if data.query and len(data.query) >= 2:

@@ -102,21 +102,28 @@ interface SkillSlot {
 }
 
 // Predefined job title suggestions based on category
+// Keys MUST match Specializations.specializationName from seed_data.py
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
-  Plumbing: ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
-  Electrical: ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
-  Carpentry: ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
-  Painting: ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
-  Cleaning: ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
-  Landscaping: ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
-  Masonry: ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
-  HVAC: ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
-  Roofing: ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
-  Welding: ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
-  Automotive: ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
-  "General Labor": ["Heavy lifting", "Hauling debris", "General assistance", "Packaging"],
-  Moving: ["House moving", "Office relocation", "Furniture transport"],
-  Delivery: ["Package delivery", "Food delivery", "Messenger service"],
+  "Plumbing": ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
+  "Electrical Work": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
+  "Carpentry": ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
+  "Painting": ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
+  "General Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
+  "Landscaping": ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
+  "Masonry": ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
+  "HVAC (Aircon Services)": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
+  "Roofing": ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
+  "Welding": ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
+  "Auto Mechanic": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
+  "Motorcycle Repair": ["Engine overhaul", "Brake pad replacement", "Oil change", "Chain adjustment"],
+  "Tiling": ["Floor tiling", "Wall tiling", "Bathroom retiling", "Kitchen backsplash"],
+  "Appliance Repair": ["Repair washing machine", "Fix refrigerator", "AC unit repair", "Oven repair"],
+  "Pest Control": ["Termite treatment", "General pest spray", "Rodent control", "Ant treatment"],
+  "Furniture Assembly": ["Assemble cabinet", "Build bed frame", "Install wall shelf", "Desk assembly"],
+  "Moving Services": ["House moving", "Office relocation", "Furniture transport", "Appliance delivery"],
+  "Glass Installation": ["Window glass replacement", "Shower glass door", "Glass partition", "Mirror installation"],
+  "Drywall Installation": ["Wall partition", "Ceiling repair", "Drywall patching", "Room divider"],
+  "Security System Installation": ["CCTV installation", "Alarm system setup", "Smart lock install", "Doorbell camera"],
 };
 
 export default function CreateJobScreen() {
