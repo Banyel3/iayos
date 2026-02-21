@@ -117,15 +117,15 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 room_group_name,
                 {
                     'type': 'chat_message',
+                    'sender_account_id': self.user.pk,
                     'message': {
                         'conversation_id': int(conversation_id),
                         'message_id': message.messageID,
                         'sender_name': sender_name,
                         'sender_avatar': sender_avatar,
-                        'message': message.messageText,
-                        'type': message.messageType,
+                        'message_text': message.messageText,
+                        'message_type': message.messageType,
                         'created_at': message.createdAt.isoformat(),
-                        'is_mine': False,  # Frontend will determine this based on current user
                     }
                 }
             )
@@ -138,8 +138,9 @@ class InboxConsumer(AsyncWebsocketConsumer):
             traceback.print_exc()
 
     async def chat_message(self, event):
-        """Send message to WebSocket - all subscribers will receive, frontend filters"""
+        """Send message to WebSocket - compute is_mine per socket before sending"""
         message = event['message']
+        message['is_mine'] = (self.user.pk == event.get('sender_account_id'))
         print(f"[InboxWS] 📤 Sending message for conversation {message.get('conversation_id')}")
         await self.send(text_data=json.dumps(message))
 
