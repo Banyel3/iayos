@@ -854,7 +854,8 @@ def get_conversations(request, filter: str = "all"):
             conversations_query = conversations_query.filter(
                 (Q(conversation_type='ONE_ON_ONE') & (
                     (Q(client=user_profile) & Q(archivedByClient=True)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=True))
+                    (Q(worker=user_profile) & Q(archivedByWorker=True)) |
+                    ((Q(agency=user_agency) & Q(archivedByWorker=True)) if user_agency else Q(pk__in=[]))
                 )) |
                 (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=archived_team_ids))
             )
@@ -872,7 +873,8 @@ def get_conversations(request, filter: str = "all"):
                 # Exclude archived conversations
                 (Q(conversation_type='ONE_ON_ONE') & (
                     (Q(client=user_profile) & Q(archivedByClient=False)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=False))
+                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
+                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
                 )) |
                 (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
             ).filter(
@@ -911,7 +913,8 @@ def get_conversations(request, filter: str = "all"):
             conversations_query = conversations_query.filter(
                 (Q(conversation_type='ONE_ON_ONE') & (
                     (Q(client=user_profile) & Q(archivedByClient=False)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=False))
+                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
+                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
                 )) |
                 (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
             )
@@ -926,7 +929,8 @@ def get_conversations(request, filter: str = "all"):
                 conversations_query = conversations_query.filter(
                     (Q(conversation_type='ONE_ON_ONE') & (
                         (Q(client=user_profile) & Q(unreadCountClient__gt=0)) |
-                        (Q(worker=user_profile) & Q(unreadCountWorker__gt=0))
+                        (Q(worker=user_profile) & Q(unreadCountWorker__gt=0)) |
+                        ((Q(agency=user_agency) & Q(unreadCountWorker__gt=0)) if user_agency else Q(pk__in=[]))
                     )) |
                     (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=unread_team_ids))
                 )
