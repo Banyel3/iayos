@@ -5,8 +5,6 @@ from accounts.authentication import cookie_auth, dual_auth
 from accounts.models import Wallet, Transaction, Profile
 from .schemas import (
     DepositFundsSchema,
-    ProductCreateSchema,
-    ProductSchema,
     SendMessageSchema,
     MessageResponseSchema,
     ConversationSchema,
@@ -17,10 +15,6 @@ from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Q
-
-
-from .schemas import ProductCreateSchema, ProductSchema
-from .services import add_product_to_profile, list_products_for_profile, delete_product_for_profile
 
 
 router = Router()
@@ -44,71 +38,10 @@ def _get_user_profile(request) -> Profile:
 
     raise Profile.DoesNotExist
 
-#region PRODUCT ENDPOINTS
-
-# List all products/materials for the authenticated worker
-@router.get("/profile/products/", response=list[ProductSchema], auth=cookie_auth)
-def list_products(request):
-    """
-    List all products/materials for the authenticated worker's profile.
-    If profile not found, return an empty list to keep frontend UX simple.
-    """
-    try:
-        try:
-            profile = _get_user_profile(request)
-        except Profile.DoesNotExist:
-            return []
-
-        return list_products_for_profile(profile)
-    except Exception as e:
-        # Log full traceback for debugging
-        print(f"❌ Error listing products: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to list products"}, status=500)
-
-# Delete a product/material by ID for the authenticated worker
-@router.delete("/profile/products/{product_id}", auth=cookie_auth)
-def delete_product(request, product_id: int):
-    """
-    Delete a product/material by ID for the authenticated worker's profile.
-    """
-    try:
-        profile = _get_user_profile(request)
-        return delete_product_for_profile(profile, product_id)
-    except Profile.DoesNotExist:
-        return Response({"error": "Profile not found"}, status=404)
-    except Exception as e:
-        print(f"❌ Error deleting product: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to delete product"}, status=500)
-
-@router.post("/profile/products/add", response=ProductSchema, auth=cookie_auth)
-def add_product(request, data: ProductCreateSchema):
-    """
-    Add a product to the authenticated worker's profile.
-    """
-    try:
-        profile = _get_user_profile(request)
-        product = add_product_to_profile(profile, data)
-        return ProductSchema(
-            productID=product.productID,
-            name=product.name,
-            description=product.description,
-            price=float(product.price) if product.price is not None else None,
-            createdAt=product.createdAt.isoformat(),
-            updatedAt=product.updatedAt.isoformat()
-        )
-    except Profile.DoesNotExist:
-        return Response({"error": "Profile not found"}, status=404)
-    except Exception as e:
-        print(f"❌ Error adding product: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to add product"}, status=500)
-
-#endregion
+# ============================================================
+# DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
+# These endpoints are kept as stubs for backward compatibility
+# ============================================================
 
 
 #region PROFILE IMAGE UPLOAD
@@ -1705,6 +1638,30 @@ def get_conversation_messages(request, conversation_id: int):
                 "remaining_days": remaining_days,
             }
 
+        # Get job materials for the materials purchasing workflow
+        from accounts.models import JobMaterial
+        job_materials_qs = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+        job_materials_list = [
+            {
+                "id": m.jobMaterialID,
+                "name": m.name,
+                "description": m.description,
+                "quantity": m.quantity,
+                "unit": m.unit,
+                "source": m.source,
+                "purchase_price": float(m.purchase_price) if m.purchase_price else None,
+                "receipt_image_url": m.receipt_image_url,
+                "client_approved": m.client_approved,
+                "client_approved_at": m.client_approved_at.isoformat() if m.client_approved_at else None,
+                "client_rejected": m.client_rejected,
+                "rejection_reason": m.rejection_reason,
+                "added_by": m.added_by,
+                "worker_material_id": m.workerMaterialID_id,
+                "created_at": m.createdAt.isoformat(),
+            }
+            for m in job_materials_qs
+        ]
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1726,6 +1683,8 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientId": client_account.accountID if client_account else None,
                 "estimatedCompletion": ml_prediction,
                 "paymentBuffer": payment_buffer_info,
+                "materials_status": job.materials_status,
+                "materials_cost": float(job.materialsCost) if job.materialsCost else 0,
             },
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee
@@ -1741,7 +1700,8 @@ def get_conversation_messages(request, conversation_id: int):
             "my_role": my_role,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages),
-            "backjob": backjob_info
+            "backjob": backjob_info,
+            "job_materials": job_materials_list,
         }
         
     except Exception as e:

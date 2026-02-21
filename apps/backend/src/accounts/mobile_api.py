@@ -2085,6 +2085,30 @@ def mobile_accept_application(request, job_id: int, application_id: int):
             
             job.save()
             
+            # Create JobMaterial records from the application's selected_materials
+            if application.selected_materials:
+                from accounts.models import JobMaterial
+                from django.utils import timezone as tz
+                for mat in application.selected_materials:
+                    source = mat.get('source', 'TO_PURCHASE')
+                    JobMaterial.objects.create(
+                        jobID=job,
+                        workerMaterialID_id=mat.get('worker_material_id'),
+                        name=mat.get('name', 'Unknown Material'),
+                        description=mat.get('description', ''),
+                        quantity=mat.get('quantity', 1),
+                        unit=mat.get('unit', ''),
+                        source=source,
+                        added_by=mat.get('added_by', 'WORKER_SUPPLIED'),
+                        client_approved=True if source == 'FROM_PROFILE' else False,
+                        client_approved_at=tz.now() if source == 'FROM_PROFILE' else None,
+                    )
+                # Set materials_status on the job
+                has_to_purchase = any(m.get('source') == 'TO_PURCHASE' for m in application.selected_materials)
+                job.materials_status = 'PENDING_PURCHASE' if has_to_purchase else 'APPROVED'
+                job.save(update_fields=['materials_status'])
+                print(f"📦 [MOBILE] Created {len(application.selected_materials)} JobMaterial records")
+            
             print(f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}")
             print(f"💵 [MOBILE] Final job budget: ₱{job.budget}")
         
@@ -2321,6 +2345,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             proposedBudget=payload.proposed_budget or 0,
             estimatedDuration=payload.estimated_duration or '',
             budgetOption=payload.budget_option,
+            selected_materials=payload.selected_materials or [],
             status=JobApplication.ApplicationStatus.PENDING
         )
 

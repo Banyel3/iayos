@@ -236,6 +236,17 @@ iAyos - May sira? May iAyos.
                 </Text>
               </View>
 
+              {receipt.payment.materials_cost > 0 && (
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>
+                    Materials Reimbursement
+                  </Text>
+                  <Text style={[styles.paymentValue, styles.feeText]}>
+                    +{formatCurrency(receipt.payment.materials_cost)}
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.paymentDivider} />
 
               <View style={styles.paymentRow}>
@@ -277,6 +288,28 @@ iAyos - May sira? May iAyos.
                 </View>
               )}
             </View>
+
+            {/* Materials Purchased Card (if any) */}
+            {receipt.materials && receipt.materials.length > 0 && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Materials Purchased</Text>
+                <View style={styles.divider} />
+                {receipt.materials.map((mat) => (
+                  <View key={mat.id} style={styles.paymentRow}>
+                    <Text style={styles.paymentLabel}>
+                      {mat.name} (x{mat.quantity})
+                    </Text>
+                    <Text style={styles.paymentValue}>
+                      {mat.source === "FROM_PROFILE"
+                        ? "Own material"
+                        : mat.purchase_price
+                          ? formatCurrency(mat.purchase_price)
+                          : "Pending"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Timeline Card */}
             <View style={styles.card}>

@@ -265,6 +265,21 @@ export const ENDPOINTS = {
   // Worker public materials (for clients to view filtered by category)
   WORKER_MATERIALS_PUBLIC: (workerId: number) =>
     `${API_BASE_URL}/accounts/workers/${workerId}/materials`,
+
+  // Job Materials Purchasing Workflow
+  JOB_MATERIALS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials`,
+  JOB_MATERIAL_PURCHASE_PROOF: (jobId: number, materialId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/${materialId}/purchase-proof`,
+  JOB_MATERIAL_APPROVE: (jobId: number, materialId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/${materialId}/approve`,
+  JOB_MATERIAL_REJECT: (jobId: number, materialId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/${materialId}/reject`,
+  JOB_MATERIALS_MARK_BUYING: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/mark-buying`,
+  JOB_MATERIALS_SKIP: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/skip`,
+
   // Worker skills (specializations the worker has)
   AVAILABLE_SKILLS: `${API_URL}/api/mobile/skills/available`,
   MY_SKILLS: `${API_URL}/api/mobile/skills/my-skills`,
