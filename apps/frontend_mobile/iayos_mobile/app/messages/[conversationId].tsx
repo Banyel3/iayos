@@ -47,6 +47,7 @@ import {
   useConfirmProjectArrival,
   useAgencyMarkProjectComplete,
   useApproveAgencyProjectJob,
+  useApproveAgencyProjectEmployee,
 } from "../../lib/hooks/useJobActions";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -97,6 +98,9 @@ export default function ChatScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  // Per-employee approval tracking
+  const [approvingEmployeeId, setApprovingEmployeeId] = useState<number | null>(null);
+  const [approvingEmployeeName, setApprovingEmployeeName] = useState<string>("");
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">("submit");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -220,6 +224,7 @@ export default function ChatScreen() {
   const confirmProjectArrivalMutation = useConfirmProjectArrival();
   const agencyMarkProjectCompleteMutation = useAgencyMarkProjectComplete();
   const approveAgencyProjectJobMutation = useApproveAgencyProjectJob();
+  const approveAgencyProjectEmployeeMutation = useApproveAgencyProjectEmployee();
 
   // Daily attendance mutations
   const workerCheckInMutation = useWorkerCheckIn();
@@ -450,6 +455,33 @@ export default function ChatScreen() {
     });
   };
 
+  // Handle per-employee approve (CLIENT on agency PROJECT jobs)
+  const handleApproveEmployee = (employeeId: number, employeeName: string, paymentAmount: number | null) => {
+    if (!conversation) return;
+    const amount = paymentAmount
+      ? paymentAmount.toFixed(2)
+      : conversation.job.budget
+        ? ((conversation.job.budget * 0.5) / (conversation.assigned_employees?.length || 1)).toFixed(2)
+        : "0.00";
+
+    setApprovingEmployeeId(employeeId);
+    setApprovingEmployeeName(employeeName);
+
+    setCountdownConfig({
+      visible: true,
+      title: `Approve ${employeeName}`,
+      message: `Pay ₱${amount} for ${employeeName}'s completed work.\n\nSelect your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
+  };
+
   // Handle payment method selection
   const handlePaymentMethodSelect = async (method: "WALLET" | "CASH") => {
     if (!conversation) return;
@@ -458,25 +490,39 @@ export default function ChatScreen() {
 
     if (method === "CASH") {
       // Show cash amount confirmation before opening upload modal
-      const remainingAmount = conversation.job.budget
-        ? (conversation.job.budget * 0.5).toFixed(2)
-        : "0.00";
+      const remainingAmount = approvingEmployeeId && approvingEmployeeName
+        ? (conversation.assigned_employees?.find(e => e.id === approvingEmployeeId)?.paymentAmount
+          ?? (conversation.job.budget ? conversation.job.budget * 0.5 / (conversation.assigned_employees?.length || 1) : 0)).toFixed(2)
+        : conversation.job.budget
+          ? (conversation.job.budget * 0.5).toFixed(2)
+          : "0.00";
 
-      const workerText = conversation.is_team_job
-        ? "the workers"
-        : "the worker";
+      const workerText = approvingEmployeeId
+        ? approvingEmployeeName
+        : conversation.is_team_job
+          ? "the workers"
+          : "the worker";
 
       Alert.alert(
         "Cash Payment",
         `Please pay ₱${remainingAmount} to ${workerText} directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: "Cancel", style: "cancel", onPress: () => { setApprovingEmployeeId(null); setApprovingEmployeeName(""); } },
           {
             text: "Upload Proof",
             onPress: () => setShowCashUploadModal(true),
           },
         ],
       );
+    } else if (approvingEmployeeId && conversation.is_agency_job) {
+      // Per-employee agency PROJECT job approval
+      approveAgencyProjectEmployeeMutation.mutate({
+        jobId: conversation.job.id,
+        employeeId: approvingEmployeeId,
+        paymentMethod: method,
+      });
+      setApprovingEmployeeId(null);
+      setApprovingEmployeeName("");
     } else if (conversation.is_team_job) {
       // Team job approval
       approveTeamJobCompletionMutation.mutate({
@@ -515,7 +561,17 @@ export default function ChatScreen() {
   const handleCashProofSubmit = () => {
     if (!conversation || !selectedImage) return;
 
-    if (conversation.is_team_job) {
+    if (approvingEmployeeId && conversation.is_agency_job) {
+      // Per-employee agency PROJECT job cash proof
+      approveAgencyProjectEmployeeMutation.mutate({
+        jobId: conversation.job.id,
+        employeeId: approvingEmployeeId,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+      setApprovingEmployeeId(null);
+      setApprovingEmployeeName("");
+    } else if (conversation.is_team_job) {
       // Team job cash proof
       approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
@@ -523,7 +579,7 @@ export default function ChatScreen() {
         cashProofImage: selectedImage,
       });
     } else if (conversation.is_agency_job) {
-      // Agency PROJECT job cash proof
+      // Agency PROJECT job cash proof (bulk - legacy)
       approveAgencyProjectJobMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "CASH",
@@ -2759,42 +2815,82 @@ export default function ChatScreen() {
                           </View>
                         )}
 
-                        {/* All complete - show approve & pay button */}
-                        {allComplete &&
+                        {/* Per-employee approve & pay buttons */}
+                        {conversation.assigned_employees
+                          .filter((e) => e.agencyMarkedComplete && !e.clientApproved)
+                          .length > 0 &&
                           !conversation.job.clientMarkedComplete && (
-                            <TouchableOpacity
-                              style={[
-                                styles.actionButton,
-                                styles.approveCompletionButton,
-                              ]}
-                              onPress={() => handleApproveCompletion()}
-                              disabled={
-                                approveAgencyProjectJobMutation.isPending
-                              }
-                            >
-                              {approveAgencyProjectJobMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="wallet"
-                                    size={20}
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Approve & Pay Employees
+                            </Text>
+                            {conversation.assigned_employees
+                              .filter((e) => e.agencyMarkedComplete && !e.clientApproved)
+                              .map((employee) => (
+                              <TouchableOpacity
+                                key={`approve-${employee.id}`}
+                                style={[
+                                  styles.actionButton,
+                                  styles.approveCompletionButton,
+                                ]}
+                                onPress={() =>
+                                  handleApproveEmployee(
+                                    employee.id,
+                                    employee.name,
+                                    employee.paymentAmount ?? null,
+                                  )
+                                }
+                                disabled={
+                                  approveAgencyProjectEmployeeMutation.isPending
+                                }
+                              >
+                                {approveAgencyProjectEmployeeMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
                                     color={Colors.white}
                                   />
-                                  <Text style={styles.actionButtonText}>
-                                    Approve & Pay Agency (₱
-                                    {(
-                                      conversation.job.budget * 0.5
-                                    ).toLocaleString()}
-                                    )
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          )}
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="wallet"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.actionButtonText}>
+                                      Approve & Pay: {employee.name}{" "}
+                                      (₱{(employee.paymentAmount ?? 0).toLocaleString()})
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Show already-approved employees */}
+                        {conversation.assigned_employees
+                          .filter((e) => e.clientApproved)
+                          .length > 0 && (
+                          <View style={styles.employeeActionsSection}>
+                            {conversation.assigned_employees
+                              .filter((e) => e.clientApproved)
+                              .map((employee) => (
+                              <View
+                                key={`approved-${employee.id}`}
+                                style={[styles.actionButton, styles.waitingButton]}
+                              >
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={20}
+                                  color="#22c55e"
+                                />
+                                <Text style={[styles.waitingButtonText, { color: "#22c55e" }]}>
+                                  ✓ {employee.name} — Approved & Paid
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
                       </>
                     );
                   })()}

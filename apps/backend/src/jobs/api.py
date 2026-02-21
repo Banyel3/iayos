@@ -7670,6 +7670,18 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
         total_count = all_assignments.count()
         all_arrived = arrived_count == total_count
         
+        # Send system message in conversation
+        from profiles.models import Conversation, Message
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                Message.create_system_message(conv, f"✅ {employee.fullName}'s arrival confirmed by client")
+                if all_arrived:
+                    Message.create_system_message(conv, f"✅ All {total_count} employees on site! Work can begin.")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"⚠️ Failed to send system message for arrival: {str(e)}")
+        
         return {
             "success": True,
             "message": f"{employee.fullName}'s arrival confirmed - work can begin",
@@ -7681,6 +7693,229 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             "arrived_count": arrived_count,
             "total_count": total_count,
             "next_step": "All employees arrived" if all_arrived else f"{total_count - arrived_count} employee(s) still pending arrival"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/{job_id}/employees/{employee_id}/approve-agency-project-employee", auth=dual_auth)
+@require_kyc
+def approve_agency_project_employee(
+    request,
+    job_id: int,
+    employee_id: int,
+    payment_method: str = Form("WALLET"),
+    cash_proof_image: UploadedFile = File(None)
+):
+    """
+    Client approves a single agency employee's work and pays their share.
+    
+    Per-employee approval flow:
+    - Employee must have completed full workflow (dispatched → arrival → complete)
+    - Client pays the employee's paymentAmount from their wallet
+    - When ALL employees are approved, job is marked COMPLETED
+    
+    payment_method: WALLET | GCASH | CASH
+    cash_proof_image: Required if payment_method is CASH
+    """
+    from accounts.models import Job, JobEmployeeAssignment, Transaction, Wallet, Notification
+    from profiles.models import Conversation, Message
+    from django.utils import timezone
+    from django.db import transaction
+    from decimal import Decimal
+    
+    try:
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedAgencyFK__accountFK',
+                'agencyID__owner'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can approve employees"}, status=403)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({"error": "This endpoint is for PROJECT jobs only"}, status=400)
+        
+        # Verify it's an agency job
+        if not job.assignedAgencyFK:
+            return Response({"error": "This is not an agency job"}, status=400)
+        
+        # Verify job is not already completed
+        if job.status == 'COMPLETED':
+            return Response({"error": "This job has already been completed"}, status=400)
+        
+        # Validate payment method
+        payment_method = payment_method.upper()
+        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
+            return Response({"error": "Invalid payment method. Must be WALLET, GCASH, or CASH"}, status=400)
+        
+        if payment_method == 'CASH' and not cash_proof_image:
+            return Response({"error": "Cash payment requires proof image", "requires_proof": True}, status=400)
+        
+        # Get the employee's assignment
+        from agency.models import agencyemployee
+        try:
+            employee = agencyemployee.objects.get(employeeID=employee_id)
+        except agencyemployee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+        
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({"error": f"{employee.fullName} is not assigned to this job"}, status=404)
+        
+        # Verify employee workflow is complete
+        if not assignment.dispatched:
+            return Response({"error": f"{employee.fullName} has not been dispatched"}, status=400)
+        if not assignment.clientConfirmedArrival:
+            return Response({"error": f"You haven't confirmed {employee.fullName}'s arrival"}, status=400)
+        if not assignment.agencyMarkedComplete:
+            return Response({"error": f"Agency hasn't marked {employee.fullName}'s work as complete"}, status=400)
+        if assignment.clientApproved:
+            return Response({"error": f"{employee.fullName}'s work has already been approved"}, status=400)
+        
+        # Calculate payment amount
+        payment_amount = assignment.paymentAmount or Decimal('0.00')
+        if payment_amount <= 0:
+            # Fallback: recalculate from budget
+            all_active = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            )
+            total_employees = all_active.count()
+            remaining = job.budget - (job.escrowAmount or Decimal('0.00'))
+            payment_amount = remaining / total_employees if total_employees > 0 else remaining
+        
+        with transaction.atomic():
+            # Handle payment
+            if payment_method == 'WALLET':
+                try:
+                    client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+                except Wallet.DoesNotExist:
+                    return Response({"error": "Client wallet not found"}, status=404)
+                
+                if client_wallet.balance < payment_amount:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(payment_amount),
+                        "available": float(client_wallet.balance)
+                    }, status=400)
+                
+                client_wallet.balance -= payment_amount
+                client_wallet.save()
+                
+                Transaction.objects.create(
+                    senderWallet=client_wallet,
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Payment for {employee.fullName} - {job.title}',
+                    jobID=job
+                )
+            elif payment_method == 'CASH':
+                job.cashProofImage = cash_proof_image
+                job.save()
+                
+                Transaction.objects.create(
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Cash payment for {employee.fullName} - {job.title} (proof uploaded)',
+                    jobID=job
+                )
+            
+            # Mark this employee as approved
+            assignment.clientApproved = True
+            assignment.clientApprovedAt = timezone.now()
+            assignment.status = 'COMPLETED'
+            assignment.save()
+        
+        # Send system message
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                Message.create_system_message(conv, f"💰 Client approved {employee.fullName}'s work (₱{float(payment_amount):,.2f})")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"⚠️ System message failed: {str(e)}")
+        
+        # Check if ALL employees are now approved
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job
+        ).exclude(status='REMOVED')
+        all_approved = all(a.clientApproved for a in all_assignments)
+        approved_count = sum(1 for a in all_assignments if a.clientApproved)
+        total_count = all_assignments.count()
+        
+        # If all approved, mark job as COMPLETED
+        if all_approved:
+            job.status = 'COMPLETED'
+            job.clientMarkedComplete = True
+            job.workerMarkedComplete = True
+            job.save()
+            
+            # Close conversation
+            try:
+                conv = Conversation.objects.filter(relatedJobPosting=job).first()
+                if conv:
+                    Message.create_system_message(conv, f"🎉 All employees approved & paid! Job '{job.title}' is now complete.")
+                    conv.status = Conversation.ConversationStatus.COMPLETED
+                    conv.save()
+                    
+                    from profiles.conversation_service import archive_conversation, should_auto_archive
+                    if should_auto_archive(conv):
+                        archive_conversation(conv)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"⚠️ Failed to close conversation: {str(e)}")
+            
+            # Notify agency owner
+            try:
+                if job.agencyID and job.agencyID.owner:
+                    client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
+                    Notification.objects.create(
+                        accountFK=job.agencyID.owner,
+                        notificationType="JOB_COMPLETED_CLIENT",
+                        title="Job Completed! 🎉",
+                        message=f"{client_name} has approved all employees for '{job.title}'.",
+                        relatedJobID=job.jobID
+                    )
+                Notification.objects.create(
+                    accountFK=request.auth,
+                    notificationType="JOB_COMPLETED_CLIENT",
+                    title="Job Completed ✅",
+                    message=f"You approved all employees for '{job.title}'.",
+                    relatedJobID=job.jobID
+                )
+            except Exception:
+                pass
+        
+        return {
+            "success": True,
+            "message": f"{employee.fullName}'s work approved and payment processed",
+            "assignment_id": assignment.assignmentID,
+            "employee_id": employee_id,
+            "employee_name": employee.fullName,
+            "payment_amount": float(payment_amount),
+            "payment_method": payment_method,
+            "all_approved": all_approved,
+            "approved_count": approved_count,
+            "total_count": total_count,
+            "job_status": "COMPLETED" if all_approved else job.status,
         }
         
     except Exception as e:
@@ -7790,8 +8025,8 @@ def approve_agency_project_job(
                 ]
             }, status=400)
         
-        # Calculate payment
-        remaining_balance = job.budget - (job.downpaymentAmount or Decimal('0.00'))
+        # Calculate payment (fix: downpaymentAmount doesn't exist, use escrowAmount)
+        remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
         
         with transaction.atomic():
             # Handle payment

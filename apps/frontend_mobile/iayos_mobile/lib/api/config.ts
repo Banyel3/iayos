@@ -400,6 +400,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/agency/jobs/${jobId}/employees/${employeeId}/mark-complete-project`,
   AGENCY_APPROVE_PROJECT_JOB: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/approve-agency-project`,
+  AGENCY_APPROVE_PROJECT_EMPLOYEE: (jobId: number, employeeId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/employees/${employeeId}/approve-agency-project-employee`,
 
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_URL}/api/mobile/auth/profile`,
