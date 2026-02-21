@@ -51,6 +51,8 @@ import type { JobSuggestion } from "@/lib/hooks/useJobSuggestions";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
 import SuggestionBubbles from "@/components/SuggestionBubbles";
 import SearchBar from "@/components/ui/SearchBar";
+import InfoModal from "@/components/InfoModal";
+import { useOneTimeModal } from "@/lib/hooks/useOneTimeModal";
 
 interface Category {
   id: number;
@@ -126,6 +128,43 @@ const TITLE_SUGGESTIONS: Record<string, string[]> = {
   "Security System Installation": ["CCTV installation", "Alarm system setup", "Smart lock install", "Doorbell camera"],
 };
 
+// ============================================================================
+// Payment education content — shown once to clients on first job post
+// ============================================================================
+
+const CLIENT_PAYMENT_INFO_ITEMS = [
+  {
+    icon: "wallet-outline" as const,
+    label: "Your wallet is your payment source",
+    description:
+      "Top up your wallet anytime via QR PH — pay using any bank or e-wallet.",
+  },
+  {
+    icon: "lock-closed-outline" as const,
+    label: "50% held in escrow upfront",
+    description:
+      "When a worker is booked, 50% of the job budget plus a 5% platform fee is reserved from your wallet.",
+  },
+  {
+    icon: "cash-outline" as const,
+    label: "Example",
+    description:
+      "For a ₱1,000 job → ₱525 deducted upfront (₱500 escrow + ₱25 platform fee).",
+  },
+  {
+    icon: "checkmark-circle-outline" as const,
+    label: "Remaining 50% on completion",
+    description:
+      "The second half is paid when you approve the worker's finished work.",
+  },
+  {
+    icon: "alert-circle-outline" as const,
+    label: "Check your balance first",
+    description:
+      "Make sure your wallet has enough funds before posting. Tap Add Funds on the wallet screen to top up.",
+  },
+];
+
 export default function CreateJobScreen() {
   const { workerId, agencyId } = useLocalSearchParams<{
     workerId?: string;
@@ -186,6 +225,11 @@ export default function CreateJobScreen() {
   >(null);
 
   const queryClient = useQueryClient();
+
+  // One-time payment education modal for clients
+  const { visible: showClientPaymentInfo, dismiss: dismissClientPaymentInfo } =
+    useOneTimeModal("@iayos:hide_client_payment_info");
+
   // Jobs only use Wallet payment - deposits via QR PH (any bank/e-wallet)
   // No payment method selection needed - always WALLET
 
@@ -2044,6 +2088,15 @@ export default function CreateJobScreen() {
         isLoading={createJobMutation.isPending}
         icon="document-text"
         iconColor={Colors.primary}
+      />
+
+      {/* One-time payment education modal for new clients */}
+      <InfoModal
+        visible={showClientPaymentInfo}
+        onClose={dismissClientPaymentInfo}
+        title="How Payments Work 💳"
+        subtitle="Here's what happens when you post a job"
+        items={CLIENT_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
   );

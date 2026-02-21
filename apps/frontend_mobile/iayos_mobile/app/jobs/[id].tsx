@@ -33,6 +33,8 @@ import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
 import JobReceiptModal from "@/components/JobReceiptModal";
 import CountdownConfirmModal from "@/components/CountdownConfirmModal";
+import InfoModal from "@/components/InfoModal";
+import { useOneTimeModal } from "@/lib/hooks/useOneTimeModal";
 import {
   useTeamJobDetail,
   useApplyToSkillSlot,
@@ -186,6 +188,37 @@ const getWorkEnvironmentInfo = (env: string) => {
   }
 };
 
+// ============================================================================
+// Payment education content — shown once to workers before first apply
+// ============================================================================
+
+const WORKER_PAYMENT_INFO_ITEMS = [
+  {
+    icon: "lock-closed-outline" as const,
+    label: "Your earnings are secured",
+    description:
+      "The client's escrow payment is held before you even start working — your pay is guaranteed.",
+  },
+  {
+    icon: "checkmark-circle-outline" as const,
+    label: "Client approval releases payment",
+    description:
+      "Once you complete the job and the client approves, payment moves to your Pending Earnings.",
+  },
+  {
+    icon: "time-outline" as const,
+    label: "7-day buffer period",
+    description:
+      "A brief hold for dispute protection before earnings are released to your wallet.",
+  },
+  {
+    icon: "card-outline" as const,
+    label: "Withdraw anytime",
+    description:
+      "Transfer your wallet balance to your registered GCash account whenever you're ready.",
+  },
+];
+
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -229,6 +262,12 @@ export default function JobDetailScreen() {
   );
   const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
+
+  // One-time payment education modal for workers
+  const { visible: showWorkerPaymentInfo, dismiss: dismissWorkerPaymentInfo } =
+    useOneTimeModal("@iayos:hide_worker_payment_info");
+  // Used to defer opening the application modal until after the info modal is dismissed
+  const [pendingApply, setPendingApply] = useState(false);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
@@ -687,6 +726,12 @@ export default function JobDetailScreen() {
     setBudgetOption("ACCEPT");
     setProposalMessage("");
     setEstimatedDuration("");
+
+    // Show payment education modal first (only the very first time)
+    if (showWorkerPaymentInfo) {
+      setPendingApply(true);
+      return;
+    }
     setShowApplicationModal(true);
   };
 
@@ -2919,6 +2964,19 @@ export default function JobDetailScreen() {
           iconColor={countdownConfig.iconColor}
         />
       )}
+
+      {/* One-time payment education modal for workers (fires before first Apply) */}
+      <InfoModal
+        visible={showWorkerPaymentInfo && pendingApply}
+        onClose={(dontShow) => {
+          dismissWorkerPaymentInfo(dontShow);
+          setPendingApply(false);
+          setShowApplicationModal(true);
+        }}
+        title="How Your Earnings Work 💰"
+        subtitle="Here's what happens after you're hired"
+        items={WORKER_PAYMENT_INFO_ITEMS}
+      />
     </SafeAreaView>
   );
 }
