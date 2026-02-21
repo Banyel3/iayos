@@ -42,7 +42,8 @@ from .portfolio_service import (
 )
 from .models import Profile, WorkerProfile, Accounts
 from .material_service import (
-    add_material, list_materials, list_materials_for_client, update_material, delete_material
+    add_material, list_materials, list_materials_for_client, update_material, delete_material,
+    list_agency_materials_for_client,
 )
 # Profile metrics helpers
 from .profile_metrics_service import get_profile_metrics
@@ -3259,6 +3260,27 @@ def get_worker_materials_public(request, worker_id: int, category_id: Optional[i
             {"error": "Failed to get worker materials"},
             status=500
         )
+
+
+@router.get("/agencies/{agency_id}/materials")
+def get_agency_materials_public(request, agency_id: int, category_id: Optional[int] = None):
+    """
+    Get materials for a specific agency (public endpoint for clients).
+    Only returns available materials.
+    
+    Query params:
+    - category_id: Optional filter by category/specialization
+    """
+    try:
+        materials = list_agency_materials_for_client(agency_id, category_id=category_id)
+        return materials
+    except ValueError as e:
+        return Response({"error": str(e)}, status=404)
+    except Exception as e:
+        print(f"❌ Error getting agency materials: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to get agency materials"}, status=500)
 
 
 # ===========================

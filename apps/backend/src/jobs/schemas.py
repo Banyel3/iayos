@@ -29,6 +29,7 @@ class CreateJobPostingMobileSchema(Schema):
     payment_method: Optional[str] = "WALLET"  # WALLET only
     worker_id: Optional[int] = None  # If provided, job is for specific worker
     agency_id: Optional[int] = None  # If provided, job is for specific agency
+    selected_materials: Optional[list] = None  # [{worker_material_id, name, source, price, quantity, unit}]
 
 
 class JobPostingResponseSchema(Schema):

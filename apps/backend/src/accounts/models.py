@@ -358,7 +358,17 @@ class WorkerMaterial(models.Model):
     workerID = models.ForeignKey(
         WorkerProfile,
         on_delete=models.CASCADE,
-        related_name='materials'
+        related_name='materials',
+        null=True,
+        blank=True
+    )
+    agencyID = models.ForeignKey(
+        Agency,
+        on_delete=models.CASCADE,
+        related_name='materials',
+        null=True,
+        blank=True,
+        help_text="Agency that owns this material (alternative to workerID)"
     )
     
     # Optional link to specialization - allows filtering materials by job category
@@ -416,8 +426,15 @@ class WorkerMaterial(models.Model):
         indexes = [
             models.Index(fields=['workerID', 'is_available']),
             models.Index(fields=['workerID', 'categoryID']),  # For filtering by category
+            models.Index(fields=['agencyID', 'is_available']),
+            models.Index(fields=['agencyID', 'categoryID']),
             models.Index(fields=['name']),
         ]
+    
+    def clean(self):
+        """At least one of workerID or agencyID must be set."""
+        if not self.workerID and not self.agencyID:
+            raise ValidationError("A material must belong to either a worker or an agency.")
     
     def __str__(self):
         category = f" [{self.categoryID.specializationName}]" if self.categoryID else ""
