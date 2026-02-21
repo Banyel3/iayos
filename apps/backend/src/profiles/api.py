@@ -966,11 +966,38 @@ def get_conversations(request, filter: str = "all"):
             
             worker_reviewed = False
             client_reviewed = False
+            all_team_workers_reviewed = None
             
             # Check if this is an agency job
             is_agency_job = job.assignedEmployeeID is not None
             
-            if worker_account and client_account:
+            if job.is_team_job:
+                # Team job: check reviews across ALL assigned workers
+                from accounts.models import JobWorkerAssignment
+                team_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID__profileID__accountFK')
+                
+                total_workers = team_assignments.count()
+                if total_workers > 0:
+                    worker_account_ids = [a.workerID.profileID.accountFK_id for a in team_assignments]
+                    workers_who_reviewed = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID__in=worker_account_ids,
+                        reviewerType="WORKER"
+                    ).values('reviewerID').distinct().count()
+                    worker_reviewed = (workers_who_reviewed >= total_workers)
+                    
+                    # Check if client has reviewed ALL assigned workers
+                    client_reviews_count = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=client_account,
+                        reviewerType="CLIENT"
+                    ).count()
+                    client_reviewed = (client_reviews_count >= total_workers)
+                    all_team_workers_reviewed = client_reviewed
+            elif worker_account and client_account:
                 worker_reviewed = JobReview.objects.filter(
                     jobID=job,
                     reviewerID=worker_account
@@ -1013,6 +1040,7 @@ def get_conversations(request, filter: str = "all"):
                     "remainingPaymentPaid": job.remainingPaymentPaid,
                     "is_team_job": job.is_team_job
                 },
+                "all_team_workers_reviewed": all_team_workers_reviewed,
                 "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),
                 "my_role": "CLIENT" if is_client else "WORKER",
                 "last_message": conv.lastMessageText,
@@ -1448,6 +1476,34 @@ def get_conversation_messages(request, conversation_id: int):
                 jobID=job,
                 reviewerID=client_account
             ).exists()
+        elif is_team_job and is_client and client_account:
+            # Team job - CLIENT view: check if ALL assigned workers have reviewed
+            from accounts.models import JobWorkerAssignment
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related('workerID__profileID__accountFK')
+            
+            total_workers = team_assignments.count()
+            if total_workers > 0:
+                worker_account_ids = [a.workerID.profileID.accountFK_id for a in team_assignments]
+                workers_who_reviewed = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID__in=worker_account_ids,
+                    reviewerType="WORKER"
+                ).values('reviewerID').distinct().count()
+                worker_reviewed = (workers_who_reviewed >= total_workers)
+                
+                # Check if client has reviewed ALL assigned workers
+                client_reviews_count = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT"
+                ).count()
+                client_reviewed = (client_reviews_count >= total_workers)
+            else:
+                worker_reviewed = False
+                client_reviewed = False
         elif worker_account and client_account:
             # Regular (non-agency) job
             worker_reviewed = JobReview.objects.filter(
@@ -1997,8 +2053,28 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         # Verify sender is a participant
         is_client = conversation.client == sender_profile
         is_worker = conversation.worker == sender_profile
+        
+        # For team conversations, also check ConversationParticipant table
+        is_team_participant = False
+        if sender_profile and conversation.conversation_type == 'TEAM_GROUP':
+            from profiles.models import ConversationParticipant
+            is_team_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=sender_profile
+            ).exists()
+        
+        # Check agency-based access
+        is_agency = False
+        if hasattr(conversation, 'agency') and conversation.agency:
+            try:
+                from agency.models import Agency
+                sender_agency = Agency.objects.filter(accountFK=request.auth).first()
+                if sender_agency and conversation.agency.agencyId == sender_agency.agencyId:
+                    is_agency = True
+            except Exception:
+                pass
 
-        if not (is_client or is_worker):
+        if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
