@@ -43,6 +43,24 @@ export type PaymentBufferInfo = {
   remaining_days: number | null;
 };
 
+export type JobMaterialItem = {
+  id: number;
+  name: string;
+  description: string | null;
+  quantity: number;
+  unit: string | null;
+  source: "FROM_PROFILE" | "TO_PURCHASE" | "PURCHASED";
+  purchase_price: number | null;
+  receipt_image_url: string | null;
+  client_approved: boolean;
+  client_approved_at: string | null;
+  client_rejected: boolean;
+  rejection_reason: string | null;
+  added_by: "CLIENT_REQUEST" | "WORKER_SUPPLIED";
+  worker_material_id: number | null;
+  created_at: string;
+};
+
 export type ConversationDetail = {
   conversation_id: number;
   job: {
@@ -65,6 +83,9 @@ export type ConversationDetail = {
     estimatedCompletion?: EstimatedCompletion | null;
     // Payment buffer info for completed jobs
     paymentBuffer?: PaymentBufferInfo | null;
+    // Materials purchasing workflow
+    materials_status?: "NONE" | "PENDING_PURCHASE" | "BUYING" | "PURCHASED" | "APPROVED";
+    materials_cost?: number;
   };
   other_participant: {
     name: string;
@@ -130,6 +151,8 @@ export type ConversationDetail = {
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
+  // Job materials purchasing workflow
+  job_materials?: JobMaterialItem[];
 };
 
 /**
