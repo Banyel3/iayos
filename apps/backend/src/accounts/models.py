@@ -1832,6 +1832,19 @@ class JobEmployeeAssignment(models.Model):
     )
     agencyMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     
+    # Per-employee payment tracking
+    paymentAmount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Per-employee share of the remaining project payment"
+    )
+    
+    # Client per-employee approval
+    clientApproved = models.BooleanField(
+        default=False,
+        help_text="Client has approved this employee's work and paid their share"
+    )
+    clientApprovedAt = models.DateTimeField(null=True, blank=True)
+    
     # Skill slot assignment (for multi-employee INVITE jobs)
     skill_slot = models.ForeignKey(
         'JobSkillSlot',

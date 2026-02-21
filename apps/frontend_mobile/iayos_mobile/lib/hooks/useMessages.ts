@@ -99,6 +99,10 @@ export type ConversationDetail = {
     clientConfirmedArrivalAt?: string | null;
     agencyMarkedComplete?: boolean;
     agencyMarkedCompleteAt?: string | null;
+    // Per-employee approval tracking
+    paymentAmount?: number | null;
+    clientApproved?: boolean;
+    clientApprovedAt?: string | null;
   }>;
   pending_employee_reviews?: number[]; // Employee IDs not yet reviewed
   all_employees_reviewed?: boolean;

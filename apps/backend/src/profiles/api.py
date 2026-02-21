@@ -1596,6 +1596,10 @@ def get_conversation_messages(request, conversation_id: int):
                     "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
                     "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
                     "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
+                    # Per-employee approval tracking
+                    "paymentAmount": float(assignment.paymentAmount) if getattr(assignment, 'paymentAmount', None) else None,
+                    "clientApproved": getattr(assignment, 'clientApproved', False),
+                    "clientApprovedAt": assignment.clientApprovedAt.isoformat() if getattr(assignment, 'clientApprovedAt', None) else None,
                 })
             
             # Fallback to legacy if no M2M assignments
@@ -1615,6 +1619,9 @@ def get_conversation_messages(request, conversation_id: int):
                     "clientConfirmedArrivalAt": None,
                     "agencyMarkedComplete": False,
                     "agencyMarkedCompleteAt": None,
+                    "paymentAmount": None,
+                    "clientApproved": False,
+                    "clientApprovedAt": None,
                 })
         
         # Get ML prediction for estimated completion time

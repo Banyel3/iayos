@@ -4022,6 +4022,34 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             job.status = 'IN_PROGRESS'
             job.save()
         
+        # Calculate per-employee payment amounts for all assignments
+        from decimal import Decimal
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=['ASSIGNED', 'IN_PROGRESS']
+        )
+        total_employees = all_assignments.count()
+        remaining = job.budget - (job.escrowAmount or Decimal('0.00'))
+        if total_employees > 0 and remaining > 0:
+            per_employee = remaining / total_employees
+            all_assignments.update(paymentAmount=per_employee)
+        
+        # Check if all employees dispatched
+        all_dispatched = all(a.dispatched for a in all_assignments)
+        dispatched_count = sum(1 for a in all_assignments if a.dispatched)
+        total_count = all_assignments.count()
+        
+        # Send system message in conversation
+        from profiles.models import Conversation, Message
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                Message.create_system_message(conv, f"📋 {employee.fullName} has been dispatched to the job site")
+                if all_dispatched:
+                    Message.create_system_message(conv, f"✅ All {total_count} employees dispatched! Waiting for client to confirm arrivals.")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to send system message for dispatch: {str(e)}")
+        
         logger.info(f"✅ Agency dispatched employee #{employee_id} ({employee.fullName}) for PROJECT job #{job_id}")
         
         return {
@@ -4032,6 +4060,9 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             'employee_name': employee.fullName,
             'dispatched_at': assignment.dispatchedAt.isoformat(),
             'status': assignment.status,
+            'all_dispatched': all_dispatched,
+            'dispatched_count': dispatched_count,
+            'total_count': total_count,
             'next_step': 'Wait for client to confirm employee arrival'
         }
         
@@ -4143,6 +4174,17 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         all_complete = all(a.agencyMarkedComplete for a in all_assignments)
         completed_count = sum(1 for a in all_assignments if a.agencyMarkedComplete)
         total_count = all_assignments.count()
+        
+        # Send system message in conversation
+        from profiles.models import Conversation, Message
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                Message.create_system_message(conv, f"✅ {employee.fullName}'s work has been marked complete by agency ({completed_count}/{total_count})")
+                if all_complete:
+                    Message.create_system_message(conv, f"🎉 All {total_count} employees' work is complete! Waiting for client to review and approve each employee.")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to send system message for completion: {str(e)}")
         
         logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) complete for PROJECT job #{job_id} ({completed_count}/{total_count})")
         
