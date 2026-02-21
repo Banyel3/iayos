@@ -43,6 +43,7 @@ import {
 } from "../lib/hooks/useJobReceipt";
 import { getAbsoluteMediaUrl } from "../lib/api/config";
 import ReceiptDisclaimer, { RECEIPT_DISCLAIMER_TEXT } from "./ReceiptDisclaimer";
+import { downloadJobReceiptPdf } from "../lib/utils/generate-receipt-pdf";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -61,6 +62,35 @@ export default function JobReceiptModal({
 }: JobReceiptModalProps) {
   const { data, isLoading, error } = useJobReceipt(jobId, visible);
   const receipt = data?.receipt as JobReceipt | undefined;
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!receipt) return;
+    setIsDownloading(true);
+    try {
+      await downloadJobReceiptPdf(
+        {
+          completed_at: receipt.completed_at,
+          job: { id: receipt.job_id, title: receipt.title, status: receipt.status },
+          payments: {
+            job_budget: receipt.payment?.budget,
+            platform_fee: receipt.payment?.platform_fee,
+            total_paid: receipt.payment?.total_client_paid,
+            worker_earnings: receipt.payment?.worker_earnings,
+            escrow_amount: receipt.payment?.escrow_amount,
+            remaining_payment: receipt.payment?.final_payment,
+          },
+          client: receipt.client ? { name: receipt.client.name, email: receipt.client.contact ?? undefined } : null,
+          worker: receipt.worker ? { name: receipt.worker.name, email: receipt.worker.contact ?? undefined } : null,
+        },
+        userRole
+      );
+    } catch (err) {
+      console.log('PDF download error:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleShare = async () => {
     if (!receipt) return;
@@ -111,18 +141,36 @@ ${RECEIPT_DISCLAIMER_TEXT}
             <Ionicons name="close" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Job Receipt</Text>
-          <TouchableOpacity
-            style={styles.shareButton}
-            onPress={handleShare}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            disabled={!receipt}
-          >
-            <Ionicons
-              name="share-outline"
-              size={22}
-              color={receipt ? Colors.primary : Colors.textHint}
-            />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleDownloadPdf}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={!receipt || isDownloading}
+            >
+              {isDownloading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Ionicons
+                  name="download-outline"
+                  size={22}
+                  color={receipt ? Colors.primary : Colors.textHint}
+                />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleShare}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={!receipt}
+            >
+              <Ionicons
+                name="share-outline"
+                size={22}
+                color={receipt ? Colors.primary : Colors.textHint}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Content */}
@@ -636,7 +684,12 @@ const styles = StyleSheet.create({
     ...Typography.heading.h3,
     color: Colors.textPrimary,
   },
-  shareButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  headerActionButton: {
     padding: Spacing.xs,
   },
   loadingContainer: {

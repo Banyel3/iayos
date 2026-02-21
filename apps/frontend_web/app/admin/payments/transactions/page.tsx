@@ -37,6 +37,9 @@ interface Transaction {
     name: string;
   } | null;
   job_id: string | null;
+  job_title: string | null;
+  description: string | null;
+  balance_after: number | null;
   reference: string | null; // xenditPaymentID or paymongoPaymentID
   created_at: string;
   completed_at: string | null;
@@ -599,10 +602,15 @@ export default function TransactionsPage() {
                             {getStatusBadge(transaction.status)}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
-                            {transaction.job_id ? (
-                              <span className="font-mono text-blue-600">
-                                #{transaction.job_id}
-                              </span>
+                            {transaction.job_title || transaction.job_id ? (
+                              <div>
+                                {transaction.job_title && (
+                                  <p className="font-medium text-gray-800 text-xs leading-tight">{transaction.job_title}</p>
+                                )}
+                                {transaction.job_id && (
+                                  <span className="font-mono text-blue-600 text-xs">#{transaction.job_id}</span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
