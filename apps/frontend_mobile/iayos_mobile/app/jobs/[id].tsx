@@ -1234,6 +1234,17 @@ export default function JobDetailScreen() {
           </View>
         </View>
 
+        {/* Expected Duration */}
+        {job.expectedDuration && (
+          <View style={[styles.section, { paddingTop: 0 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="time-outline" size={20} color={Colors.primary} />
+              <Text style={{ fontSize: 14, color: Colors.textSecondary }}>Expected Duration:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textPrimary }}>{job.expectedDuration}</Text>
+            </View>
+          </View>
+        )}
+
         {/* Job Requirements Section - Universal Fields for ML */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Job Requirements</Text>

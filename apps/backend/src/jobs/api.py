@@ -6485,6 +6485,7 @@ def get_job_receipt(request, job_id: int):
         
         # Platform fee: 10% for all jobs
         platform_fee = budget * settings.PLATFORM_FEE_RATE
+        platform_fee_rate = settings.PLATFORM_FEE_RATE
         
         # Worker receives full budget (client pays budget + fee)
         worker_earnings = budget

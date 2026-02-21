@@ -527,7 +527,7 @@ export default function CreateJobScreen() {
     let list = categories;
     if (workerId && workerDetailsData?.skills) {
       // For INVITE jobs, only show worker's skills
-      const workerSkillIds = workerDetailsData.skills.map((s: any) => s.id);
+      const workerSkillIds = workerDetailsData.skills.map((s: any) => s.specializationId);
       list = categories.filter((cat) => workerSkillIds.includes(cat.id));
     }
 
@@ -547,12 +547,12 @@ export default function CreateJobScreen() {
         const singleSkill = skills[0];
         // Auto-add a slot for the worker's single skill
         setSkillSlots([{
-          specialization_id: singleSkill.id,
+          specialization_id: singleSkill.specializationId,
           workers_needed: 1,
           skill_level_required: null,
         }]);
         // Set budget from category's minimum_rate
-        const matchingCat = categories.find((c) => c.id === singleSkill.id);
+        const matchingCat = categories.find((c) => c.id === singleSkill.specializationId);
         if (matchingCat && matchingCat.minimum_rate > 0) {
           setBudget(matchingCat.minimum_rate.toFixed(2));
         }
