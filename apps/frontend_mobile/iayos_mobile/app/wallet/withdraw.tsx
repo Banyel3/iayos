@@ -229,9 +229,6 @@ export default function WithdrawScreen() {
 
       // Show success modal directly (manual processing, no receipt URL)
       setShowSuccess(true);
-      setTimeout(() => {
-        safeGoBack(router, "/(tabs)/profile");
-      }, 2000);
     } catch (error: unknown) {
       Alert.alert(
         "Withdrawal Failed",
