@@ -4386,13 +4386,15 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
             }
         
         # Build query with optional type filter
-        queryset = Transaction.objects.filter(walletID=wallet)
+        queryset = Transaction.objects.filter(walletID=wallet).select_related('relatedJobPosting')
         
         if type:
             type_mapping = {
                 'DEPOSIT': Transaction.TransactionType.DEPOSIT,
                 'PAYMENT': Transaction.TransactionType.PAYMENT,
                 'WITHDRAWAL': Transaction.TransactionType.WITHDRAWAL,
+                'EARNING': Transaction.TransactionType.EARNING,
+                'REFUND': Transaction.TransactionType.REFUND,
             }
             if type.upper() in type_mapping:
                 queryset = queryset.filter(transactionType=type_mapping[type.upper()])
@@ -4404,24 +4406,57 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
         offset = (page - 1) * limit
         transactions = queryset.order_by('-createdAt')[offset:offset + limit]
         
+        # Human-readable labels for each transaction type
+        TYPE_LABELS = {
+            'DEPOSIT': 'Wallet Top-Up',
+            'PAYMENT': 'Job Escrow Payment',
+            'EARNING': 'Job Earnings',
+            'PENDING_EARNING': 'Pending Earnings',
+            'WITHDRAWAL': 'Withdrawal Request',
+            'REFUND': 'Refund',
+            'FEE': 'Platform Fee',
+        }
+        
         transaction_list = []
         for t in transactions:
             # Map transaction type to frontend format
             type_display = t.transactionType
             if t.transactionType == Transaction.TransactionType.EARNING:
-                type_display = 'PAYMENT'  # Frontend expects PAYMENT for earnings
+                type_display = 'EARNING'
+            
+            # Build job context
+            job_data = None
+            if t.relatedJobPosting:
+                job_data = {
+                    'id': t.relatedJobPosting.jobID,
+                    'title': t.relatedJobPosting.title,
+                    'status': t.relatedJobPosting.status,
+                }
+            
+            # Only expose PayMongo checkout URL for completed deposits
+            paymongo_checkout_url = None
+            if (
+                t.status == 'COMPLETED'
+                and t.transactionType == Transaction.TransactionType.DEPOSIT
+                and t.invoiceURL
+            ):
+                paymongo_checkout_url = t.invoiceURL
             
             transaction_list.append({
                 'id': t.transactionID,
                 'type': type_display,
-                'title': t.description or f'{t.transactionType} Transaction',
+                'transaction_type_label': TYPE_LABELS.get(t.transactionType, t.transactionType),
+                'title': t.description or TYPE_LABELS.get(t.transactionType, f'{t.transactionType} Transaction'),
                 'description': t.description or '',
                 'amount': float(t.amount),
                 'created_at': t.createdAt.isoformat(),
                 'status': t.status.lower() if t.status else 'pending',
                 'payment_method': t.paymentMethod or 'wallet',
                 'transaction_id': str(t.transactionID),
-                'job': None,  # TODO: Link to job if applicable
+                'reference_number': t.referenceNumber or t.xenditExternalID or None,
+                'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
+                'paymongo_checkout_url': paymongo_checkout_url,
+                'job': job_data,
             })
         
         has_next = (offset + limit) < total_count

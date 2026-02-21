@@ -6,14 +6,16 @@ import {
   Modal,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Linking,
   Share,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 import PaymentStatusBadge, { PaymentStatus } from "./PaymentStatusBadge";
 import { formatCurrency } from "../lib/hooks/usePayments";
 import ReceiptDisclaimer, { RECEIPT_DISCLAIMER_TEXT } from "./ReceiptDisclaimer";
+import { downloadDepositReceiptPdf } from "../lib/utils/generate-receipt-pdf";
 
 /**
  * PaymentReceiptModal Component
@@ -31,20 +33,20 @@ interface PaymentReceipt {
   id: number;
   transaction_id: string;
   amount: number;
-  platform_fee: number;
-  total_amount: number;
   payment_method: string;
   status: PaymentStatus;
   created_at: string;
+  type?: string;
+  transaction_type_label?: string;
+  description?: string;
+  reference_number?: string | null;
+  balance_after?: number | null;
+  paymongo_checkout_url?: string | null;
   job?: {
     id: number;
     title: string;
-    budget: number;
-  };
-  worker?: {
-    id: number;
-    name: string;
-  };
+    status?: string;
+  } | null;
 }
 
 interface PaymentReceiptModalProps {
@@ -59,6 +61,7 @@ export default function PaymentReceiptModal({
   onClose,
 }: PaymentReceiptModalProps) {
   const [isSharing, setIsSharing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   if (!receipt) return null;
 
@@ -69,14 +72,10 @@ export default function PaymentReceiptModal({
 iAyos Payment Receipt
 
 Transaction ID: ${receipt.transaction_id}
-Amount: ${formatCurrency(receipt.amount)}
-Platform Fee: ${formatCurrency(receipt.platform_fee)}
-Total: ${formatCurrency(receipt.total_amount)}
+${receipt.transaction_type_label ? `Type: ${receipt.transaction_type_label}\n` : ''}Amount: ${formatCurrency(receipt.amount)}
 Method: ${receipt.payment_method.toUpperCase()}
 Status: ${receipt.status.toUpperCase()}
-Date: ${new Date(receipt.created_at).toLocaleString()}
-
-${receipt.job ? `Job: ${receipt.job.title}` : ""}
+Date: ${new Date(receipt.created_at).toLocaleString()}${receipt.reference_number ? `\nReference: ${receipt.reference_number}` : ''}${receipt.job ? `\nJob: ${receipt.job.title}` : ''}
 
 Thank you for using iAyos!
 
@@ -88,9 +87,26 @@ ${RECEIPT_DISCLAIMER_TEXT}
         title: "Payment Receipt",
       });
     } catch (error) {
-      Alert.alert("Error", "Failed to share receipt");
+      console.log("Share error:", error);
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      setIsDownloading(true);
+      await downloadDepositReceiptPdf(receipt);
+    } catch (error) {
+      console.log("PDF download error:", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleOpenPayMongo = async () => {
+    if (receipt.paymongo_checkout_url) {
+      await Linking.openURL(receipt.paymongo_checkout_url);
     }
   };
 
@@ -108,13 +124,26 @@ ${RECEIPT_DISCLAIMER_TEXT}
             <Ionicons name="close" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Payment Receipt</Text>
-          <TouchableOpacity
-            onPress={handleShare}
-            style={styles.shareButton}
-            disabled={isSharing}
-          >
-            <Ionicons name="share-outline" size={24} color={Colors.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={handleDownloadPdf}
+              style={styles.headerActionButton}
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Ionicons name="download-outline" size={24} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleShare}
+              style={styles.headerActionButton}
+              disabled={isSharing}
+            >
+              <Ionicons name="share-outline" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -132,11 +161,13 @@ ${RECEIPT_DISCLAIMER_TEXT}
             <PaymentStatusBadge status={receipt.status} size="large" />
           </View>
 
-          {/* Total Amount */}
+          {/* Amount */}
           <View style={styles.amountContainer}>
-            <Text style={styles.amountLabel}>Total Amount</Text>
+            <Text style={styles.amountLabel}>
+              {receipt.transaction_type_label || "Amount"}
+            </Text>
             <Text style={styles.amountValue}>
-              {formatCurrency(receipt.total_amount)}
+              {formatCurrency(receipt.amount)}
             </Text>
           </View>
 
@@ -148,33 +179,28 @@ ${RECEIPT_DISCLAIMER_TEXT}
             </Text>
           </View>
 
-          {/* Payment Breakdown */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Payment Breakdown</Text>
+          {/* Transaction Info */}
+          {(receipt.description || receipt.reference_number) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Transaction Info</Text>
 
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Job Budget (50%)</Text>
-              <Text style={styles.rowValue}>
-                {formatCurrency(receipt.amount)}
-              </Text>
+              {receipt.description ? (
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Description</Text>
+                  <Text style={[styles.rowValue, { flexShrink: 1 }]} numberOfLines={2}>
+                    {receipt.description}
+                  </Text>
+                </View>
+              ) : null}
+
+              {receipt.reference_number ? (
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Reference No.</Text>
+                  <Text style={styles.rowValue}>{receipt.reference_number}</Text>
+                </View>
+              ) : null}
             </View>
-
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Platform Fee (5%)</Text>
-              <Text style={styles.rowValue}>
-                {formatCurrency(receipt.platform_fee)}
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.row}>
-              <Text style={styles.rowLabelBold}>Total Paid</Text>
-              <Text style={styles.rowValueBold}>
-                {formatCurrency(receipt.total_amount)}
-              </Text>
-            </View>
-          </View>
+          )}
 
           {/* Payment Details */}
           <View style={styles.section}>
@@ -200,6 +226,15 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 <PaymentStatusBadge status={receipt.status} size="small" />
               </View>
             </View>
+
+            {receipt.balance_after != null && (
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Balance After</Text>
+                <Text style={styles.rowValue}>
+                  {formatCurrency(receipt.balance_after)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Job Details */}
@@ -214,12 +249,12 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 </Text>
               </View>
 
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Job Budget</Text>
-                <Text style={styles.rowValue}>
-                  {formatCurrency(receipt.job.budget)}
-                </Text>
-              </View>
+              {receipt.job.status && (
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Job Status</Text>
+                  <Text style={styles.rowValue}>{receipt.job.status}</Text>
+                </View>
+              )}
 
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Job ID</Text>
@@ -228,22 +263,32 @@ ${RECEIPT_DISCLAIMER_TEXT}
             </View>
           )}
 
-          {/* Worker Details */}
-          {receipt.worker && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Worker Details</Text>
-
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Worker Name</Text>
-                <Text style={styles.rowValue}>{receipt.worker.name}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Worker ID</Text>
-                <Text style={styles.rowValue}>#{receipt.worker.id}</Text>
-              </View>
-            </View>
-          )}
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            {receipt.paymongo_checkout_url ? (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.paymongoButton]}
+                onPress={handleOpenPayMongo}
+              >
+                <Ionicons name="open-outline" size={18} color={Colors.primary} />
+                <Text style={styles.paymongoButtonText}>View on PayMongo</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.downloadPdfButton]}
+              onPress={handleDownloadPdf}
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Ionicons name="download-outline" size={18} color={Colors.white} />
+              )}
+              <Text style={styles.downloadPdfButtonText}>
+                {isDownloading ? "Generating PDF..." : "Download PDF Receipt"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Receipt Disclaimer */}
           <ReceiptDisclaimer />
@@ -276,8 +321,46 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.bold as any,
     color: Colors.textPrimary,
   },
-  shareButton: {
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  headerActionButton: {
     padding: Spacing.xs,
+    minWidth: 36,
+    alignItems: "center",
+  },
+  actionButtons: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  paymongoButton: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  paymongoButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: Colors.primary,
+  },
+  downloadPdfButton: {
+    backgroundColor: Colors.primary,
+  },
+  downloadPdfButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: Colors.white,
   },
   scrollView: {
     flex: 1,

@@ -673,6 +673,9 @@ def get_transactions_list_optimized(
             'currency': 'PHP',  # All transactions are in PHP
             'user': user_info,
             'job_id': str(txn.relatedJobPosting.jobID) if txn.relatedJobPosting else None,
+            'job_title': txn.relatedJobPosting.title if txn.relatedJobPosting else None,
+            'description': txn.description or None,
+            'balance_after': float(txn.balanceAfter) if txn.balanceAfter is not None else None,
             'reference': txn.xenditPaymentID or txn.referenceNumber,
             'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
             'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,

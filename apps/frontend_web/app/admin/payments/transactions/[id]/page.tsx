@@ -21,6 +21,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+const TRANSACTION_TYPE_LABELS: Record<string, string> = {
+  DEPOSIT: "Wallet Top-Up",
+  PAYMENT: "Job Escrow Payment",
+  EARNING: "Job Earnings",
+  PENDING_EARNING: "Pending Earnings",
+  WITHDRAWAL: "Withdrawal Request",
+  REFUND: "Refund",
+  FEE: "Platform Fee",
+};
+
 interface TransactionDetail {
   transaction: {
     id: number;
@@ -28,6 +38,11 @@ interface TransactionDetail {
     status: string;
     payment_method: string;
     created_at: string;
+    type?: string | null;
+    description?: string | null;
+    reference_number?: string | null;
+    balance_after?: number | null;
+    completed_at?: string | null;
   };
   job: {
     id: number;
@@ -280,6 +295,46 @@ export default function TransactionDetailPage() {
                         ).toLocaleString()}
                       </p>
                     </div>
+                    {detail.transaction.type && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Type</p>
+                        <p className="font-semibold text-gray-900">
+                          {TRANSACTION_TYPE_LABELS[detail.transaction.type] ?? detail.transaction.type}
+                        </p>
+                      </div>
+                    )}
+                    {detail.transaction.reference_number && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Reference #</p>
+                        <p className="font-semibold text-gray-900 font-mono text-sm">
+                          {detail.transaction.reference_number}
+                        </p>
+                      </div>
+                    )}
+                    {detail.transaction.balance_after != null && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Balance After</p>
+                        <p className="font-semibold text-gray-900">
+                          ₱{detail.transaction.balance_after.toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {detail.transaction.completed_at && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Completed</p>
+                        <p className="font-semibold text-gray-900">
+                          {new Date(detail.transaction.completed_at).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {detail.transaction.description && (
+                      <div className="bg-gray-50 rounded-lg p-4 col-span-2">
+                        <p className="text-sm text-gray-600 mb-1">Description</p>
+                        <p className="font-semibold text-gray-900">
+                          {detail.transaction.description}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
