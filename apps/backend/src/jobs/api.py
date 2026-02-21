@@ -637,6 +637,33 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         relatedJobID=job_posting.jobID
                     )
                 
+                # Create JobMaterial records from selected materials (client picks from worker/agency profile)
+                if data.selected_materials:
+                    from accounts.models import JobMaterial
+                    has_to_purchase = False
+                    for mat in data.selected_materials:
+                        source = mat.get('source', 'FROM_PROFILE')
+                        if source == 'TO_PURCHASE':
+                            has_to_purchase = True
+                        JobMaterial.objects.create(
+                            jobID=job_posting,
+                            workerMaterialID_id=mat.get('worker_material_id'),
+                            name=mat.get('name', 'Unknown Material'),
+                            description=mat.get('description', ''),
+                            quantity=mat.get('quantity', 1),
+                            unit=mat.get('unit', ''),
+                            source=source,
+                            added_by='CLIENT_REQUEST',
+                            client_approved=True if source == 'FROM_PROFILE' else False,
+                        )
+                    # Set materials_status based on whether any need purchasing
+                    if has_to_purchase:
+                        job_posting.materials_status = 'PENDING_PURCHASE'
+                    else:
+                        job_posting.materials_status = 'APPROVED'
+                    job_posting.save(update_fields=['materials_status'])
+                    print(f"📦 Created {len(data.selected_materials)} JobMaterial records for job {job_posting.jobID}")
+                
                 # Create transaction for escrow payment
                 escrow_transaction = Transaction.objects.create(
                     walletID=wallet,
