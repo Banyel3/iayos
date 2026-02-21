@@ -489,11 +489,11 @@ class Message(models.Model):
     def create_system_message(cls, conversation, message_text):
         """
         Create a system message (e.g., "Job started", "Job completed")
-        System messages are sent by the client profile but marked as SYSTEM type
+        System messages have no sender so they render as centered system bubbles
         """
         return cls.objects.create(
             conversationID=conversation,
-            sender=conversation.client,  # System messages appear to come from client
+            sender=None,  # No sender for system messages
             messageText=message_text,
             messageType=cls.MessageType.SYSTEM,
             isRead=False

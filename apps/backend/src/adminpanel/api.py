@@ -1119,10 +1119,10 @@ def approve_backjob(request, dispute_id: int):
                     ])
                     print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
                     
-                    # Add system message using helper method (sets sender=conversation.client)
+                    # Add system message (no sender - renders as centered system bubble)
                     Message.create_system_message(
                         conversation,
-                        "🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here."
+                        "🔄 Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
                     )
                     print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
                 else:
@@ -1142,10 +1142,10 @@ def approve_backjob(request, dispute_id: int):
                     )
                     print(f"💬 Created new conversation {conversation.conversationID} for backjob")
                     
-                    # Add system message using helper method (sets sender=conversation.client)
+                    # Add system message (no sender - renders as centered system bubble)
                     Message.create_system_message(
                         conversation,
-                        "🔄 Backjob Approved - Your backjob request has been approved. You can now discuss the details here."
+                        "🔄 Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
                     )
                     print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
                 
