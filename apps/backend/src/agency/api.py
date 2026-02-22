@@ -3,6 +3,13 @@ from ninja.responses import Response
 from accounts.authentication import cookie_auth, dual_auth, require_kyc
 from . import services, schemas
 from .fast_upload_service import upload_agency_kyc_fast, extract_ocr_for_autofill
+from accounts.material_service import (
+    add_agency_material,
+    list_agency_materials,
+    update_agency_material,
+    delete_agency_material,
+)
+from accounts.models import Accounts, Agency
 import logging
 
 router = Router()
@@ -4208,3 +4215,120 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         traceback.print_exc()
         return Response({'success': False, 'error': 'Internal server error'}, status=500)
 
+# ========== AGENCY MATERIALS ENDPOINTS ==========
+
+
+def _get_agency_for_request(request):
+    """Helper to resolve authenticated user -> Agency object."""
+    account_id = request.auth.accountID
+    user = Accounts.objects.get(accountID=account_id)
+    try:
+        return Agency.objects.get(accountFK=user)
+    except Agency.DoesNotExist:
+        raise ValueError("Agency profile not found. Complete KYC first.")
+
+
+@router.post("/materials", auth=cookie_auth)
+def add_agency_material_endpoint(request):
+    """Add a new material/product for the agency."""
+    try:
+        agency = _get_agency_for_request(request)
+
+        name = request.POST.get("name")
+        description = request.POST.get("description", "")
+        price = request.POST.get("price")
+        unit = request.POST.get("unit", "piece")
+        quantity = request.POST.get("quantity", "1")
+        category_id = request.POST.get("category_id")
+        image = request.FILES.get("image")
+
+        if not name or not price:
+            return Response({"error": "Name and price are required"}, status=400)
+
+        result = add_agency_material(
+            agency=agency,
+            name=name,
+            description=description or "",
+            price=float(price),
+            unit=unit,
+            quantity=float(quantity),
+            image_file=image,
+            category_id=int(category_id) if category_id else None,
+        )
+        return {"success": True, "material": result}
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error adding agency material: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.get("/materials", auth=cookie_auth)
+def list_agency_materials_endpoint(request, category_id: int = None):
+    """List all materials for the authenticated agency."""
+    try:
+        agency = _get_agency_for_request(request)
+        materials = list_agency_materials(agency, category_id=category_id)
+        return {"success": True, "materials": materials, "count": len(materials)}
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error listing agency materials: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.put("/materials/{material_id}", auth=cookie_auth)
+def update_agency_material_endpoint(request, material_id: int):
+    """Update an agency material."""
+    try:
+        agency = _get_agency_for_request(request)
+
+        name = request.POST.get("name")
+        description = request.POST.get("description")
+        price = request.POST.get("price")
+        unit = request.POST.get("unit")
+        quantity = request.POST.get("quantity")
+        is_available = request.POST.get("is_available")
+        category_id = request.POST.get("category_id")
+        image = request.FILES.get("image")
+
+        result = update_agency_material(
+            agency=agency,
+            material_id=material_id,
+            name=name,
+            description=description,
+            price=float(price) if price else None,
+            unit=unit,
+            quantity=float(quantity) if quantity else None,
+            is_available=is_available.lower() == "true" if is_available else None,
+            image_file=image,
+            category_id=int(category_id) if category_id else None,
+        )
+        return {"success": True, "material": result}
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error updating agency material: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.delete("/materials/{material_id}", auth=cookie_auth)
+def delete_agency_material_endpoint(request, material_id: int):
+    """Delete an agency material."""
+    try:
+        agency = _get_agency_for_request(request)
+        result = delete_agency_material(agency, material_id)
+        return result
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error deleting agency material: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)

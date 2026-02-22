@@ -82,6 +82,14 @@ interface CreateJobRequest {
   downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
+  selected_materials?: {
+    worker_material_id: number;
+    name: string;
+    source: string;
+    price: number;
+    quantity: number;
+    unit: string;
+  }[];
   // Universal job fields for ML accuracy
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
   job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION" | null;
@@ -281,7 +289,31 @@ export default function CreateJobScreen() {
     enabled: !!workerId,
   });
 
-  const workerMaterials = workerMaterialsData || [];
+  // Fetch agency's materials if agencyId is provided
+  const { data: agencyMaterialsData, isLoading: agencyMaterialsLoading } =
+    useQuery({
+      queryKey: ["agency-materials", agencyId],
+      queryFn: async () => {
+        if (!agencyId) return [];
+        const data = await fetchJson<any[]>(
+          ENDPOINTS.AGENCY_MATERIALS_PUBLIC(Number(agencyId)),
+        );
+        if (!Array.isArray(data)) return [];
+        // Map from MaterialSchema format to WorkerMaterial interface
+        return data.map((m: any) => ({
+          id: m.materialID,
+          name: m.name,
+          description: m.description,
+          price: m.price,
+          priceUnit: m.unit || "piece",
+          inStock: m.is_available,
+        })) as WorkerMaterial[];
+      },
+      enabled: !!agencyId && !workerId,
+    });
+
+  const workerMaterials = workerMaterialsData || agencyMaterialsData || [];
+  const isMaterialsLoading = materialsLoading || agencyMaterialsLoading;
 
   // AI Price Prediction Hook
   const {
@@ -889,6 +921,24 @@ export default function CreateJobScreen() {
         // Preserve per-slot skill level if set; otherwise fall back to global skillLevel
         skill_level_required: slot.skill_level_required ?? skillLevel
       }));
+    }
+
+    // Include selected materials if any
+    if (selectedMaterials.length > 0 && workerMaterials.length > 0) {
+      jobData.selected_materials = selectedMaterials
+        .map((id) => {
+          const mat = workerMaterials.find((m) => m.id === id);
+          if (!mat) return null;
+          return {
+            worker_material_id: mat.id,
+            name: mat.name,
+            source: "FROM_PROFILE",
+            price: mat.price,
+            quantity: 1,
+            unit: mat.priceUnit || "piece",
+          };
+        })
+        .filter(Boolean) as CreateJobRequest["selected_materials"];
     }
 
     setPendingJobData(jobData);
@@ -1925,7 +1975,11 @@ export default function CreateJobScreen() {
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.hint}>This worker has no materials listed</Text>
+                    <Text style={styles.hint}>
+                      {workerId
+                        ? "This worker has no materials listed"
+                        : "This agency has no materials listed"}
+                    </Text>
                   )}
                 </View>
               )}

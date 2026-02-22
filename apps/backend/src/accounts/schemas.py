@@ -208,6 +208,7 @@ class ApplyJobMobileSchema(Schema):
     budget_option: str  # 'ACCEPT' | 'NEGOTIATE'
     proposed_budget: Optional[float] = None  # Required if NEGOTIATE
     estimated_duration: Optional[str] = None
+    selected_materials: Optional[list] = None  # [{name, source, price, quantity, worker_material_id}]
 
 class UpdateApplicationMobileSchema(Schema):
     """Schema for accepting/rejecting job application"""

@@ -5,8 +5,6 @@ from accounts.authentication import cookie_auth, dual_auth, require_kyc
 from accounts.models import Wallet, Transaction, Profile
 from .schemas import (
     DepositFundsSchema,
-    ProductCreateSchema,
-    ProductSchema,
     SendMessageSchema,
     MessageResponseSchema,
     ConversationSchema,
@@ -17,10 +15,6 @@ from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Q
-
-
-from .schemas import ProductCreateSchema, ProductSchema
-from .services import add_product_to_profile, list_products_for_profile, delete_product_for_profile
 
 
 router = Router()
@@ -44,73 +38,10 @@ def _get_user_profile(request) -> Profile:
 
     raise Profile.DoesNotExist
 
-#region PRODUCT ENDPOINTS
-
-# List all products/materials for the authenticated worker
-@router.get("/profile/products/", response=list[ProductSchema], auth=cookie_auth)
-def list_products(request):
-    """
-    List all products/materials for the authenticated worker's profile.
-    If profile not found, return an empty list to keep frontend UX simple.
-    """
-    try:
-        try:
-            profile = _get_user_profile(request)
-        except Profile.DoesNotExist:
-            return []
-
-        return list_products_for_profile(profile)
-    except Exception as e:
-        # Log full traceback for debugging
-        print(f"❌ Error listing products: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to list products"}, status=500)
-
-# Delete a product/material by ID for the authenticated worker
-@router.delete("/profile/products/{product_id}", auth=cookie_auth)
-@require_kyc
-def delete_product(request, product_id: int):
-    """
-    Delete a product/material by ID for the authenticated worker's profile.
-    """
-    try:
-        profile = _get_user_profile(request)
-        return delete_product_for_profile(profile, product_id)
-    except Profile.DoesNotExist:
-        return Response({"error": "Profile not found"}, status=404)
-    except Exception as e:
-        print(f"❌ Error deleting product: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to delete product"}, status=500)
-
-@router.post("/profile/products/add", response=ProductSchema, auth=cookie_auth)
-@require_kyc
-def add_product(request, data: ProductCreateSchema):
-    """
-    Add a product to the authenticated worker's profile.
-    """
-    try:
-        profile = _get_user_profile(request)
-        product = add_product_to_profile(profile, data)
-        return ProductSchema(
-            productID=product.productID,
-            name=product.name,
-            description=product.description,
-            price=float(product.price) if product.price is not None else None,
-            createdAt=product.createdAt.isoformat(),
-            updatedAt=product.updatedAt.isoformat()
-        )
-    except Profile.DoesNotExist:
-        return Response({"error": "Profile not found"}, status=404)
-    except Exception as e:
-        print(f"❌ Error adding product: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": "Failed to add product"}, status=500)
-
-#endregion
+# ============================================================
+# DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
+# These endpoints are kept as stubs for backward compatibility
+# ============================================================
 
 
 #region PROFILE IMAGE UPLOAD
@@ -1030,11 +961,38 @@ def get_conversations(request, filter: str = "all"):
             
             worker_reviewed = False
             client_reviewed = False
+            all_team_workers_reviewed = None
             
             # Check if this is an agency job
             is_agency_job = job.assignedEmployeeID is not None
             
-            if worker_account and client_account:
+            if job.is_team_job:
+                # Team job: check reviews across ALL assigned workers
+                from accounts.models import JobWorkerAssignment
+                team_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID__profileID__accountFK')
+                
+                total_workers = team_assignments.count()
+                if total_workers > 0:
+                    worker_account_ids = [a.workerID.profileID.accountFK_id for a in team_assignments]
+                    workers_who_reviewed = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID__in=worker_account_ids,
+                        reviewerType="WORKER"
+                    ).values('reviewerID').distinct().count()
+                    worker_reviewed = (workers_who_reviewed >= total_workers)
+                    
+                    # Check if client has reviewed ALL assigned workers
+                    client_reviews_count = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=client_account,
+                        reviewerType="CLIENT"
+                    ).count()
+                    client_reviewed = (client_reviews_count >= total_workers)
+                    all_team_workers_reviewed = client_reviewed
+            elif worker_account and client_account:
                 worker_reviewed = JobReview.objects.filter(
                     jobID=job,
                     reviewerID=worker_account
@@ -1077,6 +1035,7 @@ def get_conversations(request, filter: str = "all"):
                     "remainingPaymentPaid": job.remainingPaymentPaid,
                     "is_team_job": job.is_team_job
                 },
+                "all_team_workers_reviewed": all_team_workers_reviewed,
                 "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),
                 "my_role": "CLIENT" if is_client else "WORKER",
                 "last_message": conv.lastMessageText,
@@ -1525,6 +1484,34 @@ def get_conversation_messages(request, conversation_id: int):
                 jobID=job,
                 reviewerID=client_account
             ).exists()
+        elif is_team_job and is_client and client_account:
+            # Team job - CLIENT view: check if ALL assigned workers have reviewed
+            from accounts.models import JobWorkerAssignment
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related('workerID__profileID__accountFK')
+            
+            total_workers = team_assignments.count()
+            if total_workers > 0:
+                worker_account_ids = [a.workerID.profileID.accountFK_id for a in team_assignments]
+                workers_who_reviewed = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID__in=worker_account_ids,
+                    reviewerType="WORKER"
+                ).values('reviewerID').distinct().count()
+                worker_reviewed = (workers_who_reviewed >= total_workers)
+                
+                # Check if client has reviewed ALL assigned workers
+                client_reviews_count = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT"
+                ).count()
+                client_reviewed = (client_reviews_count >= total_workers)
+            else:
+                worker_reviewed = False
+                client_reviewed = False
         elif worker_account and client_account:
             # Regular (non-agency) job
             worker_reviewed = JobReview.objects.filter(
@@ -1843,6 +1830,30 @@ def get_conversation_messages(request, conversation_id: int):
                     "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
                 }
 
+        # Get job materials for the materials purchasing workflow
+        from accounts.models import JobMaterial
+        job_materials_qs = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+        job_materials_list = [
+            {
+                "id": m.jobMaterialID,
+                "name": m.name,
+                "description": m.description,
+                "quantity": m.quantity,
+                "unit": m.unit,
+                "source": m.source,
+                "purchase_price": float(m.purchase_price) if m.purchase_price else None,
+                "receipt_image_url": m.receipt_image_url,
+                "client_approved": m.client_approved,
+                "client_approved_at": m.client_approved_at.isoformat() if m.client_approved_at else None,
+                "client_rejected": m.client_rejected,
+                "rejection_reason": m.rejection_reason,
+                "added_by": m.added_by,
+                "worker_material_id": m.workerMaterialID_id,
+                "created_at": m.createdAt.isoformat(),
+            }
+            for m in job_materials_qs
+        ]
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1867,6 +1878,8 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientId": client_account.accountID if client_account else None,
                 "estimatedCompletion": ml_prediction,
                 "paymentBuffer": payment_buffer_info,
+                "materials_status": job.materials_status,
+                "materials_cost": float(job.materialsCost) if job.materialsCost else 0,
             },
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee
@@ -1886,6 +1899,7 @@ def get_conversation_messages(request, conversation_id: int):
             "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
+            "job_materials": job_materials_list,
         }
         
     except Exception as e:
@@ -2247,8 +2261,28 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         # Verify sender is a participant
         is_client = conversation.client == sender_profile
         is_worker = conversation.worker == sender_profile
+        
+        # For team conversations, also check ConversationParticipant table
+        is_team_participant = False
+        if sender_profile and conversation.conversation_type == 'TEAM_GROUP':
+            from profiles.models import ConversationParticipant
+            is_team_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=sender_profile
+            ).exists()
+        
+        # Check agency-based access
+        is_agency = False
+        if hasattr(conversation, 'agency') and conversation.agency:
+            try:
+                from agency.models import Agency
+                sender_agency = Agency.objects.filter(accountFK=request.auth).first()
+                if sender_agency and conversation.agency.agencyId == sender_agency.agencyId:
+                    is_agency = True
+            except Exception:
+                pass
 
-        if not (is_client or is_worker):
+        if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
