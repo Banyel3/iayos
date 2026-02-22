@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -3896,7 +3896,7 @@ def client_approve_job_completion(
             from accounts.models import Wallet
             from jobs.payment_buffer_service import add_pending_earnings, get_payment_buffer_days
             
-            remaining_amount = job.remainingPayment
+            remaining_amount = job.remainingPayment + job.materialsCost
             buffer_days = get_payment_buffer_days()
             
             # Handle WALLET payment (instant deduction from client, but pending for worker)
@@ -3955,7 +3955,8 @@ def client_approve_job_completion(
                 pending_result = None
                 if recipient_account:
                     # Add to pending earnings (Due Balance) - NOT immediate wallet credit
-                    recipient_payment = job.budget
+                    # Worker gets budget + materials reimbursement
+                    recipient_payment = job.budget + job.materialsCost
                     pending_result = add_pending_earnings(
                         job=job,
                         recipient_account=recipient_account,
@@ -6497,9 +6498,10 @@ def get_job_receipt(request, job_id: int):
         platform_fee = budget * settings.PLATFORM_FEE_RATE
         platform_fee_rate = settings.PLATFORM_FEE_RATE
         
-        # Worker receives full budget (client pays budget + fee)
-        worker_earnings = budget
-        total_client_paid = budget + platform_fee
+        # Worker receives full budget + materials reimbursement (client pays budget + fee + materials)
+        materials_cost = Decimal(str(job.materialsCost)) if job.materialsCost else Decimal('0.00')
+        worker_earnings = budget + materials_cost
+        total_client_paid = budget + platform_fee + materials_cost
         
         # Get buffer period settings
         buffer_days = get_payment_buffer_days()
@@ -6622,6 +6624,7 @@ def get_job_receipt(request, job_id: int):
                     'budget': float(budget),
                     'escrow_amount': float(escrow_amount),
                     'final_payment': float(escrow_amount),  # Same as escrow (50/50 split)
+                    'materials_cost': float(materials_cost),
                     'platform_fee': float(platform_fee),
                     'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
                     'worker_earnings': float(worker_earnings),
@@ -6650,6 +6653,20 @@ def get_job_receipt(request, job_id: int):
                 
                 # Transaction history
                 'transactions': transactions,
+                
+                # Materials purchased for this job
+                'materials': [
+                    {
+                        'id': m.jobMaterialID,
+                        'name': m.name,
+                        'quantity': m.quantity,
+                        'unit': m.unit,
+                        'source': m.source,
+                        'purchase_price': float(m.purchase_price) if m.purchase_price else None,
+                        'client_approved': m.client_approved,
+                    }
+                    for m in JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+                ],
                 
                 # Review status
                 'reviews': {
@@ -6830,7 +6847,7 @@ def get_job_payment_timeline(request, job_id: int):
         traceback.print_exc()
         return Response({"error": f"Failed to generate payment timeline: {str(e)}"}, status=500)
 
-#endregion
+# endregion
 
 
 # =============================================================================
@@ -8186,3 +8203,399 @@ def approve_agency_project_job(
         return Response({"error": "Internal server error"}, status=500)
 
 # endregion
+
+
+# ===========================================================================
+# JOB MATERIALS PURCHASING WORKFLOW
+# ===========================================================================
+
+@router.get("/{job_id}/materials", auth=dual_auth)
+def get_job_materials(request, job_id: int):
+    """Get all materials for a job. Accessible by client and assigned worker."""
+    try:
+        from accounts.models import JobMaterial
+        job = Job.objects.get(jobID=job_id)
+        
+        # Verify user is client or assigned worker
+        user = request.auth
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user)
+        
+        if not (is_client or is_worker):
+            return Response({"error": "Not authorized"}, status=403)
+        
+        materials = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+        
+        materials_list = []
+        for m in materials:
+            materials_list.append({
+                "id": m.jobMaterialID,
+                "name": m.name,
+                "description": m.description,
+                "quantity": m.quantity,
+                "unit": m.unit,
+                "source": m.source,
+                "purchase_price": float(m.purchase_price) if m.purchase_price else None,
+                "receipt_image_url": m.receipt_image_url,
+                "client_approved": m.client_approved,
+                "client_approved_at": m.client_approved_at.isoformat() if m.client_approved_at else None,
+                "client_rejected": m.client_rejected,
+                "rejection_reason": m.rejection_reason,
+                "added_by": m.added_by,
+                "worker_material_id": m.workerMaterialID_id,
+                "created_at": m.createdAt.isoformat(),
+            })
+        
+        return {
+            "success": True,
+            "materials": materials_list,
+            "materials_status": job.materials_status,
+            "materials_cost": float(job.materialsCost),
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error fetching job materials: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/{job_id}/materials", auth=dual_auth)
+def add_job_material(request, job_id: int):
+    """Worker adds a material to a job (either from profile or to purchase)."""
+    try:
+        import json
+        from accounts.models import JobMaterial, WorkerMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        # Only assigned worker can add materials
+        if not (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user):
+            return Response({"error": "Only the assigned worker can add materials"}, status=403)
+        
+        if job.status not in ['IN_PROGRESS', 'ACTIVE']:
+            return Response({"error": "Job must be active or in progress"}, status=400)
+        
+        data = json.loads(request.body)
+        name = data.get('name', '').strip()
+        if not name:
+            return Response({"error": "Material name is required"}, status=400)
+        
+        source = data.get('source', 'TO_PURCHASE')
+        worker_material_id = data.get('worker_material_id')
+        
+        material = JobMaterial.objects.create(
+            jobID=job,
+            workerMaterialID_id=worker_material_id if worker_material_id else None,
+            name=name,
+            description=data.get('description', ''),
+            quantity=data.get('quantity', 1),
+            unit=data.get('unit', ''),
+            source=source,
+            added_by=data.get('added_by', 'WORKER_SUPPLIED'),
+            # If from profile, auto-approve (no cost)
+            client_approved=True if source == 'FROM_PROFILE' else False,
+            client_approved_at=timezone.now() if source == 'FROM_PROFILE' else None,
+        )
+        
+        # Update job materials_status if not already set
+        if job.materials_status == 'NONE':
+            job.materials_status = 'PENDING_PURCHASE'
+            job.save(update_fields=['materials_status'])
+        
+        return {
+            "success": True,
+            "material": {
+                "id": material.jobMaterialID,
+                "name": material.name,
+                "description": material.description,
+                "quantity": material.quantity,
+                "unit": material.unit,
+                "source": material.source,
+                "purchase_price": None,
+                "receipt_image_url": None,
+                "client_approved": material.client_approved,
+                "client_approved_at": material.client_approved_at.isoformat() if material.client_approved_at else None,
+                "client_rejected": material.client_rejected,
+                "rejection_reason": None,
+                "added_by": material.added_by,
+                "worker_material_id": material.workerMaterialID_id,
+                "created_at": material.createdAt.isoformat(),
+            }
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error adding job material: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/{material_id}/purchase-proof", auth=dual_auth)
+def upload_material_purchase_proof(request, job_id: int, material_id: int):
+    """Worker uploads receipt image and actual price for a purchased material."""
+    try:
+        from accounts.models import JobMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        if not (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user):
+            return Response({"error": "Only the assigned worker can upload purchase proof"}, status=403)
+        
+        material = JobMaterial.objects.get(jobMaterialID=material_id, jobID=job)
+        
+        if material.source == 'FROM_PROFILE':
+            return Response({"error": "Cannot upload purchase proof for materials from your profile"}, status=400)
+        
+        # Get purchase price from POST data (multipart form) or JSON body
+        purchase_price = request.POST.get('purchase_price')
+        if purchase_price is None:
+            try:
+                import json
+                data = json.loads(request.body)
+                purchase_price = data.get('purchase_price')
+            except Exception:
+                pass
+        
+        if purchase_price is None or float(purchase_price) <= 0:
+            return Response({"error": "Valid purchase price is required"}, status=400)
+        
+        # Handle receipt image upload via request.FILES
+        receipt_image = request.FILES.get('receipt_image')
+        receipt_image_url = None
+        
+        if receipt_image:
+            try:
+                from django.conf import settings
+                import uuid
+                
+                if not settings.STORAGE:
+                    raise Exception("Storage not configured")
+                file_extension = receipt_image.name.split('.')[-1] if '.' in receipt_image.name else 'jpg'
+                file_name = f"material_receipts/job_{job_id}/{material_id}_{uuid.uuid4().hex}.{file_extension}"
+                
+                # Upload file to Supabase
+                settings.STORAGE.storage().from_('job-images').upload(
+                    file_name,
+                    receipt_image.read(),
+                    {'content-type': receipt_image.content_type or 'image/jpeg'}
+                )
+                
+                # Get public URL
+                receipt_image_url = settings.STORAGE.storage().from_('job-images').get_public_url(file_name)
+                print(f"✅ Material receipt uploaded: {receipt_image_url}")
+            except Exception as upload_err:
+                print(f"❌ Material receipt upload error: {upload_err}")
+                return Response({"error": f"Failed to upload receipt image: {str(upload_err)}"}, status=500)
+        else:
+            # Fallback: check JSON body for receipt_image_url
+            try:
+                import json
+                data = json.loads(request.body)
+                receipt_image_url = data.get('receipt_image_url')
+            except Exception:
+                pass
+        
+        material.purchase_price = Decimal(str(purchase_price))
+        material.receipt_image_url = receipt_image_url or ''
+        material.source = 'PURCHASED'
+        material.client_approved = False  # Reset approval - client must re-approve
+        material.client_rejected = False
+        material.save()
+        
+        # Check if all TO_PURCHASE items are now PURCHASED
+        pending_purchases = JobMaterial.objects.filter(
+            jobID=job, source='TO_PURCHASE'
+        ).count()
+        
+        if pending_purchases == 0:
+            job.materials_status = 'PURCHASED'
+            job.save(update_fields=['materials_status'])
+        
+        return {
+            "success": True,
+            "material": {
+                "id": material.jobMaterialID,
+                "name": material.name,
+                "purchase_price": float(material.purchase_price),
+                "receipt_image_url": material.receipt_image_url,
+                "source": material.source,
+                "client_approved": material.client_approved,
+            }
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except JobMaterial.DoesNotExist:
+        return Response({"error": "Material not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error uploading purchase proof: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/{material_id}/approve", auth=dual_auth)
+def approve_material_purchase(request, job_id: int, material_id: int):
+    """Client approves a material purchase, adding its cost to the job's materialsCost."""
+    try:
+        from accounts.models import JobMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        # Only client can approve
+        if job.clientID.profileID.accountFK != user:
+            return Response({"error": "Only the client can approve material purchases"}, status=403)
+        
+        material = JobMaterial.objects.get(jobMaterialID=material_id, jobID=job)
+        
+        if material.client_approved:
+            return Response({"error": "Material already approved"}, status=400)
+        
+        if material.source == 'FROM_PROFILE':
+            return Response({"error": "Materials from worker's profile don't need approval"}, status=400)
+        
+        if not material.purchase_price or material.purchase_price <= 0:
+            return Response({"error": "Material must have a purchase price before approval"}, status=400)
+        
+        material.client_approved = True
+        material.client_approved_at = timezone.now()
+        material.client_rejected = False
+        material.rejection_reason = None
+        material.save()
+        
+        # Add the approved purchase price to job's materialsCost
+        job.materialsCost += material.purchase_price
+        
+        # Check if all purchased materials are now approved
+        unapproved = JobMaterial.objects.filter(
+            jobID=job,
+            source='PURCHASED',
+            client_approved=False,
+            client_rejected=False
+        ).count()
+        
+        if unapproved == 0:
+            # Also check no items still TO_PURCHASE
+            to_purchase = JobMaterial.objects.filter(jobID=job, source='TO_PURCHASE').count()
+            if to_purchase == 0:
+                job.materials_status = 'APPROVED'
+        
+        job.save(update_fields=['materialsCost', 'materials_status'])
+        
+        return {
+            "success": True,
+            "material_id": material.jobMaterialID,
+            "approved_amount": float(material.purchase_price),
+            "total_materials_cost": float(job.materialsCost),
+            "materials_status": job.materials_status,
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except JobMaterial.DoesNotExist:
+        return Response({"error": "Material not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error approving material: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/{material_id}/reject", auth=dual_auth)
+def reject_material_purchase(request, job_id: int, material_id: int):
+    """Client rejects a material purchase."""
+    try:
+        import json
+        from accounts.models import JobMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        if job.clientID.profileID.accountFK != user:
+            return Response({"error": "Only the client can reject material purchases"}, status=403)
+        
+        material = JobMaterial.objects.get(jobMaterialID=material_id, jobID=job)
+        
+        if material.client_approved:
+            return Response({"error": "Cannot reject an already approved material"}, status=400)
+        
+        data = json.loads(request.body) if request.body else {}
+        
+        material.client_rejected = True
+        material.rejection_reason = data.get('reason', '')
+        material.save()
+        
+        return {
+            "success": True,
+            "material_id": material.jobMaterialID,
+            "rejection_reason": material.rejection_reason,
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except JobMaterial.DoesNotExist:
+        return Response({"error": "Material not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error rejecting material: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/mark-buying", auth=dual_auth)
+def mark_materials_buying(request, job_id: int):
+    """Worker marks that they are buying materials."""
+    try:
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        if not (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user):
+            return Response({"error": "Only the assigned worker can update materials status"}, status=403)
+        
+        job.materials_status = 'BUYING'
+        job.save(update_fields=['materials_status'])
+        
+        return {"success": True, "materials_status": "BUYING"}
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error marking materials buying: {e}")
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/skip", auth=dual_auth)
+def skip_materials_step(request, job_id: int):
+    """Worker or client skips the materials step (no materials needed)."""
+    try:
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user)
+        
+        if not (is_client or is_worker):
+            return Response({"error": "Not authorized"}, status=403)
+        
+        if job.materials_status in ['APPROVED', 'NONE']:
+            return Response({"error": "Materials step already completed or not needed"}, status=400)
+        
+        job.materials_status = 'APPROVED'
+        job.save(update_fields=['materials_status'])
+        
+        return {"success": True, "materials_status": "APPROVED"}
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error skipping materials: {e}")
+        return Response({"error": str(e)}, status=500)
+

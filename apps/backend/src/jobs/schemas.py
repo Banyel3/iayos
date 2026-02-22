@@ -69,6 +69,7 @@ class JobApplicationSchema(Schema):
     proposed_budget: float
     estimated_duration: Optional[str] = None
     budget_option: str  # ACCEPT or NEGOTIATE
+    selected_materials: Optional[list] = None  # [{name, source, price, quantity, worker_material_id}]
 
 
 class SubmitReviewSchema(Schema):
