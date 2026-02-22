@@ -6476,7 +6476,17 @@ def get_job_receipt(request, job_id: int):
             job.assignedAgencyFK.accountFK == user
         )
         
-        if not (is_client or is_worker or is_agency):
+        # For team jobs, check JobWorkerAssignment since assignedWorkerID is None
+        is_team_worker = False
+        if job.is_team_job:
+            from accounts.models import JobWorkerAssignment
+            is_team_worker = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID__accountFK=user,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        
+        if not (is_client or is_worker or is_agency or is_team_worker):
             return Response({"error": "You don't have access to this job's receipt"}, status=403)
         
         # Calculate payment breakdown
@@ -6539,6 +6549,32 @@ def get_job_receipt(request, job_id: int):
                 'name': f"{worker_profile.firstName} {worker_profile.lastName}",
                 'avatar': worker_profile.profileImg,
                 'contact': worker_profile.contactNum,
+            }
+        elif job.is_team_job:
+            # Team job: build worker info from assignments
+            from accounts.models import JobWorkerAssignment
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related('workerID__profileID', 'skillSlotID__specializationID')
+            
+            team_workers = []
+            for assign in team_assignments:
+                wp = assign.workerID.profileID
+                team_workers.append({
+                    'id': assign.workerID_id,
+                    'name': f"{wp.firstName} {wp.lastName}",
+                    'avatar': wp.profileImg,
+                    'skill': assign.skillSlotID.specializationID.specializationName if assign.skillSlotID else None,
+                })
+            
+            worker_info = {
+                'type': 'TEAM',
+                'id': None,
+                'name': f"Team ({len(team_workers)} workers)",
+                'avatar': team_workers[0]['avatar'] if team_workers else None,
+                'contact': None,
+                'team_workers': team_workers,
             }
         elif job.assignedAgencyFK:
             agency = job.assignedAgencyFK
