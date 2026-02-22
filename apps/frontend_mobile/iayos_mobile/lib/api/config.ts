@@ -431,6 +431,9 @@ export const ENDPOINTS = {
   // Worker public materials (for clients to view filtered by category)
   WORKER_MATERIALS_PUBLIC: (workerId: number) =>
     `${API_BASE_URL}/accounts/workers/${workerId}/materials`,
+  // Agency public materials (for clients to view filtered by category)
+  AGENCY_MATERIALS_PUBLIC: (agencyId: number) =>
+    `${API_BASE_URL}/accounts/agencies/${agencyId}/materials`,
 
   // Job Materials Purchasing Workflow
   JOB_MATERIALS: (jobId: number) =>
