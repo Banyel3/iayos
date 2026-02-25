@@ -272,6 +272,7 @@ export default function FAQManagementPage() {
                       key={cat}
                       variant={categoryFilter === cat ? "default" : "outline"}
                       size="sm"
+                      className={categoryFilter === cat ? "text-white" : ""}
                       onClick={() => setCategoryFilter(cat)}
                     >
                       {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -286,6 +287,7 @@ export default function FAQManagementPage() {
                   <Button
                     variant={publishedFilter === "all" ? "default" : "outline"}
                     size="sm"
+                    className={publishedFilter === "all" ? "text-white" : ""}
                     onClick={() => setPublishedFilter("all")}
                   >
                     All
@@ -295,6 +297,7 @@ export default function FAQManagementPage() {
                       publishedFilter === "published" ? "default" : "outline"
                     }
                     size="sm"
+                    className={publishedFilter === "published" ? "text-white" : ""}
                     onClick={() => setPublishedFilter("published")}
                   >
                     Published
@@ -304,6 +307,7 @@ export default function FAQManagementPage() {
                       publishedFilter === "draft" ? "default" : "outline"
                     }
                     size="sm"
+                    className={publishedFilter === "draft" ? "text-white" : ""}
                     onClick={() => setPublishedFilter("draft")}
                   >
                     Drafts
