@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +12,6 @@ import {
   TrendingUp,
   Users,
   FileText,
-  Award,
   Target,
   Edit,
   Trash2,
@@ -29,21 +27,16 @@ interface JobCategory {
   name: string;
   description: string;
   minimum_rate: number;
-  rate_type: string;
-  skill_level: string;
   average_project_cost_min: number;
   average_project_cost_max: number;
   jobs_count: number;
   workers_count: number;
-  clients_count: number;
 }
 
 interface CategoryFormData {
   name: string;
   description: string;
   minimum_rate: string;
-  rate_type: string;
-  skill_level: string;
   average_project_cost_min: string;
   average_project_cost_max: string;
 }
@@ -52,8 +45,6 @@ const EMPTY_FORM: CategoryFormData = {
   name: "",
   description: "",
   minimum_rate: "",
-  rate_type: "hourly",
-  skill_level: "intermediate",
   average_project_cost_min: "",
   average_project_cost_max: "",
 };
@@ -120,8 +111,6 @@ export default function JobCategoriesPage() {
       name: cat.name,
       description: cat.description,
       minimum_rate: String(cat.minimum_rate),
-      rate_type: cat.rate_type,
-      skill_level: cat.skill_level,
       average_project_cost_min: String(cat.average_project_cost_min),
       average_project_cost_max: String(cat.average_project_cost_max),
     });
@@ -166,8 +155,7 @@ export default function JobCategoriesPage() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         minimum_rate: parseFloat(formData.minimum_rate),
-        rate_type: formData.rate_type,
-        skill_level: formData.skill_level,
+        rate_type: "daily",
         average_project_cost_min: formData.average_project_cost_min === "" ? 0 : parseFloat(formData.average_project_cost_min),
         average_project_cost_max: formData.average_project_cost_max === "" ? 0 : parseFloat(formData.average_project_cost_max),
       };
@@ -244,38 +232,10 @@ export default function JobCategoriesPage() {
         categories.reduce((s, c) => s + c.minimum_rate, 0) / totalCategories
       )
       : 0;
-  const expertCategories = categories.filter((c) => c.skill_level === "expert").length;
   const totalJobs = categories.reduce((s, c) => s + c.jobs_count, 0);
   const totalWorkers = categories.reduce((s, c) => s + c.workers_count, 0);
 
-  const getSkillLevelBadge = (level: string) => {
-    switch (level.toLowerCase()) {
-      case "entry":
-        return (
-          <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            🌱 Entry Level
-          </Badge>
-        );
-      case "intermediate":
-        return (
-          <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
-            ⭐ Intermediate
-          </Badge>
-        );
-      case "expert":
-        return (
-          <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
-            👑 Expert
-          </Badge>
-        );
-      default:
-        return (
-          <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">
-            {level}
-          </Badge>
-        );
-    }
-  };
+
 
   // ──────────────────────────────────────────
   // Loading
@@ -333,11 +293,10 @@ export default function JobCategoriesPage() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[
               { label: "Total Categories", value: totalCategories, icon: Target, color: "blue" },
               { label: "Avg Min Rate", value: `₱${avgMinRate}`, icon: DollarSign, color: "emerald" },
-              { label: "Expert Level", value: expertCategories, icon: Award, color: "purple" },
               { label: "Total Jobs", value: totalJobs, icon: FileText, color: "orange" },
               { label: "Total Workers", value: totalWorkers, icon: Users, color: "indigo" },
             ].map(({ label, value, icon: Icon, color }) => (
@@ -381,14 +340,13 @@ export default function JobCategoriesPage() {
                           <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                             {category.name}
                           </h3>
-                          {getSkillLevelBadge(category.skill_level)}
                         </div>
                         <p className="text-gray-600 leading-relaxed">
                           {category.description || <span className="text-gray-400 italic">No description</span>}
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-emerald-100 rounded-lg">
                             <DollarSign className="h-4 w-4 text-emerald-600" />
@@ -396,7 +354,7 @@ export default function JobCategoriesPage() {
                           <div>
                             <p className="text-xs text-gray-500 font-medium">Min Rate</p>
                             <p className="font-bold text-gray-900">
-                              ₱{category.minimum_rate}/{category.rate_type}
+                              ₱{category.minimum_rate}/day
                             </p>
                           </div>
                         </div>
@@ -428,15 +386,6 @@ export default function JobCategoriesPage() {
                           <div>
                             <p className="text-xs text-gray-500 font-medium">Workers</p>
                             <p className="font-bold text-gray-900">{category.workers_count}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3">
-                          <div className="p-1.5 bg-indigo-100 rounded-lg">
-                            <Users className="h-4 w-4 text-indigo-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium">Clients</p>
-                            <p className="font-bold text-gray-900">{category.clients_count}</p>
                           </div>
                         </div>
                       </div>
@@ -559,65 +508,25 @@ export default function JobCategoriesPage() {
               </div>
 
               {/* Rate row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Minimum Rate (₱) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.minimum_rate}
-                    onChange={(e) => setFormData({ ...formData, minimum_rate: e.target.value })}
-                    placeholder="0.00"
-                    className={`w-full px-4 py-2.5 rounded-xl border ${formErrors.minimum_rate ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-blue-200"
-                      } focus:outline-none focus:ring-2 focus:border-blue-500 text-gray-900 transition-colors`}
-                  />
-                  {formErrors.minimum_rate && (
-                    <p className="mt-1 text-xs text-red-600">{formErrors.minimum_rate}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Rate Type
-                  </label>
-                  <select
-                    value={formData.rate_type}
-                    onChange={(e) => setFormData({ ...formData, rate_type: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 text-gray-900 bg-white transition-colors"
-                  >
-                    <option value="hourly">Hourly</option>
-                    <option value="daily">Daily</option>
-                    <option value="fixed">Fixed</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Skill level */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Skill Level
+                  Minimum Daily Rate (₱) <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(["entry", "intermediate", "expert"] as const).map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, skill_level: level })}
-                      className={`py-2.5 rounded-xl border-2 text-sm font-semibold capitalize transition-all ${formData.skill_level === level
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                        }`}
-                    >
-                      {level === "entry" && "🌱 "}
-                      {level === "intermediate" && "⭐ "}
-                      {level === "expert" && "👑 "}
-                      {level}
-                    </button>
-                  ))}
-                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.minimum_rate}
+                  onChange={(e) => setFormData({ ...formData, minimum_rate: e.target.value })}
+                  placeholder="0.00"
+                  className={`w-full px-4 py-2.5 rounded-xl border ${formErrors.minimum_rate ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-blue-200"
+                    } focus:outline-none focus:ring-2 focus:border-blue-500 text-gray-900 transition-colors`}
+                />
+                {formErrors.minimum_rate && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.minimum_rate}</p>
+                )}
               </div>
+
 
               {/* Project cost range */}
               <div>
