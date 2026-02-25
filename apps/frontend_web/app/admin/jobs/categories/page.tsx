@@ -234,17 +234,16 @@ export default function JobCategoriesPage() {
     });
 
   const handleSort = (field: "minimum_rate" | "jobs_count" | "workers_count") => {
-    if (sortField === field) {
-      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    } else {
+    if (sortField !== field) {
       setSortField(field);
       setSortDir("desc");
+    } else if (sortDir === "desc") {
+      setSortDir("asc");
+    } else {
+      // third click — clear
+      setSortField(null);
+      setSortDir("desc");
     }
-  };
-
-  const clearSort = () => {
-    setSortField(null);
-    setSortDir("desc");
   };
   const totalCategories = categories.length;
   const avgMinRate =
@@ -363,21 +362,12 @@ export default function JobCategoriesPage() {
                       }`}
                   >
                     {label}
-                    <span className={`text-xs transition-transform ${active ? "opacity-100" : "opacity-30"}`}>
+                    <span className={`text-xs ${active ? "opacity-100" : "opacity-30"}`}>
                       {active && sortDir === "asc" ? "↑" : "↓"}
                     </span>
                   </button>
                 );
               })}
-              {sortField && (
-                <button
-                  onClick={clearSort}
-                  className="flex items-center gap-1 px-3.5 py-2.5 rounded-xl text-sm font-semibold border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-all"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Clear
-                </button>
-              )}
             </div>
           </div>
 
