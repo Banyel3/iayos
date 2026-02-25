@@ -226,6 +226,7 @@ export default function AgencyTicketsPage() {
                     key={status}
                     variant={statusFilter === status ? "default" : "outline"}
                     size="sm"
+                    className={statusFilter === status ? "text-white" : ""}
                     onClick={() => {
                       setStatusFilter(status);
                       setCurrentPage(1);
