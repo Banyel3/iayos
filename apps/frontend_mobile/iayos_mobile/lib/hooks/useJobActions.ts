@@ -454,7 +454,74 @@ export function useAgencyMarkProjectComplete() {
 }
 
 /**
- * Client approves agency PROJECT job and pays
+ * Client approves a single agency employee's work and pays their share
+ */
+export function useApproveAgencyProjectEmployee() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      employeeId,
+      paymentMethod,
+      cashProofImage,
+    }: {
+      jobId: number;
+      employeeId: number;
+      paymentMethod: "WALLET" | "GCASH" | "CASH";
+      cashProofImage?: string;
+    }) => {
+      const url = ENDPOINTS.AGENCY_APPROVE_PROJECT_EMPLOYEE(jobId, employeeId);
+
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod);
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: `cash_proof_${jobId}_${employeeId}_${Date.now()}.jpg`,
+        } as any);
+      }
+
+      const response = await apiRequest(url, {
+        method: "POST",
+        body: formData as any,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to approve employee"));
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const msg = data.all_approved
+        ? "All employees approved! Job completed."
+        : `${data.employee_name} approved (${data.approved_count}/${data.total_count})`;
+      Toast.show({
+        type: "success",
+        text1: "Employee Approved",
+        text2: msg,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Approval Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Client approves agency PROJECT job and pays (bulk - legacy)
  */
 export function useApproveAgencyProjectJob() {
   const queryClient = useQueryClient();

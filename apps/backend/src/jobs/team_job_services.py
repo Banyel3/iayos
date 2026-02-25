@@ -4,6 +4,7 @@
 
 from decimal import Decimal
 from typing import Optional
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
@@ -130,9 +131,9 @@ def create_team_job(
     except ClientProfile.DoesNotExist:
         return {'success': False, 'error': 'Client profile not found. Only clients can create team jobs.'}
     
-    # Check wallet balance for escrow (50% of total)
+    # Check wallet balance for escrow (50% of total) + platform fee (10% of total)
     escrow_amount = Decimal(str(total_budget)) * Decimal('0.5')
-    platform_fee = escrow_amount * Decimal('0.05')  # 5% of downpayment
+    platform_fee = Decimal(str(total_budget)) * settings.PLATFORM_FEE_RATE  # 10% of total budget
     total_needed = escrow_amount + platform_fee
     
     if payment_method == 'WALLET':
@@ -411,6 +412,25 @@ def accept_team_application(
     if not skill_slot:
         return {'success': False, 'error': 'Application not associated with a skill slot'}
     
+    # CRITICAL: Check if worker is already assigned to another slot on this job
+    # A worker can only fill one slot per team job (unique_worker_per_job constraint)
+    existing_assignment = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        workerID=application.workerID,
+        assignment_status__in=['ACTIVE', 'COMPLETED']
+    ).select_related('skillSlotID__specializationID').first()
+    
+    if existing_assignment:
+        existing_slot_name = existing_assignment.skillSlotID.specializationID.specializationName
+        worker_name = f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}"
+        # Auto-reject this application since worker is already assigned
+        application.status = 'REJECTED'
+        application.save()
+        return {
+            'success': False,
+            'error': f'{worker_name} is already assigned to the "{existing_slot_name}" slot on this job. A worker can only fill one slot per job. This application has been automatically rejected.'
+        }
+    
     # Check if slot has openings
     current_assigned = JobWorkerAssignment.objects.filter(
         skillSlotID=skill_slot,
@@ -441,6 +461,18 @@ def accept_team_application(
     application.status = 'ACCEPTED'
     application.save()
     
+    # Auto-reject other pending applications from the same worker on this job
+    # (worker can't be assigned to multiple slots)
+    same_worker_pending = JobApplication.objects.filter(
+        jobID=job,
+        workerID=application.workerID,
+        status='PENDING'
+    ).exclude(applicationID=application.applicationID)
+    same_worker_rejected_count = same_worker_pending.count()
+    if same_worker_rejected_count > 0:
+        same_worker_pending.update(status='REJECTED')
+        print(f"📋 Auto-rejected {same_worker_rejected_count} other pending application(s) from same worker on job #{job_id}")
+    
     # Update slot status
     new_assigned = current_assigned + 1
     if new_assigned >= skill_slot.workers_needed:
@@ -448,6 +480,28 @@ def accept_team_application(
     else:
         skill_slot.status = 'PARTIALLY_FILLED'
     skill_slot.save()
+    
+    # Auto-reject remaining pending applications for this slot when it becomes FILLED
+    if skill_slot.status == 'FILLED':
+        slot_pending_apps = JobApplication.objects.filter(
+            jobID=job,
+            applied_skill_slot=skill_slot,
+            status='PENDING'
+        ).exclude(applicationID=application.applicationID).select_related('workerID__profileID__accountFK')
+        
+        slot_rejected_count = slot_pending_apps.count()
+        if slot_rejected_count > 0:
+            for pending_app in slot_pending_apps:
+                Notification.objects.create(
+                    accountFK=pending_app.workerID.profileID.accountFK,
+                    notificationType="APPLICATION_REJECTED",
+                    title="Position Filled",
+                    message=f"The {skill_slot.specializationID.specializationName} position in '{job.title}' has been filled. Keep applying to find more opportunities!",
+                    relatedJobID=job.jobID,
+                    relatedApplicationID=pending_app.applicationID
+                )
+            slot_pending_apps.update(status='REJECTED')
+            print(f"📋 Auto-rejected {slot_rejected_count} pending application(s) for filled slot '{skill_slot.specializationID.specializationName}' on job #{job_id}")
     
     # Add worker to team conversation IF it exists
     # Note: Conversation is created when job STARTS, not when posted
@@ -538,6 +592,66 @@ def accept_team_application(
                 )
         else:
             conversation_id = existing_conversation.conversationID
+        
+        # AUTO-REJECT all remaining pending applications for this job (all slots now filled)
+        remaining_pending = JobApplication.objects.filter(
+            jobID=job,
+            status='PENDING'
+        ).select_related('workerID__profileID__accountFK')
+        
+        remaining_rejected_count = remaining_pending.count()
+        if remaining_rejected_count > 0:
+            for pending_app in remaining_pending:
+                Notification.objects.create(
+                    accountFK=pending_app.workerID.profileID.accountFK,
+                    notificationType="APPLICATION_REJECTED",
+                    title="All Positions Filled",
+                    message=f"All positions for '{job.title}' have been filled. Keep applying to find more opportunities!",
+                    relatedJobID=job.jobID,
+                    relatedApplicationID=pending_app.applicationID
+                )
+            remaining_pending.update(status='REJECTED')
+            print(f"📋 Auto-rejected {remaining_rejected_count} remaining pending application(s) for fully-staffed job #{job_id}")
+        
+        # CROSS-JOB AUTO-REJECTION: Reject accepted workers' pending apps on OTHER jobs
+        # Team workers can only work one job at a time
+        all_assignments = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status='ACTIVE'
+        ).select_related('workerID__profileID__accountFK')
+        
+        for assign in all_assignments:
+            cross_job_apps = JobApplication.objects.filter(
+                workerID=assign.workerID,
+                status='PENDING'
+            ).exclude(jobID=job).select_related('jobID__clientID__profileID__accountFK')
+            
+            cross_count = cross_job_apps.count()
+            if cross_count > 0:
+                worker_profile = assign.workerID.profileID
+                for cross_app in cross_job_apps:
+                    try:
+                        Notification.objects.create(
+                            accountFK=cross_app.jobID.clientID.profileID.accountFK,
+                            notificationType="APPLICATION_REJECTED",
+                            title="Worker No Longer Available",
+                            message=f"{worker_profile.firstName} {worker_profile.lastName} has been hired for another job and is no longer available for '{cross_app.jobID.title}'.",
+                            relatedJobID=cross_app.jobID.jobID,
+                            relatedApplicationID=cross_app.applicationID
+                        )
+                    except Exception as notify_err:
+                        print(f"⚠️ Failed to notify client for cross-job rejection: {notify_err}")
+                
+                cross_job_apps.update(status='REJECTED')
+                
+                Notification.objects.create(
+                    accountFK=worker_profile.accountFK,
+                    notificationType="APPLICATIONS_AUTO_WITHDRAWN",
+                    title="Other Applications Withdrawn",
+                    message=f"Since you've been hired for '{job.title}', your {cross_count} other pending application{'s' if cross_count > 1 else ''} {'have' if cross_count > 1 else 'has'} been automatically withdrawn.",
+                    relatedJobID=job.jobID
+                )
+                print(f"🔄 Auto-rejected {cross_count} cross-job pending apps for worker {worker_profile.firstName}")
     
     return {
         'success': True,

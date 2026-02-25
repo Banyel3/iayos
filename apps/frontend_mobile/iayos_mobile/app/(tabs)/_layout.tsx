@@ -17,6 +17,7 @@ import { KYCBanner } from "@/components/KYCBanner";
 import PendingReviewModal from "@/components/PendingReviewModal";
 import KYCRequiredListener from "@/components/KYCRequiredListener";
 import { usePendingReviews } from "@/lib/hooks/useReviews";
+import { useUnreadMessageCount } from "@/lib/hooks/useUnreadCounts";
 // Debug imports at runtime to detect undefined exports
 try {
   // eslint-disable-next-line no-console
@@ -35,6 +36,9 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
+
+  // Unread messages badge
+  const { data: unreadMessages = 0 } = useUnreadMessageCount();
 
   // Pending review check - force review on app reopen
   const [showPendingReview, setShowPendingReview] = useState(false);
@@ -186,6 +190,7 @@ export default function TabLayout() {
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="message.fill" color={color} />
             ),
+            tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
           }}
         />
         <Tabs.Screen

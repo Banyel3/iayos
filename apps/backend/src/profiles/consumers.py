@@ -76,6 +76,11 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 await self.handle_typing_indicator(data)
                 return
 
+            # Check if this is a subscribe request for a new conversation
+            if action == 'subscribe':
+                await self.handle_subscribe(data)
+                return
+
             conversation_id = data.get('conversation_id')
             message_text = data.get('message', '')
             message_type = data.get('type', 'TEXT')
@@ -112,14 +117,15 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 room_group_name,
                 {
                     'type': 'chat_message',
+                    'sender_account_id': self.user.pk,
                     'message': {
                         'conversation_id': int(conversation_id),
+                        'message_id': message.messageID,
                         'sender_name': sender_name,
                         'sender_avatar': sender_avatar,
-                        'message': message.messageText,
-                        'type': message.messageType,
+                        'message_text': message.messageText,
+                        'message_type': message.messageType,
                         'created_at': message.createdAt.isoformat(),
-                        'is_mine': False,  # Frontend will determine this based on current user
                     }
                 }
             )
@@ -132,8 +138,9 @@ class InboxConsumer(AsyncWebsocketConsumer):
             traceback.print_exc()
 
     async def chat_message(self, event):
-        """Send message to WebSocket - all subscribers will receive, frontend filters"""
+        """Send message to WebSocket - compute is_mine per socket before sending"""
         message = event['message']
+        message['is_mine'] = (self.user.pk == event.get('sender_account_id'))
         print(f"[InboxWS] 📤 Sending message for conversation {message.get('conversation_id')}")
         await self.send(text_data=json.dumps(message))
 
@@ -148,6 +155,34 @@ class InboxConsumer(AsyncWebsocketConsumer):
             'user_name': data['user_name'],
             'is_typing': data['is_typing']
         }))
+
+    async def handle_subscribe(self, data):
+        """
+        Dynamically subscribe to a new conversation group.
+        Called when a user opens a conversation that was created after the WebSocket connected
+        (e.g., after accepting a job application).
+        """
+        conversation_id = data.get('conversation_id')
+        if not conversation_id:
+            print("[InboxWS] ⚠️ No conversation_id in subscribe request")
+            return
+
+        group_name = f'chat_{conversation_id}'
+
+        # Don't re-subscribe if already in this group
+        if group_name in self.conversation_groups:
+            print(f"[InboxWS] Already subscribed to {group_name}")
+            return
+
+        # Verify user has access to this conversation
+        has_access = await self.verify_conversation_access(conversation_id)
+        if not has_access:
+            print(f"[InboxWS] ⚠️ User does not have access to conversation {conversation_id}, subscribe denied")
+            return
+
+        await self.channel_layer.group_add(group_name, self.channel_name)
+        self.conversation_groups.append(group_name)
+        print(f"[InboxWS] ✅ Dynamically subscribed to {group_name}")
 
     async def handle_typing_indicator(self, data):
         """Handle typing indicator events"""

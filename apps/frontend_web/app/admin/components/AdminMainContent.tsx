@@ -1,7 +1,6 @@
 "use client";
 
-import { useSidebar } from "./SidebarContext";
-import { cn } from "@/lib/utils";
+import { useMainContentClass } from "./SidebarContext";
 
 interface AdminMainContentProps {
   children: React.ReactNode;
@@ -9,16 +8,10 @@ interface AdminMainContentProps {
 }
 
 export default function AdminMainContent({ children, className }: AdminMainContentProps) {
-  const { collapsed } = useSidebar();
+  const mainClass = useMainContentClass(className || "p-6 min-h-screen");
   
   return (
-    <main 
-      className={cn(
-        "p-6 min-h-screen transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
-        collapsed ? "pl-24" : "pl-72",
-        className
-      )}
-    >
+    <main className={mainClass}>
       {children}
     </main>
   );

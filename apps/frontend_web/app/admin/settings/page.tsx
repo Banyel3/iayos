@@ -163,7 +163,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Quick Info Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">

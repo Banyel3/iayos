@@ -1,10 +1,13 @@
 # accounts/authentication.py
 import jwt
+import logging
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from ninja.security import HttpBearer
 import traceback
+
+logger = logging.getLogger(__name__)
 
 Accounts = get_user_model()
 
@@ -65,10 +68,9 @@ class CookieJWTAuth:
         pass
 
     def __call__(self, request):
-        print("=" * 60)
-        print("[AUTH] CookieJWTAuth CALLED!")
-        print(f"[AUTH] Request path: {request.path}")
-        print(f"[AUTH] All cookies: {dict(request.COOKIES)}")
+        logger.debug("[AUTH] CookieJWTAuth CALLED!")
+        logger.debug("[AUTH] Request path: %s", request.path)
+        logger.debug("[AUTH] Cookie names present: %s", list(request.COOKIES.keys()))
 
         raw_token = request.COOKIES.get('access')
         refresh_token = request.COOKIES.get('refresh')
@@ -117,7 +119,7 @@ class CookieJWTAuth:
             return None
 
         try:
-            print(f"[AUTH] Token: {raw_token[:30]}...")
+            logger.debug("[AUTH] Token present, length=%d", len(raw_token))
             # Decode the JWT token
             payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get('user_id')

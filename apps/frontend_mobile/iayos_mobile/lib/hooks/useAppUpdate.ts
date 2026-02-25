@@ -15,7 +15,7 @@ import * as Updates from 'expo-updates';
 import { Paths, File } from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert, Linking } from 'react-native';
 import { ENDPOINTS } from '@/lib/api/config';
 
 export interface VersionInfo {
@@ -345,14 +345,38 @@ export function useAppUpdate() {
       // Get content URI for the file
       const contentUri = await LegacyFileSystem.getContentUriAsync(fileUri);
       
-      // Launch Android's package installer
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+      // Launch Android's package installer with INSTALL_PACKAGE intent
+      // Using INSTALL_PACKAGE instead of VIEW for better compatibility on real devices
+      await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
         data: contentUri,
         flags: 1 | 268435456, // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
-        type: 'application/vnd.android.package-archive',
       });
       
       console.log('[APK INSTALL] Installer launched successfully');
+      
+      // Give the installer 15 seconds - if we're still here, it may have failed silently
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      // If we reach here, the installer may not have started properly
+      // Offer the user a fallback to open install permission settings
+      Alert.alert(
+        'Installation may need permission',
+        'If the installer did not appear, you may need to allow iAyos to install apps. Open Settings to grant permission, then try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => {
+              Linking.openSettings();
+            },
+          },
+          {
+            text: 'Retry Install',
+            onPress: () => installAPK(fileUri),
+          },
+        ]
+      );
+      
       setState(prev => ({
         ...prev,
         download: { ...prev.download, isInstalling: false }
@@ -369,8 +393,14 @@ export function useAppUpdate() {
       }));
       Alert.alert(
         'Installation Failed',
-        'Could not open the APK installer. Please enable "Install from unknown sources" in your device settings and try again.',
-        [{ text: 'OK' }]
+        'Could not open the APK installer. You may need to allow iAyos to install apps in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => Linking.openSettings(),
+          },
+        ]
       );
     }
   }, []);

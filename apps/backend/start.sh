@@ -15,7 +15,7 @@ if [ -z "$REDIS_URL" ] || [ "$REDIS_URL" = "none" ] || [ "$REDIS_URL" = "redis:/
     redis-server --daemonize yes \
         --port 6379 \
         --bind 127.0.0.1 \
-        --maxmemory 128mb \
+        --maxmemory 64mb \
         --maxmemory-policy allkeys-lru \
         --appendonly yes \
         --dir /data/redis \

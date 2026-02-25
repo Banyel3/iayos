@@ -184,6 +184,9 @@ export const useCreateCertification = () => {
       queryClient.invalidateQueries({ queryKey: ["certifications"] });
       // Invalidate worker profile (affects completion percentage)
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      // Invalidate skills cache used by CertificationForm
+      queryClient.invalidateQueries({ queryKey: ["my-skills-for-cert"] });
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
     },
   });
 };
@@ -251,6 +254,9 @@ export const useUpdateCertification = () => {
       });
       // Invalidate profile completion
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      // Invalidate skills cache
+      queryClient.invalidateQueries({ queryKey: ["my-skills-for-cert"] });
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
     },
   });
 };
@@ -279,6 +285,9 @@ export const useDeleteCertification = () => {
       queryClient.invalidateQueries({ queryKey: ["certifications"] });
       // Invalidate worker profile
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      // Invalidate skills cache
+      queryClient.invalidateQueries({ queryKey: ["my-skills-for-cert"] });
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
     },
   });
 };

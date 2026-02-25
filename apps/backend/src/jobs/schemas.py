@@ -50,6 +50,7 @@ class CreateJobPostingMobileSchema(Schema):
     skill_level_required: Optional[str] = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
     job_scope: Optional[str] = "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
     work_environment: Optional[str] = "INDOOR"  # INDOOR, OUTDOOR, BOTH
+    selected_materials: Optional[list] = None  # [{worker_material_id, name, source, price, quantity, unit}]
 
 
 class JobPostingResponseSchema(Schema):
@@ -69,6 +70,7 @@ class JobApplicationSchema(Schema):
     proposed_budget: float
     estimated_duration: Optional[str] = None
     budget_option: str  # ACCEPT or NEGOTIATE
+    selected_materials: Optional[list] = None  # [{name, source, price, quantity, worker_material_id}]
 
 
 class SubmitReviewSchema(Schema):

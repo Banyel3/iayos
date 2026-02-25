@@ -47,6 +47,7 @@ import {
   useConfirmProjectArrival,
   useAgencyMarkProjectComplete,
   useApproveAgencyProjectJob,
+  useApproveAgencyProjectEmployee,
 } from "../../lib/hooks/useJobActions";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -71,6 +72,14 @@ import { TypingIndicator } from "../../components/TypingIndicator";
 import { EstimatedTimeCard } from "../../components";
 import JobReceiptModal from "../../components/JobReceiptModal";
 import {
+  useApproveMaterialPurchase,
+  useRejectMaterialPurchase,
+  useMarkMaterialsBuying,
+  useUploadPurchaseProof,
+  useSkipMaterialsStep,
+} from "../../lib/hooks/useJobMaterials";
+import type { JobMaterialItem } from "../../lib/hooks/useMessages";
+import {
   Colors,
   Typography,
   Spacing,
@@ -84,6 +93,7 @@ import {
 } from "../../lib/services/offline-queue";
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
+import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
 export default function ChatScreen() {
   const params = useLocalSearchParams();
@@ -96,9 +106,23 @@ export default function ChatScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  // Per-employee approval tracking
+  const [approvingEmployeeId, setApprovingEmployeeId] = useState<number | null>(null);
+  const [approvingEmployeeName, setApprovingEmployeeName] = useState<string>("");
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">("submit");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [countdownConfig, setCountdownConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmStyle?: "default" | "destructive";
+    countdownSeconds: number;
+    onConfirm: () => void;
+    icon?: string;
+    iconColor?: string;
+  } | null>(null);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -208,6 +232,7 @@ export default function ChatScreen() {
   const confirmProjectArrivalMutation = useConfirmProjectArrival();
   const agencyMarkProjectCompleteMutation = useAgencyMarkProjectComplete();
   const approveAgencyProjectJobMutation = useApproveAgencyProjectJob();
+  const approveAgencyProjectEmployeeMutation = useApproveAgencyProjectEmployee();
 
   // Daily attendance mutations
   const workerCheckInMutation = useWorkerCheckIn();
@@ -226,6 +251,13 @@ export default function ChatScreen() {
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
+
+  // Materials purchasing workflow mutations
+  const approveMaterialMutation = useApproveMaterialPurchase();
+  const rejectMaterialMutation = useRejectMaterialPurchase();
+  const markBuyingMutation = useMarkMaterialsBuying();
+  const uploadPurchaseProofMutation = useUploadPurchaseProof();
+  const skipMaterialsMutation = useSkipMaterialsStep();
 
   // WebSocket connection state
   const { isConnected: isWsConnected } = useWebSocketConnection();
@@ -366,17 +398,19 @@ export default function ChatScreen() {
       ? (conversation.job.budget * 0.5).toFixed(2)
       : "0.00";
 
-    Alert.alert(
-      "Approve Team Job & Pay",
-      `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => setShowPaymentModal(true),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Approve Team Job & Pay",
+      message: `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
   };
 
   // Handle mark complete (WORKER only)
@@ -416,22 +450,58 @@ export default function ChatScreen() {
   const handleApproveCompletion = () => {
     if (!conversation) return;
 
-    // Calculate remaining amount (50% of total budget)
-    const remainingAmount = conversation.job.budget
-      ? (conversation.job.budget * 0.5).toFixed(2)
-      : "0.00";
+    // Calculate remaining amount (50% of total budget + materials cost)
+    const baseRemaining = conversation.job.budget
+      ? conversation.job.budget * 0.5
+      : 0;
+    const materialsCost = conversation.job.materials_cost ?? 0;
+    const totalRemaining = baseRemaining + materialsCost;
+    const remainingAmount = totalRemaining.toFixed(2);
 
-    Alert.alert(
-      "Approve Completion & Pay",
-      `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => setShowPaymentModal(true),
-        },
-      ],
-    );
+    const materialsNote = materialsCost > 0
+      ? `\n(includes ₱${materialsCost.toLocaleString()} materials reimbursement)`
+      : "";
+
+    setCountdownConfig({
+      visible: true,
+      title: "Approve Completion & Pay",
+      message: `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}${materialsNote}\n\nPlease select your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
+  };
+
+  // Handle per-employee approve (CLIENT on agency PROJECT jobs)
+  const handleApproveEmployee = (employeeId: number, employeeName: string, paymentAmount: number | null) => {
+    if (!conversation) return;
+    const amount = paymentAmount
+      ? paymentAmount.toFixed(2)
+      : conversation.job.budget
+        ? ((conversation.job.budget * 0.5) / (conversation.assigned_employees?.length || 1)).toFixed(2)
+        : "0.00";
+
+    setApprovingEmployeeId(employeeId);
+    setApprovingEmployeeName(employeeName);
+
+    setCountdownConfig({
+      visible: true,
+      title: `Approve ${employeeName}`,
+      message: `Pay ₱${amount} for ${employeeName}'s completed work.\n\nSelect your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
   };
 
   // Handle payment method selection
@@ -442,25 +512,42 @@ export default function ChatScreen() {
 
     if (method === "CASH") {
       // Show cash amount confirmation before opening upload modal
-      const remainingAmount = conversation.job.budget
-        ? (conversation.job.budget * 0.5).toFixed(2)
-        : "0.00";
+      const baseRemaining = conversation.job.budget
+        ? conversation.job.budget * 0.5
+        : 0;
+      const materialsCostVal = conversation.job.materials_cost ?? 0;
 
-      const workerText = conversation.is_team_job
-        ? "the workers"
-        : "the worker";
+      const remainingAmount = approvingEmployeeId && approvingEmployeeName
+        ? (conversation.assigned_employees?.find(e => e.id === approvingEmployeeId)?.paymentAmount
+          ?? (conversation.job.budget ? conversation.job.budget * 0.5 / (conversation.assigned_employees?.length || 1) : 0)).toFixed(2)
+        : (baseRemaining + materialsCostVal).toFixed(2);
+
+      const workerText = approvingEmployeeId
+        ? approvingEmployeeName
+        : conversation.is_team_job
+          ? "the workers"
+          : "the worker";
 
       Alert.alert(
         "Cash Payment",
         `Please pay ₱${remainingAmount} to ${workerText} directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: "Cancel", style: "cancel", onPress: () => { setApprovingEmployeeId(null); setApprovingEmployeeName(""); } },
           {
             text: "Upload Proof",
             onPress: () => setShowCashUploadModal(true),
           },
         ],
       );
+    } else if (approvingEmployeeId && conversation.is_agency_job) {
+      // Per-employee agency PROJECT job approval
+      approveAgencyProjectEmployeeMutation.mutate({
+        jobId: conversation.job.id,
+        employeeId: approvingEmployeeId,
+        paymentMethod: method,
+      });
+      setApprovingEmployeeId(null);
+      setApprovingEmployeeName("");
     } else if (conversation.is_team_job) {
       // Team job approval
       approveTeamJobCompletionMutation.mutate({
@@ -499,7 +586,17 @@ export default function ChatScreen() {
   const handleCashProofSubmit = () => {
     if (!conversation || !selectedImage) return;
 
-    if (conversation.is_team_job) {
+    if (approvingEmployeeId && conversation.is_agency_job) {
+      // Per-employee agency PROJECT job cash proof
+      approveAgencyProjectEmployeeMutation.mutate({
+        jobId: conversation.job.id,
+        employeeId: approvingEmployeeId,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+      setApprovingEmployeeId(null);
+      setApprovingEmployeeName("");
+    } else if (conversation.is_team_job) {
       // Team job cash proof
       approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
@@ -507,7 +604,7 @@ export default function ChatScreen() {
         cashProofImage: selectedImage,
       });
     } else if (conversation.is_agency_job) {
-      // Agency PROJECT job cash proof
+      // Agency PROJECT job cash proof (bulk - legacy)
       approveAgencyProjectJobMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "CASH",
@@ -1902,23 +1999,21 @@ export default function ChatScreen() {
                                   <TouchableOpacity
                                     style={styles.confirmArrivalButtonCompact}
                                     onPress={() =>
-                                      Alert.alert(
-                                        "Confirm Attendance",
-                                        `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          {
-                                            text: "Confirm & Pay",
-                                            onPress: () =>
-                                              clientConfirmAttendanceMutation.mutate(
-                                                {
-                                                  attendanceId:
-                                                    attendance.attendance_id,
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
+                                      setCountdownConfig({
+                                        visible: true,
+                                        title: "Confirm Attendance",
+                                        message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
+                                        confirmLabel: "Confirm & Pay",
+                                        countdownSeconds: 7,
+                                        onConfirm: () => {
+                                          setCountdownConfig(null);
+                                          clientConfirmAttendanceMutation.mutate({
+                                            attendanceId: attendance.attendance_id,
+                                          });
+                                        },
+                                        icon: "wallet",
+                                        iconColor: Colors.warning,
+                                      })
                                     }
                                     disabled={
                                       clientConfirmAttendanceMutation.isPending
@@ -2262,12 +2357,334 @@ export default function ChatScreen() {
                     return null;
                   })()}
 
+                {/* ============================================================ */}
+                {/* MATERIALS PURCHASING WORKFLOW (Regular Jobs Only) */}
+                {/* Shows BEFORE "Confirm Worker Has Arrived" when materials are needed */}
+                {/* ============================================================ */}
+                {!conversation.is_team_job &&
+                  conversation.job.status === "IN_PROGRESS" &&
+                  conversation.job.materials_status &&
+                  conversation.job.materials_status !== "NONE" &&
+                  conversation.job.materials_status !== "APPROVED" &&
+                  !conversation.job.clientConfirmedWorkStarted && (
+                    <View style={styles.materialsSection}>
+                      <View style={styles.materialsSectionHeader}>
+                        <Ionicons
+                          name="cart"
+                          size={20}
+                          color={Colors.primary}
+                        />
+                        <Text style={styles.materialsSectionTitle}>
+                          Materials Purchasing
+                        </Text>
+                      </View>
+
+                      {/* Materials list */}
+                      {(conversation.job_materials || []).map(
+                        (mat: JobMaterialItem) => (
+                          <View key={mat.id} style={styles.materialItem}>
+                            <View style={styles.materialItemHeader}>
+                              <Text style={styles.materialItemName}>
+                                {mat.name}
+                                {mat.quantity > 1 ? ` (x${mat.quantity})` : ""}
+                              </Text>
+                              {mat.source === "FROM_PROFILE" ? (
+                                <View style={styles.materialBadgeOwn}>
+                                  <Text style={styles.materialBadgeOwnText}>
+                                    Own Material
+                                  </Text>
+                                </View>
+                              ) : mat.client_approved ? (
+                                <View style={styles.materialBadgeApproved}>
+                                  <Ionicons
+                                    name="checkmark-circle"
+                                    size={14}
+                                    color="#16a34a"
+                                  />
+                                  <Text
+                                    style={styles.materialBadgeApprovedText}
+                                  >
+                                    Approved
+                                  </Text>
+                                </View>
+                              ) : mat.client_rejected ? (
+                                <View style={styles.materialBadgeRejected}>
+                                  <Text
+                                    style={styles.materialBadgeRejectedText}
+                                  >
+                                    Rejected
+                                  </Text>
+                                </View>
+                              ) : mat.source === "PURCHASED" ? (
+                                <View style={styles.materialBadgePending}>
+                                  <Text
+                                    style={styles.materialBadgePendingText}
+                                  >
+                                    Awaiting Approval
+                                  </Text>
+                                </View>
+                              ) : (
+                                <View style={styles.materialBadgeToBuy}>
+                                  <Text style={styles.materialBadgeToBuyText}>
+                                    To Purchase
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+
+                            {/* Purchase price if set */}
+                            {mat.purchase_price != null && (
+                              <Text style={styles.materialPrice}>
+                                ₱{mat.purchase_price.toLocaleString()}
+                              </Text>
+                            )}
+
+                            {/* CLIENT: Approve/Reject purchased materials */}
+                            {conversation.my_role === "CLIENT" &&
+                              mat.source === "PURCHASED" &&
+                              !mat.client_approved &&
+                              !mat.client_rejected && (
+                                <View style={styles.materialActions}>
+                                  <TouchableOpacity
+                                    style={styles.materialApproveBtn}
+                                    onPress={() => {
+                                      Alert.alert(
+                                        "Approve Material",
+                                        `Approve ₱${mat.purchase_price?.toLocaleString()} for ${mat.name}? This will be added to the final payment.`,
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Approve",
+                                            onPress: () =>
+                                              approveMaterialMutation.mutate({
+                                                jobId: conversation.job.id,
+                                                materialId: mat.id,
+                                              }),
+                                          },
+                                        ]
+                                      );
+                                    }}
+                                  >
+                                    <Ionicons
+                                      name="checkmark"
+                                      size={16}
+                                      color="#fff"
+                                    />
+                                    <Text style={styles.materialApproveBtnText}>
+                                      Approve
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={styles.materialRejectBtn}
+                                    onPress={() => {
+                                      Alert.alert(
+                                        "Reject Material",
+                                        `Reject the purchase of ${mat.name}?`,
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Reject",
+                                            style: "destructive",
+                                            onPress: () =>
+                                              rejectMaterialMutation.mutate({
+                                                jobId: conversation.job.id,
+                                                materialId: mat.id,
+                                              }),
+                                          },
+                                        ]
+                                      );
+                                    }}
+                                  >
+                                    <Ionicons
+                                      name="close"
+                                      size={16}
+                                      color="#fff"
+                                    />
+                                    <Text style={styles.materialRejectBtnText}>
+                                      Reject
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+
+                            {/* WORKER: Upload purchase proof for TO_PURCHASE items */}
+                            {conversation.my_role === "WORKER" &&
+                              mat.source === "TO_PURCHASE" && (
+                                <TouchableOpacity
+                                  style={styles.materialUploadBtn}
+                                  onPress={async () => {
+                                    // Pick an image for the receipt
+                                    const result =
+                                      await ImagePicker.launchImageLibraryAsync(
+                                        {
+                                          mediaTypes: "images",
+                                          allowsEditing: true,
+                                          quality: 0.7,
+                                        }
+                                      );
+                                    if (
+                                      !result.canceled &&
+                                      result.assets[0]
+                                    ) {
+                                      Alert.prompt(
+                                        "Enter Purchase Price",
+                                        `How much did you pay for ${mat.name}?`,
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Submit",
+                                            onPress: async (
+                                              priceStr?: string
+                                            ) => {
+                                              const price = parseFloat(
+                                                priceStr || "0"
+                                              );
+                                              if (price <= 0) {
+                                                Alert.alert(
+                                                  "Error",
+                                                  "Please enter a valid price"
+                                                );
+                                                return;
+                                              }
+                                              try {
+                                                // Upload image first
+                                                const uploadResult =
+                                                  await uploadAsync({
+                                                    uri: result.assets[0].uri,
+                                                    endpoint: `/api/jobs/${conversation.job.id}/materials/${mat.id}/purchase-proof`,
+                                                    fieldName: "receipt_image",
+                                                    additionalData: {
+                                                      purchase_price:
+                                                        price.toString(),
+                                                    },
+                                                    compress: true,
+                                                  });
+                                                if (
+                                                  uploadResult?.success
+                                                ) {
+                                                  // Refetch materials
+                                                  Alert.alert(
+                                                    "Success",
+                                                    "Receipt uploaded successfully"
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                Alert.alert(
+                                                  "Error",
+                                                  "Failed to upload receipt"
+                                                );
+                                              }
+                                            },
+                                          },
+                                        ],
+                                        "plain-text",
+                                        "",
+                                        "numeric"
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Ionicons
+                                    name="receipt"
+                                    size={16}
+                                    color={Colors.primary}
+                                  />
+                                  <Text style={styles.materialUploadBtnText}>
+                                    Upload Receipt & Price
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
+                          </View>
+                        )
+                      )}
+
+                      {/* Materials cost summary */}
+                      {(conversation.job.materials_cost ?? 0) > 0 && (
+                        <View style={styles.materialsCostSummary}>
+                          <Text style={styles.materialsCostLabel}>
+                            Total Materials Cost:
+                          </Text>
+                          <Text style={styles.materialsCostValue}>
+                            ₱
+                            {(
+                              conversation.job.materials_cost ?? 0
+                            ).toLocaleString()}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* WORKER: Mark buying / Skip buttons */}
+                      {conversation.my_role === "WORKER" &&
+                        conversation.job.materials_status ===
+                          "PENDING_PURCHASE" && (
+                          <View style={styles.materialsActions}>
+                            <TouchableOpacity
+                              style={styles.materialsBuyingBtn}
+                              onPress={() =>
+                                markBuyingMutation.mutate({
+                                  jobId: conversation.job.id,
+                                })
+                              }
+                              disabled={markBuyingMutation.isPending}
+                            >
+                              <Ionicons
+                                name="cart"
+                                size={18}
+                                color="#fff"
+                              />
+                              <Text style={styles.materialsBuyingBtnText}>
+                                Start Buying Materials
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                      {/* Skip materials step (both roles) */}
+                      <TouchableOpacity
+                        style={styles.materialsSkipBtn}
+                        onPress={() => {
+                          Alert.alert(
+                            "Skip Materials Step",
+                            "Are you sure? This will skip the materials purchasing step and proceed to the arrival confirmation.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Skip",
+                                onPress: () =>
+                                  skipMaterialsMutation.mutate({
+                                    jobId: conversation.job.id,
+                                  }),
+                              },
+                            ]
+                          );
+                        }}
+                        disabled={skipMaterialsMutation.isPending}
+                      >
+                        <Text style={styles.materialsSkipBtnText}>
+                          Skip Materials Step
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
                 {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
                   conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
-                  !conversation.job.clientConfirmedWorkStarted && (
+                  !conversation.job.clientConfirmedWorkStarted &&
+                  (conversation.job.materials_status === "NONE" ||
+                    conversation.job.materials_status === "APPROVED" ||
+                    !conversation.job.materials_status) && (
                     <TouchableOpacity
                       style={[
                         styles.actionButton,
@@ -2745,42 +3162,82 @@ export default function ChatScreen() {
                           </View>
                         )}
 
-                        {/* All complete - show approve & pay button */}
-                        {allComplete &&
+                        {/* Per-employee approve & pay buttons */}
+                        {conversation.assigned_employees
+                          .filter((e) => e.agencyMarkedComplete && !e.clientApproved)
+                          .length > 0 &&
                           !conversation.job.clientMarkedComplete && (
-                            <TouchableOpacity
-                              style={[
-                                styles.actionButton,
-                                styles.approveCompletionButton,
-                              ]}
-                              onPress={() => handleApproveCompletion()}
-                              disabled={
-                                approveAgencyProjectJobMutation.isPending
-                              }
-                            >
-                              {approveAgencyProjectJobMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="wallet"
-                                    size={20}
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Approve & Pay Employees
+                            </Text>
+                            {conversation.assigned_employees
+                              .filter((e) => e.agencyMarkedComplete && !e.clientApproved)
+                              .map((employee) => (
+                              <TouchableOpacity
+                                key={`approve-${employee.id}`}
+                                style={[
+                                  styles.actionButton,
+                                  styles.approveCompletionButton,
+                                ]}
+                                onPress={() =>
+                                  handleApproveEmployee(
+                                    employee.id,
+                                    employee.name,
+                                    employee.paymentAmount ?? null,
+                                  )
+                                }
+                                disabled={
+                                  approveAgencyProjectEmployeeMutation.isPending
+                                }
+                              >
+                                {approveAgencyProjectEmployeeMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
                                     color={Colors.white}
                                   />
-                                  <Text style={styles.actionButtonText}>
-                                    Approve & Pay Agency (₱
-                                    {(
-                                      conversation.job.budget * 0.5
-                                    ).toLocaleString()}
-                                    )
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          )}
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="wallet"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.actionButtonText}>
+                                      Approve & Pay: {employee.name}{" "}
+                                      (₱{(employee.paymentAmount ?? 0).toLocaleString()})
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Show already-approved employees */}
+                        {conversation.assigned_employees
+                          .filter((e) => e.clientApproved)
+                          .length > 0 && (
+                          <View style={styles.employeeActionsSection}>
+                            {conversation.assigned_employees
+                              .filter((e) => e.clientApproved)
+                              .map((employee) => (
+                              <View
+                                key={`approved-${employee.id}`}
+                                style={[styles.actionButton, styles.waitingButton]}
+                              >
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={20}
+                                  color="#22c55e"
+                                />
+                                <Text style={[styles.waitingButtonText, { color: "#22c55e" }]}>
+                                  ✓ {employee.name} — Approved & Paid
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
                       </>
                     );
                   })()}
@@ -3976,7 +4433,7 @@ export default function ChatScreen() {
         <FlatList
           ref={flatListRef}
           data={conversation.messages}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item, index) => item.message_id ? String(item.message_id) : `msg_${index}_${item.created_at}`}
           renderItem={renderMessage}
           ListFooterComponent={renderTypingIndicator}
           contentContainerStyle={styles.messagesContent}
@@ -4158,6 +4615,22 @@ export default function ChatScreen() {
         jobId={conversation?.job?.id || null}
         userRole={conversation?.my_role === "WORKER" ? "WORKER" : "CLIENT"}
       />
+
+      {/* Countdown Confirmation Modal */}
+      {countdownConfig && (
+        <CountdownConfirmModal
+          visible={countdownConfig.visible}
+          title={countdownConfig.title}
+          message={countdownConfig.message}
+          confirmLabel={countdownConfig.confirmLabel}
+          confirmStyle={countdownConfig.confirmStyle}
+          countdownSeconds={countdownConfig.countdownSeconds}
+          onConfirm={countdownConfig.onConfirm}
+          onCancel={() => setCountdownConfig(null)}
+          icon={countdownConfig.icon as any}
+          iconColor={countdownConfig.iconColor}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -5593,5 +6066,208 @@ const styles = StyleSheet.create({
   },
   teamReviewModalChecklistDotTextCurrent: {
     color: Colors.white,
+  },
+  // Materials Purchasing Workflow Styles
+  materialsSection: {
+    backgroundColor: "#f0f9ff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+  },
+  materialsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  materialsSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  materialItem: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  materialItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  materialItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  materialPrice: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.primary,
+    marginTop: 4,
+  },
+  materialBadgeOwn: {
+    backgroundColor: "#f0fdf4",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  materialBadgeOwnText: {
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: "600",
+  },
+  materialBadgeApproved: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f0fdf4",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  materialBadgeApprovedText: {
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: "600",
+  },
+  materialBadgeRejected: {
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  materialBadgeRejectedText: {
+    fontSize: 11,
+    color: "#dc2626",
+    fontWeight: "600",
+  },
+  materialBadgePending: {
+    backgroundColor: "#fffbeb",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  materialBadgePendingText: {
+    fontSize: 11,
+    color: "#d97706",
+    fontWeight: "600",
+  },
+  materialBadgeToBuy: {
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  materialBadgeToBuyText: {
+    fontSize: 11,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  materialActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  materialApproveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#16a34a",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: "center",
+  },
+  materialApproveBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  materialRejectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#dc2626",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: "center",
+  },
+  materialRejectBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  materialUploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: 6,
+    borderStyle: "dashed",
+  },
+  materialUploadBtnText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  materialsCostSummary: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#bae6fd",
+  },
+  materialsCostLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  materialsCostValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  materialsActions: {
+    marginTop: 8,
+  },
+  materialsBuyingBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  materialsBuyingBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  materialsSkipBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    paddingVertical: 8,
+  },
+  materialsSkipBtnText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textDecorationLine: "underline",
   },
 });

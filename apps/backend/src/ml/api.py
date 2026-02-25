@@ -465,11 +465,12 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
         # Based on DOLE daily wage rates + market research for Zamboanga region
         PH_CATEGORY_PRICING = {
             # Category Name: (min, suggested, max) for moderate project
+            # Names MUST match Specializations.specializationName from seed_data.py exactly
             'Plumbing': (500, 1500, 5000),
             'Electrical Work': (600, 2000, 8000),
             'Carpentry': (800, 2500, 10000),
-            'Cleaning': (400, 800, 3000),
-            'HVAC': (1000, 3500, 15000),
+            'General Cleaning': (400, 800, 3000),
+            'HVAC (Aircon Services)': (1000, 3500, 15000),
             'Painting': (800, 2000, 8000),
             'Masonry': (1000, 3000, 12000),
             'Welding': (800, 2500, 10000),
@@ -479,8 +480,18 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
             'Landscaping': (600, 1500, 6000),
             'Flooring': (1200, 3500, 15000),
             'Pest Control': (800, 2000, 6000),
-            'Moving': (500, 1500, 8000),
+            'Moving Services': (500, 1500, 8000),
             'Demolition': (1000, 3000, 15000),
+            'Tiling': (800, 3000, 15000),
+            'Auto Mechanic': (500, 2000, 10000),
+            'Motorcycle Repair': (350, 1000, 5000),
+            'Furniture Assembly': (300, 800, 2000),
+            'Glass Installation': (500, 2000, 8000),
+            'Drywall Installation': (450, 2000, 10000),
+            'Security System Installation': (1500, 4000, 25000),
+            'Pool Service': (600, 1500, 10000),
+            'General Labor': (400, 1000, 5000),
+            'Handyman': (500, 1500, 5000),
         }
         
         fallback_min = 500.0
@@ -1248,3 +1259,281 @@ def trigger_worker_rating_training(request: HttpRequest, data: WorkerRatingTrain
             message="Training error",
             error=str(e)
         )
+
+
+# ============================================================================
+# Job Suggestions Endpoint - Database-Driven
+# ============================================================================
+
+class JobSuggestionsRequest(Schema):
+    category_id: int
+    field: str = "title"  # title, description, materials, duration
+    query: Optional[str] = None  # Optional partial text to filter
+    limit: int = 8
+
+class JobSuggestion(Schema):
+    text: str
+    frequency: int  # How many completed jobs used this
+
+class JobSuggestionsResponse(Schema):
+    suggestions: List[JobSuggestion]
+    field: str
+    category_name: Optional[str] = None
+    source: str  # "database" or "fallback"
+
+
+@router.post("/job-suggestions", response=JobSuggestionsResponse)
+def get_job_suggestions(request: HttpRequest, data: JobSuggestionsRequest):
+    """
+    Returns suggestions for job fields (title, description, materials, duration)
+    mined from completed/in-progress jobs in the same category.
+    Falls back to hardcoded suggestions when DB has insufficient data.
+    """
+    from accounts.models import Job, Specializations
+    from django.db.models import Count
+    from django.db.models.functions import Lower
+
+    category_name = None
+    try:
+        spec = Specializations.objects.get(specializationID=data.category_id)
+        category_name = spec.specializationName
+    except Specializations.DoesNotExist:
+        pass
+
+    suggestions = []
+
+    # Query completed/in-progress jobs in this category
+    base_qs = Job.objects.filter(
+        categoryID_id=data.category_id,
+        status__in=["COMPLETED", "IN_PROGRESS"],
+    )
+
+    if data.field == "title":
+        # Get distinct titles, optionally filtered by partial match
+        qs = base_qs.values_list("title", flat=True)
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(title__icontains=data.query)
+
+        # Count frequency of each title (case-insensitive)
+        title_counts = (
+            base_qs.annotate(lower_title=Lower("title"))
+            .values("lower_title")
+            .annotate(freq=Count("jobID"))
+            .order_by("-freq")
+        )
+        if data.query and len(data.query) >= 2:
+            title_counts = title_counts.filter(title__icontains=data.query)
+        title_counts = title_counts[: data.limit]
+
+        # Get original-cased titles for display
+        seen = set()
+        for entry in title_counts:
+            lower_t = entry["lower_title"]
+            if lower_t not in seen:
+                seen.add(lower_t)
+                # Find an original-cased version
+                original = base_qs.filter(title__iexact=lower_t).values_list("title", flat=True).first()
+                if original:
+                    suggestions.append(JobSuggestion(text=original, frequency=entry["freq"]))
+
+    elif data.field == "description":
+        # Get description snippets (first 120 chars) from completed jobs
+        qs = base_qs.exclude(description="").exclude(description__isnull=True)
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(description__icontains=data.query)
+        descs = qs.order_by("-jobID").values_list("description", flat=True)[: data.limit * 2]
+
+        seen_lower = set()
+        for desc in descs:
+            snippet = desc[:120].strip()
+            if snippet.lower() not in seen_lower:
+                seen_lower.add(snippet.lower())
+                suggestions.append(JobSuggestion(text=snippet, frequency=1))
+            if len(suggestions) >= data.limit:
+                break
+
+    elif data.field == "materials":
+        # Mine materialsNeeded JSON field for common material items
+        qs = base_qs.exclude(materialsNeeded__isnull=True)
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(materialsNeeded__icontains=data.query)
+
+        material_freq: dict = {}
+        for materials_list in qs.values_list("materialsNeeded", flat=True)[: 200]:
+            if isinstance(materials_list, list):
+                for item in materials_list:
+                    if isinstance(item, str) and item.strip():
+                        key = item.strip().lower()
+                        if data.query and len(data.query) >= 2 and data.query.lower() not in key:
+                            continue
+                        if key not in material_freq:
+                            material_freq[key] = {"original": item.strip(), "count": 0}
+                        material_freq[key]["count"] += 1
+
+        sorted_materials = sorted(material_freq.values(), key=lambda x: -x["count"])
+        for m in sorted_materials[: data.limit]:
+            suggestions.append(JobSuggestion(text=m["original"], frequency=m["count"]))
+
+    elif data.field == "duration":
+        # Get common duration values
+        qs = base_qs.exclude(expectedDuration__isnull=True).exclude(expectedDuration="")
+        if data.query and len(data.query) >= 2:
+            qs = qs.filter(expectedDuration__icontains=data.query)
+
+        dur_counts = (
+            qs.values("expectedDuration")
+            .annotate(freq=Count("jobID"))
+            .order_by("-freq")
+        )[: data.limit]
+
+        for entry in dur_counts:
+            suggestions.append(
+                JobSuggestion(text=entry["expectedDuration"], frequency=entry["freq"])
+            )
+
+    # Determine source
+    source = "database" if suggestions else "fallback"
+
+    # Fallback to hardcoded if DB returned nothing
+    # Keys MUST match Specializations.specializationName from seed_data.py
+    if not suggestions and data.field == "title" and category_name:
+        FALLBACK_TITLES = {
+            "Plumbing": ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
+            "Electrical Work": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
+            "Carpentry": ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
+            "Painting": ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
+            "General Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
+            "Landscaping": ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
+            "Masonry": ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
+            "HVAC (Aircon Services)": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
+            "Roofing": ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
+            "Welding": ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
+            "Auto Mechanic": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
+            "Motorcycle Repair": ["Engine overhaul", "Brake pad replacement", "Oil change", "Chain adjustment"],
+            "Tiling": ["Floor tiling", "Wall tiling", "Bathroom retiling", "Kitchen backsplash"],
+            "Appliance Repair": ["Repair washing machine", "Fix refrigerator", "AC unit repair", "Oven repair"],
+            "Pest Control": ["Termite treatment", "General pest spray", "Rodent control", "Ant treatment"],
+            "Furniture Assembly": ["Assemble cabinet", "Build bed frame", "Install wall shelf", "Desk assembly"],
+            "Moving Services": ["House moving", "Office relocation", "Furniture transport", "Appliance delivery"],
+            "Glass Installation": ["Window glass replacement", "Shower glass door", "Glass partition", "Mirror installation"],
+            "Drywall Installation": ["Wall partition", "Ceiling repair", "Drywall patching", "Room divider"],
+            "Security System Installation": ["CCTV installation", "Alarm system setup", "Smart lock install", "Doorbell camera"],
+        }
+        fallback = FALLBACK_TITLES.get(category_name, [])
+        if data.query and len(data.query) >= 2:
+            fallback = [t for t in fallback if data.query.lower() in t.lower()]
+        for t in fallback[: data.limit]:
+            suggestions.append(JobSuggestion(text=t, frequency=0))
+
+    # Description fallbacks - Keys MUST match Specializations.specializationName
+    if not suggestions and data.field == "description" and category_name:
+        FALLBACK_DESCRIPTIONS = {
+            "Plumbing": [
+                "Need a plumber to fix a leaking pipe under the kitchen sink. Water is dripping and causing damage to the cabinet.",
+                "Looking for someone to install a new faucet in the bathroom. Old one is broken and needs replacement.",
+                "Toilet is clogged and won't flush properly. Need professional help to unclog and check the drainage.",
+            ],
+            "Electrical Work": [
+                "Light fixture in the living room stopped working. Need an electrician to check the wiring and replace if needed.",
+                "Need rewiring for an old house. Some outlets are not working and breakers keep tripping.",
+                "Install a new ceiling fan in the bedroom. Wiring is already available from the previous fixture.",
+            ],
+            "Carpentry": [
+                "Wooden cabinet door is broken and needs repair. Hinges are loose and the door won't close properly.",
+                "Looking for a carpenter to build custom shelving for the living room wall.",
+                "Door lock is damaged and difficult to open. Need replacement lock and realignment of the door.",
+            ],
+            "Painting": [
+                "Need the exterior walls of my house repainted. Current paint is peeling and faded.",
+                "Looking for a painter to paint two bedrooms. Walls need minor patching before painting.",
+            ],
+            "General Cleaning": [
+                "Deep cleaning needed for a 3-bedroom house. Includes kitchen, bathrooms, and all living areas.",
+                "Post-construction cleaning needed. There is dust, debris, and paint residue throughout the house.",
+            ],
+            "HVAC (Aircon Services)": [
+                "AC unit is not cooling properly. Need cleaning and inspection of the split type unit.",
+                "Install a new 1.5HP split type AC in the master bedroom. Wall bracket mounting needed.",
+            ],
+            "Roofing": [
+                "Roof is leaking during heavy rain. Need someone to find and fix the leak.",
+                "Gutter cleaning and repair needed. Some sections are clogged and sagging.",
+            ],
+            "Masonry": [
+                "Bathroom wall tiles are cracked and need replacement. Approximately 2 square meters area.",
+                "Concrete floor has cracks that need repair. Area is about 10 square meters.",
+            ],
+            "Welding": [
+                "Metal gate is rusted and difficult to open. Need repair and fresh anti-rust paint.",
+                "Need new window grills fabricated and installed for 3 windows.",
+            ],
+            "Auto Mechanic": [
+                "Car engine needs tune-up. Having trouble starting and fuel consumption seems high.",
+                "Brake pads need replacement. Hearing grinding noise when braking.",
+            ],
+            "Tiling": [
+                "Need floor tiles installed in the kitchen area, approximately 15 square meters.",
+                "Bathroom wall tiles are cracked and need retiling. Existing tiles need removal.",
+            ],
+            "Appliance Repair": [
+                "Washing machine is not draining water properly. Makes unusual noise during spin cycle.",
+                "Refrigerator is not cooling. Compressor seems to be running but temperature stays warm.",
+            ],
+            "Pest Control": [
+                "Termite infestation in wooden furniture and door frames. Need professional treatment.",
+                "General pest control spray needed for a 2-story house. Cockroaches and ants problem.",
+            ],
+            "Moving Services": [
+                "Need help moving furniture and boxes from a 2-bedroom apartment to a new location across the city.",
+                "Office relocation. Need to move desks, chairs, and equipment to new office building.",
+            ],
+        }
+        fallback = FALLBACK_DESCRIPTIONS.get(category_name, [])
+        if data.query and len(data.query) >= 2:
+            fallback = [d for d in fallback if data.query.lower() in d.lower()]
+        for d in fallback[: data.limit]:
+            suggestions.append(JobSuggestion(text=d, frequency=0))
+
+    # Keys MUST match Specializations.specializationName from seed_data.py
+    if not suggestions and data.field == "materials" and category_name:
+        FALLBACK_MATERIALS = {
+            "Plumbing": ["PVC pipe", "Pipe wrench", "Teflon tape", "Faucet set", "Sealant"],
+            "Electrical Work": ["Wire", "Electrical tape", "Circuit breaker", "LED bulb", "Outlet box"],
+            "Carpentry": ["Plywood", "Nails", "Wood glue", "Sandpaper", "Hinges"],
+            "Painting": ["Paint (latex)", "Paint roller", "Primer", "Brush set", "Masking tape"],
+            "General Cleaning": ["Cleaning solution", "Mop", "Sponge", "Disinfectant", "Trash bags"],
+            "Masonry": ["Cement", "Sand", "Gravel", "Tiles", "Grout"],
+            "HVAC (Aircon Services)": ["Refrigerant", "AC filter", "Copper tube", "Insulation tape"],
+            "Roofing": ["Roofing nails", "GI sheet", "Waterproof sealant", "Gutter"],
+            "Welding": ["Welding rod", "Steel bar", "Grinder disc", "Paint (anti-rust)"],
+            "Auto Mechanic": ["Engine oil", "Oil filter", "Spark plug", "Brake pads", "Coolant"],
+            "Motorcycle Repair": ["Engine oil", "Brake pads", "Chain lube", "Spark plug"],
+            "Tiling": ["Tiles", "Tile adhesive", "Grout", "Tile spacers", "Tile cutter blade"],
+            "Appliance Repair": ["Replacement parts", "Multimeter", "Screwdriver set", "Sealant"],
+            "Pest Control": ["Pesticide", "Bait traps", "Spray equipment", "Protective gear"],
+            "Furniture Assembly": ["Screws", "Allen wrench", "Wood glue", "Brackets", "Felt pads"],
+            "Moving Services": ["Moving boxes", "Bubble wrap", "Packing tape", "Furniture blankets"],
+            "Landscaping": ["Garden soil", "Fertilizer", "Plant pots", "Mulch", "Garden hose"],
+            "Glass Installation": ["Glass panel", "Silicone sealant", "Glass cutter", "Suction cups"],
+            "Drywall Installation": ["Drywall board", "Joint compound", "Drywall screws", "Tape"],
+            "Security System Installation": ["CCTV camera", "DVR unit", "BNC cable", "Power supply"],
+        }
+        fallback = FALLBACK_MATERIALS.get(category_name, [])
+        if data.query and len(data.query) >= 2:
+            fallback = [m for m in fallback if data.query.lower() in m.lower()]
+        for m in fallback[: data.limit]:
+            suggestions.append(JobSuggestion(text=m, frequency=0))
+
+    if not suggestions and data.field == "duration":
+        FALLBACK_DURATIONS = ["1 hour", "2 hours", "3 hours", "Half day", "1 day", "2 days", "3 days", "1 week"]
+        if data.query and len(data.query) >= 2:
+            FALLBACK_DURATIONS = [d for d in FALLBACK_DURATIONS if data.query.lower() in d.lower()]
+        for d in FALLBACK_DURATIONS[: data.limit]:
+            suggestions.append(JobSuggestion(text=d, frequency=0))
+
+    return JobSuggestionsResponse(
+        suggestions=suggestions,
+        field=data.field,
+        category_name=category_name,
+        source=source,
+    )

@@ -123,14 +123,11 @@ const triggerVerificationEmail = async (
 };
 
 // Send OTP email for new registration flow
-const sendOTPEmail = async (
-  email: string,
-  otpCode: string,
-  expiresInMinutes: number = 5,
-): Promise<boolean> => {
-  console.log("📧 [sendOTPEmail] Sending OTP to:", email);
+// Backend now sends email automatically on register, but this can be used for manual retry
+const sendOTPEmail = async (email: string): Promise<boolean> => {
+  console.log("📧 [sendOTPEmail] Requesting OTP email for:", email);
 
-  if (!email || !otpCode || !OTP_EMAIL_ENDPOINT) {
+  if (!email || !OTP_EMAIL_ENDPOINT) {
     console.warn("⚠️ Missing OTP email parameters");
     return false;
   }
@@ -139,11 +136,7 @@ const sendOTPEmail = async (
     const response = await fetch(OTP_EMAIL_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        otp_code: otpCode,
-        expires_in_minutes: expiresInMinutes,
-      }),
+      body: JSON.stringify({ email }),
     });
 
     if (!response.ok) {
@@ -210,7 +203,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log("🔄 [CHECK_AUTH] Calling API:", ENDPOINTS.ME);
       const response = await apiRequest(ENDPOINTS.ME);
-      console.log(`🔄 [CHECK_AUTH] Response status: ${response.status}, ok: ${response.ok}`);
+      console.log(
+        `🔄 [CHECK_AUTH] Response status: ${response.status}, ok: ${response.ok}`,
+      );
 
       if (response.ok) {
         const userData = await response.json();
@@ -245,7 +240,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       // Network errors - keep cached session
-      console.warn("⚠️ [CHECK_AUTH] Network error, keeping cached session:", error);
+      console.warn(
+        "⚠️ [CHECK_AUTH] Network error, keeping cached session:",
+        error,
+      );
       return false;
     } finally {
       if (!silent) {
@@ -270,7 +268,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Clear AsyncStorage auth keys for the previous session
-      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
       setUser(null);
 
       if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
@@ -331,12 +333,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return userData;
       } else {
         setUser(null);
-        await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+        await AsyncStorage.multiRemove([
+          "access_token",
+          "cached_user",
+          "cached_worker_availability",
+        ]);
         throw new Error("Failed to fetch user data after login");
       }
     } catch (error) {
       setUser(null);
-      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
       throw error;
     }
   };
@@ -349,10 +359,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Pre-flight network connectivity check
       console.log("📡 [Register] Checking network connectivity...");
       const networkState = await checkNetworkConnectivity();
-      console.log(`📡 [Register] Network: connected=${networkState.isConnected}, type=${networkState.type}`);
+      console.log(
+        `📡 [Register] Network: connected=${networkState.isConnected}, type=${networkState.type}`,
+      );
 
       if (!networkState.isConnected) {
-        throw new Error("No internet connection. Please check your network settings and try again.");
+        throw new Error(
+          "No internet connection. Please check your network settings and try again.",
+        );
       }
 
       console.log(`📡 [Register] API URL: ${getApiUrl()}`);
@@ -387,16 +401,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         responseBody?.data || responseBody;
       console.log("📧 Registration response:", registrationData);
 
-      // Send OTP email if OTP code is present (new flow)
-      if (registrationData.otp_code) {
-        const emailSent = await sendOTPEmail(
-          registrationData.email,
-          registrationData.otp_code,
-          registrationData.otp_expiry_minutes || 5,
+      // Backend now auto-sends OTP email on registration
+      // If it failed, try manually via the send-otp endpoint
+      if (registrationData.email) {
+        // Backend already sent the email during registration
+        // Only call sendOTPEmail as a fallback if needed
+        console.log(
+          "📧 OTP email should have been sent by backend during registration",
         );
-        if (!emailSent) {
-          console.warn("⚠️ OTP email was not sent successfully");
-        }
       } else if (registrationData.verifyLink) {
         // Fallback to old verification link flow
         const emailSent = await triggerVerificationEmail({
@@ -411,6 +423,102 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return registrationData;
     } catch (error) {
+      throw error;
+    }
+  };
+
+  // Google Sign-In: send ID token to backend, receive JWT
+  const googleSignIn = async (
+    idToken: string,
+    profileType: "WORKER" | "CLIENT" = "CLIENT",
+  ): Promise<User> => {
+    try {
+      // Clear previous session
+      try {
+        await queryClient.cancelQueries();
+        queryClient.clear();
+      } catch (e) {
+        console.warn(
+          "⚠️ Failed to clear React Query cache on Google sign-in:",
+          e,
+        );
+      }
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
+      setUser(null);
+
+      await preflightBackendReachability("googleSignIn");
+
+      console.log("🔐 [GOOGLE] Sending ID token to backend...");
+      const response = await apiRequest(ENDPOINTS.GOOGLE_SIGNIN, {
+        method: "POST",
+        body: JSON.stringify({ id_token: idToken, profile_type: profileType }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const errorMessage = getErrorMessage(
+          errorBody,
+          "Google sign-in failed",
+        );
+        console.error("❌ [GOOGLE] Sign-in failed:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log("✅ [GOOGLE] Backend response received");
+
+      const token =
+        data?.access ||
+        data?.access_token ||
+        data?.data?.access ||
+        data?.data?.access_token ||
+        null;
+
+      if (!token) {
+        console.error("❌ [GOOGLE] No access token in response:", data);
+        throw new Error("No access token received from Google sign-in");
+      }
+
+      await AsyncStorage.setItem("access_token", token);
+      console.log("✅ [GOOGLE] Access token stored");
+
+      // Fetch user data
+      const userDataResponse = await apiRequest(ENDPOINTS.ME);
+
+      if (userDataResponse.ok) {
+        const userData = await userDataResponse.json();
+        setUser(userData);
+
+        await AsyncStorage.setItem(
+          "cached_user",
+          JSON.stringify({
+            user: userData,
+            timestamp: Date.now(),
+          }),
+        );
+
+        console.log("✅ [GOOGLE] User signed in:", userData?.email);
+        return userData;
+      } else {
+        setUser(null);
+        await AsyncStorage.multiRemove([
+          "access_token",
+          "cached_user",
+          "cached_worker_availability",
+        ]);
+        throw new Error("Failed to fetch user data after Google sign-in");
+      }
+    } catch (error) {
+      setUser(null);
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
       throw error;
     }
   };
@@ -461,7 +569,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify(errorBody, null, 2),
         );
 
-        const errorMessage = getErrorMessage(errorBody, `Failed to switch profile (HTTP ${response.status})`);
+        const errorMessage = getErrorMessage(
+          errorBody,
+          `Failed to switch profile (HTTP ${response.status})`,
+        );
 
         console.error("❌ Switch profile failed:", errorMessage);
         throw new Error(errorMessage);
@@ -554,7 +665,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Clear AsyncStorage auth keys
-      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
       console.log("🗑️ [LOGOUT] Cleared AsyncStorage auth keys");
 
       // Call backend logout endpoint (best effort, don't block on errors)
@@ -564,7 +679,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         console.log("✅ [LOGOUT] Backend logout successful");
       } catch (error) {
-        console.warn("⚠️ [LOGOUT] Backend logout failed (non-critical):", error);
+        console.warn(
+          "⚠️ [LOGOUT] Backend logout failed (non-critical):",
+          error,
+        );
       }
 
       // Navigate to welcome screen
@@ -576,7 +694,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("❌ [LOGOUT] Logout error:", error);
       // Even if logout fails, clear state and navigate
       setUser(null);
-      await AsyncStorage.multiRemove(['access_token', 'cached_user', 'cached_worker_availability']);
+      await AsyncStorage.multiRemove([
+        "access_token",
+        "cached_user",
+        "cached_worker_availability",
+      ]);
       router.replace("/welcome");
     }
   };
@@ -593,7 +715,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // E2E Mode: Skip auth check entirely - app becomes ready immediately
       if (isE2EMode) {
-        console.log("🧪 [INIT] E2E Mode: Skipping auth check for Detox testing");
+        console.log(
+          "🧪 [INIT] E2E Mode: Skipping auth check for Detox testing",
+        );
         setIsLoading(false);
         return;
       }
@@ -602,7 +726,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Step 1: Check for stored token
         console.log("🔍 [INIT] Step 1: Checking for stored access_token...");
         const token = await AsyncStorage.getItem("access_token");
-        console.log(`🔍 [INIT] Token found: ${token ? 'YES (length: ' + token.length + ')' : 'NO'}`);
+        console.log(
+          `🔍 [INIT] Token found: ${token ? "YES (length: " + token.length + ")" : "NO"}`,
+        );
 
         if (!token) {
           // No token = not authenticated
@@ -614,7 +740,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Step 2: Load cached user data
         console.log("🔍 [INIT] Step 2: Loading cached user data...");
         const cachedUserJson = await AsyncStorage.getItem("cached_user");
-        console.log(`🔍 [INIT] Cached user found: ${cachedUserJson ? 'YES (length: ' + cachedUserJson.length + ')' : 'NO'}`);
+        console.log(
+          `🔍 [INIT] Cached user found: ${cachedUserJson ? "YES (length: " + cachedUserJson.length + ")" : "NO"}`,
+        );
 
         if (cachedUserJson) {
           try {
@@ -711,19 +839,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       login,
       register,
+      googleSignIn,
       logout,
       checkAuth,
       assignRole,
       switchProfile,
       refreshUserData,
     }),
-    [user, isAuthenticated, isLoading, login, register, logout, checkAuth, assignRole, switchProfile, refreshUserData]
+    [
+      user,
+      isAuthenticated,
+      isLoading,
+      login,
+      register,
+      googleSignIn,
+      logout,
+      checkAuth,
+      assignRole,
+      switchProfile,
+      refreshUserData,
+    ],
   );
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 };
 

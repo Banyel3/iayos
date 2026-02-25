@@ -49,6 +49,7 @@ import {
   VALIDATION_TIMEOUT,
   OCR_TIMEOUT,
   KYC_UPLOAD_TIMEOUT,
+  KYC_STAGE_FILE_TIMEOUT,
 } from "@/lib/api/config";
 import { cameraEvents } from "@/lib/utils/cameraEvents";
 import { compressImage } from "@/lib/utils/image-utils";
@@ -142,6 +143,11 @@ export default function KYCUploadScreen() {
   // Track if extraction is happening
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+  } | null>(null);
 
   // Per-document validation states (validate on upload like agency KYC)
   // This spreads memory usage over time instead of batching all validations on "Next"
@@ -197,10 +203,10 @@ export default function KYCUploadScreen() {
 
   useEffect(() => {
     // Reset flag if KYC status changes to rejected (user can resubmit)
-    if (kycData?.kyc_status === "REJECTED") {
+    if (isRejected) {
       hasJustSubmittedRef.current = false;
     }
-  }, [kycData?.kyc_status]);
+  }, [isRejected]);
 
   // Subscribe to camera capture events
   // When the camera screen captures a photo, it emits the URI back to us
@@ -447,11 +453,11 @@ export default function KYCUploadScreen() {
       );
 
       // Use apiRequest instead of raw fetch for better error handling and auto-auth
-      // Use VALIDATION_TIMEOUT (30s) instead of OCR_TIMEOUT (5min) - validation doesn't do OCR
+      // Use VALIDATION_TIMEOUT (60s) for quality checks (no OCR)
       const response = await apiRequest(endpointUrl, {
         method: "POST",
         body: formData as any,
-        timeout: VALIDATION_TIMEOUT, // 30s for quality checks (no OCR)
+        timeout: VALIDATION_TIMEOUT, // 60s for quality checks (no OCR)
       });
 
       console.log(`[KYC Validate] Response status: ${response.status}`);
@@ -656,16 +662,73 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 3: ID verification - just check form values exist
+    // Step 3: ID verification - validate form fields
     if (currentStep === 3) {
-      if (!idFormValues.full_name?.trim() || !idFormValues.id_number?.trim()) {
-        Alert.alert(
-          "Required",
-          "Please fill in at least your full name and ID number",
-        );
-        return;
-      }
-      // Proceed to step 4
+      const validateIDForm = (): boolean => {
+        const name = idFormValues.full_name?.trim() ?? "";
+        if (!name) {
+          Alert.alert("Required", "Please enter your full name");
+          return false;
+        }
+        if (!name.includes(" ")) {
+          Alert.alert("Required", "Please enter your full name (first and last name)");
+          return false;
+        }
+
+        const idNum = idFormValues.id_number?.trim() ?? "";
+        if (!idNum) {
+          Alert.alert("Required", "Please enter your ID number");
+          return false;
+        }
+        const idNumDigitsOnly = idNum.replace(/[\s\-]/g, "");
+        let idValid = true;
+        if (selectedIDType === "NATIONALID") {
+          idValid = /^\d{12,16}$/.test(idNumDigitsOnly);
+        } else if (selectedIDType === "DRIVERSLICENSE") {
+          idValid = /^[A-Za-z][0-9\-]{7,}$/.test(idNum);
+        } else if (selectedIDType === "PASSPORT") {
+          idValid = /^[A-Za-z]{1,2}\d{5,7}$/.test(idNum);
+        } else if (selectedIDType === "UMID" || selectedIDType === "PHILHEALTH") {
+          idValid = /^\d{12}$/.test(idNumDigitsOnly);
+        }
+        if (!idValid) {
+          Alert.alert("Invalid ID Number", "ID number format doesn't match the selected ID type");
+          return false;
+        }
+
+        const birthDate = idFormValues.birth_date?.trim() ?? "";
+        if (!birthDate) {
+          Alert.alert("Required", "Date of birth is required");
+          return false;
+        }
+        const bDate = new Date(birthDate);
+        if (isNaN(bDate.getTime())) {
+          Alert.alert("Invalid Date", "Please enter a valid date of birth");
+          return false;
+        }
+        const ageCutoff = new Date();
+        ageCutoff.setFullYear(ageCutoff.getFullYear() - 18);
+        if (bDate > ageCutoff) {
+          Alert.alert("Age Requirement", "You must be at least 18 years old");
+          return false;
+        }
+
+        const address = idFormValues.address?.trim() ?? "";
+        if (address && address.length < 5) {
+          Alert.alert("Invalid Address", "Address is too short");
+          return false;
+        }
+
+        const sex = idFormValues.sex?.trim().toUpperCase() ?? "";
+        if (sex && !["MALE", "FEMALE", "M", "F"].includes(sex)) {
+          Alert.alert("Invalid Value", "Sex must be Male or Female");
+          return false;
+        }
+
+        return true;
+      };
+
+      if (!validateIDForm()) return;
       setCurrentStep(4);
       return;
     }
@@ -749,13 +812,62 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 5: Clearance verification - just check form values exist
+    // Step 5: Clearance verification - validate form fields
     if (currentStep === 5) {
-      if (!clearanceFormValues.clearance_number?.trim()) {
-        Alert.alert("Required", "Please fill in the clearance number");
-        return;
-      }
-      // Proceed to step 6
+      const validateClearanceForm = (): boolean => {
+        const holderName = clearanceFormValues.holder_name?.trim() ?? "";
+        if (!holderName) {
+          Alert.alert("Required", "Please enter the certificate holder's full name");
+          return false;
+        }
+        if (!holderName.includes(" ")) {
+          Alert.alert("Required", "Please enter the holder's full name (first and last name)");
+          return false;
+        }
+
+        const clearanceNum = clearanceFormValues.clearance_number?.trim() ?? "";
+        if (!clearanceNum) {
+          Alert.alert("Required", "Please fill in the clearance number");
+          return false;
+        }
+        if (!/^[\d\-]{6,}$/.test(clearanceNum)) {
+          Alert.alert("Invalid Clearance Number", "Please enter a valid clearance number (digits only, at least 6 characters)");
+          return false;
+        }
+
+        const issueDate = clearanceFormValues.issue_date?.trim() ?? "";
+        if (issueDate) {
+          const iDate = new Date(issueDate);
+          if (isNaN(iDate.getTime())) {
+            Alert.alert("Invalid Date", "Please enter a valid issue date");
+            return false;
+          }
+          if (iDate > new Date()) {
+            Alert.alert("Invalid Date", "Issue date cannot be in the future");
+            return false;
+          }
+        }
+
+        const validityDate = clearanceFormValues.validity_date?.trim() ?? "";
+        if (validityDate) {
+          const vDate = new Date(validityDate);
+          if (isNaN(vDate.getTime())) {
+            Alert.alert("Invalid Date", "Please enter a valid validity date");
+            return false;
+          }
+          if (issueDate) {
+            const iDate = new Date(issueDate);
+            if (!isNaN(iDate.getTime()) && vDate <= iDate) {
+              Alert.alert("Invalid Date", "Validity date must be after the issue date");
+              return false;
+            }
+          }
+        }
+
+        return true;
+      };
+
+      if (!validateClearanceForm()) return;
       setCurrentStep(6);
       return;
     }
@@ -828,48 +940,87 @@ export default function KYCUploadScreen() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setUploadProgress(null);
+
+    // Stage files one at a time so the user sees clear per-file progress
+    const stages = [
+      { key: "FRONTID", label: "Front ID", file: frontIDFile },
+      { key: "BACKID", label: "Back ID", file: backIDFile },
+      { key: "CLEARANCE", label: "Clearance document", file: clearanceFile },
+      { key: "SELFIE", label: "Selfie photo", file: selfieFile },
+    ] as const;
+
+    const preUploadedUrls: Record<string, string> = {};
 
     try {
-      // Get Bearer token for authentication
-      const token = await AsyncStorage.getItem("access_token");
+      // ── Step 1-4: upload each file individually ────────────────────────────────
+      for (let i = 0; i < stages.length; i++) {
+        const { key, label, file } = stages[i];
+        if (!file) continue;
 
-      const formData = new FormData();
-      formData.append("accountID", user?.accountID?.toString() || "");
-      formData.append("IDType", selectedIDType);
-      formData.append("clearanceType", selectedClearanceType);
+        setUploadProgress({
+          current: i + 1,
+          total: stages.length,
+          label: `Uploading ${label} (${i + 1}/${stages.length})...`,
+        });
 
-      formData.append("frontID", {
-        uri: frontIDFile!.uri,
-        name: frontIDFile!.name,
-        type: frontIDFile!.type,
-      } as any);
+        const stageFormData = new FormData();
+        stageFormData.append("file_key", key);
+        stageFormData.append("file", {
+          uri: file.uri,
+          name: file.name || `${key.toLowerCase()}.jpg`,
+          type: file.type || "image/jpeg",
+        } as unknown as Blob);
 
-      formData.append("backID", {
-        uri: backIDFile!.uri,
-        name: backIDFile!.name,
-        type: backIDFile!.type,
-      } as any);
+        const stageRes = await apiRequest(ENDPOINTS.KYC_STAGE_FILE, {
+          method: "POST",
+          body: stageFormData as any,
+          timeout: KYC_STAGE_FILE_TIMEOUT,
+        });
 
-      formData.append("clearance", {
-        uri: clearanceFile!.uri,
-        name: clearanceFile!.name,
-        type: clearanceFile!.type,
-      } as any);
+        const stageData = (await stageRes.json().catch(() => ({}))) as {
+          success?: boolean;
+          file_key?: string;
+          file_url?: string;
+          error?: { message: string }[] | string;
+        };
 
-      formData.append("selfie", {
-        uri: selfieFile!.uri,
-        name: selfieFile!.name,
-        type: selfieFile!.type,
-      } as any);
+        if (!stageRes.ok || !stageData.success) {
+          const msg =
+            (Array.isArray(stageData.error)
+              ? stageData.error[0]?.message
+              : stageData.error) ||
+            `Failed to upload ${label}. Please try again.`;
+          throw new Error(String(msg));
+        }
 
-      // Include extracted/edited ID fields
-      if (Object.keys(idFormValues).length > 0) {
-        formData.append("extracted_id_data", JSON.stringify(idFormValues));
+        preUploadedUrls[key] = stageData.file_url!;
       }
 
-      // Include extracted/edited clearance fields
+      // ── Step 5: submit metadata + pre-uploaded URLs (no files in body) ────────
+      setUploadProgress({
+        current: stages.length,
+        total: stages.length,
+        label: "Finalising submission...",
+      });
+
+      const finalFormData = new FormData();
+      finalFormData.append("IDType", selectedIDType || "");
+      finalFormData.append("clearanceType", selectedClearanceType || "");
+      if (preUploadedUrls.FRONTID)
+        finalFormData.append("frontID_url", preUploadedUrls.FRONTID);
+      if (preUploadedUrls.BACKID)
+        finalFormData.append("backID_url", preUploadedUrls.BACKID);
+      if (preUploadedUrls.CLEARANCE)
+        finalFormData.append("clearance_url", preUploadedUrls.CLEARANCE);
+      if (preUploadedUrls.SELFIE)
+        finalFormData.append("selfie_url", preUploadedUrls.SELFIE);
+
+      if (Object.keys(idFormValues).length > 0) {
+        finalFormData.append("extracted_id_data", JSON.stringify(idFormValues));
+      }
       if (Object.keys(clearanceFormValues).length > 0) {
-        formData.append(
+        finalFormData.append(
           "extracted_clearance_data",
           JSON.stringify(clearanceFormValues),
         );
@@ -877,8 +1028,8 @@ export default function KYCUploadScreen() {
 
       const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
         method: "POST",
-        body: formData as any, // React Native FormData compatible with apiRequest
-        timeout: KYC_UPLOAD_TIMEOUT, // 2 minutes for large file uploads
+        body: finalFormData as any,
+        timeout: KYC_UPLOAD_TIMEOUT,
       });
 
       const responseData = (await response.json().catch(() => ({}))) as {
@@ -889,25 +1040,20 @@ export default function KYCUploadScreen() {
       };
 
       if (!response.ok) {
-        // Upload failed on backend - don't invalidate cache
-        throw new Error(responseData.message || "Upload failed");
+        throw new Error(responseData.message || "Submission failed");
       }
 
-      // SUCCESS: Invalidate KYC status cache so banner and status page update immediately
-      // Force refetch by setting staleTime to 0 temporarily
+      // ── Success ────────────────────────────────────────────────────────────
       hasJustSubmittedRef.current = true;
       queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
-      // Also invalidate auto-fill cache to trigger extraction data fetch
       queryClient.invalidateQueries({ queryKey: ["kycAutofill"] });
 
-      // Check if auto-rejected by AI verification
       if (responseData.auto_rejected || responseData.status === "REJECTED") {
         const reasons = responseData.rejection_reasons || [];
         const formattedReasons =
           reasons.length > 0
             ? reasons.map((r) => `• ${r}`).join("\n")
             : "Please ensure your documents are clear and readable.";
-
         Alert.alert(
           "Verification Failed",
           `Your documents could not be verified automatically:\n\n${formattedReasons}\n\nPlease resubmit with clearer images.`,
@@ -919,7 +1065,6 @@ export default function KYCUploadScreen() {
           ],
         );
       } else {
-        // Success - redirect to status
         Alert.alert(
           "Documents Uploaded!",
           isRejected
@@ -934,7 +1079,6 @@ export default function KYCUploadScreen() {
         );
       }
     } catch (error) {
-      // Network error or backend error - show failed message
       console.error("KYC upload error:", error);
       Alert.alert(
         "Upload Failed",
@@ -944,6 +1088,7 @@ export default function KYCUploadScreen() {
       );
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -1555,7 +1700,9 @@ export default function KYCUploadScreen() {
                   ? "Extracting..."
                   : isValidating
                     ? "Validating..."
-                    : "Submitting..."}
+                    : uploadProgress
+                      ? uploadProgress.label
+                      : "Submitting..."}
               </Text>
             </View>
           ) : (

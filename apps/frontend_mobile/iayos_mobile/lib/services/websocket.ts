@@ -195,6 +195,34 @@ class WebSocketService {
     }
   }
 
+  // Subscribe to a conversation's WebSocket group dynamically
+  // Used when entering a conversation that was created after the WS connection was established
+  subscribeToConversation(conversationId: number) {
+    if (!this.isConnected()) {
+      console.warn(
+        `[WebSocket] ⚠️ Not connected, cannot subscribe to conversation ${conversationId}`
+      );
+      return;
+    }
+
+    try {
+      const payload = {
+        action: "subscribe",
+        conversation_id: conversationId,
+      };
+
+      this.ws!.send(JSON.stringify(payload));
+      console.log(
+        `[WebSocket] 📡 Subscribe request sent for conversation ${conversationId}`
+      );
+    } catch (error) {
+      console.error(
+        `[WebSocket] ❌ Failed to subscribe to conversation ${conversationId}:`,
+        error
+      );
+    }
+  }
+
   // Send typing indicator
   sendTyping(conversationId: number) {
     if (!this.isConnected()) return;

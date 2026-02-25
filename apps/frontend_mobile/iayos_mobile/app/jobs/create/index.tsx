@@ -32,6 +32,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 import {
   Colors,
   Typography,
@@ -45,8 +46,13 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
 import { usePricePrediction } from "@/lib/hooks/usePricePrediction";
+import { useJobSuggestions } from "@/lib/hooks/useJobSuggestions";
+import type { JobSuggestion } from "@/lib/hooks/useJobSuggestions";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
+import SuggestionBubbles from "@/components/SuggestionBubbles";
 import SearchBar from "@/components/ui/SearchBar";
+import InfoModal from "@/components/InfoModal";
+import { useOneTimeModal } from "@/lib/hooks/useOneTimeModal";
 
 interface Category {
   id: number;
@@ -76,6 +82,14 @@ interface CreateJobRequest {
   downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
+  selected_materials?: {
+    worker_material_id: number;
+    name: string;
+    source: string;
+    price: number;
+    quantity: number;
+    unit: string;
+  }[];
   // Universal job fields for ML accuracy
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
   job_scope: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION" | null;
@@ -98,22 +112,66 @@ interface SkillSlot {
 }
 
 // Predefined job title suggestions based on category
+// Keys MUST match Specializations.specializationName from seed_data.py
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
-  Plumbing: ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
-  Electrical: ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
-  Carpentry: ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
-  Painting: ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
-  Cleaning: ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
-  Landscaping: ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
-  Masonry: ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
-  HVAC: ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
-  Roofing: ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
-  Welding: ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
-  Automotive: ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
-  "General Labor": ["Heavy lifting", "Hauling debris", "General assistance", "Packaging"],
-  Moving: ["House moving", "Office relocation", "Furniture transport"],
-  Delivery: ["Package delivery", "Food delivery", "Messenger service"],
+  "Plumbing": ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
+  "Electrical Work": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
+  "Carpentry": ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
+  "Painting": ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
+  "General Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
+  "Landscaping": ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
+  "Masonry": ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
+  "HVAC (Aircon Services)": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
+  "Roofing": ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
+  "Welding": ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
+  "Auto Mechanic": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
+  "Motorcycle Repair": ["Engine overhaul", "Brake pad replacement", "Oil change", "Chain adjustment"],
+  "Tiling": ["Floor tiling", "Wall tiling", "Bathroom retiling", "Kitchen backsplash"],
+  "Appliance Repair": ["Repair washing machine", "Fix refrigerator", "AC unit repair", "Oven repair"],
+  "Pest Control": ["Termite treatment", "General pest spray", "Rodent control", "Ant treatment"],
+  "Furniture Assembly": ["Assemble cabinet", "Build bed frame", "Install wall shelf", "Desk assembly"],
+  "Moving Services": ["House moving", "Office relocation", "Furniture transport", "Appliance delivery"],
+  "Glass Installation": ["Window glass replacement", "Shower glass door", "Glass partition", "Mirror installation"],
+  "Drywall Installation": ["Wall partition", "Ceiling repair", "Drywall patching", "Room divider"],
+  "Security System Installation": ["CCTV installation", "Alarm system setup", "Smart lock install", "Doorbell camera"],
 };
+
+// ============================================================================
+// Payment education content — shown once to clients on first job post
+// ============================================================================
+
+const CLIENT_PAYMENT_INFO_ITEMS = [
+  {
+    icon: "wallet-outline" as const,
+    label: "Your wallet is your payment source",
+    description:
+      "Top up your wallet anytime via QR PH — pay using any bank or e-wallet.",
+  },
+  {
+    icon: "lock-closed-outline" as const,
+    label: "50% held in escrow upfront",
+    description:
+      "When a worker is booked, 50% of the job budget plus a 5% platform fee is reserved from your wallet.",
+  },
+  {
+    icon: "cash-outline" as const,
+    label: "Example",
+    description:
+      "For a ₱1,000 job → ₱525 deducted upfront (₱500 escrow + ₱25 platform fee).",
+  },
+  {
+    icon: "checkmark-circle-outline" as const,
+    label: "Remaining 50% on completion",
+    description:
+      "The second half is paid when you approve the worker's finished work.",
+  },
+  {
+    icon: "alert-circle-outline" as const,
+    label: "Check your balance first",
+    description:
+      "Make sure your wallet has enough funds before posting. Tap Add Funds on the wallet screen to top up.",
+  },
+];
 
 export default function CreateJobScreen() {
   const { workerId, agencyId } = useLocalSearchParams<{
@@ -132,6 +190,8 @@ export default function CreateJobScreen() {
 
   // Form state
   const [title, setTitle] = useState("");
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [pendingJobData, setPendingJobData] = useState<any>(null);
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
@@ -173,6 +233,11 @@ export default function CreateJobScreen() {
   >(null);
 
   const queryClient = useQueryClient();
+
+  // One-time payment education modal for clients
+  const { visible: showClientPaymentInfo, dismiss: dismissClientPaymentInfo } =
+    useOneTimeModal("@iayos:hide_client_payment_info");
+
   // Jobs only use Wallet payment - deposits via QR PH (any bank/e-wallet)
   // No payment method selection needed - always WALLET
 
@@ -224,7 +289,31 @@ export default function CreateJobScreen() {
     enabled: !!workerId,
   });
 
-  const workerMaterials = workerMaterialsData || [];
+  // Fetch agency's materials if agencyId is provided
+  const { data: agencyMaterialsData, isLoading: agencyMaterialsLoading } =
+    useQuery({
+      queryKey: ["agency-materials", agencyId],
+      queryFn: async () => {
+        if (!agencyId) return [];
+        const data = await fetchJson<any[]>(
+          ENDPOINTS.AGENCY_MATERIALS_PUBLIC(Number(agencyId)),
+        );
+        if (!Array.isArray(data)) return [];
+        // Map from MaterialSchema format to WorkerMaterial interface
+        return data.map((m: any) => ({
+          id: m.materialID,
+          name: m.name,
+          description: m.description,
+          price: m.price,
+          priceUnit: m.unit || "piece",
+          inStock: m.is_available,
+        })) as WorkerMaterial[];
+      },
+      enabled: !!agencyId && !workerId,
+    });
+
+  const workerMaterials = workerMaterialsData || agencyMaterialsData || [];
+  const isMaterialsLoading = materialsLoading || agencyMaterialsLoading;
 
   // AI Price Prediction Hook
   const {
@@ -237,6 +326,96 @@ export default function CreateJobScreen() {
 
   // Debounce timer ref for price prediction
   const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Database-driven job field suggestions
+  const {
+    mutate: fetchSuggestions,
+  } = useJobSuggestions();
+
+  // Suggestion state per field
+  const [titleSuggestions, setTitleSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [descriptionSuggestions, setDescriptionSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [materialSuggestions, setMaterialSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [durationSuggestions, setDurationSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [loadingSuggestionFields, setLoadingSuggestionFields] = React.useState<Set<string>>(new Set());
+
+  // Fetch all suggestion fields when category changes
+  React.useEffect(() => {
+    if (!effectiveCategoryId) {
+      setTitleSuggestions([]);
+      setDescriptionSuggestions([]);
+      setMaterialSuggestions([]);
+      setDurationSuggestions([]);
+      return;
+    }
+
+    // Fetch title suggestions
+    setLoadingSuggestionFields(new Set(["title", "description", "materials", "duration"]));
+    fetchSuggestions(
+      { category_id: effectiveCategoryId, field: "title", limit: 8 },
+      {
+        onSuccess: (resp) => {
+          if (resp.field === "title") setTitleSuggestions(resp.suggestions);
+          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+        },
+        onError: () => {
+          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+        },
+      },
+    );
+
+    // Small stagger to avoid simultaneous calls
+    const t1 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "description", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "description") setDescriptionSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+          },
+        },
+      );
+    }, 200);
+
+    const t2 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "materials", limit: 8 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "materials") setMaterialSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("materials"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("materials"); return n; });
+          },
+        },
+      );
+    }, 400);
+
+    const t3 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "duration", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "duration") setDurationSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+          },
+        },
+      );
+    }, 600);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [effectiveCategoryId, fetchSuggestions]);
 
   // Fetch categories
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
@@ -424,7 +603,7 @@ export default function CreateJobScreen() {
     let list = categories;
     if (workerId && workerDetailsData?.skills) {
       // For INVITE jobs, only show worker's skills
-      const workerSkillIds = workerDetailsData.skills.map((s: any) => s.id);
+      const workerSkillIds = workerDetailsData.skills.map((s: any) => s.specializationId);
       list = categories.filter((cat) => workerSkillIds.includes(cat.id));
     }
 
@@ -444,12 +623,12 @@ export default function CreateJobScreen() {
         const singleSkill = skills[0];
         // Auto-add a slot for the worker's single skill
         setSkillSlots([{
-          specialization_id: singleSkill.id,
+          specialization_id: singleSkill.specializationId,
           workers_needed: 1,
           skill_level_required: null,
         }]);
         // Set budget from category's minimum_rate
-        const matchingCat = categories.find((c) => c.id === singleSkill.id);
+        const matchingCat = categories.find((c) => c.id === singleSkill.specializationId);
         if (matchingCat && matchingCat.minimum_rate > 0) {
           setBudget(matchingCat.minimum_rate.toFixed(2));
         }
@@ -744,17 +923,26 @@ export default function CreateJobScreen() {
       }));
     }
 
-    Alert.alert(
-      "Confirm Submission",
-      "Are you sure you want to submit this job post?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Submit",
-          onPress: () => createJobMutation.mutate(jobData),
-        },
-      ]
-    );
+    // Include selected materials if any
+    if (selectedMaterials.length > 0 && workerMaterials.length > 0) {
+      jobData.selected_materials = selectedMaterials
+        .map((id) => {
+          const mat = workerMaterials.find((m) => m.id === id);
+          if (!mat) return null;
+          return {
+            worker_material_id: mat.id,
+            name: mat.name,
+            source: "FROM_PROFILE",
+            price: mat.price,
+            quantity: 1,
+            unit: mat.priceUnit || "piece",
+          };
+        })
+        .filter(Boolean) as CreateJobRequest["selected_materials"];
+    }
+
+    setPendingJobData(jobData);
+    setShowSubmitConfirm(true);
   };
 
   return (
@@ -875,25 +1063,17 @@ export default function CreateJobScreen() {
                 />
                 <Text style={styles.charCount}>{title.length}/100</Text>
 
-                {/* Title Suggestions */}
-                {suggestions.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.suggestionScroll}
-                    contentContainerStyle={styles.suggestionContent}
-                  >
-                    {suggestions.map((sug) => (
-                      <TouchableOpacity
-                        key={sug}
-                        style={styles.suggestionChip}
-                        onPress={() => setTitle(sug)}
-                      >
-                        <Text style={styles.suggestionChipText}>{sug}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
+                {/* Title Suggestions - Database-driven */}
+                <SuggestionBubbles
+                  suggestions={titleSuggestions.length > 0
+                    ? titleSuggestions
+                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
+                  onSelect={setTitle}
+                  isLoading={loadingSuggestionFields.has('title')}
+                  label="Suggestions"
+                  icon="sparkles-outline"
+                  showFrequency
+                />
               </View>
 
               {/* 3. Description */}
@@ -911,6 +1091,15 @@ export default function CreateJobScreen() {
                   maxLength={500}
                 />
                 <Text style={styles.charCount}>{description.length}/500</Text>
+
+                {/* Description Suggestions - Database-driven */}
+                <SuggestionBubbles
+                  suggestions={descriptionSuggestions}
+                  onSelect={(text) => setDescription(text)}
+                  isLoading={loadingSuggestionFields.has('description')}
+                  label="Common descriptions"
+                  icon="document-text-outline"
+                />
               </View>
 
               {/* Worker Requirements Integrated into Job Details */}
@@ -1523,6 +1712,13 @@ export default function CreateJobScreen() {
                   onChangeText={setDuration}
                   placeholderTextColor={Colors.textHint}
                 />
+                <SuggestionBubbles
+                  suggestions={durationSuggestions}
+                  onSelect={setDuration}
+                  isLoading={loadingSuggestionFields.has('duration')}
+                  label="Common durations"
+                  icon="time-outline"
+                />
               </View>
 
               {/* Preferred Start Date */}
@@ -1697,6 +1893,20 @@ export default function CreateJobScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Material Suggestions from DB */}
+              <SuggestionBubbles
+                suggestions={materialSuggestions}
+                onSelect={(text) => {
+                  if (!manualMaterials.includes(text)) {
+                    setManualMaterials(prev => [...prev, text]);
+                  }
+                }}
+                isLoading={loadingSuggestionFields.has('materials')}
+                label="Common materials"
+                icon="construct-outline"
+                showFrequency
+              />
+
               {/* Manual Materials List */}
               {manualMaterials.length > 0 && (
                 <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
@@ -1765,7 +1975,11 @@ export default function CreateJobScreen() {
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.hint}>This worker has no materials listed</Text>
+                    <Text style={styles.hint}>
+                      {workerId
+                        ? "This worker has no materials listed"
+                        : "This agency has no materials listed"}
+                    </Text>
                   )}
                 </View>
               )}
@@ -1912,6 +2126,32 @@ export default function CreateJobScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Countdown Confirmation Modal */}
+      <CountdownConfirmModal
+        visible={showSubmitConfirm}
+        title="Confirm Submission"
+        message="Are you sure you want to submit this job post?"
+        confirmLabel="Submit"
+        countdownSeconds={5}
+        onConfirm={() => {
+          if (pendingJobData) createJobMutation.mutate(pendingJobData);
+          setShowSubmitConfirm(false);
+        }}
+        onCancel={() => setShowSubmitConfirm(false)}
+        isLoading={createJobMutation.isPending}
+        icon="document-text"
+        iconColor={Colors.primary}
+      />
+
+      {/* One-time payment education modal for new clients */}
+      <InfoModal
+        visible={showClientPaymentInfo}
+        onClose={dismissClientPaymentInfo}
+        title="How Payments Work 💳"
+        subtitle="Here's what happens when you post a job"
+        items={CLIENT_PAYMENT_INFO_ITEMS}
+      />
     </SafeAreaView>
   );
 }

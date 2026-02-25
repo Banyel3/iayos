@@ -828,8 +828,8 @@ def get_worker_earnings(
                 total=Coalesce(Sum('budget'), Value(Decimal('0.00')))
             )['total']
             
-            # Platform takes 5% fee
-            platform_fee = total_earnings * Decimal('0.05')
+            # Platform takes 10% fee
+            platform_fee = total_earnings * Decimal('0.10')
             net_earnings = total_earnings - platform_fee
             
             # Get payout transactions (WITHDRAWAL type)
@@ -895,8 +895,8 @@ def get_worker_earnings_statistics() -> Dict[str, Any]:
             total=Coalesce(Sum('budget'), Value(Decimal('0.00')))
         )['total']
         
-        # Platform fees (5%)
-        platform_fees = total_earnings * Decimal('0.05')
+        # Platform fees (10%)
+        platform_fees = total_earnings * Decimal('0.10')
         net_earnings = total_earnings - platform_fees
         
         # Total payouts (WITHDRAWAL transactions)

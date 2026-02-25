@@ -29,11 +29,11 @@ import {
   processOfflineQueue,
 } from "../../lib/services/offline-queue";
 
-type FilterType = "active" | "unread" | "archived";
+type FilterType = "all" | "active" | "unread" | "archived";
 
 export default function ConversationsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterType>("active");
+  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [queueCount, setQueueCount] = useState(0);
 
   // WebSocket connection
@@ -256,7 +256,7 @@ export default function ConversationsScreen() {
       {/* Filters */}
       {!searchQuery.trim() && (
         <View style={styles.filtersContainer}>
-          {renderFilterButton("active", "Active", conversationsData?.total)}
+          {renderFilterButton("all", "All", conversationsData?.total)}
           {renderFilterButton(
             "unread",
             "Unread",

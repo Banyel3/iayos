@@ -2,21 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, fetchJson, apiRequest } from "../api/config";
 import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
-import { useWallet } from "./useWallet";
+import { useWallet, WalletData } from "./useWallet";
 
 // Types
-export interface WalletBalance {
-  success: boolean;
-  balance: number;
-  reservedBalance: number;
-  availableBalance: number;
-  currency: string;
-  pending: number;
-  this_month: number;
-  total_earned: number;
-  last_updated: string | null;
-  created: boolean;
-}
+// NOTE: Wallet types are defined in useWallet.ts (WalletData).
+// useWalletBalance() returns the same hook as useWallet().
 
 export interface EscrowPayment {
   jobId: number;

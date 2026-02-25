@@ -2,7 +2,7 @@
 
 import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
-import { Sidebar, useSidebar } from "../components";
+import { Sidebar, useMainContentClass } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 interface DashboardStats {
   total_users: number;
@@ -43,12 +42,7 @@ interface DashboardStats {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const { collapsed } = useSidebar();
-  
-  const mainClassName = cn(
-    "p-6 bg-gray-50 min-h-screen transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
-    collapsed ? "pl-24" : "pl-72"
-  );
+  const mainClassName = useMainContentClass("p-6 bg-gray-50 min-h-screen");
 
   const fetchStats = async () => {
     try {
@@ -245,7 +239,7 @@ export default function AdminDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Job Status Breakdown */}
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
                   <div className="flex items-center justify-between mb-2">
@@ -543,7 +537,7 @@ export default function AdminDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-6">
                 {/* Verification Rate */}
                 <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
                   <div className="text-3xl font-bold text-blue-900">

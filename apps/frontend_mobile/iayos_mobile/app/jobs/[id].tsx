@@ -32,6 +32,9 @@ import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
 import JobReceiptModal from "@/components/JobReceiptModal";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
+import InfoModal from "@/components/InfoModal";
+import { useOneTimeModal } from "@/lib/hooks/useOneTimeModal";
 import {
   useTeamJobDetail,
   useApplyToSkillSlot,
@@ -185,6 +188,37 @@ const getWorkEnvironmentInfo = (env: string) => {
   }
 };
 
+// ============================================================================
+// Payment education content — shown once to workers before first apply
+// ============================================================================
+
+const WORKER_PAYMENT_INFO_ITEMS = [
+  {
+    icon: "lock-closed-outline" as const,
+    label: "Your earnings are secured",
+    description:
+      "The client's escrow payment is held before you even start working — your pay is guaranteed.",
+  },
+  {
+    icon: "checkmark-circle-outline" as const,
+    label: "Client approval releases payment",
+    description:
+      "Once you complete the job and the client approves, payment moves to your Pending Earnings.",
+  },
+  {
+    icon: "time-outline" as const,
+    label: "7-day buffer period",
+    description:
+      "A brief hold for dispute protection before earnings are released to your wallet.",
+  },
+  {
+    icon: "card-outline" as const,
+    label: "Withdraw anytime",
+    description:
+      "Transfer your wallet balance to your registered GCash account whenever you're ready.",
+  },
+];
+
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -196,6 +230,17 @@ export default function JobDetailScreen() {
 
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [countdownConfig, setCountdownConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmStyle: "default" | "destructive";
+    countdownSeconds: number;
+    onConfirm: () => void;
+    icon?: string;
+    iconColor?: string;
+  } | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
@@ -217,6 +262,12 @@ export default function JobDetailScreen() {
   );
   const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
+
+  // One-time payment education modal for workers
+  const { visible: showWorkerPaymentInfo, dismiss: dismissWorkerPaymentInfo } =
+    useOneTimeModal("@iayos:hide_worker_payment_info");
+  // Used to defer opening the application modal until after the info modal is dismissed
+  const [pendingApply, setPendingApply] = useState(false);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
@@ -616,36 +667,34 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Accept Application",
-      `Are you sure you want to accept ${workerName}'s application? This will assign them to the job and reject all other applications.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () => acceptApplicationMutation.mutate(applicationId),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Application",
+      message: `Are you sure you want to accept ${workerName}'s application? This will assign them to the job and reject all other applications.`,
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 5,
+      onConfirm: () => acceptApplicationMutation.mutate(applicationId),
+      icon: "checkmark-circle",
+      iconColor: Colors.success,
+    });
   };
 
   const handleRejectApplication = (
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Reject Application",
-      `Are you sure you want to reject ${workerName}'s application?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: () => rejectApplicationMutation.mutate(applicationId),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Reject Application",
+      message: `Are you sure you want to reject ${workerName}'s application?`,
+      confirmLabel: "Reject",
+      confirmStyle: "destructive",
+      countdownSeconds: 5,
+      onConfirm: () => rejectApplicationMutation.mutate(applicationId),
+      icon: "close-circle",
+      iconColor: Colors.error,
+    });
   };
 
   const handleDeleteJob = () => {
@@ -657,21 +706,17 @@ export default function JobDetailScreen() {
       return;
     }
 
-    Alert.alert(
-      "Delete Job Request",
-      "Are you sure you want to delete this job request? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteJobMutation.mutate(),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Delete Job Request",
+      message: "Are you sure you want to delete this job request? This action cannot be undone.",
+      confirmLabel: "Delete",
+      confirmStyle: "destructive",
+      countdownSeconds: 5,
+      onConfirm: () => deleteJobMutation.mutate(),
+      icon: "trash",
+      iconColor: Colors.error,
+    });
   };
 
   const handleApply = () => {
@@ -681,6 +726,12 @@ export default function JobDetailScreen() {
     setBudgetOption("ACCEPT");
     setProposalMessage("");
     setEstimatedDuration("");
+
+    // Show payment education modal first (only the very first time)
+    if (showWorkerPaymentInfo) {
+      setPendingApply(true);
+      return;
+    }
     setShowApplicationModal(true);
   };
 
@@ -712,21 +763,17 @@ export default function JobDetailScreen() {
   };
 
   const handleAcceptInvite = () => {
-    Alert.alert(
-      "Accept Job Invitation",
-      "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () => acceptInviteMutation.mutate(),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Job Invitation",
+      message: "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 5,
+      onConfirm: () => acceptInviteMutation.mutate(),
+      icon: "briefcase",
+      iconColor: Colors.primary,
+    });
   };
 
   const handleRejectInvite = () => {
@@ -785,6 +832,14 @@ export default function JobDetailScreen() {
 
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
+
+  // Track worker IDs that are already accepted/assigned on this job
+  // Used to disable accept button for workers who already have another accepted application
+  const assignedWorkerIds = new Set(
+    teamApplications
+      .filter((a: any) => a.status === "ACCEPTED")
+      .map((a: any) => a.worker_id),
+  );
 
   const handleTeamSlotApply = (slot: SkillSlot) => {
     if (!isWorker) {
@@ -1223,6 +1278,17 @@ export default function JobDetailScreen() {
             </View>
           </View>
         </View>
+
+        {/* Expected Duration */}
+        {job.expectedDuration && (
+          <View style={[styles.section, { paddingTop: 0 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="time-outline" size={20} color={Colors.primary} />
+              <Text style={{ fontSize: 14, color: Colors.textSecondary }}>Expected Duration:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textPrimary }}>{job.expectedDuration}</Text>
+            </View>
+          </View>
+        )}
 
         {/* Job Requirements Section - Universal Fields for ML */}
         <View style={styles.section}>
@@ -1760,7 +1826,7 @@ export default function JobDetailScreen() {
                   </View>
                 </View>
 
-                {app.status === "PENDING" && (
+                {app.status === "PENDING" && !assignedWorkerIds.has(app.worker_id) && (
                   <View style={styles.applicationActions}>
                     <TouchableOpacity
                       style={styles.acceptButton}
@@ -1808,6 +1874,16 @@ export default function JobDetailScreen() {
                         </>
                       )}
                     </TouchableOpacity>
+                  </View>
+                )}
+                {app.status === "PENDING" && assignedWorkerIds.has(app.worker_id) && (
+                  <View style={[styles.applicationActions, { justifyContent: 'center' }]}>
+                    <View style={[styles.applicationStatusBadge, styles.statusAccepted, { paddingHorizontal: 12, paddingVertical: 6 }]}>
+                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} style={{ marginRight: 4 }} />
+                      <Text style={[styles.applicationStatusText, { color: Colors.success }]}>
+                        Already Assigned to Another Slot
+                      </Text>
+                    </View>
                   </View>
                 )}
               </View>
@@ -1889,13 +1965,38 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
-                {applications.length > 0 && (
-                  <View style={styles.applicationsBadge}>
-                    <Text style={styles.applicationsBadgeText}>
-                      {applications.length}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {applications.length > 0 && (
+                    <View style={styles.applicationsBadge}>
+                      <Text style={styles.applicationsBadgeText}>
+                        {applications.length}
+                      </Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: Colors.primary,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      gap: 4,
+                    }}
+                    onPress={() => {
+                      const catId = typeof job.category === 'object' ? job.category.id : undefined;
+                      router.push({
+                        pathname: '/jobs/invite-workers' as any,
+                        params: { jobId: id, categoryId: catId?.toString() || '' },
+                      });
+                    }}
+                  >
+                    <Ionicons name="person-add-outline" size={14} color={Colors.white} />
+                    <Text style={{ color: Colors.white, fontSize: 12, fontWeight: '600' }}>
+                      Invite Workers
                     </Text>
-                  </View>
-                )}
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {applicationsLoading ? (
@@ -2843,6 +2944,38 @@ export default function JobDetailScreen() {
         onClose={() => setShowReceiptModal(false)}
         jobId={parseInt(id)}
         userRole={isWorker ? "WORKER" : "CLIENT"}
+      />
+
+      {/* Countdown Confirmation Modal */}
+      {countdownConfig && (
+        <CountdownConfirmModal
+          visible={countdownConfig.visible}
+          title={countdownConfig.title}
+          message={countdownConfig.message}
+          confirmLabel={countdownConfig.confirmLabel}
+          confirmStyle={countdownConfig.confirmStyle}
+          countdownSeconds={countdownConfig.countdownSeconds}
+          onConfirm={() => {
+            countdownConfig.onConfirm();
+            setCountdownConfig(null);
+          }}
+          onCancel={() => setCountdownConfig(null)}
+          icon={countdownConfig.icon as any}
+          iconColor={countdownConfig.iconColor}
+        />
+      )}
+
+      {/* One-time payment education modal for workers (fires before first Apply) */}
+      <InfoModal
+        visible={showWorkerPaymentInfo && pendingApply}
+        onClose={(dontShow) => {
+          dismissWorkerPaymentInfo(dontShow);
+          setPendingApply(false);
+          setShowApplicationModal(true);
+        }}
+        title="How Your Earnings Work 💰"
+        subtitle="Here's what happens after you're hired"
+        items={WORKER_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
   );

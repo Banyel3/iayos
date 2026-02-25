@@ -58,10 +58,10 @@ export type ConversationsResponse = {
 
 /**
  * Fetch conversations with optional filter
- * @param filter - 'active', 'unread', or 'archived'
+ * @param filter - 'all', 'active', 'unread', or 'archived'
  */
 export function useConversations(
-  filter: "active" | "unread" | "archived" = "active"
+  filter: "all" | "active" | "unread" | "archived" = "all"
 ) {
   return useQuery({
     queryKey: ["conversations", filter],

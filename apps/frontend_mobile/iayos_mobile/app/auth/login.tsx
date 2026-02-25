@@ -11,9 +11,12 @@ import {
   Alert,
   Keyboard,
   TextInput as RNTextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../context/AuthContext";
 import {
   Colors,
@@ -27,12 +30,61 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { Image } from "react-native";
 
+// Required for auth session redirect to complete properly
+WebBrowser.maybeCompleteAuthSession();
+
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login, user } = useAuth();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const { login, googleSignIn, user } = useAuth();
   const router = useRouter();
+
+  // Google OAuth - uses authorization code flow (auto-exchanged for tokens)
+  const [googleRequest, googleResponse, promptGoogleAsync] =
+    Google.useAuthRequest({
+      clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
+      ...(process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
+        ? { androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }
+        : {}),
+      ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+        ? { iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }
+        : {}),
+    });
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (googleResponse?.type === "success") {
+      const idToken = googleResponse.authentication?.idToken;
+      if (idToken) {
+        handleGoogleSignIn(idToken);
+      }
+    } else if (googleResponse?.type === "error") {
+      console.error("❌ [GOOGLE] Auth error:", googleResponse.error);
+      Alert.alert("Error", "Google sign-in failed. Please try again.");
+      setIsGoogleLoading(false);
+    } else if (googleResponse?.type === "dismiss") {
+      setIsGoogleLoading(false);
+    }
+  }, [googleResponse]);
+
+  const handleGoogleSignIn = async (idToken: string) => {
+    setIsGoogleLoading(true);
+    try {
+      const userData = await googleSignIn(idToken);
+      if (!userData?.profile_data?.profileType) {
+        router.replace("/auth/select-role");
+      } else {
+        router.replace("/(tabs)");
+      }
+    } catch (error: any) {
+      console.error("❌ [GOOGLE] Sign-in error:", error);
+      Alert.alert("Error", error.message || "Google sign-in failed");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   // Refs for inputs so we can programmatically focus and check isFocused
   const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
@@ -57,10 +109,14 @@ export default function LoginScreen() {
 
       // Token exists, check user state
       if (user?.profile_data?.profileType) {
-        console.log("🔀 [LOGIN] User already authenticated, redirecting to tabs");
+        console.log(
+          "🔀 [LOGIN] User already authenticated, redirecting to tabs",
+        );
         router.replace("/(tabs)");
       } else if (user && !user.profile_data?.profileType) {
-        console.log("🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection");
+        console.log(
+          "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
+        );
         router.replace("/auth/select-role");
       }
     };
@@ -76,7 +132,7 @@ export default function LoginScreen() {
         setTimeout(() => {
           try {
             (fieldRef as any).focus?.();
-          } catch (e) { }
+          } catch (e) {}
         }, 50);
       }
     });
@@ -84,7 +140,7 @@ export default function LoginScreen() {
     return () => {
       try {
         subscription.remove();
-      } catch (e) { }
+      } catch (e) {}
     };
   }, []);
 
@@ -130,7 +186,12 @@ export default function LoginScreen() {
           <View style={styles.headerContainer}>
             <Image
               source={require("../../assets/logo-white.png")}
-              style={{ width: 120, height: 120, resizeMode: "contain", marginBottom: Spacing["2xl"] }}
+              style={{
+                width: 120,
+                height: 120,
+                resizeMode: "contain",
+                marginBottom: Spacing["2xl"],
+              }}
               accessibilityLabel="iAyos Logo"
             />
             <Text style={styles.headerTitle}>Welcome to iAyos</Text>
@@ -188,6 +249,7 @@ export default function LoginScreen() {
               activeOpacity={0.7}
               disabled={isLoading}
               testID="login-forgot-password-link"
+              onPress={() => router.push("/auth/forgot-password" as any)}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -195,7 +257,7 @@ export default function LoginScreen() {
             {/* Login Button */}
             <Button
               onPress={handleLogin}
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
               loading={isLoading}
               variant="primary"
               size="lg"
@@ -204,6 +266,45 @@ export default function LoginScreen() {
             >
               Login
             </Button>
+
+            {/* OR Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google Sign-In Button */}
+            <TouchableOpacity
+              style={[
+                styles.googleButton,
+                (!googleRequest || isGoogleLoading || isLoading) &&
+                  styles.googleButtonDisabled,
+              ]}
+              onPress={() => {
+                setIsGoogleLoading(true);
+                promptGoogleAsync();
+              }}
+              disabled={!googleRequest || isGoogleLoading || isLoading}
+              activeOpacity={0.7}
+              testID="login-google-button"
+            >
+              {isGoogleLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={Colors.textPrimary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+              ) : (
+                <Ionicons
+                  name="logo-google"
+                  size={20}
+                  color="#DB4437"
+                  style={{ marginRight: Spacing.sm }}
+                />
+              )}
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
 
             {/* Register Link */}
             <View
@@ -290,5 +391,41 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.primary,
     fontWeight: "700",
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: Spacing.xl,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    marginHorizontal: Spacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    height: 52,
+  },
+  googleButtonDisabled: {
+    opacity: 0.5,
+  },
+  googleButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textPrimary,
   },
 });

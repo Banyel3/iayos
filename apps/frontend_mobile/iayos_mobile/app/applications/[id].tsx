@@ -1,7 +1,7 @@
 // Application Detail Screen
 // Shows detailed information about a job application with timeline and actions
 
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 
 // ===== TYPES =====
 
@@ -184,20 +185,11 @@ export default function ApplicationDetailScreen() {
     },
   });
 
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+
   // Handle withdraw
   const handleWithdraw = () => {
-    Alert.alert(
-      "Withdraw Application",
-      "Are you sure you want to withdraw this application? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Withdraw",
-          style: "destructive",
-          onPress: () => withdrawMutation.mutate(),
-        },
-      ]
-    );
+    setShowWithdrawConfirm(true);
   };
 
   // ===== LOADING STATE =====
@@ -432,6 +424,22 @@ export default function ApplicationDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      <CountdownConfirmModal
+        visible={showWithdrawConfirm}
+        title="Withdraw Application"
+        message="Are you sure you want to withdraw this application? This action cannot be undone."
+        confirmLabel="Withdraw"
+        confirmStyle="destructive"
+        countdownSeconds={5}
+        onConfirm={() => {
+          setShowWithdrawConfirm(false);
+          withdrawMutation.mutate();
+        }}
+        onCancel={() => setShowWithdrawConfirm(false)}
+        icon="close-circle"
+        iconColor={Colors.error}
+      />
     </View>
   );
 }

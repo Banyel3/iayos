@@ -135,15 +135,14 @@ def create_account_individ(data):
             )
             print(f"✅ Auto-created ClientProfile during registration for {user.email}")
 
-    # Return OTP for email sending (frontend will trigger email)
+    # Return registration data (OTP is kept server-side for security)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     return {
         "accountID": user.accountID,
         "verifyLink": verifyLink,  # Legacy, kept for backward compatibility
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
         "email": user.email,
-        "otp_code": otp_code,  # New: OTP code for email
-        "otp_expiry_minutes": 5  # New: Expiry time in minutes
+        "otp_expiry_minutes": 5  # Tells frontend how long OTP is valid
     }
 def create_account_agency(data):
     # 1️⃣ Check if email exists
@@ -396,6 +395,29 @@ def forgot_password_request(data):
         "email": user.email
     }
 
+def forgot_password_send_otp(email: str):
+    """Generate and store a 6-digit OTP for password reset (mobile flow)."""
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        # Return generic success to prevent email enumeration
+        return {
+            "success": True,
+            "message": "If an account with that email exists, a reset code has been sent.",
+            "email": email.lower(),
+        }
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0
+    user.save()
+    return {
+        "success": True,
+        "email": user.email,
+        "expires_in_minutes": 5,
+    }
+
+
 def reset_password_verify(verifyToken, userID, data, request=None):
     """Reset user password with verification token"""
     
@@ -416,10 +438,13 @@ def reset_password_verify(verifyToken, userID, data, request=None):
     if user.verifyTokenExpiry < timezone.now():
         raise ValueError("Reset token has expired")
     
-    # 5️⃣ Update password and clear reset token
+    # 5️⃣ Update password, clear reset token, and mark email as verified
+    # The user proved email access via OTP during the forgot-password flow,
+    # so auto-verify their account if it isn't already.
     user.set_password(data.newPassword)  # This properly hashes the password
     user.verifyToken = None
     user.verifyTokenExpiry = None
+    user.isVerified = True
     user.save()
     
     # 6️⃣ Log password reset for audit trail
@@ -523,6 +548,34 @@ def fetch_currentUser(accountID, profile_type=None):
             user_role = "ADMIN"
             print(f"✅ fetch_currentUser: User {account.email} is staff/superuser, setting role to ADMIN")
 
+        # AGENCY CHECK FIRST: Unless the JWT explicitly says WORKER or CLIENT
+        # (mobile app), always check Agency before Profile. This prevents users
+        # who have BOTH a stale CLIENT Profile and an Agency from being
+        # misidentified as "individual".  Covers: profile_type=AGENCY,
+        # profile_type=None (old cookie / web default), or any other value.
+        _pt = (profile_type or '').upper()
+        if _pt not in ('WORKER', 'CLIENT'):
+            agency = Agency.objects.filter(accountFK=account).first()
+            if agency:
+                print(f"✅ fetch_currentUser: Agency found for {account.email} (profile_type={profile_type})")
+                needs_completion = not agency.businessName or not agency.contactNumber
+                return {
+                    "accountID": account.accountID,
+                    "email": account.email,
+                    "role": user_role,
+                    "kycVerified": account.KYCVerified,
+                    "profile_data": {
+                        "profileType": "AGENCY",
+                        "businessName": agency.businessName or "",
+                        "contactNumber": agency.contactNumber or "",
+                        "businessDesc": agency.businessDesc or "",
+                    },
+                    "accountType": "agency",
+                    "needs_profile_completion": needs_completion,
+                }
+            else:
+                print(f"⚠️  fetch_currentUser: No Agency record for {account.email}, falling through to Profile")
+
         try:
             # If profile_type is specified (from JWT), fetch that specific profile
             if profile_type:
@@ -617,6 +670,7 @@ def fetch_currentUser(accountID, profile_type=None):
             print(f"   👤 Profile Data for {account.email}: Type={profile.profileType} (Raw: {repr(profile.profileType)})")
 
             # If a Profile exists we treat this as an "individual" account
+            needs_profile_completion = not profile.contactNum or not profile.birthDate
             return {
                 "accountID": account.accountID,
                 "email": account.email,
@@ -624,27 +678,44 @@ def fetch_currentUser(accountID, profile_type=None):
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
                 "accountType": "individual",
+                "needs_profile_completion": needs_profile_completion,
             }
 
         except Profile.DoesNotExist:
             # No Profile found - check if this account has an Agency record
             try:
-                is_agency = Agency.objects.filter(accountFK=account).exists()
+                agency = Agency.objects.filter(accountFK=account).first()
             except Exception:
-                is_agency = False
+                agency = None
 
-            account_type = "agency" if is_agency else "individual"
-
-            return {
-                "accountID": account.accountID,
-                "email": account.email,
-                "role": user_role,
-                "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
-                "profile_data": None,
-                "user_data": {},
-                "skill_categories": [],
-                "accountType": account_type,
-            }
+            if agency:
+                # Agency user — return agency-specific data
+                needs_completion = not agency.businessName or not agency.contactNumber
+                return {
+                    "accountID": account.accountID,
+                    "email": account.email,
+                    "role": user_role,
+                    "kycVerified": account.KYCVerified,
+                    "profile_data": {
+                        "profileType": "AGENCY",
+                        "businessName": agency.businessName or "",
+                        "contactNumber": agency.contactNumber or "",
+                        "businessDesc": agency.businessDesc or "",
+                    },
+                    "accountType": "agency",
+                    "needs_profile_completion": needs_completion,
+                }
+            else:
+                return {
+                    "accountID": account.accountID,
+                    "email": account.email,
+                    "role": user_role,
+                    "kycVerified": account.KYCVerified,
+                    "profile_data": None,
+                    "user_data": {},
+                    "skill_categories": [],
+                    "accountType": "individual",
+                }
 
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
@@ -728,7 +799,7 @@ def assign_role(data):
         print(f"❌ Error assigning role: {str(e)}")
         raise ValueError(f"Failed to assign role: {str(e)}")
 
-def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None):
+def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, selfie=None, skip_ai_verification=True, extracted_id_data=None, extracted_clearance_data=None, pre_uploaded_urls=None):
     """
     Upload KYC documents to storage and create database records.
     
@@ -759,9 +830,11 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         
         # Log which files were received
         received_files = [key for key, file in images.items() if file]
+        pre_url_keys = list(pre_uploaded_urls.keys()) if pre_uploaded_urls else []
         print(f"📎 Files received: {', '.join(received_files) if received_files else 'NONE'}")
+        print(f"📎 Pre-uploaded URLs: {', '.join(pre_url_keys) if pre_url_keys else 'NONE'}")
         
-        if not received_files:
+        if not received_files and not pre_url_keys:
             print("❌ CRITICAL: No files received in upload request!")
             raise ValueError("No files were provided for upload")
 
@@ -836,6 +909,24 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         # Upload each file
         for key, file in images.items():
             if not file:
+                # Check if a pre-uploaded URL exists for this key
+                if pre_uploaded_urls and key in pre_uploaded_urls:
+                    pre_url = pre_uploaded_urls[key]
+                    if key in ['FRONTID', 'BACKID']:
+                        _id_type = payload.IDType.upper() if payload.IDType else key
+                    elif key == 'CLEARANCE':
+                        _id_type = payload.clearanceType.upper() if payload.clearanceType else key
+                    else:
+                        _id_type = None  # SELFIE has no IDType (field is null=True)
+                    kycFiles.objects.create(
+                        kycID=kyc_record,
+                        idType=_id_type,
+                        fileURL=pre_url,
+                        fileName=f"{key.lower()}_staged",
+                        fileSize=0
+                    )
+                    uploaded_files.append({'key': key, 'url': pre_url, 'pre_staged': True})
+                    print(f"✅ Using pre-staged URL for {key}: {pre_url}")
                 continue
 
             if file.content_type not in allowed_mime_types:
@@ -969,6 +1060,26 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
         # Runs ASYNC in background thread to avoid
         # proxy timeout (dlib encoding takes 5-15s)
         # ============================================
+        # Ensure pre-staged FRONTID/SELFIE bytes are in cache so face matching
+        # runs even when files were uploaded in a prior request (pre-staged flow).
+        for _face_key in ['FRONTID', 'SELFIE']:
+            if _face_key not in file_data_cache and pre_uploaded_urls and _face_key in pre_uploaded_urls:
+                try:
+                    _pre_path = pre_uploaded_urls[_face_key]
+                    # Extract storage path from full URL if needed
+                    if '/object/public/' in _pre_path:
+                        _pre_path = _pre_path.split('/object/public/kyc-docs/')[-1]
+                    elif '/object/sign/' in _pre_path:
+                        _pre_path = _pre_path.split('/object/sign/kyc-docs/')[-1].split('?')[0]
+                    _face_bytes = settings.STORAGE.storage().from_('kyc-docs').download(_pre_path)
+                    if _face_bytes:
+                        file_data_cache[_face_key] = _face_bytes
+                        print(f"📥 Downloaded {_face_key} bytes from storage for face matching ({len(_face_bytes):,} bytes)")
+                    else:
+                        print(f"⚠️ Could not download {_face_key} for face matching: empty response")
+                except Exception as _face_dl_err:
+                    print(f"⚠️ Could not download {_face_key} for face matching: {_face_dl_err}")
+
         face_match_result = None
         if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
             print("🔍 Scheduling ASYNC face matching between ID and selfie...")
@@ -1002,8 +1113,29 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
                         defaults={'extraction_status': 'CONFIRMED'}
                     )
                     
+                    # Fix A: key is 'error' not 'reason' in FaceComparisonResult.to_dict()
                     if result.get('skipped'):
-                        print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('reason')}")
+                        print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('error')}")
+                        # face_recognition model not installed — leave KYC as PENDING
+                        # for manual admin review instead of auto-approving.
+                        kyc_rec.notes = (
+                            "Pending manual review: Face comparison unavailable "
+                            "(face_recognition model not installed on server). "
+                            "Please verify ID and selfie match manually."
+                        )
+                        kyc_rec.save(update_fields=['notes'])
+                        try:
+                            from accounts.models import Accounts
+                            account = Accounts.objects.get(accountID=account_id)
+                            Notification.objects.create(
+                                accountFK=account,
+                                notificationType=Notification.NotificationType.KYC_APPROVED,
+                                title='KYC Under Manual Review 🔍',
+                                message='Your KYC submission is being reviewed by our team. You will be notified within 1-2 business days.',
+                            )
+                            print(f"🧵 [ASYNC FACE MATCH] 🔍 KYC flagged for manual review (kycID={kyc_record_id}) — face model unavailable")
+                        except Exception as notif_err:
+                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
                         return
                     
                     similarity = result.get('similarity', 0)
@@ -1016,6 +1148,26 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
                     
                     if result.get('match'):
                         print(f"🧵 [ASYNC FACE MATCH] ✅ PASSED: similarity={similarity:.2f} (kycID={kyc_record_id})")
+                        # Fix C: auto-approval was completely missing from the happy path.
+                        # The reject branch correctly wrote REJECTED but APPROVED was never
+                        # written — KYC stayed PENDING forever even after a passing face match.
+                        try:
+                            from accounts.models import Accounts
+                            kyc_rec.kyc_status = 'APPROVED'
+                            kyc_rec.notes = f"Auto-approved: Face match passed (similarity: {similarity:.0%})."
+                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
+                            account = Accounts.objects.get(accountID=account_id)
+                            account.KYCVerified = True
+                            account.save(update_fields=['KYCVerified'])
+                            Notification.objects.create(
+                                accountFK=account,
+                                notificationType=Notification.NotificationType.KYC_APPROVED,
+                                title='KYC Verified ✅',
+                                message='Your identity documents have been verified successfully.',
+                            )
+                            print(f"🧵 [ASYNC FACE MATCH] ✅ KYC auto-approved (kycID={kyc_record_id})")
+                        except Exception as approve_err:
+                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Auto-approve error: {approve_err}")
                     else:
                         if similarity > 0:
                             # Faces detected but don't match → auto-reject
@@ -1030,14 +1182,33 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie, skip_ai_ver
                                 account = Accounts.objects.get(accountID=account_id)
                                 Notification.objects.create(
                                     accountFK=account,
-                                    type='KYC',
+                                    notificationType=Notification.NotificationType.KYC_REJECTED,
                                     title='KYC Verification Failed ❌',
-                                    body=f'Your selfie does not match your ID photo (similarity: {similarity:.0%}). Please resubmit with matching photos.',
+                                    message=f'Your selfie does not match your ID photo (similarity: {similarity:.0%}). Please resubmit with matching photos.',
                                 )
                             except Exception as notif_err:
                                 print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
                         else:
+                            # Fix D: face_recognition available but couldn't encode faces
+                            # (bad photo quality / no face detected). Flag for manual review
+                            # instead of silently doing nothing.
                             print(f"🧵 [ASYNC FACE MATCH] ⚠️ Could not extract faces: {result.get('error')}")
+                            kyc_rec.notes = (
+                                f"Pending manual review: Unable to extract face encodings from documents. "
+                                f"Error: {result.get('error')}"
+                            )
+                            kyc_rec.save(update_fields=['notes'])
+                            try:
+                                from accounts.models import Accounts
+                                account = Accounts.objects.get(accountID=account_id)
+                                Notification.objects.create(
+                                    accountFK=account,
+                                    notificationType=Notification.NotificationType.KYC_APPROVED,
+                                    title='KYC Under Review 🔍',
+                                    message='Your KYC submission is being reviewed manually by our team. You will be notified within 1-2 business days.',
+                                )
+                            except Exception as notif_err:
+                                print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
                     
                     print(f"🧵 [ASYNC FACE MATCH] Complete for kycID={kyc_record_id}")
                     

@@ -23,10 +23,17 @@ interface Transaction {
   payment_method: string;
   status: PaymentStatus;
   created_at: string;
+  type?: string;
+  transaction_type_label?: string;
+  description?: string;
+  reference_number?: string | null;
+  balance_after?: number | null;
+  paymongo_checkout_url?: string | null;
   job?: {
     id: number;
     title: string;
-  };
+    status?: string;
+  } | null;
   transaction_id?: string;
 }
 
@@ -94,13 +101,20 @@ export default function TransactionCard({
       <View style={styles.content}>
         <View style={styles.topRow}>
           <Text style={styles.jobTitle} numberOfLines={1}>
-            {transaction.job?.title || "Payment"}
+            {transaction.transaction_type_label || transaction.job?.title || "Payment"}
           </Text>
           <Text style={[styles.amount, isPositive && styles.amountPositive]}>
             {isPositive ? "+" : ""}
             {formatCurrency(transaction.amount)}
           </Text>
         </View>
+
+        {/* Job context line */}
+        {transaction.job?.title && (
+          <Text style={styles.jobContext} numberOfLines={1}>
+            📋 {transaction.job.title}
+          </Text>
+        )}
 
         <View style={styles.bottomRow}>
           <View style={styles.metaContainer}>
@@ -112,7 +126,14 @@ export default function TransactionCard({
               {formatDate(transaction.created_at)}
             </Text>
           </View>
-          <PaymentStatusBadge status={transaction.status} size="small" />
+          <View style={styles.rightInfo}>
+            {transaction.balance_after != null && (
+              <Text style={styles.balanceAfter}>
+                Bal: {formatCurrency(transaction.balance_after)}
+              </Text>
+            )}
+            <PaymentStatusBadge status={transaction.status} size="small" />
+          </View>
         </View>
       </View>
 
@@ -165,6 +186,11 @@ const styles = StyleSheet.create({
   amountPositive: {
     color: Colors.success,
   },
+  jobContext: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -174,6 +200,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
+  },
+  rightInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  balanceAfter: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textLight,
+    fontStyle: "italic",
   },
   method: {
     fontSize: Typography.fontSize.xs,

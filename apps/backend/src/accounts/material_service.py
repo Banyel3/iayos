@@ -1,12 +1,12 @@
 # material_service.py
-# Worker Materials/Products Management Service
+# Worker & Agency Materials/Products Management Service
 
 import os
 import re
 from decimal import Decimal
 from pathlib import Path
 
-from .models import WorkerProfile, WorkerMaterial, Specializations, workerSpecialization, Notification
+from .models import WorkerProfile, WorkerMaterial, Specializations, workerSpecialization, Notification, Agency
 from django.core.exceptions import ObjectDoesNotExist
 from typing import Dict, List, Optional
 from iayos_project.utils import upload_file
@@ -421,3 +421,215 @@ def _validate_material_image(file) -> str:
         raise ValueError(f"Image size must be {MAX_IMAGE_SIZE_MB}MB or less")
 
     return extension
+
+
+# ========== AGENCY MATERIAL FUNCTIONS ==========
+
+
+def add_agency_material(
+    agency: Agency,
+    name: str,
+    description: str,
+    price: float,
+    unit: str = DEFAULT_UNIT,
+    quantity: float = 1.0,
+    image_file=None,
+    category_id: Optional[int] = None,
+) -> Dict:
+    """Add a new material/product for an agency."""
+    if not name or len(name.strip()) == 0:
+        raise ValueError("Material name is required")
+    if price <= 0:
+        raise ValueError("Price must be greater than 0")
+    if quantity is None or quantity <= 0:
+        raise ValueError("Quantity must be greater than 0")
+
+    sanitized_unit = _sanitize_unit(unit)
+    price_value = Decimal(str(price))
+    quantity_value = Decimal(str(quantity))
+
+    # Validate category if provided (no specialization check for agencies)
+    category = None
+    if category_id:
+        try:
+            category = Specializations.objects.get(specializationID=category_id)
+        except Specializations.DoesNotExist:
+            raise ValueError(f"Category with ID {category_id} not found")
+
+    image_url = ""
+    if image_file:
+        try:
+            file_name = f"material_{name.replace(' ', '_')}_{int(datetime.now().timestamp())}"
+            image_url = upload_agency_material_image(image_file, file_name, agency.agencyId)
+            if not image_url:
+                raise ValueError("Failed to upload material image")
+        except Exception as e:
+            raise ValueError(f"Image upload failed: {str(e)}")
+
+    material = WorkerMaterial.objects.create(
+        agencyID=agency,
+        workerID=None,
+        name=name.strip(),
+        description=description.strip() if description else "",
+        price=price_value,
+        quantity=quantity_value,
+        unit=sanitized_unit,
+        image_url=image_url,
+        is_available=True,
+        categoryID=category,
+    )
+
+    try:
+        Notification.objects.create(
+            accountFK=agency.accountFK,
+            notificationType='SYSTEM',
+            title='Material Added',
+            message=f'Successfully added material: {name}',
+            isRead=False
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create notification: {e}")
+
+    return _format_material(material)
+
+
+def list_agency_materials(agency: Agency, category_id: Optional[int] = None) -> List[Dict]:
+    """Get all materials for an agency, optionally filtered by category."""
+    queryset = WorkerMaterial.objects.filter(agencyID=agency)
+    if category_id:
+        queryset = queryset.filter(categoryID_id=category_id)
+    materials = queryset.order_by('-createdAt')
+    return [_format_material(material) for material in materials]
+
+
+def list_agency_materials_for_client(agency_id: int, category_id: Optional[int] = None) -> List[Dict]:
+    """Get available materials for an agency visible to clients."""
+    try:
+        agency = Agency.objects.get(agencyId=agency_id)
+    except Agency.DoesNotExist:
+        raise ValueError("Agency not found")
+
+    queryset = WorkerMaterial.objects.filter(agencyID=agency, is_available=True)
+    if category_id:
+        queryset = queryset.filter(categoryID_id=category_id)
+    materials = queryset.order_by('-createdAt')
+    return [_format_material(material) for material in materials]
+
+
+def update_agency_material(
+    agency: Agency,
+    material_id: int,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    price: Optional[float] = None,
+    unit: Optional[str] = None,
+    quantity: Optional[float] = None,
+    is_available: Optional[bool] = None,
+    image_file=None,
+    category_id: Optional[int] = None,
+) -> Dict:
+    """Update an agency material."""
+    try:
+        material = WorkerMaterial.objects.get(materialID=material_id, agencyID=agency)
+    except ObjectDoesNotExist:
+        raise ValueError("Material not found or does not belong to this agency")
+
+    if name is not None:
+        if len(name.strip()) == 0:
+            raise ValueError("Material name cannot be empty")
+        material.name = name.strip()
+    if description is not None:
+        material.description = description.strip()
+    if price is not None:
+        if price <= 0:
+            raise ValueError("Price must be greater than 0")
+        material.price = Decimal(str(price))
+    if unit is not None:
+        material.unit = _sanitize_unit(unit)
+    if quantity is not None:
+        if quantity <= 0:
+            raise ValueError("Quantity must be greater than 0")
+        material.quantity = Decimal(str(quantity))
+    if is_available is not None:
+        material.is_available = is_available
+
+    if category_id is not None:
+        if category_id == -1:
+            material.categoryID = None
+        else:
+            try:
+                category = Specializations.objects.get(specializationID=category_id)
+                material.categoryID = category
+            except Specializations.DoesNotExist:
+                raise ValueError(f"Category with ID {category_id} not found")
+
+    if image_file:
+        try:
+            file_name = f"mat_{material.name.replace(' ', '_')}_{int(datetime.now().timestamp())}"
+            image_url = upload_agency_material_image(image_file, file_name, agency.agencyId)
+            if not image_url:
+                raise ValueError("Failed to upload material image")
+            material.image_url = image_url
+        except Exception as e:
+            raise ValueError(f"Material image upload failed: {str(e)}")
+
+    material.save()
+
+    try:
+        Notification.objects.create(
+            accountFK=agency.accountFK,
+            notificationType='SYSTEM',
+            title='Material Updated',
+            message=f'Successfully updated material: {material.name}',
+            isRead=False
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create notification: {e}")
+
+    return _format_material(material)
+
+
+def delete_agency_material(agency: Agency, material_id: int) -> Dict:
+    """Delete an agency material."""
+    try:
+        material = WorkerMaterial.objects.get(materialID=material_id, agencyID=agency)
+    except ObjectDoesNotExist:
+        raise ValueError("Material not found or does not belong to this agency")
+
+    material_name = material.name
+    material.delete()
+
+    try:
+        Notification.objects.create(
+            accountFK=agency.accountFK,
+            notificationType='SYSTEM',
+            title='Material Deleted',
+            message=f'Successfully deleted material: {material_name}',
+            isRead=False
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create notification: {e}")
+
+    return {"success": True, "message": f"Material '{material_name}' deleted successfully"}
+
+
+def upload_agency_material_image(file, file_name: str, agency_id: int) -> str:
+    """Upload agency material image to Supabase storage."""
+    try:
+        if not file:
+            raise ValueError("No image file provided")
+        extension = _validate_material_image(file)
+        bucket_name = "users"
+        folder_path = f"agency_{agency_id}/materials"
+        unique_name = f"{file_name}{extension}"
+        file_url = upload_file(
+            file, bucket=bucket_name, path=folder_path, public=True, custom_name=unique_name,
+        )
+        if not file_url:
+            raise ValueError("Failed to upload material image")
+        return file_url
+    except ValueError:
+        raise
+    except Exception as e:
+        print(f"❌ Error uploading agency material image: {e}")
+        raise ValueError(f"Failed to upload agency material image: {str(e)}")

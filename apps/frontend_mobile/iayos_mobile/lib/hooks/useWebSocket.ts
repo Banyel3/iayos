@@ -139,6 +139,25 @@ export function useMessageListener(conversationId?: number) {
   const queryClient = useQueryClient();
   const [latestMessage, setLatestMessage] = useState<ChatMessage | null>(null);
 
+  // Subscribe to conversation group dynamically when entering a conversation
+  // This ensures real-time delivery for conversations created after the WS connection
+  useEffect(() => {
+    if (conversationId && websocketService.isConnected()) {
+      websocketService.subscribeToConversation(conversationId);
+    }
+
+    // Also subscribe when WS reconnects
+    const unsubConnect = websocketService.onConnect(() => {
+      if (conversationId) {
+        websocketService.subscribeToConversation(conversationId);
+      }
+    });
+
+    return () => {
+      unsubConnect();
+    };
+  }, [conversationId]);
+
   useEffect(() => {
     const unsubscribe = websocketService.onMessage((data: WebSocketMessage) => {
       if (data.type === "chat_message" && data.message) {

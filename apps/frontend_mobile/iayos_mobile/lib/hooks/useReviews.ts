@@ -212,13 +212,13 @@ export function useSubmitReview() {
 // EDIT REVIEW
 // ============================================================================
 
-export function useEditReview(reviewId: number) {
+export function useEditReview() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: EditReviewRequest): Promise<Review> => {
+    mutationFn: async (data: EditReviewRequest & { reviewId: number }): Promise<Review> => {
       const response = await apiRequest(
-        `${ENDPOINTS.EDIT_REVIEW(reviewId)}?comment=${encodeURIComponent(data.comment)}&rating=${data.rating}`,
+        `${ENDPOINTS.EDIT_REVIEW(data.reviewId)}?comment=${encodeURIComponent(data.comment)}&rating=${data.rating}`,
         {
           method: "PUT",
         }

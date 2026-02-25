@@ -10,11 +10,14 @@ export interface User {
   // Backend-provided accountType is either 'agency' or 'individual'
   accountType?: "agency" | "individual" | string;
   kycVerified?: boolean; // KYC verification status from database
+  needs_profile_completion?: boolean; // True for Google OAuth users missing required fields
   profile_data?: {
     firstName?: string;
     lastName?: string;
     profileImg?: string;
     profileType?: UserProfileType;
+    contactNum?: string;
+    birthDate?: string;
   };
   user_data?: any;
   skill_categories?: any[];

@@ -4,11 +4,11 @@ from ninja import Router, Form as NinjaForm, File as NinjaFile, Body
 from ninja.files import UploadedFile
 from .schemas import (
     createAccountSchema, logInSchema, createAgencySchema,
-    forgotPasswordSchema, resetPasswordSchema, assignRoleSchema,
+    forgotPasswordSchema, resetPasswordSchema, ForgotPasswordOTPVerifySchema, assignRoleSchema,
     KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
     UpdateLocationSchema, LocationResponseSchema,
     ToggleLocationSharingSchema, NearbyWorkersSchema,
-    DepositFundsSchema,
+    DepositFundsSchema, CompleteProfileSchema,
     # Worker Phase 1 schemas
     WorkerProfileUpdateSchema, WorkerProfileResponse, ProfileCompletionResponse,
     CertificationSchema, AddCertificationRequest, UpdateCertificationRequest, CertificationResponse,
@@ -42,7 +42,8 @@ from .portfolio_service import (
 )
 from .models import Profile, WorkerProfile, Accounts
 from .material_service import (
-    add_material, list_materials, list_materials_for_client, update_material, delete_material
+    add_material, list_materials, list_materials_for_client, update_material, delete_material,
+    list_agency_materials_for_client,
 )
 # Profile metrics helpers
 from .profile_metrics_service import get_profile_metrics
@@ -53,6 +54,7 @@ from .review_service import (
 )
 from ninja.responses import Response
 from .authentication import cookie_auth, dual_auth
+from django.conf import settings
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -112,10 +114,84 @@ def google_login(request):
     
 @router.get("/auth/google/callback")
 def google_callback(request):
-    if not request.user.is_authenticated:
-        return {"error": "Authentication failed"}
-    
-    return generateCookie(request.user)
+    import json
+    import traceback
+    from urllib.parse import quote
+    from django.http import HttpResponseRedirect
+    from .models import Agency
+
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    is_production = not settings.DEBUG
+    cookie_domain = ".iayos.online" if is_production else None
+
+    try:
+        if not request.user.is_authenticated:
+            print("❌ Google OAuth callback: user NOT authenticated")
+            return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_auth_failed")
+
+        user = request.user
+        print(f"✅ Google OAuth callback: user={user.email}, pk={user.pk}")
+
+        # Google-verified email → auto-verify the account
+        if not user.isVerified:
+            user.isVerified = True
+            user.save(update_fields=['isVerified'])
+            print(f"✅ Google OAuth: Auto-verified email for {user.email}")
+
+        # Web Google OAuth creates AGENCY accounts (client/worker use mobile)
+        # If user already has an Agency → they're a returning user, just log them in.
+        # Only redirect to complete-profile for brand-new Google signups.
+        needs_profile_completion = False
+        existing_agency = Agency.objects.filter(accountFK=user).first()
+        if not existing_agency:
+            # Brand-new Google signup — create Agency and ask them to complete profile
+            business_name = ''
+            try:
+                from allauth.socialaccount.models import SocialAccount
+                sa = SocialAccount.objects.filter(user=user, provider='google').first()
+                if sa and sa.extra_data:
+                    full_name = sa.extra_data.get('name', '') or ''
+                    business_name = full_name
+            except Exception:
+                pass
+
+            Agency.objects.create(
+                accountFK=user,
+                businessName=business_name[:50] or user.email.split('@')[0][:50],
+            )
+            print(f"✅ Google OAuth: Created AGENCY for {user.email}")
+            needs_profile_completion = True
+        else:
+            # Existing agency account — just log them in, no forced completion
+            print(f"✅ Google OAuth: Existing agency found for {user.email}, logging in")
+
+        # Generate auth tokens — explicitly set profile_type to AGENCY
+        auth_response = generateCookie(user, profile_type='AGENCY')
+        auth_data = json.loads(auth_response.content)
+
+        # Redirect to complete-profile if missing required fields, otherwise agency dashboard
+        if needs_profile_completion:
+            redirect_url = f"{frontend_url}/auth/complete-profile"
+        else:
+            redirect_url = f"{frontend_url}/agency/dashboard"
+
+        response = HttpResponseRedirect(redirect_url)
+        response.set_cookie('access', auth_data['access'], httponly=True, secure=is_production, samesite='Lax', max_age=3600, domain=cookie_domain)
+        response.set_cookie('refresh', auth_data['refresh'], httponly=True, secure=is_production, samesite='Lax', max_age=604800, domain=cookie_domain)
+
+        print(f"✅ Google OAuth callback complete: redirecting to {redirect_url}")
+        return response
+
+    except Exception as exc:
+        # Log full traceback so we can diagnose from Docker logs
+        tb = traceback.format_exc()
+        print(f"❌ Google OAuth callback CRASHED: {exc}")
+        print(tb)
+        # Surface the error in the redirect URL so the user/developer can see it
+        error_msg = quote(str(exc)[:200])
+        return HttpResponseRedirect(
+            f"{frontend_url}/auth/login?error=google_callback_error&detail={error_msg}"
+        )
 @router.post("/register")
 def register(request, payload: createAccountSchema):
     try:
@@ -184,12 +260,53 @@ def refresh(request):
 def get_user_profile(request):
     try:
         user = request.auth  # This comes from our dual_auth (cookie or JWT Bearer)
-        print(f"✅ /me - Authenticated user: {user.email}")
-        result = fetch_currentUser(user.accountID)
+        profile_type = getattr(user, 'profile_type', None)
+        print(f"✅ /me - Authenticated user: {user.email}, profile_type from JWT: {profile_type}")
+        result = fetch_currentUser(user.accountID, profile_type=profile_type)
         return result
     except Exception as e:
         print(f"❌ /me error: {str(e)}")
         return {"error": [{"message": "Failed to fetch user profile"}]}
+
+
+@router.post("/complete-profile", auth=dual_auth)  
+def complete_profile(request, payload: CompleteProfileSchema):
+    """
+    Complete agency profile for Google OAuth users who are missing required fields.
+    Accepts: businessName, contactNumber, businessDesc, and address fields.
+    """
+    from .models import Agency
+    
+    try:
+        user = request.auth
+        
+        # Validate business name
+        if not payload.businessName or len(payload.businessName.strip()) < 2:
+            return Response({"error": "Business name is required (at least 2 characters)"}, status=400)
+        
+        # Find the agency record for this user
+        agency = Agency.objects.filter(accountFK=user).first()
+        if not agency:
+            return Response({"error": "Agency record not found"}, status=404)
+        
+        # Update Agency fields
+        agency.businessName = payload.businessName.strip()[:50]
+        agency.contactNumber = payload.contactNumber.strip()[:11] if payload.contactNumber else ''
+        agency.businessDesc = payload.businessDesc.strip()[:255] if payload.businessDesc else ''
+        agency.street_address = payload.street_address or agency.street_address
+        agency.barangay = payload.barangay or agency.barangay
+        agency.city = payload.city or agency.city
+        agency.province = payload.province or agency.province
+        agency.postal_code = payload.postal_code or agency.postal_code
+        agency.save()
+        print(f"✅ complete-profile: Updated agency profile for {user.email}")
+        
+        return {"success": True, "message": "Agency profile completed successfully"}
+    except Exception as e:
+        print(f"❌ complete-profile error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to complete profile"}, status=500)
 
 
 @router.get("/profile/metrics", auth=dual_auth)
@@ -361,23 +478,91 @@ def resend_otp(request, payload: dict = Body(...)):
     
     print(f"📧 [OTP RESEND] New OTP generated for: {email}")
     
+    # Automatically send the email server-side
+    try:
+        from accounts.mobile_api import _send_otp_email_internal
+        _send_otp_email_internal(email)
+        print(f"✅ OTP email auto-sent for resend: {email}")
+    except Exception as email_err:
+        print(f"⚠️ Failed to auto-send OTP email on resend: {email_err}")
+    
     return {
         "success": True,
         "message": "New OTP sent to your email",
-        "otp_code": otp_code,  # Frontend will use this to send email
         "expires_in_minutes": 5
     }
 
 @router.post("/forgot-password/send-verify")
 def forgot_password_send_verify(request, payload: forgotPasswordSchema):
-    """Send password reset verification email"""
+    """Send 6-digit OTP to email for password reset (mobile flow)"""
+    from .services import forgot_password_send_otp
     try:
-        result = forgot_password_request(payload)
+        result = forgot_password_send_otp(payload.email)
+        try:
+            from accounts.mobile_api import _send_otp_email_internal
+            _send_otp_email_internal(payload.email)
+        except Exception as email_err:
+            print(f"⚠️ Failed to send password reset OTP email: {email_err}")
         return result
-    except ValueError as e:
-        return {"error": [{"message": str(e)}]}
     except Exception as e:
         return {"error": [{"message": "Password reset request failed"}]}
+
+@router.post("/forgot-password/verify-otp")
+def forgot_password_verify_otp_code(request, payload: ForgotPasswordOTPVerifySchema):
+    """Verify OTP for password reset — issues a resetToken on success."""
+    from django.utils import timezone as tz
+    import uuid as uuid_lib
+    import hashlib
+
+    email = payload.email.strip().lower()
+    otp = str(payload.otp).strip()
+
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        return {"success": False, "error": "Account not found"}
+
+    if not user.email_otp:
+        return {"success": False, "error": "No reset code found. Please request a new one."}
+
+    if user.email_otp_attempts >= 5:
+        return {
+            "success": False,
+            "error": "Too many failed attempts. Please request a new code.",
+            "max_attempts_reached": True,
+        }
+
+    if user.email_otp_expiry and user.email_otp_expiry < tz.now():
+        return {
+            "success": False,
+            "error": "Reset code has expired. Please request a new one.",
+            "expired": True,
+        }
+
+    if user.email_otp != otp:
+        user.email_otp_attempts += 1
+        user.save()
+        remaining = 5 - user.email_otp_attempts
+        return {
+            "success": False,
+            "error": f"Invalid code. {remaining} attempt{'s' if remaining != 1 else ''} remaining.",
+            "remaining_attempts": remaining,
+        }
+
+    # OTP valid — generate reset token and clear OTP
+    reset_token = str(uuid_lib.uuid4())
+    user.verifyToken = hashlib.sha256(reset_token.encode()).hexdigest()
+    user.email_otp = None
+    user.email_otp_expiry = None
+    user.email_otp_attempts = 0
+    user.save()
+
+    return {
+        "success": True,
+        "message": "Code verified successfully.",
+        "resetToken": reset_token,
+        "accountId": user.accountID,
+    }
 
 @router.post("/forgot-password/verify")
 def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: str, id: int):
@@ -412,10 +597,19 @@ def upload_kyc(request):
             IDType=IDType,
             clearanceType=clearanceType
         )
+        # Collect any pre-staged file URLs (sent instead of raw files)
+        pre_uploaded_urls = {}
+        for _key, _field in [("FRONTID", "frontID_url"), ("BACKID", "backID_url"),
+                              ("CLEARANCE", "clearance_url"), ("SELFIE", "selfie_url")]:
+            _url_val = request.POST.get(_field)
+            if _url_val:
+                pre_uploaded_urls[_key] = _url_val
+
         result = upload_kyc_document(
             payload, frontID, backID, clearance, selfie,
             extracted_id_data=extracted_id_data,
-            extracted_clearance_data=extracted_clearance_data
+            extracted_clearance_data=extracted_clearance_data,
+            pre_uploaded_urls=pre_uploaded_urls or None
         )
         return result
     except ValueError as e:
@@ -426,6 +620,62 @@ def upload_kyc(request):
         import traceback
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
+
+
+@router.post("/kyc/stage-file", auth=dual_auth)
+def stage_kyc_file(request):
+    """
+    Stage a single KYC file to Supabase before the final metadata submission.
+    Call this for each of the 4 KYC documents individually, then POST only
+    the returned URLs (no files) to /upload/kyc.
+
+    Request: multipart/form-data
+    - file_key: one of FRONTID, BACKID, CLEARANCE, SELFIE
+    - file: the image file (JPEG/PNG/PDF, max 5 MB)
+
+    Response:
+    - success: bool
+    - file_key: str
+    - file_url: str
+    """
+    try:
+        from iayos_project.utils import upload_kyc_doc
+        from uuid import uuid4
+        from time import time
+        import os
+
+        user = request.auth
+        file_key = request.POST.get("file_key", "").upper()
+        valid_keys = ("FRONTID", "BACKID", "CLEARANCE", "SELFIE")
+        if file_key not in valid_keys:
+            return {"error": [{"message": f"file_key must be one of {valid_keys}"}]}
+
+        file = request.FILES.get("file")
+        if not file:
+            return {"error": [{"message": "No file provided"}]}
+
+        allowed_mime_types = ["image/jpeg", "image/jpg", "image/png", "application/pdf"]
+        if file.content_type not in allowed_mime_types:
+            return {"error": [{"message": "Invalid file type. Allowed: JPEG, PNG, PDF"}]}
+
+        if file.size > 5 * 1024 * 1024:
+            return {"error": [{"message": "File too large. Maximum size is 5 MB"}]}
+
+        ext = os.path.splitext(file.name)[1] or ".jpg"
+        unique_filename = f"{file_key.lower()}_{uuid4().hex}_{int(time())}{ext}"
+
+        file_url = upload_kyc_doc(file=file, user_id=user.accountID, file_name=unique_filename)
+        if not file_url:
+            return {"error": [{"message": f"Failed to upload {file_key} to storage. Please try again."}]}
+
+        print(f"✅ Staged KYC file {file_key} for user {user.accountID}: {file_url}")
+        return {"success": True, "file_key": file_key, "file_url": file_url}
+
+    except Exception as e:
+        print(f"❌ stage_kyc_file error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": [{"message": "Failed to stage file. Please try again."}]}
 
 
 @router.post("/kyc/validate-document", auth=dual_auth)
@@ -2916,7 +3166,7 @@ def _handle_gcash_verification_failed(payment_method_id: int, reason: str):
         
         print(f"🗑️ Deleted unverified payment method {payment_method_id} for {user_email}")
         print(f"   Reason: {reason}")
-        print(f"   GCash: {account_number}")
+        print(f"   GCash: ***{account_number[-4:] if account_number else '****'}")
         
         return {"success": True, "message": "Verification failed - payment method removed"}
         
@@ -3715,6 +3965,27 @@ def get_worker_materials_public(request, worker_id: int, category_id: Optional[i
             {"error": "Failed to get worker materials"},
             status=500
         )
+
+
+@router.get("/agencies/{agency_id}/materials")
+def get_agency_materials_public(request, agency_id: int, category_id: Optional[int] = None):
+    """
+    Get materials for a specific agency (public endpoint for clients).
+    Only returns available materials.
+    
+    Query params:
+    - category_id: Optional filter by category/specialization
+    """
+    try:
+        materials = list_agency_materials_for_client(agency_id, category_id=category_id)
+        return materials
+    except ValueError as e:
+        return Response({"error": str(e)}, status=404)
+    except Exception as e:
+        print(f"❌ Error getting agency materials: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to get agency materials"}, status=500)
 
 
 # ===========================

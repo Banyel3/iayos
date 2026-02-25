@@ -107,6 +107,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     make \
     cmake \
+    git \
     libpq-dev \
     libffi-dev \
     libssl-dev \
@@ -121,14 +122,20 @@ COPY apps/backend/requirements.txt .
 
 # Install Python dependencies using virtualenv (reliable isolation)
 # FIXED: virtualenv ensures ALL packages install to /app/venv (no system escapes)
+# NOTE: setuptools is installed BOTH before AND after requirements.txt because
+# pip 25.3+ can remove setuptools during bulk dependency resolution if no other
+# installed package has an explicit Requires-Dist on it. The post-install ensures
+# pkg_resources (provided by setuptools) is always available at runtime for
+# face_detection_service.py which uses it to locate face_recognition model files.
 RUN python -m venv /app/venv \
-    && /app/venv/bin/pip install --upgrade 'pip>=25.3' setuptools wheel \
+    && /app/venv/bin/pip install --upgrade 'pip>=25.3' 'setuptools>=70.0.0,<78.0.0' wheel \
     && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
+    && /app/venv/bin/pip install --force-reinstall --no-deps --no-cache-dir 'setuptools>=70.0.0,<78.0.0' \
     && /app/venv/bin/pip check \
     && echo '✅ All dependencies installed to virtualenv' \
+    && /app/venv/bin/python -c "from pkg_resources import resource_filename; print('✅ pkg_resources OK in deps stage')" \
     && /app/venv/bin/python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" \
-    && find /app/venv -name "*.pyc" -delete 2>/dev/null || true \
-    && find /app/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    && (find /app/venv -name '*.pyc' -delete 2>/dev/null; find /app/venv -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null; true)
 
 # ============================================
 # Stage 9: Backend Builder
@@ -230,6 +237,7 @@ RUN groupadd -g 1001 appgroup \
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
 # - cmake/g++/libopenblas-dev for dlib/face_recognition compilation
+# - git for pip installs from git URLs (e.g. face_recognition_models @ git+https://...)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -245,6 +253,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     zlib1g-dev \
     libpng-dev \
+    git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -252,8 +261,13 @@ WORKDIR /app/apps/backend
 
 # Install Python dependencies
 COPY apps/backend/requirements.txt ./
-RUN python -m pip install --upgrade pip setuptools wheel \
+RUN python -m pip install --upgrade pip 'setuptools>=70.0.0,<78.0.0' wheel \
     && pip install --no-cache-dir -r requirements.txt
+
+# Verify face_recognition and its model data files are present.
+# dlib compilation can fail silently at build time; this turns it into a
+# hard build error so the dev container never starts with a broken install.
+RUN python -c "import face_recognition_models, os, sys; p = face_recognition_models.face_recognition_model_location(); sys.exit('face_recognition_models .dat missing: ' + p) if not os.path.exists(p) else None; import face_recognition; print('face_recognition OK:', face_recognition.__version__)"
 
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
@@ -327,54 +341,35 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # CRITICAL: Fix Windows line endings (CRLF) if present
 RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
 
-# CRITICAL: Verify all dependencies are accessible at build time
-# Virtualenv PATH ensures python finds all packages automatically
-RUN python << 'EOF'
-import sys
-try:
-    # Test all critical dependencies and their transitive deps
-    import django
-    print(f'✅ django: {django.__version__}')
-    
-    import psycopg2
-    print('✅ psycopg2: OK')
-    
-    import packaging
-    print(f'✅ packaging: {packaging.__version__}')
-    
-    import pytesseract
-    print('✅ pytesseract: OK')
-    
-    import PIL
-    print(f'✅ pillow: {PIL.__version__}')
-    
-    import face_recognition
-    print('✅ face_recognition: OK')
-    
-    import face_recognition_models
-    print('✅ face_recognition_models: OK')
-    
-    # Verify model files actually exist (catches silent install failures)
-    model_path = face_recognition_models.face_recognition_model_location()
-    predictor_path = face_recognition_models.pose_predictor_model_location()
-    import os
-    assert os.path.exists(model_path), f'Model file missing: {model_path}'
-    assert os.path.exists(predictor_path), f'Predictor file missing: {predictor_path}'
-    print(f'✅ face_recognition model files verified')
-    
-    print('🎉 ALL DEPENDENCIES VERIFIED')
-    print('✅ Build verification PASSED')
-except ImportError as e:
-    print(f'❌ IMPORT FAILED: {e}')
-    sys.exit(1)
-EOF
+# Safety net: force-reinstall setuptools <78 regardless of deps cache state.
+# setuptools 78+ removed pkg_resources as a bundled subpackage, but
+# face_recognition_models depends on it. --force-reinstall ensures actual module
+# files are written even when pip thinks "already satisfied" from dist-info metadata.
+# The <78 pin guarantees pkg_resources is included in the distribution.
+RUN /app/venv/bin/pip install --force-reinstall --no-deps --no-cache-dir 'setuptools>=70.0.0,<78.0.0' \
+ && /app/venv/bin/python -c "from pkg_resources import resource_filename; print('setuptools safety-net: pkg_resources OK')"
+
+# CRITICAL: Verify all dependencies are accessible at build time.
+# Use /app/venv/bin/python EXPLICITLY (not just 'python') to guarantee we
+# test the venv interpreter. We import pkg_resources directly (not just
+# importlib.metadata) to verify the actual module files exist, not just
+# the dist-info metadata which can be present even when pkg_resources is gone.
+RUN /app/venv/bin/python -c "from pkg_resources import resource_filename; import importlib.metadata; print('setuptools:', importlib.metadata.version('setuptools'), '- pkg_resources OK')" \
+ && /app/venv/bin/python -c "import django; print('django:', django.__version__)" \
+ && /app/venv/bin/python -c "import psycopg2; print('psycopg2: OK')" \
+ && /app/venv/bin/python -c "import packaging; print('packaging:', packaging.__version__)" \
+ && /app/venv/bin/python -c "import pytesseract; print('pytesseract: OK')" \
+ && /app/venv/bin/python -c "from PIL import Image; print('pillow:', Image.__version__)" \
+ && /app/venv/bin/python -c "import face_recognition_models, os, sys; m=face_recognition_models.face_recognition_model_location(); p=face_recognition_models.pose_predictor_model_location(); [sys.exit('MISSING MODEL FILE: '+x) for x in [m,p] if not os.path.exists(x)]; print('face_recognition_models: models verified')" \
+ && /app/venv/bin/python -c "import face_recognition; print('face_recognition OK:', face_recognition.__version__)" \
+ && echo "ALL DEPENDENCIES VERIFIED - BUILD PASSED"
 
 # Switch to non-root user
 USER appuser
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
 
 # Expose port for Django
 EXPOSE 8000

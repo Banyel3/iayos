@@ -278,7 +278,7 @@ export default function KYCManagementPage() {
           </div>
 
           {/* Modern Summary Cards with gradients */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -464,7 +464,7 @@ export default function KYCManagementPage() {
                     <h4 className="text-sm font-semibold mb-3 text-gray-700">
                       📄 Documents Submitted:
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {record.documentsSubmitted.map((doc, index) => (
                         <div
                           key={index}

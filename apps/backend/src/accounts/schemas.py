@@ -32,6 +32,10 @@ class assignRoleSchema(Schema):
 class SwitchProfileSchema(Schema):
     profile_type: str
 
+class GoogleIdTokenSchema(Schema):
+    id_token: str
+    profile_type: Optional[Literal["CLIENT", "WORKER"]] = "CLIENT"
+
 class createAgencySchema(Schema):
     email: EmailStr
     password: str
@@ -49,9 +53,24 @@ class createAgencySchema(Schema):
 class forgotPasswordSchema(Schema):
     email: EmailStr
 
+class ForgotPasswordOTPVerifySchema(Schema):
+    email: EmailStr
+    otp: str
+
 class resetPasswordSchema(Schema):
     newPassword: str
     confirmPassword: str
+
+class CompleteProfileSchema(Schema):
+    """Schema for completing agency profile after Google OAuth signup"""
+    businessName: str
+    contactNumber: str = ""
+    businessDesc: str = ""
+    street_address: str = ""
+    barangay: str = ""
+    city: str = ""
+    province: str = ""
+    postal_code: str = ""
 
 class SendVerificationEmailSchema(Schema):
     email: EmailStr
@@ -59,10 +78,8 @@ class SendVerificationEmailSchema(Schema):
     verifyLinkExpire: str
 
 class SendOTPEmailSchema(Schema):
-    """Schema for OTP-based email verification"""
+    """Schema for OTP-based email verification - OTP is looked up server-side"""
     email: EmailStr
-    otp_code: str  # 6-digit OTP code
-    expires_in_minutes: int = 5
 
 class KYCUploadSchema(Schema):
     accountID: int
@@ -191,6 +208,7 @@ class ApplyJobMobileSchema(Schema):
     budget_option: str  # 'ACCEPT' | 'NEGOTIATE'
     proposed_budget: Optional[float] = None  # Required if NEGOTIATE
     estimated_duration: Optional[str] = None
+    selected_materials: Optional[list] = None  # [{name, source, price, quantity, worker_material_id}]
 
 class UpdateApplicationMobileSchema(Schema):
     """Schema for accepting/rejecting job application"""

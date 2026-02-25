@@ -9,11 +9,15 @@ from django.core.exceptions import ValidationError
 class AccountsManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
 
-          # Remove fields that don't belong in Accounts
-        extra_fields.pop("createdAt", None)
-        extra_fields.pop("created_at", None)
-        extra_fields.pop("updatedAt", None)
-        extra_fields.pop("updated_at", None)
+        # Remove fields that don't belong in Accounts.
+        # allauth / social signup may pass first_name, last_name, username, etc.
+        # which exist on Profile, not Accounts.  Strip them to avoid TypeError.
+        _discard = [
+            'createdAt', 'created_at', 'updatedAt', 'updated_at',
+            'first_name', 'last_name', 'username', 'name',
+        ]
+        for field in _discard:
+            extra_fields.pop(field, None)
 
         if not email:
             raise ValueError("The Email field must be set")
@@ -86,8 +90,8 @@ class Profile(models.Model):
     firstName = models.CharField(max_length=24)
     middleName = models.CharField(max_length=24, null=True, blank=True)
     lastName = models.CharField(max_length=24)
-    contactNum = models.CharField(max_length=11)
-    birthDate = models.DateField()
+    contactNum = models.CharField(max_length=11, null=True, blank=True)
+    birthDate = models.DateField(null=True, blank=True)
 
     class ProfileType(models.TextChoices):
         WORKER = "WORKER", "Worker"
@@ -371,7 +375,17 @@ class WorkerMaterial(models.Model):
     workerID = models.ForeignKey(
         WorkerProfile,
         on_delete=models.CASCADE,
-        related_name='materials'
+        related_name='materials',
+        null=True,
+        blank=True
+    )
+    agencyID = models.ForeignKey(
+        Agency,
+        on_delete=models.CASCADE,
+        related_name='materials',
+        null=True,
+        blank=True,
+        help_text="Agency that owns this material (alternative to workerID)"
     )
     
     # Optional link to specialization - allows filtering materials by job category
@@ -429,8 +443,15 @@ class WorkerMaterial(models.Model):
         indexes = [
             models.Index(fields=['workerID', 'is_available']),
             models.Index(fields=['workerID', 'categoryID']),  # For filtering by category
+            models.Index(fields=['agencyID', 'is_available']),
+            models.Index(fields=['agencyID', 'categoryID']),
             models.Index(fields=['name']),
         ]
+    
+    def clean(self):
+        """At least one of workerID or agencyID must be set."""
+        if not self.workerID and not self.agencyID:
+            raise ValidationError("A material must belong to either a worker or an agency.")
     
     def __str__(self):
         category = f" [{self.categoryID.specializationName}]" if self.categoryID else ""
@@ -1185,6 +1206,9 @@ class Notification(models.Model):
         # Job Edit Notifications
         JOB_UPDATED = "JOB_UPDATED", "Job Updated"
 
+        # Job Invitation Notifications
+        JOB_INVITATION = "JOB_INVITATION", "Job Invitation"
+
         # System Notifications
         SYSTEM = "SYSTEM", "System"
     
@@ -1476,6 +1500,28 @@ class Job(models.Model):
     
     # Materials Needed (stored as JSON array)
     materialsNeeded = models.JSONField(default=list, blank=True)
+    
+    # Materials Cost (additive to budget - reimbursement for purchased materials)
+    materialsCost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Total cost of materials purchased by worker, approved by client"
+    )
+    
+    class MaterialsStatus(models.TextChoices):
+        NONE = "NONE", "No materials needed"
+        PENDING_PURCHASE = "PENDING_PURCHASE", "Worker hasn't started buying"
+        BUYING = "BUYING", "Worker is buying materials"
+        PURCHASED = "PURCHASED", "Worker purchased, awaiting client approval"
+        APPROVED = "APPROVED", "Client approved all material purchases"
+    
+    materials_status = models.CharField(
+        max_length=20,
+        choices=MaterialsStatus.choices,
+        default="NONE",
+        help_text="Status of materials purchasing workflow"
+    )
     
     # Job Type
     class JobType(models.TextChoices):
@@ -1825,6 +1871,19 @@ class JobEmployeeAssignment(models.Model):
     )
     agencyMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     
+    # Per-employee payment tracking
+    paymentAmount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Per-employee share of the remaining project payment"
+    )
+    
+    # Client per-employee approval
+    clientApproved = models.BooleanField(
+        default=False,
+        help_text="Client has approved this employee's work and paid their share"
+    )
+    clientApprovedAt = models.DateTimeField(null=True, blank=True)
+    
     # Skill slot assignment (for multi-employee INVITE jobs)
     skill_slot = models.ForeignKey(
         'JobSkillSlot',
@@ -1978,6 +2037,13 @@ class JobApplication(models.Model):
         max_length=20,
         choices=BudgetOption.choices,
         default="NEGOTIATE"
+    )
+    
+    # Materials selection during application
+    selected_materials = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Materials the worker selected from their profile or marked to purchase. Format: [{name, source, price, quantity, worker_material_id}]"
     )
     
     # Application Status
@@ -2486,9 +2552,10 @@ class Transaction(models.Model):
         EARNING = "EARNING", "Earning"
         PENDING_EARNING = "PENDING_EARNING", "Pending Earning (7-day buffer)"
         FEE = "FEE", "Platform Fee"
+        MATERIALS_REIMBURSEMENT = "MATERIALS_REIMBURSEMENT", "Materials Reimbursement"
     
     transactionType = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=TransactionType.choices
     )
     
@@ -3193,3 +3260,93 @@ class DailyRateChange(models.Model):
     
     def __str__(self):
         return f"Rate change ₱{self.old_rate}→₱{self.new_rate} for Job #{self.jobID_id} ({self.status})"
+
+
+# ============================================================
+# JOB MATERIALS - Materials Purchasing Workflow
+# ============================================================
+
+class JobMaterial(models.Model):
+    """
+    Materials associated with a specific job - either from worker's profile (no cost)
+    or purchased by worker (cost added to final payment after client approval).
+    """
+    jobMaterialID = models.BigAutoField(primary_key=True)
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='job_materials'
+    )
+    # Optional link to worker's existing material
+    workerMaterialID = models.ForeignKey(
+        'WorkerMaterial',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='job_usages'
+    )
+    
+    # Material details (copied from WorkerMaterial or entered manually)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    quantity = models.IntegerField(default=1)
+    unit = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Source type
+    class SourceType(models.TextChoices):
+        FROM_PROFILE = "FROM_PROFILE", "Worker already has this (no cost)"
+        TO_PURCHASE = "TO_PURCHASE", "Worker will purchase"
+        PURCHASED = "PURCHASED", "Worker has purchased"
+    
+    source = models.CharField(
+        max_length=20,
+        choices=SourceType.choices,
+        default="TO_PURCHASE"
+    )
+    
+    # Purchase details (only for TO_PURCHASE / PURCHASED items)
+    purchase_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual purchase price (set when worker uploads receipt)"
+    )
+    receipt_image_url = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL of purchase receipt image"
+    )
+    
+    # Client approval
+    client_approved = models.BooleanField(default=False)
+    client_approved_at = models.DateTimeField(null=True, blank=True)
+    client_rejected = models.BooleanField(default=False)
+    rejection_reason = models.TextField(blank=True, null=True)
+    
+    # Who added this material
+    class AddedBy(models.TextChoices):
+        CLIENT_REQUEST = "CLIENT_REQUEST", "From job posting materials list"
+        WORKER_SUPPLIED = "WORKER_SUPPLIED", "Worker added during application"
+    
+    added_by = models.CharField(
+        max_length=20,
+        choices=AddedBy.choices,
+        default="WORKER_SUPPLIED"
+    )
+    
+    # Timestamps
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'job_materials'
+        ordering = ['createdAt']
+        indexes = [
+            models.Index(fields=['jobID', 'source']),
+            models.Index(fields=['jobID', 'client_approved']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} for Job {self.jobID.title} ({self.source})"

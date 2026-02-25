@@ -354,7 +354,7 @@ export default function FlaggedReviewsPage() {
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
               <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {/* Search */}
                   <div className="relative group md:col-span-2">
                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-red-500 transition-colors" />

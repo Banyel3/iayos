@@ -286,11 +286,17 @@ export const ENDPOINTS = {
   ME: `${API_URL}/api/mobile/auth/profile`,
   ASSIGN_ROLE: `${API_URL}/api/mobile/auth/assign-role`,
   UPDATE_PROFILE: `${API_URL}/api/mobile/profile/update`, // For client profile updates
+  GOOGLE_SIGNIN: `${API_URL}/api/mobile/auth/google`,
 
   // OTP Verification
   VERIFY_OTP_ENDPOINT: `${API_URL}/api/accounts/verify-otp`,
   RESEND_OTP_ENDPOINT: `${API_URL}/api/accounts/resend-otp`,
   OTP_EMAIL_ENDPOINT: `${API_URL}/api/mobile/auth/send-otp-email`,
+
+  // Forgot Password
+  FORGOT_PASSWORD_SEND: `${API_URL}/api/accounts/forgot-password/send-verify`,
+  FORGOT_PASSWORD_VERIFY: `${API_URL}/api/accounts/forgot-password/verify`,
+  FORGOT_PASSWORD_VERIFY_OTP: `${API_URL}/api/accounts/forgot-password/verify-otp`,
 
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
@@ -308,6 +314,10 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/accept-invite`,
   REJECT_INVITE: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/reject-invite`,
+  INVITE_WORKER: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/invite-worker`,
+  INVITED_WORKERS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/invited-workers`,
   APPLY_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_URL}/api/mobile/jobs/applications/my`,
   APPLICATION_DETAIL: (applicationId: number) =>
@@ -390,6 +400,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/agency/jobs/${jobId}/employees/${employeeId}/mark-complete-project`,
   AGENCY_APPROVE_PROJECT_JOB: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/approve-agency-project`,
+  AGENCY_APPROVE_PROJECT_EMPLOYEE: (jobId: number, employeeId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/employees/${employeeId}/approve-agency-project-employee`,
 
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_URL}/api/mobile/auth/profile`,
@@ -419,6 +431,24 @@ export const ENDPOINTS = {
   // Worker public materials (for clients to view filtered by category)
   WORKER_MATERIALS_PUBLIC: (workerId: number) =>
     `${API_BASE_URL}/accounts/workers/${workerId}/materials`,
+  // Agency public materials (for clients to view filtered by category)
+  AGENCY_MATERIALS_PUBLIC: (agencyId: number) =>
+    `${API_BASE_URL}/accounts/agencies/${agencyId}/materials`,
+
+  // Job Materials Purchasing Workflow
+  JOB_MATERIALS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials`,
+  JOB_MATERIAL_PURCHASE_PROOF: (jobId: number, materialId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/${materialId}/purchase-proof`,
+  JOB_MATERIAL_APPROVE: (jobId: number, materialId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/${materialId}/approve`,
+  JOB_MATERIAL_REJECT: (jobId: number, materialId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/${materialId}/reject`,
+  JOB_MATERIALS_MARK_BUYING: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/mark-buying`,
+  JOB_MATERIALS_SKIP: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/materials/skip`,
+
   // Worker skills (specializations the worker has)
   AVAILABLE_SKILLS: `${API_URL}/api/mobile/skills/available`,
   MY_SKILLS: `${API_URL}/api/mobile/skills/my-skills`,
@@ -463,8 +493,6 @@ export const ENDPOINTS = {
   WALLET_PENDING_EARNINGS: `${API_URL}/api/mobile/wallet/pending-earnings`,
   TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
   DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
-  // TODO: REMOVE FOR PROD - GCash direct deposit for testing
-  DEPOSIT_GCASH: `${API_URL}/api/mobile/wallet/deposit-gcash`,
   // Mobile config endpoint (no auth required)
   MOBILE_CONFIG: `${API_URL}/api/mobile/config`,
 
@@ -544,6 +572,7 @@ export const ENDPOINTS = {
   KYC_STATUS: `${API_URL}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_URL}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_URL}/api/accounts/upload/kyc`, // Matches Next.js endpoint
+  KYC_STAGE_FILE: `${API_URL}/api/accounts/kyc/stage-file`, // Per-file pre-upload before final submission
   KYC_VALIDATE_DOCUMENT: `${API_URL}/api/accounts/kyc/validate-document`, // Per-step validation
   KYC_EXTRACT_ID: `${API_URL}/api/accounts/kyc/extract-id`, // Per-step OCR extraction for ID
   KYC_EXTRACT_CLEARANCE: `${API_URL}/api/accounts/kyc/extract-clearance`, // Per-step OCR extraction for clearance
@@ -600,6 +629,8 @@ export const ENDPOINTS = {
   // ML/AI Prediction Endpoints
   // Price prediction for job creation - returns min/suggested/max price range
   PREDICT_PRICE: `${API_URL}/api/ml/predict-price`,
+  // Job field suggestions mined from completed jobs database
+  JOB_SUGGESTIONS: `${API_URL}/api/ml/job-suggestions`,
   // Worker profile score for improvement suggestions (worker's own profile only)
   WORKER_PROFILE_SCORE: (workerId: number) =>
     `${API_URL}/api/ml/worker-rating-for-profile/${workerId}`,
@@ -631,8 +662,7 @@ export const ENDPOINTS = {
   DAILY_RATE_CHANGE_APPROVE: (jobId: number, changeId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/rate-change/${changeId}/approve`,
   // Cancellation
-  DAILY_CANCEL: (jobId: number) =>
-    `${API_URL}/api/jobs/${jobId}/daily/cancel`,
+  DAILY_CANCEL: (jobId: number) => `${API_URL}/api/jobs/${jobId}/daily/cancel`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -640,9 +670,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // HTTP Request helper with credentials
 // API request helper with built-in timeout using AbortController
 export const DEFAULT_REQUEST_TIMEOUT = 120000; // 2 minutes (increased for slow networks)
-export const VALIDATION_TIMEOUT = 300000; // 5 minutes for document validation (Render cold start + processing)
+export const VALIDATION_TIMEOUT = 180000; // 3 minutes for document validation (images can be 1-2MB; ~40-60s upload on slow 3G)
 export const OCR_TIMEOUT = 300000; // 5 minutes for OCR extraction operations (Tesseract can take 2-4 min)
-export const KYC_UPLOAD_TIMEOUT = 300000; // 5 minutes for KYC upload (multiple compressed images)
+export const KYC_UPLOAD_TIMEOUT = 600000; // 10 minutes for final KYC upload (4 compressed images ~1.8MB total; can exceed 5 min on poor 2G/3G connections)
+export const KYC_STAGE_FILE_TIMEOUT = 120000; // 2 minutes per individual file staging
 
 export const apiRequest = async (
   url: string,
@@ -741,7 +772,7 @@ export const apiRequest = async (
     if (resp.status === 403) {
       try {
         const cloned = resp.clone();
-        const body = await cloned.json() as any;
+        const body = (await cloned.json()) as any;
         if (body?.error_code === "KYC_REQUIRED") {
           console.warn(`[API] KYC_REQUIRED from ${url}`);
           const { DeviceEventEmitter } = require("react-native");

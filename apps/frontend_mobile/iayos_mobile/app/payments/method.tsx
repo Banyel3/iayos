@@ -48,7 +48,7 @@ export default function PaymentMethodScreen() {
   const walletBalance = walletData?.balance || 0;
 
   // Check if wallet has sufficient balance
-  const isWalletSufficient = walletBalance >= jobBudget * 0.55; // 50% + 10% fee = 55% of budget
+  const isWalletSufficient = walletBalance >= jobBudget * 0.6; // 50% + 10% fee = 60% of budget
 
   const handleMethodSelect = (method: PaymentMethod) => {
     if (method === "wallet" && !isWalletSufficient) {
@@ -112,7 +112,10 @@ export default function PaymentMethodScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backIcon}>
+        <TouchableOpacity
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
+          style={styles.backIcon}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>

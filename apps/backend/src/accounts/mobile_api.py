@@ -1,6 +1,7 @@
 # mobile_api.py
 # Mobile-specific API endpoints optimized for Flutter app
 
+import os
 from ninja import Router
 from ninja.responses import Response
 from typing import Optional
@@ -28,6 +29,7 @@ from .schemas import (
     AddSkillSchema,
     UpdateSkillSchema,
     UpdateProfileMobileSchema,
+    GoogleIdTokenSchema,
 )
 from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -62,7 +64,16 @@ def mobile_register(request, payload: createAccountSchema):
 
     try:
         result = create_account_individ(payload)
-        # Registration returns accountID and verifyLink
+        
+        # Automatically send OTP email server-side (don't rely on frontend)
+        try:
+            _send_otp_email_internal(result['email'])
+            print(f"✅ OTP email auto-sent for: {result['email']}")
+        except Exception as email_err:
+            print(f"⚠️ Failed to auto-send OTP email: {email_err}")
+            # Registration still succeeds; user can use resend-otp
+        
+        # Registration returns accountID (OTP kept server-side)
         # Don't auto-login, require email verification
         return {
             'success': True,
@@ -123,6 +134,158 @@ def mobile_login(request, payload: logInSchema):
             {"error": "Login failed. Please check your credentials."},
             status=500
         )
+
+
+@mobile_router.post("/auth/google")
+def mobile_google_signin(request, payload: GoogleIdTokenSchema):
+    """
+    Mobile Google Sign-In via ID token verification.
+
+    Flow:
+    1. Mobile app uses expo-auth-session to get a Google ID token
+    2. Mobile sends the ID token to this endpoint
+    3. Backend verifies the token with Google
+    4. Creates or logs in the user, returns JWT tokens
+
+    Returns tokens in JSON body (not cookies) for mobile storage.
+    """
+    import requests as http_requests
+    import json
+    from django.conf import settings as django_settings
+    from .models import Accounts, Profile, ClientProfile, WorkerProfile
+    from .services import generateCookie
+
+    id_token = payload.id_token
+    profile_type = payload.profile_type or 'CLIENT'
+
+    _log_mobile("GOOGLE_SIGNIN", step="verify_token")
+
+    # 1. Verify the ID token with Google
+    try:
+        google_verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+        verify_resp = http_requests.get(google_verify_url, timeout=10)
+
+        if verify_resp.status_code != 200:
+            _log_mobile("GOOGLE_SIGNIN", error="invalid_token", status=verify_resp.status_code)
+            return Response({"error": "Invalid Google ID token"}, status=401)
+
+        token_data = verify_resp.json()
+    except Exception as e:
+        _log_mobile("GOOGLE_SIGNIN", error=f"token_verify_failed: {e}")
+        return Response({"error": "Failed to verify Google token"}, status=500)
+
+    # 2. Validate the audience (must match our Google Client ID)
+    google_client_id = django_settings.SOCIALACCOUNT_PROVIDERS.get('google', {}).get('APP', {}).get('client_id', '')
+    # Also accept Android/iOS client IDs from env
+    allowed_client_ids = [
+        google_client_id,
+        os.getenv('GOOGLE_ANDROID_CLIENT_ID', ''),
+        os.getenv('GOOGLE_IOS_CLIENT_ID', ''),
+        os.getenv('GOOGLE_EXPO_CLIENT_ID', ''),
+    ]
+    allowed_client_ids = [cid for cid in allowed_client_ids if cid]  # Remove empty
+
+    token_aud = token_data.get('aud', '')
+    if token_aud not in allowed_client_ids:
+        _log_mobile("GOOGLE_SIGNIN", error="audience_mismatch", aud=token_aud)
+        return Response({"error": "Token audience mismatch"}, status=401)
+
+    # 3. Extract user info from the verified token
+    email = token_data.get('email')
+    email_verified = token_data.get('email_verified', 'false') == 'true'
+    first_name = token_data.get('given_name', '')
+    last_name = token_data.get('family_name', '')
+    picture = token_data.get('picture', '')
+
+    if not email:
+        return Response({"error": "No email in Google token"}, status=400)
+
+    _log_mobile("GOOGLE_SIGNIN", email=email, email_verified=str(email_verified))
+
+    # 4. Find or create the user account
+    try:
+        user = Accounts.objects.get(email=email)
+        created = False
+        _log_mobile("GOOGLE_SIGNIN", step="existing_user", user_id=user.accountID)
+    except Accounts.DoesNotExist:
+        # Create new account (Google-verified email, no password needed)
+        user = Accounts.objects.create(
+            email=email,
+            password='',  # No password for Google users
+            isVerified=True,  # Google verified the email
+        )
+        # Set first/last name if available
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        user.save()
+        created = True
+        _log_mobile("GOOGLE_SIGNIN", step="created_user", user_id=user.accountID)
+
+    # 5. Auto-verify email if not already
+    if not user.isVerified and email_verified:
+        user.isVerified = True
+        user.save(update_fields=['isVerified'])
+
+    # 6. Create Profile if user is new
+    needs_profile_completion = False
+    if not Profile.objects.filter(accountFK=user).exists():
+        profile = Profile.objects.create(
+            accountFK=user,
+            profileType=profile_type.upper(),
+            firstName=first_name,
+            lastName=last_name,
+            profileImg=picture or None,
+        )
+        _log_mobile("GOOGLE_SIGNIN", step="created_profile", profile_type=profile_type)
+
+        # Create the type-specific profile
+        if profile_type.upper() == 'WORKER':
+            WorkerProfile.objects.create(
+                profileID=profile,
+                description='',
+                totalEarningGross=0,
+                workerRating=0,
+            )
+        else:
+            ClientProfile.objects.create(
+                profileID=profile,
+                description='',
+                totalJobsPosted=0,
+                clientRating=0,
+            )
+
+        needs_profile_completion = True
+    else:
+        profile = Profile.objects.filter(accountFK=user).first()
+        if not profile.contactNum or not profile.birthDate:
+            needs_profile_completion = True
+        # Update profile picture from Google if not set
+        if not profile.profileImg and picture:
+            profile.profileImg = picture
+            profile.save(update_fields=['profileImg'])
+
+    # 7. Generate JWT tokens
+    auth_response = generateCookie(user, profile_type=profile.profileType if not created else profile_type.upper())
+    auth_data = json.loads(auth_response.content)
+
+    return {
+        'success': True,
+        'access': auth_data['access'],
+        'refresh': auth_data['refresh'],
+        'user': {
+            'accountID': user.accountID,
+            'email': user.email,
+            'isVerified': user.isVerified,
+            'firstName': first_name,
+            'lastName': last_name,
+            'profileImg': picture,
+            'profileType': profile.profileType if profile else profile_type.upper(),
+            'needs_profile_completion': needs_profile_completion,
+        },
+        'message': 'Google sign-in successful',
+    }
 
 
 @mobile_router.post("/auth/logout", auth=jwt_auth)
@@ -264,14 +427,42 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
 def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
     """
     Send OTP verification email via Resend API.
-    This replaces the link-based verification with a 6-digit OTP code.
+    OTP is looked up server-side from the database - never accepted from client.
     """
-    import requests
+    return _send_otp_email_internal(payload.email)
+
+
+def _send_otp_email_internal(email: str):
+    """
+    Internal helper: look up OTP from the database and send the email.
+    Never accepts OTP from the client to prevent OTP injection.
+    """
+    import requests as http_requests
     from django.conf import settings
+    from .models import Accounts
     
-    print(f"📧 [Mobile] Send OTP email request for: {payload.email}")
+    print(f"📧 [Mobile] Send OTP email request for: {email}")
     
     try:
+        # Look up the user and their current OTP from the database
+        user = Accounts.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({"error": "Account not found"}, status=404)
+        
+        otp_code = user.email_otp
+        if not otp_code:
+            return Response({"error": "No OTP generated. Please register or request a new OTP."}, status=400)
+        
+        # Check if OTP has expired
+        from django.utils import timezone
+        if user.email_otp_expiry and user.email_otp_expiry < timezone.now():
+            return Response({"error": "OTP has expired. Please request a new one."}, status=400)
+        
+        expires_in_minutes = 5
+        if user.email_otp_expiry:
+            remaining = (user.email_otp_expiry - timezone.now()).total_seconds() / 60
+            expires_in_minutes = max(1, int(remaining))
+        
         # Validate required environment variables
         resend_api_key = settings.RESEND_API_KEY
         resend_base_url = getattr(settings, 'RESEND_BASE_URL', 'https://api.resend.com')
@@ -311,11 +502,11 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
                                     </p>
                                     <div style="display: inline-block; padding: 20px 40px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 30px;">
                                         <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #007bff;">
-                                            {payload.otp_code}
+                                            {otp_code}
                                         </span>
                                     </div>
                                     <p style="margin: 0 0 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
-                                        This code will expire in <strong>{payload.expires_in_minutes} minutes</strong>.
+                                        This code will expire in <strong>{expires_in_minutes} minutes</strong>.
                                     </p>
                                     <p style="margin: 20px 0 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
                                         If you didn't request this code, you can safely ignore this email.
@@ -346,17 +537,18 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
         
         resend_payload = {
             "from": "team@devante.online",
-            "to": [payload.email],
-            "subject": f"Your iAyos Verification Code: {payload.otp_code}",
+            "to": [email],
+            "subject": f"Your iAyos Verification Code: {otp_code}",
             "html": html_template
         }
         
-        print(f"📧 [Mobile] Sending OTP email to: {payload.email}")
+        print(f"📧 [Mobile] Sending OTP email to: {email}")
         print(f"📧 [Mobile] Using Resend URL: {resend_url}")
-        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        response = http_requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
         print(f"📧 [Mobile] Resend API Response Status: {response.status_code}")
+        print(f"📧 [Mobile] Resend API Response Body: {response.text[:500]}")
         
-        if response.status_code == 200:
+        if response.status_code in (200, 201, 202):
             result = response.json()
             print(f"✅ [Mobile] OTP email sent successfully. ID: {result.get('id')}")
             return {
@@ -374,7 +566,7 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
                 status=502
             )
             
-    except requests.exceptions.Timeout:
+    except http_requests.exceptions.Timeout:
         print("❌ [Mobile] Resend API timeout")
         return Response(
             {"error": "Email service timeout. Please try again."},
@@ -1968,13 +2160,58 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 status=404
             )
         
-        # Accept this application
-        application.status = "ACCEPTED"
-        application.save()
+        # Check if application is still pending
+        if application.status != "PENDING":
+            return Response(
+                {"error": f"Application is already {application.status.lower()}"},
+                status=400
+            )
+        
+        # CRITICAL: Prevent accepting if worker already has an active job (race condition prevention)
+        # Freelance workers can only have 1 in-progress job at a time
+        from accounts.models import JobWorkerAssignment
+        
+        worker = application.workerID
+        
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker,
+            status=JobPosting.JobStatus.IN_PROGRESS
+        ).first()
+        
+        if active_regular_job:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_regular_job.jobID,
+                    "worker_active_job_title": active_regular_job.title
+                },
+                status=400
+            )
+        
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker,
+            assignment_status='ACTIVE'
+        ).select_related('jobID').first()
+        
+        if active_team_assignment:
+            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+            return Response(
+                {
+                    "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
+                    "worker_active_job_id": active_team_assignment.jobID.jobID,
+                    "worker_active_job_title": active_team_assignment.jobID.title
+                },
+                status=400
+            )
         
         # Use database transaction for atomicity
         from django.db import transaction as db_transaction
         with db_transaction.atomic():
+            # Accept application inside atomic block to prevent race conditions
+            application.status = "ACCEPTED"
+            application.save()
+            
             # Update job status to IN_PROGRESS and assign the worker
             job.status = JobPosting.JobStatus.IN_PROGRESS
             job.assignedWorkerID = application.workerID
@@ -2083,6 +2320,30 @@ def mobile_accept_application(request, job_id: int, application_id: int):
             
             job.save()
             
+            # Create JobMaterial records from the application's selected_materials
+            if application.selected_materials:
+                from accounts.models import JobMaterial
+                from django.utils import timezone as tz
+                for mat in application.selected_materials:
+                    source = mat.get('source', 'TO_PURCHASE')
+                    JobMaterial.objects.create(
+                        jobID=job,
+                        workerMaterialID_id=mat.get('worker_material_id'),
+                        name=mat.get('name', 'Unknown Material'),
+                        description=mat.get('description', ''),
+                        quantity=mat.get('quantity', 1),
+                        unit=mat.get('unit', ''),
+                        source=source,
+                        added_by=mat.get('added_by', 'WORKER_SUPPLIED'),
+                        client_approved=True if source == 'FROM_PROFILE' else False,
+                        client_approved_at=tz.now() if source == 'FROM_PROFILE' else None,
+                    )
+                # Set materials_status on the job
+                has_to_purchase = any(m.get('source') == 'TO_PURCHASE' for m in application.selected_materials)
+                job.materials_status = 'PENDING_PURCHASE' if has_to_purchase else 'APPROVED'
+                job.save(update_fields=['materials_status'])
+                print(f"📦 [MOBILE] Created {len(application.selected_materials)} JobMaterial records")
+            
             print(f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}")
             print(f"💵 [MOBILE] Final job budget: ₱{job.budget}")
         
@@ -2115,11 +2376,64 @@ def mobile_accept_application(request, job_id: int, application_id: int):
         # Only reject other applications for non-team (single-worker) jobs
         # Team jobs use separate accept_team_application endpoint and should not auto-reject
         if not job.is_team_job:
-            JobApplication.objects.filter(
-                jobID=job
+            # 1. Reject same-job pending applications and notify those workers
+            same_job_apps = JobApplication.objects.filter(
+                jobID=job,
+                status="PENDING"
             ).exclude(
                 applicationID=application_id
-            ).update(status="REJECTED")
+            ).select_related('workerID__profileID__accountFK')
+            
+            for other_app in same_job_apps:
+                Notification.objects.create(
+                    accountFK=other_app.workerID.profileID.accountFK,
+                    notificationType="APPLICATION_REJECTED",
+                    title="Application Not Selected",
+                    message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
+                    relatedJobID=job.jobID,
+                    relatedApplicationID=other_app.applicationID
+                )
+            same_job_apps.update(status="REJECTED")
+            
+            # 2. CROSS-JOB AUTO-REJECTION: Reject this worker's pending applications on OTHER jobs
+            # Freelance workers can only have 1 in-progress job at a time
+            # Note: Agencies can't apply to LISTING jobs (blocked at apply time), so this only affects freelancers
+            cross_job_apps = JobApplication.objects.filter(
+                workerID=application.workerID,
+                status="PENDING"
+            ).exclude(
+                jobID=job
+            ).select_related('jobID__clientID__profileID__accountFK')
+            
+            cross_job_count = cross_job_apps.count()
+            if cross_job_count > 0:
+                print(f"🔄 [MOBILE] Auto-rejecting {cross_job_count} cross-job pending applications for worker {application.workerID.profileID.firstName}")
+                
+                # Notify each affected client that the worker is no longer available
+                for cross_app in cross_job_apps:
+                    try:
+                        Notification.objects.create(
+                            accountFK=cross_app.jobID.clientID.profileID.accountFK,
+                            notificationType="APPLICATION_REJECTED",
+                            title="Worker No Longer Available",
+                            message=f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName} has been hired for another job and is no longer available for '{cross_app.jobID.title}'.",
+                            relatedJobID=cross_app.jobID.jobID,
+                            relatedApplicationID=cross_app.applicationID
+                        )
+                    except Exception as notify_err:
+                        print(f"⚠️ [MOBILE] Failed to notify client for cross-job rejection: {notify_err}")
+                
+                cross_job_apps.update(status="REJECTED")
+                
+                # Notify the worker about auto-withdrawal
+                Notification.objects.create(
+                    accountFK=application.workerID.profileID.accountFK,
+                    notificationType="APPLICATIONS_AUTO_WITHDRAWN",
+                    title="Other Applications Withdrawn",
+                    message=f"Since you've been hired for '{job.title}', your {cross_job_count} other pending application{'s' if cross_job_count > 1 else ''} {'have' if cross_job_count > 1 else 'has'} been automatically withdrawn.",
+                    relatedJobID=job.jobID
+                )
+                print(f"✅ [MOBILE] Auto-rejected {cross_job_count} cross-job applications")
         
         print(f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created")
         
@@ -2327,6 +2641,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             proposedBudget=payload.proposed_budget or 0,
             estimatedDuration=payload.estimated_duration or '',
             budgetOption=payload.budget_option,
+            selected_materials=payload.selected_materials or [],
             status=JobApplication.ApplicationStatus.PENDING
         )
 
@@ -3692,55 +4007,53 @@ def get_mobile_config(request):
 def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     """
     TODO: REMOVE FOR PROD - Testing only
-    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely)
+    Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely).
     Directly credits wallet balance without any payment gateway validation.
     Only available when TESTING=true in environment.
     """
     from django.conf import settings
-    
+
     # Check if testing mode is enabled
     if not getattr(settings, 'TESTING', False):
         return Response(
             {"error": "Direct deposit is only available in testing mode"},
             status=404
         )
-    
+
     try:
         from .models import Wallet, Transaction, Profile
         from decimal import Decimal
         from django.utils import timezone
-        
+
         amount = payload.amount
         payment_method = "DIRECT_TEST"
 
-        print(f"📥 [Mobile] Direct Deposit request (TESTING): ₱{amount} from {request.auth.email}")
-        
         if amount <= 0:
             return Response(
                 {"error": "Amount must be greater than 0"},
                 status=400
             )
-        
+
         if amount > 100000:
             return Response(
-                {"error": "Maximum deposit is ₱100,000"},
+                {"error": "Maximum deposit is \u20b1100,000"},
                 status=400
             )
-        
+
         # Get or create wallet
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
             defaults={'balance': Decimal('0.00')}
         )
-        
+
         # Calculate new balance
         old_balance = wallet.balance
         new_balance = old_balance + Decimal(str(amount))
-        
+
         # Update wallet balance immediately
         wallet.balance = new_balance
         wallet.save()
-        
+
         # Create COMPLETED transaction (no pending state needed)
         transaction = Transaction.objects.create(
             walletID=wallet,
@@ -3748,13 +4061,11 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             amount=Decimal(str(amount)),
             balanceAfter=new_balance,
             status=Transaction.TransactionStatus.COMPLETED,
-            description=f"Direct Test Deposit - ₱{amount}",
+            description=f"Direct Test Deposit - \u20b1{amount}",
             paymentMethod=payment_method,
             completedAt=timezone.now(),
         )
-        
-        print(f"✅ [Mobile] Direct deposit completed (TESTING): ₱{amount} → New balance: ₱{new_balance}")
-        
+
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
@@ -3763,11 +4074,10 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             "provider": "direct_test",
             "method": "direct_test",
             "status": "completed",
-            "message": f"Test deposit of ₱{amount} added to your wallet instantly!"
+            "message": f"Test deposit of \u20b1{amount} added to your wallet instantly!"
         }
-        
+
     except Exception as e:
-        print(f"❌ [Mobile] Error with direct deposit: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
@@ -3889,7 +4199,8 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
             "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
             "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "current_balance": float(wallet.balance),  # Show current balance, not new
+            "current_balance": float(wallet.balance),  # Alias kept for backward compat
+            "new_balance": float(wallet.balance),  # Frontend expects this field name
             "expiry_date": payment_result.get('expiry_date'),
             "provider": provider_name,
             "status": "pending",
@@ -4039,7 +4350,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             
             print(f"📄 Manual withdrawal request created: {withdrawal_request_id}")
             print(f"📊 Status: PENDING (requires admin approval)")
-            print(f"   Recipient: {payment_method.accountName} ({payment_method.accountNumber})")
+            print(f"   Recipient: {payment_method.accountName} (***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'})")
             print(f"   Method: {payment_method.methodType}")
             if payment_method.methodType == 'BANK' and payment_method.bankName:
                 print(f"   Bank: {payment_method.bankName}")
@@ -4100,13 +4411,15 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
             }
         
         # Build query with optional type filter
-        queryset = Transaction.objects.filter(walletID=wallet)
+        queryset = Transaction.objects.filter(walletID=wallet).select_related('relatedJobPosting')
         
         if type:
             type_mapping = {
                 'DEPOSIT': Transaction.TransactionType.DEPOSIT,
                 'PAYMENT': Transaction.TransactionType.PAYMENT,
                 'WITHDRAWAL': Transaction.TransactionType.WITHDRAWAL,
+                'EARNING': Transaction.TransactionType.EARNING,
+                'REFUND': Transaction.TransactionType.REFUND,
             }
             if type.upper() in type_mapping:
                 queryset = queryset.filter(transactionType=type_mapping[type.upper()])
@@ -4118,24 +4431,57 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
         offset = (page - 1) * limit
         transactions = queryset.order_by('-createdAt')[offset:offset + limit]
         
+        # Human-readable labels for each transaction type
+        TYPE_LABELS = {
+            'DEPOSIT': 'Wallet Top-Up',
+            'PAYMENT': 'Job Escrow Payment',
+            'EARNING': 'Job Earnings',
+            'PENDING_EARNING': 'Pending Earnings',
+            'WITHDRAWAL': 'Withdrawal Request',
+            'REFUND': 'Refund',
+            'FEE': 'Platform Fee',
+        }
+        
         transaction_list = []
         for t in transactions:
             # Map transaction type to frontend format
             type_display = t.transactionType
             if t.transactionType == Transaction.TransactionType.EARNING:
-                type_display = 'PAYMENT'  # Frontend expects PAYMENT for earnings
+                type_display = 'EARNING'
+            
+            # Build job context
+            job_data = None
+            if t.relatedJobPosting:
+                job_data = {
+                    'id': t.relatedJobPosting.jobID,
+                    'title': t.relatedJobPosting.title,
+                    'status': t.relatedJobPosting.status,
+                }
+            
+            # Only expose PayMongo checkout URL for completed deposits
+            paymongo_checkout_url = None
+            if (
+                t.status == 'COMPLETED'
+                and t.transactionType == Transaction.TransactionType.DEPOSIT
+                and t.invoiceURL
+            ):
+                paymongo_checkout_url = t.invoiceURL
             
             transaction_list.append({
                 'id': t.transactionID,
                 'type': type_display,
-                'title': t.description or f'{t.transactionType} Transaction',
+                'transaction_type_label': TYPE_LABELS.get(t.transactionType, t.transactionType),
+                'title': t.description or TYPE_LABELS.get(t.transactionType, f'{t.transactionType} Transaction'),
                 'description': t.description or '',
                 'amount': float(t.amount),
                 'created_at': t.createdAt.isoformat(),
                 'status': t.status.lower() if t.status else 'pending',
                 'payment_method': t.paymentMethod or 'wallet',
                 'transaction_id': str(t.transactionID),
-                'job': None,  # TODO: Link to job if applicable
+                'reference_number': t.referenceNumber or t.xenditExternalID or None,
+                'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
+                'paymongo_checkout_url': paymongo_checkout_url,
+                'job': job_data,
             })
         
         has_next = (offset + limit) < total_count
@@ -5578,46 +5924,48 @@ def mobile_create_escrow_payment(request):
         if job.escrowPaid:
             return Response({"error": "Escrow payment already made for this job"}, status=400)
         
-        # Get wallet
-        wallet, _ = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
-        )
-        
-        # Calculate escrow amount (50% of budget)
-        escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
-        
-        # Check wallet balance
-        if wallet.balance < escrow_amount:
-            return Response({
-                "error": "Insufficient wallet balance",
-                "required": float(escrow_amount),
-                "available": float(wallet.balance)
-            }, status=400)
-        
-        # Deduct from wallet and add to reserved
-        wallet.balance -= escrow_amount
-        wallet.reservedBalance += escrow_amount
-        wallet.save()
-        
-        # Update job escrow status
-        job.escrowAmount = escrow_amount
-        job.escrowPaid = True
-        job.escrowPaidAt = timezone.now()
-        job.remainingPayment = escrow_amount  # Remaining 50%
-        job.save()
-        
-        # Create transaction record
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType='PAYMENT',
-            amount=escrow_amount,
-            balanceAfter=wallet.balance,
-            status='COMPLETED',
-            description=f"Escrow payment for job: {job.title}",
-            relatedJobPosting=job,
-            paymentMethod='WALLET'
-        )
+        # Get wallet with row-level lock to prevent race conditions
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                accountFK=request.auth,
+                defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+            )
+            
+            # Calculate escrow amount (50% of budget)
+            escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
+            
+            # Check wallet balance
+            if wallet.balance < escrow_amount:
+                return Response({
+                    "error": "Insufficient wallet balance",
+                    "required": float(escrow_amount),
+                    "available": float(wallet.balance)
+                }, status=400)
+            
+            # Deduct from wallet and add to reserved
+            wallet.balance -= escrow_amount
+            wallet.reservedBalance += escrow_amount
+            wallet.save()
+            
+            # Update job escrow status
+            job.escrowAmount = escrow_amount
+            job.escrowPaid = True
+            job.escrowPaidAt = timezone.now()
+            job.remainingPayment = escrow_amount  # Remaining 50%
+            job.save()
+            
+            # Create transaction record
+            transaction = Transaction.objects.create(
+                walletID=wallet,
+                transactionType='PAYMENT',
+                amount=escrow_amount,
+                balanceAfter=wallet.balance,
+                status='COMPLETED',
+                description=f"Escrow payment for job: {job.title}",
+                relatedJobPosting=job,
+                paymentMethod='WALLET'
+            )
         
         print(f"✅ [MOBILE] Escrow ₱{escrow_amount} created for job {job_id}")
         
@@ -5972,32 +6320,50 @@ def mobile_create_final_payment(request):
         
         # For wallet payments, check balance and process
         if payment_method == 'WALLET':
+            from django.db import transaction as db_transaction
+            with db_transaction.atomic():
+                wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': Decimal('0.00')}
+                )
+                
+                if wallet.balance < final_amount:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(final_amount),
+                        "available": float(wallet.balance)
+                    }, status=400)
+                
+                # Deduct from wallet
+                wallet.balance -= final_amount
+                wallet.save()
+                
+                # Create transaction
+                Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType='PAYMENT',
+                    amount=final_amount,
+                    balanceAfter=wallet.balance,
+                    status='COMPLETED',
+                    description=f"Final payment for job: {job.title}",
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET'
+                )
+        elif payment_method == 'CASH':
+            # Cash is handled outside the app — create a pending transaction for auditing
             wallet, _ = Wallet.objects.get_or_create(
                 accountFK=request.auth,
                 defaults={'balance': Decimal('0.00')}
             )
-            
-            if wallet.balance < final_amount:
-                return Response({
-                    "error": "Insufficient wallet balance",
-                    "required": float(final_amount),
-                    "available": float(wallet.balance)
-                }, status=400)
-            
-            # Deduct from wallet
-            wallet.balance -= final_amount
-            wallet.save()
-            
-            # Create transaction
             Transaction.objects.create(
                 walletID=wallet,
                 transactionType='PAYMENT',
                 amount=final_amount,
                 balanceAfter=wallet.balance,
-                status='COMPLETED',
-                description=f"Final payment for job: {job.title}",
+                status='PENDING',
+                description=f"Final cash payment for job: {job.title} (pending admin verification)",
                 relatedJobPosting=job,
-                paymentMethod='WALLET'
+                paymentMethod='CASH'
             )
         
         # Update job payment status
@@ -6326,11 +6692,18 @@ def cleanup_maestro_test_data(request):
     - Saved jobs from test users (worker.test@iayos.com, client.test@iayos.com)
     - Job applications from test users
     
-    SECURITY: Only works in non-production environments.
+    SECURITY: Only works when TESTING=true and in non-production environments.
     """
     import os
     from django.conf import settings
     from django.db import transaction as db_transaction
+    
+    # Gate behind TESTING flag
+    if not getattr(settings, 'TESTING', False):
+        return Response(
+            {"error": "Test cleanup only available when TESTING=true"},
+            status=403
+        )
     
     # Safety check - only allow in non-production
     env = os.environ.get('DJANGO_ENV', 'development')

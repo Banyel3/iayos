@@ -31,7 +31,7 @@ import {
   WalletDepositResponse,
 } from "../../lib/hooks/usePayments";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
-import { ENDPOINTS } from "../../lib/api/config";
+import { ENDPOINTS, apiRequest } from "../../lib/api/config";
 
 /**
  * Wallet Deposit Screen
@@ -76,7 +76,7 @@ export default function WalletDepositScreen() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch(ENDPOINTS.MOBILE_CONFIG);
+        const response = await apiRequest(ENDPOINTS.MOBILE_CONFIG);
         if (response.ok) {
           const config = await response.json();
           setIsTestingMode(config.testing === true);
@@ -133,7 +133,6 @@ export default function WalletDepositScreen() {
     return (
       response?.payment_url ||
       response?.invoice_url ||
-      response?.invoiceUrl ||
       null
     );
   };
@@ -541,7 +540,7 @@ export default function WalletDepositScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Method</Text>
             <Text style={styles.sectionSubtitle}>
-              🧪 Testing Mode - Choose payment method
+              🔬 Testing Mode - Choose payment method
             </Text>
 
             <View style={styles.paymentMethodContainer}>
@@ -639,7 +638,7 @@ export default function WalletDepositScreen() {
           {selectedPaymentMethod === "gcash" ? (
             <>
               <Text style={styles.infoText}>
-                🧪 <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
+                🔬 <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
                 Funds will be added to your wallet instantly without any payment
                 gateway. No real money is involved.
               </Text>

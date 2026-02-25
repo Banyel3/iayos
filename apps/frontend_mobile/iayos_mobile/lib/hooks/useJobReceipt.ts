@@ -16,6 +16,7 @@ export interface ReceiptPayment {
   budget: number;
   escrow_amount: number;
   final_payment: number;
+  materials_cost: number;
   platform_fee: number;
   platform_fee_rate: string;
   worker_earnings: number;
@@ -62,6 +63,16 @@ export interface ReceiptReviews {
   worker_reviewed: boolean;
 }
 
+export interface ReceiptMaterial {
+  id: number;
+  name: string;
+  quantity: number;
+  unit: string | null;
+  source: string;
+  purchase_price: number | null;
+  client_approved: boolean;
+}
+
 export interface JobReceipt {
   // Job info
   job_id: number;
@@ -92,7 +103,10 @@ export interface JobReceipt {
   
   // Transaction history
   transactions: ReceiptTransaction[];
-  
+
+  // Materials purchased
+  materials: ReceiptMaterial[];
+
   // Review status
   reviews: ReceiptReviews;
 }

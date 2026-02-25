@@ -23,6 +23,8 @@ Usage:
 import io
 import logging
 import time
+import threading
+import concurrent.futures
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
@@ -36,28 +38,111 @@ logger = logging.getLogger(__name__)
 # Lower distance = more similar.  similarity = 1 - distance
 DEFAULT_FACE_MATCH_THRESHOLD = 0.55
 
+# Timeout (seconds) for a single face detection / comparison call.
+# If the underlying dlib call hangs (e.g. missing model files), this
+# prevents an infinite block that would cause a 504 gateway timeout.
+FACE_DETECTION_TIMEOUT = 30
+
 # ============================================================================
 # Lazy import helpers (avoid loading dlib at module import time)
 # ============================================================================
 
 _face_recognition = None
+_face_recognition_available: Optional[bool] = None  # None = not checked yet
 
 
 def _get_face_recognition():
-    """Lazy-load the face_recognition library (loads dlib models ~150 MB)."""
-    global _face_recognition
+    """Lazy-load the face_recognition library and verify model files exist.
+    
+    Returns the face_recognition module if models are available, else None.
+    """
+    global _face_recognition, _face_recognition_available
+
+    # Already checked and unavailable – fast exit
+    if _face_recognition_available is False:
+        return None
+
     if _face_recognition is None:
-        import face_recognition as _fr
-        _face_recognition = _fr
-        logger.info("face_recognition library loaded (dlib models ready)")
+        # IMPORTANT: Check face_recognition_models FIRST before importing face_recognition.
+        # When face_recognition_models is absent, face_recognition/__init__.py calls quit()
+        # which raises SystemExit (a BaseException, not Exception/ImportError).
+        # SystemExit in an ASGI worker causes a full server restart – importing
+        # face_recognition first would trigger that crash before we can guard against it.
+        try:
+            # Pre-validate that setuptools is installed.
+            # face_recognition_models imports pkg_resources (a setuptools sub-module)
+            # at module level.  If setuptools was removed by pip 25.3+ during
+            # dependency resolution, the subsequent import surfaces a confusing
+            # "No module named 'pkg_resources'" error.  This check uses stdlib-only
+            # importlib.metadata (Python 3.8+) to verify setuptools is present
+            # *without* importing pkg_resources itself, so it works even when
+            # setuptools is installed but pkg_resources can't be imported for
+            # some other reason (e.g. __pycache__ corruption).
+            try:
+                import importlib.metadata as _il_meta
+                _il_meta.version('setuptools')
+            except Exception as _pkg_err:
+                raise ImportError(
+                    f"setuptools is not installed ({_pkg_err}). "
+                    "pkg_resources must be available for face_recognition_models: "
+                    "pip install --upgrade setuptools"
+                ) from _pkg_err
+
+            import face_recognition_models
+            import os
+            model_path = face_recognition_models.face_recognition_model_location()
+            predictor_path = face_recognition_models.pose_predictor_model_location()
+            if not os.path.exists(model_path) or not os.path.exists(predictor_path):
+                raise FileNotFoundError(
+                    f"face_recognition model files not found: "
+                    f"model={os.path.exists(model_path)}, predictor={os.path.exists(predictor_path)}"
+                )
+        except (ImportError, FileNotFoundError) as model_err:
+            logger.error(
+                f"face_recognition_models NOT available: {model_err}. "
+                "Face detection will be skipped (documents will go to manual review)."
+            )
+            _face_recognition_available = False
+            return None
+
+        # Models confirmed present – now safe to import face_recognition.
+        # Use BaseException (not just ImportError) to catch SystemExit in case
+        # face_recognition itself calls quit() for any unexpected reason.
+        try:
+            import face_recognition as _fr
+            _face_recognition = _fr
+            _face_recognition_available = True
+            logger.info("face_recognition library loaded (dlib models verified and ready)")
+        except BaseException as e:
+            logger.error(f"face_recognition import failed: {e}")
+            _face_recognition_available = False
+            return None
+
     return _face_recognition
 
 
-def _bytes_to_image(data: bytes):
-    """Convert raw image bytes to a numpy RGB array that face_recognition expects."""
+def _bytes_to_image(data: bytes, max_dim: int = 1024):
+    """Convert raw image bytes to a numpy RGB array that face_recognition expects.
+    
+    Downscales the longest edge to *max_dim* (default 1024 px) using
+    Lanczos resampling.  Phone cameras produce 12-48 MP images whose
+    raw numpy arrays exceed 36 MB – far too large for the HOG detector
+    on a single-vCPU instance.  Down-scaling to 1024 px keeps the face
+    well above the 64 px minimum HOG needs while cutting detection time
+    from ~10 s to < 1 s.
+    """
     from PIL import Image
     import numpy as np
     img = Image.open(io.BytesIO(data)).convert("RGB")
+    
+    # Downscale if either dimension exceeds max_dim
+    w, h = img.size
+    if max(w, h) > max_dim:
+        scale = max_dim / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+        logger.info(f"Image downscaled from {w}x{h} to {new_w}x{new_h} for face detection")
+    
     return np.array(img)
 
 
@@ -65,12 +150,16 @@ def prewarm_face_api() -> bool:
     """
     Pre-warm the face_recognition library by loading the dlib model.
     Call once on Django startup so the first real request is fast.
+    Returns True if face_recognition is functional, False otherwise.
     """
     try:
-        _get_face_recognition()
+        fr = _get_face_recognition()
+        if fr is None:
+            logger.warning("face_recognition pre-warm: models not available – face detection disabled")
+            return False
         logger.info("face_recognition pre-warmed successfully")
         return True
-    except Exception as e:
+    except BaseException as e:
         logger.warning(f"face_recognition pre-warm failed: {e}")
         return False
 
@@ -159,9 +248,10 @@ class FaceDetectionService:
     # ------------------------------------------------------------------
 
     def get_service_status(self) -> Dict[str, Any]:
+        available = _face_recognition_available is not False
         return {
-            "face_detection_available": True,
-            "face_comparison_available": True,
+            "face_detection_available": available,
+            "face_comparison_available": available,
             "model": "dlib_face_recognition",
             "auto_accept_enabled": False,
             "threshold": DEFAULT_FACE_MATCH_THRESHOLD,
@@ -172,15 +262,33 @@ class FaceDetectionService:
     # ------------------------------------------------------------------
 
     def detect_face(self, image_data: bytes) -> FaceDetectionResult:
-        """Detect faces in an image using HOG detector."""
+        """Detect faces in an image using HOG detector.
+        
+        Returns skipped=True if face_recognition models aren't available
+        or if the call times out.
+        """
         request_id = int(time.time() * 1000) % 1000000
         logger.info(f"[REQ-{request_id}] detect_face  image={len(image_data)} bytes")
 
-        try:
-            fr = _get_face_recognition()
-            img = _bytes_to_image(image_data)
+        # Fast exit if face_recognition models are unavailable
+        fr = _get_face_recognition()
+        if fr is None:
+            logger.warning(f"[REQ-{request_id}] face_recognition unavailable – skipping detection")
+            return FaceDetectionResult(
+                detected=False, skipped=True,
+                error="Face detection models not installed (document will be reviewed manually)",
+            )
 
-            locations = fr.face_locations(img, model="hog")
+        def _do_detect():
+            img = _bytes_to_image(image_data)
+            return fr.face_locations(img, model="hog")
+
+        try:
+            # Run with timeout to prevent hanging if dlib gets stuck
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_do_detect)
+                locations = future.result(timeout=FACE_DETECTION_TIMEOUT)
+
             count = len(locations)
 
             bounding_boxes = []
@@ -200,6 +308,13 @@ class FaceDetectionService:
                 count=count,
                 confidence=confidence,
                 bounding_boxes=bounding_boxes,
+            )
+
+        except concurrent.futures.TimeoutError:
+            logger.error(f"[REQ-{request_id}] Face detection TIMED OUT after {FACE_DETECTION_TIMEOUT}s")
+            return FaceDetectionResult(
+                detected=False, skipped=True,
+                error=f"Face detection timed out ({FACE_DETECTION_TIMEOUT}s) – document will be reviewed manually",
             )
 
         except Exception as e:
@@ -233,14 +348,34 @@ class FaceDetectionService:
             f"threshold={threshold}"
         )
 
-        try:
-            fr = _get_face_recognition()
+        # Fast exit if face_recognition models are unavailable
+        fr = _get_face_recognition()
+        if fr is None:
+            logger.warning(f"[COMP-{request_id}] face_recognition unavailable – skipping comparison")
+            return FaceComparisonResult(
+                match=False,
+                similarity=0.0,
+                distance=1.0,
+                threshold=threshold,
+                skipped=True,
+                needs_manual_review=True,
+                error="Face detection models not installed (document will be reviewed manually)",
+                method="face_recognition",
+                model="dlib_resnet_128d",
+            )
 
+        def _do_compare():
             id_img = _bytes_to_image(id_image_data)
             selfie_img = _bytes_to_image(selfie_image_data)
+            id_enc = fr.face_encodings(id_img)
+            selfie_enc = fr.face_encodings(selfie_img)
+            return id_enc, selfie_enc
 
-            id_encodings = fr.face_encodings(id_img)
-            selfie_encodings = fr.face_encodings(selfie_img)
+        try:
+            # Run with timeout to prevent hanging
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_do_compare)
+                id_encodings, selfie_encodings = future.result(timeout=FACE_DETECTION_TIMEOUT * 2)
 
             id_has_face = len(id_encodings) > 0
             selfie_has_face = len(selfie_encodings) > 0
@@ -284,6 +419,20 @@ class FaceDetectionService:
                 id_has_face=True,
                 selfie_has_face=True,
                 needs_manual_review=not is_match,
+                method="face_recognition",
+                model="dlib_resnet_128d",
+            )
+
+        except concurrent.futures.TimeoutError:
+            logger.error(f"[COMP-{request_id}] Face comparison TIMED OUT after {FACE_DETECTION_TIMEOUT * 2}s")
+            return FaceComparisonResult(
+                match=False,
+                similarity=0.0,
+                distance=1.0,
+                threshold=threshold,
+                skipped=True,
+                needs_manual_review=True,
+                error=f"Face comparison timed out – document will be reviewed manually",
                 method="face_recognition",
                 model="dlib_resnet_128d",
             )

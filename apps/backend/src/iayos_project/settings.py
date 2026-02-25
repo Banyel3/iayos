@@ -71,19 +71,26 @@ PRODUCTION_HOSTS = [
 ]
 
 # DigitalOcean App Platform uses dynamic internal IPs (100.127.x.x range)
-# for health check probes. Since we're behind DO's load balancer which
-# validates the Host header, it's safe to allow all hosts.
-# The load balancer only forwards requests with valid Host headers.
-ALLOWED_HOSTS = ['*']
-
-# Fallback for development
+# for health check probes. Include production hosts by default and allow
+# env-based additions.
 if not ALLOWED_HOSTS:
     if DEBUG:
-        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
     else:
-        print("⚠ ALLOWED_HOSTS not set - using production defaults")
         ALLOWED_HOSTS = PRODUCTION_HOSTS.copy()
+else:
+    # Merge env-specified hosts with production hosts
+    ALLOWED_HOSTS = list(set(ALLOWED_HOSTS + PRODUCTION_HOSTS))
 
+
+# ============================================================================
+# PLATFORM FEE CONFIGURATION
+# ============================================================================
+# Single source of truth for platform fee percentage.
+# Applied to the TOTAL job budget. Client pays budget + fee.
+# e.g. ₱1000 budget → ₱100 fee → client pays ₱1100, worker gets ₱1000.
+from decimal import Decimal
+PLATFORM_FEE_RATE = Decimal('0.10')  # 10% of total budget
 
 # ============================================================================
 # FILE UPLOAD LIMITS
@@ -93,6 +100,17 @@ if not ALLOWED_HOSTS:
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 
+# ============================================================================
+# PROXY / SSL SETTINGS
+# ============================================================================
+# DigitalOcean App Platform (and most PaaS) terminates SSL at the load balancer
+# and forwards requests via HTTP internally. Django must trust the
+# X-Forwarded-Proto header so it constructs https:// URLs (critical for
+# allauth OAuth redirect_uri and CSRF checks).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Tell allauth to always generate https callback URLs in production
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https' if not DEBUG else 'http'
 
 # Application definition
 
@@ -122,7 +140,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'iayos_project.observability.RequestIDMiddleware',  # Request ID for tracing (first)
+    'iayos_project.health_check_middleware.HealthCheckMiddleware',  # Health probes bypass ALLOWED_HOSTS (must be first)
+    'iayos_project.observability.RequestIDMiddleware',  # Request ID for tracing
     'corsheaders.middleware.CorsMiddleware',
     'iayos_project.mobile_cors_middleware.MobileCORSMiddleware',  # Handle mobile apps without Origin header
     'django.middleware.security.SecurityMiddleware',
@@ -398,6 +417,26 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_BASE_URL = "https://api.resend.com"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_AUTO_SIGNUP = True           # Auto-create account from Google data (skip /auth/3rdparty/signup/ form)
+
+# ---------------------------------------------------------------------------
+# django-allauth settings for custom user model (accounts.Accounts)
+# The Accounts model uses email as USERNAME_FIELD and has NO username field.
+# Without these settings, allauth tries to access .username → AttributeError → 500.
+# ---------------------------------------------------------------------------
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None   # No username field on Accounts model
+ACCOUNT_USERNAME_REQUIRED = False          # Don't require username during signup
+ACCOUNT_EMAIL_REQUIRED = True              # Email is required (it's the login field)
+ACCOUNT_AUTHENTICATION_METHOD = 'email'    # Authenticate by email, not username
+ACCOUNT_EMAIL_VERIFICATION = 'none'        # iAyos uses its own OTP verification system
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True  # Auto-link social account to existing email
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'              # Don't verify email for social signups (Google already verified)
+SOCIALACCOUNT_ADAPTER = 'accounts.social_adapter.IayosSocialAccountAdapter'  # Custom adapter for auto-connect
+
+# After allauth processes the Google OAuth callback, redirect to our custom
+# Ninja endpoint that creates the Profile, generates JWT cookies, and redirects
+# to the frontend. Without this, allauth defaults to /accounts/profile/ (404).
+LOGIN_REDIRECT_URL = "/api/accounts/auth/google/callback"
 
 # Import custom Supabase adapter for new secret API keys
 from iayos_project.supabase_adapter import create_supabase_client
@@ -497,6 +536,10 @@ NGROK_URL = os.getenv("NGROK_URL", None)
 
 # Backend URL (used for payment redirects in production)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+# Face API (MediaPipe fallback) – used when local dlib detection fails.
+# Deployed on Render free tier; cold-starts may take 30-60 s.
+FACE_API_URL = os.getenv("FACE_API_URL", "")
 
 # Django Channels Configuration
 ASGI_APPLICATION = "iayos_project.asgi.application"

@@ -17,6 +17,11 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  Modal,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import {
   Text,
@@ -38,8 +43,13 @@ type TabType = "given" | "received";
 export default function MyReviewsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("given");
 
+  const [editingReview, setEditingReview] = useState<any>(null);
+  const [editComment, setEditComment] = useState("");
+  const [editRating, setEditRating] = useState(0);
+
   const { data, isLoading, error, refetch, isRefetching } = useMyReviews();
   const reportReview = useReportReview();
+  const editReview = useEditReview();
 
   const handleReport = (reviewId: number) => {
     Alert.alert(
@@ -87,10 +97,32 @@ export default function MyReviewsScreen() {
   };
 
   const handleEdit = (reviewId: number) => {
-    // Navigate to edit screen (not implemented in this version)
-    Alert.alert(
-      "Edit Review",
-      "Review editing will be available in the next update"
+    const allReviews = data?.reviews_given || [];
+    const review = allReviews.find((r) => r.review_id === reviewId);
+    if (!review) return;
+    setEditingReview(review);
+    setEditComment(review.comment || "");
+    setEditRating(review.rating || 0);
+  };
+
+  const submitEdit = () => {
+    if (!editingReview) return;
+    editReview.mutate(
+      {
+        reviewId: editingReview.review_id,
+        comment: editComment,
+        rating: editRating,
+      },
+      {
+        onSuccess: () => {
+          Alert.alert("Success", "Review updated successfully");
+          setEditingReview(null);
+          refetch();
+        },
+        onError: (error: Error) => {
+          Alert.alert("Error", error.message);
+        },
+      }
     );
   };
 
@@ -207,6 +239,63 @@ export default function MyReviewsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Edit Review Modal */}
+      <Modal
+        visible={!!editingReview}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingReview(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Review</Text>
+
+            <Text style={styles.modalLabel}>Rating</Text>
+            <StarRating
+              rating={editRating}
+              onChange={(r) => setEditRating(r)}
+              size={32}
+              interactive
+            />
+
+            <Text style={[styles.modalLabel, { marginTop: 16 }]}>Comment</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editComment}
+              onChangeText={setEditComment}
+              multiline
+              numberOfLines={4}
+              placeholder="Update your review..."
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setEditingReview(null)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  editReview.isPending && { opacity: 0.6 },
+                ]}
+                onPress={submitEdit}
+                disabled={editReview.isPending}
+              >
+                <Text style={styles.saveButtonText}>
+                  {editReview.isPending ? "Saving..." : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -284,5 +373,66 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 8,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: "#DDD",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    minHeight: 100,
+    backgroundColor: "#F9F9F9",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: "#F0F0F0",
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+  saveButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFF",
   },
 });

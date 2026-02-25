@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -159,17 +159,6 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
         print(f"   Worker Receives: ₱{data.budget} (full budget)")
         
-        # Get or create client's wallet
-        wallet, created = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00')}
-        )
-        
-        if created:
-            print(f"💼 New wallet created for {request.auth.email}")
-        
-        print(f"💳 Current wallet balance: ₱{wallet.balance}")
-        
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
         payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
@@ -177,22 +166,32 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Handle payment based on method
         if payment_method == "WALLET":
-            # Check if client has sufficient available balance for total amount (escrow + platform fee)
-            # Available balance = balance - reservedBalance
-            if wallet.availableBalance < total_to_charge:
-                return Response(
-                    {
-                        "error": "Insufficient wallet balance",
-                        "required": float(total_to_charge),
-                        "available": float(wallet.availableBalance),
-                        "reserved": float(wallet.reservedBalance),
-                        "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.availableBalance} available."
-                    },
-                    status=400
-                )
-            
-            # Use database transaction to ensure atomicity
+            # Use database transaction with row-level locking to prevent double-spend
             with db_transaction.atomic():
+                # Lock wallet row to prevent concurrent modifications
+                wallet, created = Wallet.objects.select_for_update().get_or_create(
+                    accountFK=request.auth,
+                    defaults={'balance': Decimal('0.00')}
+                )
+                
+                if created:
+                    print(f"💼 New wallet created for {request.auth.email}")
+                
+                print(f"💳 Current wallet balance: ₱{wallet.balance}")
+                
+                # Check if client has sufficient available balance for total amount (escrow + platform fee)
+                # Available balance = balance - reservedBalance
+                if wallet.availableBalance < total_to_charge:
+                    return Response(
+                        {
+                            "error": "Insufficient wallet balance",
+                            "required": float(total_to_charge),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                            "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.availableBalance} available."
+                        },
+                        status=400
+                    )
                 # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
                 job_type = JobPosting.JobType.INVITE if hasattr(data, 'worker_id') and data.worker_id else JobPosting.JobType.LISTING
                 
@@ -560,13 +559,13 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             total_budget = Decimal(str(data.budget))
             downpayment = total_budget * Decimal('0.5')  # 50% escrow
             remaining_payment = total_budget * Decimal('0.5')  # 50% at completion
-            platform_fee = total_budget * Decimal('0.05')  # 5% platform fee
+            platform_fee = total_budget * settings.PLATFORM_FEE_RATE  # 10% platform fee
             total_to_charge = downpayment + platform_fee
             
             print(f"💰 PROJECT Payment breakdown:")
             print(f"   Total Budget: ₱{total_budget}")
             print(f"   Downpayment (50%): ₱{downpayment}")
-            print(f"   Platform Fee (5%): ₱{platform_fee}")
+            print(f"   Platform Fee (10%): ₱{platform_fee}")
             print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
             print(f"   Remaining (50%): ₱{remaining_payment}")
             print(f"   Total Client Pays: ₱{total_budget + platform_fee}")
@@ -730,6 +729,33 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         message=f"You've been directly hired for: {job_posting.title}",
                         relatedJobID=job_posting.jobID
                     )
+                
+                # Create JobMaterial records from selected materials (client picks from worker/agency profile)
+                if data.selected_materials:
+                    from accounts.models import JobMaterial
+                    has_to_purchase = False
+                    for mat in data.selected_materials:
+                        source = mat.get('source', 'FROM_PROFILE')
+                        if source == 'TO_PURCHASE':
+                            has_to_purchase = True
+                        JobMaterial.objects.create(
+                            jobID=job_posting,
+                            workerMaterialID_id=mat.get('worker_material_id'),
+                            name=mat.get('name', 'Unknown Material'),
+                            description=mat.get('description', ''),
+                            quantity=mat.get('quantity', 1),
+                            unit=mat.get('unit', ''),
+                            source=source,
+                            added_by='CLIENT_REQUEST',
+                            client_approved=True if source == 'FROM_PROFILE' else False,
+                        )
+                    # Set materials_status based on whether any need purchasing
+                    if has_to_purchase:
+                        job_posting.materials_status = 'PENDING_PURCHASE'
+                    else:
+                        job_posting.materials_status = 'APPROVED'
+                    job_posting.save(update_fields=['materials_status'])
+                    print(f"📦 Created {len(data.selected_materials)} JobMaterial records for job {job_posting.jobID}")
                 
                 # Create transaction for escrow payment
                 escrow_transaction = Transaction.objects.create(
@@ -2430,6 +2456,45 @@ def accept_application(request, job_id: int, application_id: int):
 
             # Update status
             other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
+            
+            # CROSS-JOB AUTO-REJECTION: Reject this worker's pending applications on OTHER jobs
+            # Freelance workers can only have 1 in-progress job at a time
+            cross_job_apps = JobApplication.objects.filter(
+                workerID=application.workerID,
+                status=JobApplication.ApplicationStatus.PENDING
+            ).exclude(
+                jobID=job
+            ).select_related('jobID__clientID__profileID__accountFK')
+            
+            cross_job_count = cross_job_apps.count()
+            if cross_job_count > 0:
+                print(f"🔄 Auto-rejecting {cross_job_count} cross-job pending applications for worker {application.workerID.profileID.firstName}")
+                
+                # Notify each affected client that the worker is no longer available
+                for cross_app in cross_job_apps:
+                    try:
+                        Notification.objects.create(
+                            accountFK=cross_app.jobID.clientID.profileID.accountFK,
+                            notificationType="APPLICATION_REJECTED",
+                            title="Worker No Longer Available",
+                            message=f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName} has been hired for another job and is no longer available for '{cross_app.jobID.title}'.",
+                            relatedJobID=cross_app.jobID.jobID,
+                            relatedApplicationID=cross_app.applicationID
+                        )
+                    except Exception as notify_err:
+                        print(f"⚠️ Failed to notify client for cross-job rejection: {notify_err}")
+                
+                cross_job_apps.update(status=JobApplication.ApplicationStatus.REJECTED)
+                
+                # Notify the worker about auto-withdrawal
+                Notification.objects.create(
+                    accountFK=application.workerID.profileID.accountFK,
+                    notificationType="APPLICATIONS_AUTO_WITHDRAWN",
+                    title="Other Applications Withdrawn",
+                    message=f"Since you've been hired for '{job.title}', your {cross_job_count} other pending application{'s' if cross_job_count > 1 else ''} {'have' if cross_job_count > 1 else 'has'} been automatically withdrawn.",
+                    relatedJobID=job.jobID
+                )
+                print(f"✅ Auto-rejected {cross_job_count} cross-job applications")
 
         # Create notification for accepted worker
         client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"
@@ -2569,6 +2634,179 @@ def reject_application(request, job_id: int, application_id: int):
             {"error": f"Failed to reject application: {str(e)}"},
             status=500
         )
+
+
+@router.post("/{job_id}/invite-worker", auth=dual_auth)
+@require_kyc
+def invite_worker_to_job(request, job_id: int, data: dict = None):
+    """
+    Client invites a worker to apply for their LISTING job.
+    Creates a JOB_INVITATION notification for the worker.
+    The worker sees the notification and can navigate to the job to apply.
+    
+    Body: { "worker_id": int }
+    """
+    try:
+        from accounts.models import Notification, WorkerProfile, Profile
+
+        # Parse worker_id from request body
+        import json
+        body = json.loads(request.body) if request.body else {}
+        worker_id = body.get('worker_id')
+        
+        if not worker_id:
+            return Response(
+                {"error": "worker_id is required"},
+                status=400
+            )
+
+        # Get client profile
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "CLIENT":
+            return Response(
+                {"error": "Only clients can invite workers"},
+                status=403
+            )
+
+        # Get the job and verify ownership
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID != profile:
+            return Response(
+                {"error": "You can only invite workers to your own jobs"},
+                status=403
+            )
+
+        # Job must be ACTIVE and be a LISTING type
+        if job.status != "ACTIVE":
+            return Response(
+                {"error": "Job is no longer active"},
+                status=400
+            )
+        if job.jobType != "LISTING":
+            return Response(
+                {"error": "Can only invite workers to LISTING jobs"},
+                status=400
+            )
+
+        # Get the worker
+        try:
+            worker = WorkerProfile.objects.select_related(
+                'profileID', 'profileID__accountFK'
+            ).get(id=worker_id)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker not found"}, status=404)
+
+        worker_account = worker.profileID.accountFK
+        worker_name = f"{worker.profileID.firstName or ''} {worker.profileID.lastName or ''}".strip() or "Worker"
+
+        # Prevent inviting yourself
+        if worker_account == request.auth:
+            return Response(
+                {"error": "You cannot invite yourself"},
+                status=400
+            )
+
+        # Check for duplicate invitation
+        existing = Notification.objects.filter(
+            accountFK=worker_account,
+            notificationType=Notification.NotificationType.JOB_INVITATION,
+            relatedJobID=job_id,
+        ).exists()
+
+        if existing:
+            return Response(
+                {"error": f"{worker_name} has already been invited to this job"},
+                status=400
+            )
+
+        # Check if worker already applied to this job
+        from accounts.models import JobApplication
+        already_applied = JobApplication.objects.filter(
+            jobID=job,
+            workerID=worker
+        ).exists()
+
+        if already_applied:
+            return Response(
+                {"error": f"{worker_name} has already applied to this job"},
+                status=400
+            )
+
+        # Create notification for the worker
+        client_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "A client"
+
+        Notification.objects.create(
+            accountFK=worker_account,
+            notificationType=Notification.NotificationType.JOB_INVITATION,
+            title=f"Job Invitation: {job.title}",
+            message=f"{client_name} has invited you to apply for \"{job.title}\" (₱{job.budget:,.0f}). Tap to view and apply.",
+            relatedJobID=job_id,
+            profile_type="WORKER",
+        )
+
+        print(f"✅ Worker {worker_name} (id={worker_id}) invited to job {job_id} ({job.title})")
+
+        return {
+            "success": True,
+            "message": f"Invitation sent to {worker_name}",
+            "worker_id": worker_id,
+            "worker_name": worker_name,
+            "job_id": job_id,
+        }
+
+    except Exception as e:
+        print(f"❌ Error inviting worker: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to invite worker: {str(e)}"},
+            status=500
+        )
+
+
+@router.get("/{job_id}/invited-workers", auth=dual_auth)
+def get_invited_workers(request, job_id: int):
+    """
+    Get list of worker IDs that have been invited to this job.
+    Used by frontend to show "Invited" badge on worker cards.
+    """
+    try:
+        from accounts.models import Notification
+
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "CLIENT":
+            return Response({"error": "Only clients can view invited workers"}, status=403)
+
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID != profile:
+            return Response({"error": "Not your job"}, status=403)
+
+        invited_account_ids = Notification.objects.filter(
+            notificationType=Notification.NotificationType.JOB_INVITATION,
+            relatedJobID=job_id,
+        ).values_list('accountFK_id', flat=True)
+
+        # Map account IDs to worker IDs
+        from accounts.models import WorkerProfile
+        invited_workers = WorkerProfile.objects.filter(
+            profileID__accountFK__accountID__in=invited_account_ids
+        ).values_list('id', flat=True)
+
+        return {
+            "success": True,
+            "invited_worker_ids": list(invited_workers),
+        }
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 
 @router.post("/{job_id}/reject-invite", auth=dual_auth)
@@ -3625,23 +3863,9 @@ def client_approve_job_completion(
 
         print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
         
-        # Close the conversation for this job
-        from profiles.models import Conversation
-        try:
-            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-            if conversation:
-                conversation.status = Conversation.ConversationStatus.COMPLETED
-                conversation.save()
-                print(f"✅ Conversation {conversation.conversationID} closed for completed job {job_id}")
-                
-                # Auto-archive if both parties have reviewed
-                from profiles.conversation_service import archive_conversation, should_auto_archive
-                if should_auto_archive(conversation):
-                    archive_result = archive_conversation(conversation)
-                    print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
-        except Exception as e:
-            print(f"⚠️ Failed to close conversation: {str(e)}")
-            # Don't fail job completion if conversation closing fails
+        # NOTE: Do NOT close conversation here - keep it ACTIVE until both parties have reviewed.
+        # Conversation will be closed in the review submission endpoint after both reviews are submitted.
+        # Previously this closed the conversation prematurely, preventing the other party from reviewing.
         
         # Log this action for admin verification and audit trail
         approval_time = timezone.now()
@@ -3699,7 +3923,7 @@ def client_approve_job_completion(
             from accounts.models import Wallet
             from jobs.payment_buffer_service import add_pending_earnings, get_payment_buffer_days
             
-            remaining_amount = job.remainingPayment
+            remaining_amount = job.remainingPayment + job.materialsCost
             buffer_days = get_payment_buffer_days()
             
             # Handle WALLET payment (instant deduction from client, but pending for worker)
@@ -3758,7 +3982,8 @@ def client_approve_job_completion(
                 pending_result = None
                 if recipient_account:
                     # Add to pending earnings (Due Balance) - NOT immediate wallet credit
-                    recipient_payment = job.budget
+                    # Worker gets budget + materials reimbursement
+                    recipient_payment = job.budget + job.materialsCost
                     pending_result = add_pending_earnings(
                         job=job,
                         recipient_account=recipient_account,
@@ -4374,6 +4599,23 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     ]
                     message = f"Agency review submitted! Please also review {len(pending_employee_reviews)} remaining employee(s)."
                 
+                # Close conversation after all agency reviews are done
+                if job_completed:
+                    from profiles.models import Conversation
+                    try:
+                        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+                        if conversation:
+                            conversation.status = Conversation.ConversationStatus.COMPLETED
+                            conversation.save()
+                            print(f"✅ Conversation {conversation.conversationID} closed after all agency reviews submitted")
+                            
+                            from profiles.conversation_service import archive_conversation, should_auto_archive
+                            if should_auto_archive(conversation):
+                                archive_result = archive_conversation(conversation)
+                                print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
+                    except Exception as e:
+                        print(f"⚠️ Failed to close conversation: {str(e)}")
+                
                 return {
                     "success": True,
                     "message": message,
@@ -4620,6 +4862,23 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 job.save()
                 job_completed = True
                 print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
+            
+            # Close the conversation after both parties have reviewed
+            if job_completed:
+                from profiles.models import Conversation
+                try:
+                    conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+                    if conversation:
+                        conversation.status = Conversation.ConversationStatus.COMPLETED
+                        conversation.save()
+                        print(f"✅ Conversation {conversation.conversationID} closed after all reviews submitted")
+                        
+                        from profiles.conversation_service import archive_conversation, should_auto_archive
+                        if should_auto_archive(conversation):
+                            archive_result = archive_conversation(conversation)
+                            print(f"📦 {archive_result.get('message', 'Conversation auto-archived')}")
+                except Exception as e:
+                    print(f"⚠️ Failed to close conversation: {str(e)}")
             
             # Build response
             response = {
@@ -6245,20 +6504,31 @@ def get_job_receipt(request, job_id: int):
             job.assignedAgencyFK.accountFK == user
         )
         
-        if not (is_client or is_worker or is_agency):
+        # For team jobs, check JobWorkerAssignment since assignedWorkerID is None
+        is_team_worker = False
+        if job.is_team_job:
+            from accounts.models import JobWorkerAssignment
+            is_team_worker = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID__accountFK=user,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        
+        if not (is_client or is_worker or is_agency or is_team_worker):
             return Response({"error": "You don't have access to this job's receipt"}, status=403)
         
         # Calculate payment breakdown
         budget = Decimal(str(job.budget))
         escrow_amount = budget * Decimal('0.5')  # 50% downpayment
         
-        # Platform fee: 10% for regular jobs, 5% for team jobs
-        platform_fee_rate = Decimal('0.05') if job.is_team_job else Decimal('0.10')
-        platform_fee = budget * platform_fee_rate
+        # Platform fee: 10% for all jobs
+        platform_fee = budget * settings.PLATFORM_FEE_RATE
+        platform_fee_rate = settings.PLATFORM_FEE_RATE
         
-        # Worker receives full budget (client pays budget + fee)
-        worker_earnings = budget
-        total_client_paid = budget + platform_fee
+        # Worker receives full budget + materials reimbursement (client pays budget + fee + materials)
+        materials_cost = Decimal(str(job.materialsCost)) if job.materialsCost else Decimal('0.00')
+        worker_earnings = budget + materials_cost
+        total_client_paid = budget + platform_fee + materials_cost
         
         # Get buffer period settings
         buffer_days = get_payment_buffer_days()
@@ -6309,6 +6579,32 @@ def get_job_receipt(request, job_id: int):
                 'avatar': worker_profile.profileImg,
                 'contact': worker_profile.contactNum,
             }
+        elif job.is_team_job:
+            # Team job: build worker info from assignments
+            from accounts.models import JobWorkerAssignment
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related('workerID__profileID', 'skillSlotID__specializationID')
+            
+            team_workers = []
+            for assign in team_assignments:
+                wp = assign.workerID.profileID
+                team_workers.append({
+                    'id': assign.workerID_id,
+                    'name': f"{wp.firstName} {wp.lastName}",
+                    'avatar': wp.profileImg,
+                    'skill': assign.skillSlotID.specializationID.specializationName if assign.skillSlotID else None,
+                })
+            
+            worker_info = {
+                'type': 'TEAM',
+                'id': None,
+                'name': f"Team ({len(team_workers)} workers)",
+                'avatar': team_workers[0]['avatar'] if team_workers else None,
+                'contact': None,
+                'team_workers': team_workers,
+            }
         elif job.assignedAgencyFK:
             agency = job.assignedAgencyFK
             worker_info = {
@@ -6355,6 +6651,7 @@ def get_job_receipt(request, job_id: int):
                     'budget': float(budget),
                     'escrow_amount': float(escrow_amount),
                     'final_payment': float(escrow_amount),  # Same as escrow (50/50 split)
+                    'materials_cost': float(materials_cost),
                     'platform_fee': float(platform_fee),
                     'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
                     'worker_earnings': float(worker_earnings),
@@ -6383,6 +6680,20 @@ def get_job_receipt(request, job_id: int):
                 
                 # Transaction history
                 'transactions': transactions,
+                
+                # Materials purchased for this job
+                'materials': [
+                    {
+                        'id': m.jobMaterialID,
+                        'name': m.name,
+                        'quantity': m.quantity,
+                        'unit': m.unit,
+                        'source': m.source,
+                        'purchase_price': float(m.purchase_price) if m.purchase_price else None,
+                        'client_approved': m.client_approved,
+                    }
+                    for m in JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+                ],
                 
                 # Review status
                 'reviews': {
@@ -6563,7 +6874,7 @@ def get_job_payment_timeline(request, job_id: int):
         traceback.print_exc()
         return Response({"error": f"Failed to generate payment timeline: {str(e)}"}, status=500)
 
-#endregion
+# endregion
 
 
 # =============================================================================
@@ -7439,6 +7750,18 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
         total_count = all_assignments.count()
         all_arrived = arrived_count == total_count
         
+        # Send system message in conversation
+        from profiles.models import Conversation, Message
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                Message.create_system_message(conv, f"✅ {employee.fullName}'s arrival confirmed by client")
+                if all_arrived:
+                    Message.create_system_message(conv, f"✅ All {total_count} employees on site! Work can begin.")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"⚠️ Failed to send system message for arrival: {str(e)}")
+        
         return {
             "success": True,
             "message": f"{employee.fullName}'s arrival confirmed - work can begin",
@@ -7450,6 +7773,229 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             "arrived_count": arrived_count,
             "total_count": total_count,
             "next_step": "All employees arrived" if all_arrived else f"{total_count - arrived_count} employee(s) still pending arrival"
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/{job_id}/employees/{employee_id}/approve-agency-project-employee", auth=dual_auth)
+@require_kyc
+def approve_agency_project_employee(
+    request,
+    job_id: int,
+    employee_id: int,
+    payment_method: str = Form("WALLET"),
+    cash_proof_image: UploadedFile = File(None)
+):
+    """
+    Client approves a single agency employee's work and pays their share.
+    
+    Per-employee approval flow:
+    - Employee must have completed full workflow (dispatched → arrival → complete)
+    - Client pays the employee's paymentAmount from their wallet
+    - When ALL employees are approved, job is marked COMPLETED
+    
+    payment_method: WALLET | GCASH | CASH
+    cash_proof_image: Required if payment_method is CASH
+    """
+    from accounts.models import Job, JobEmployeeAssignment, Transaction, Wallet, Notification
+    from profiles.models import Conversation, Message
+    from django.utils import timezone
+    from django.db import transaction
+    from decimal import Decimal
+    
+    try:
+        # Get job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedAgencyFK__accountFK',
+                'agencyID__owner'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify client ownership
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can approve employees"}, status=403)
+        
+        # Verify this is a PROJECT job
+        if job.payment_model == 'DAILY':
+            return Response({"error": "This endpoint is for PROJECT jobs only"}, status=400)
+        
+        # Verify it's an agency job
+        if not job.assignedAgencyFK:
+            return Response({"error": "This is not an agency job"}, status=400)
+        
+        # Verify job is not already completed
+        if job.status == 'COMPLETED':
+            return Response({"error": "This job has already been completed"}, status=400)
+        
+        # Validate payment method
+        payment_method = payment_method.upper()
+        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
+            return Response({"error": "Invalid payment method. Must be WALLET, GCASH, or CASH"}, status=400)
+        
+        if payment_method == 'CASH' and not cash_proof_image:
+            return Response({"error": "Cash payment requires proof image", "requires_proof": True}, status=400)
+        
+        # Get the employee's assignment
+        from agency.models import agencyemployee
+        try:
+            employee = agencyemployee.objects.get(employeeID=employee_id)
+        except agencyemployee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+        
+        try:
+            assignment = JobEmployeeAssignment.objects.get(
+                job=job,
+                employee=employee,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            )
+        except JobEmployeeAssignment.DoesNotExist:
+            return Response({"error": f"{employee.fullName} is not assigned to this job"}, status=404)
+        
+        # Verify employee workflow is complete
+        if not assignment.dispatched:
+            return Response({"error": f"{employee.fullName} has not been dispatched"}, status=400)
+        if not assignment.clientConfirmedArrival:
+            return Response({"error": f"You haven't confirmed {employee.fullName}'s arrival"}, status=400)
+        if not assignment.agencyMarkedComplete:
+            return Response({"error": f"Agency hasn't marked {employee.fullName}'s work as complete"}, status=400)
+        if assignment.clientApproved:
+            return Response({"error": f"{employee.fullName}'s work has already been approved"}, status=400)
+        
+        # Calculate payment amount
+        payment_amount = assignment.paymentAmount or Decimal('0.00')
+        if payment_amount <= 0:
+            # Fallback: recalculate from budget
+            all_active = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            )
+            total_employees = all_active.count()
+            remaining = job.budget - (job.escrowAmount or Decimal('0.00'))
+            payment_amount = remaining / total_employees if total_employees > 0 else remaining
+        
+        with transaction.atomic():
+            # Handle payment
+            if payment_method == 'WALLET':
+                try:
+                    client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+                except Wallet.DoesNotExist:
+                    return Response({"error": "Client wallet not found"}, status=404)
+                
+                if client_wallet.balance < payment_amount:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(payment_amount),
+                        "available": float(client_wallet.balance)
+                    }, status=400)
+                
+                client_wallet.balance -= payment_amount
+                client_wallet.save()
+                
+                Transaction.objects.create(
+                    senderWallet=client_wallet,
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Payment for {employee.fullName} - {job.title}',
+                    jobID=job
+                )
+            elif payment_method == 'CASH':
+                job.cashProofImage = cash_proof_image
+                job.save()
+                
+                Transaction.objects.create(
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='COMPLETED',
+                    description=f'Cash payment for {employee.fullName} - {job.title} (proof uploaded)',
+                    jobID=job
+                )
+            
+            # Mark this employee as approved
+            assignment.clientApproved = True
+            assignment.clientApprovedAt = timezone.now()
+            assignment.status = 'COMPLETED'
+            assignment.save()
+        
+        # Send system message
+        try:
+            conv = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conv:
+                Message.create_system_message(conv, f"💰 Client approved {employee.fullName}'s work (₱{float(payment_amount):,.2f})")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"⚠️ System message failed: {str(e)}")
+        
+        # Check if ALL employees are now approved
+        all_assignments = JobEmployeeAssignment.objects.filter(
+            job=job
+        ).exclude(status='REMOVED')
+        all_approved = all(a.clientApproved for a in all_assignments)
+        approved_count = sum(1 for a in all_assignments if a.clientApproved)
+        total_count = all_assignments.count()
+        
+        # If all approved, mark job as COMPLETED
+        if all_approved:
+            job.status = 'COMPLETED'
+            job.clientMarkedComplete = True
+            job.workerMarkedComplete = True
+            job.save()
+            
+            # Close conversation
+            try:
+                conv = Conversation.objects.filter(relatedJobPosting=job).first()
+                if conv:
+                    Message.create_system_message(conv, f"🎉 All employees approved & paid! Job '{job.title}' is now complete.")
+                    conv.status = Conversation.ConversationStatus.COMPLETED
+                    conv.save()
+                    
+                    from profiles.conversation_service import archive_conversation, should_auto_archive
+                    if should_auto_archive(conv):
+                        archive_conversation(conv)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"⚠️ Failed to close conversation: {str(e)}")
+            
+            # Notify agency owner
+            try:
+                if job.agencyID and job.agencyID.owner:
+                    client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
+                    Notification.objects.create(
+                        accountFK=job.agencyID.owner,
+                        notificationType="JOB_COMPLETED_CLIENT",
+                        title="Job Completed! 🎉",
+                        message=f"{client_name} has approved all employees for '{job.title}'.",
+                        relatedJobID=job.jobID
+                    )
+                Notification.objects.create(
+                    accountFK=request.auth,
+                    notificationType="JOB_COMPLETED_CLIENT",
+                    title="Job Completed ✅",
+                    message=f"You approved all employees for '{job.title}'.",
+                    relatedJobID=job.jobID
+                )
+            except Exception:
+                pass
+        
+        return {
+            "success": True,
+            "message": f"{employee.fullName}'s work approved and payment processed",
+            "assignment_id": assignment.assignmentID,
+            "employee_id": employee_id,
+            "employee_name": employee.fullName,
+            "payment_amount": float(payment_amount),
+            "payment_method": payment_method,
+            "all_approved": all_approved,
+            "approved_count": approved_count,
+            "total_count": total_count,
+            "job_status": "COMPLETED" if all_approved else job.status,
         }
         
     except Exception as e:
@@ -7559,8 +8105,8 @@ def approve_agency_project_job(
                 ]
             }, status=400)
         
-        # Calculate payment
-        remaining_balance = job.budget - (job.downpaymentAmount or Decimal('0.00'))
+        # Calculate payment (fix: downpaymentAmount doesn't exist, use escrowAmount)
+        remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
         
         with transaction.atomic():
             # Handle payment
@@ -7684,3 +8230,399 @@ def approve_agency_project_job(
         return Response({"error": "Internal server error"}, status=500)
 
 # endregion
+
+
+# ===========================================================================
+# JOB MATERIALS PURCHASING WORKFLOW
+# ===========================================================================
+
+@router.get("/{job_id}/materials", auth=dual_auth)
+def get_job_materials(request, job_id: int):
+    """Get all materials for a job. Accessible by client and assigned worker."""
+    try:
+        from accounts.models import JobMaterial
+        job = Job.objects.get(jobID=job_id)
+        
+        # Verify user is client or assigned worker
+        user = request.auth
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user)
+        
+        if not (is_client or is_worker):
+            return Response({"error": "Not authorized"}, status=403)
+        
+        materials = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+        
+        materials_list = []
+        for m in materials:
+            materials_list.append({
+                "id": m.jobMaterialID,
+                "name": m.name,
+                "description": m.description,
+                "quantity": m.quantity,
+                "unit": m.unit,
+                "source": m.source,
+                "purchase_price": float(m.purchase_price) if m.purchase_price else None,
+                "receipt_image_url": m.receipt_image_url,
+                "client_approved": m.client_approved,
+                "client_approved_at": m.client_approved_at.isoformat() if m.client_approved_at else None,
+                "client_rejected": m.client_rejected,
+                "rejection_reason": m.rejection_reason,
+                "added_by": m.added_by,
+                "worker_material_id": m.workerMaterialID_id,
+                "created_at": m.createdAt.isoformat(),
+            })
+        
+        return {
+            "success": True,
+            "materials": materials_list,
+            "materials_status": job.materials_status,
+            "materials_cost": float(job.materialsCost),
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error fetching job materials: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/{job_id}/materials", auth=dual_auth)
+def add_job_material(request, job_id: int):
+    """Worker adds a material to a job (either from profile or to purchase)."""
+    try:
+        import json
+        from accounts.models import JobMaterial, WorkerMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        # Only assigned worker can add materials
+        if not (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user):
+            return Response({"error": "Only the assigned worker can add materials"}, status=403)
+        
+        if job.status not in ['IN_PROGRESS', 'ACTIVE']:
+            return Response({"error": "Job must be active or in progress"}, status=400)
+        
+        data = json.loads(request.body)
+        name = data.get('name', '').strip()
+        if not name:
+            return Response({"error": "Material name is required"}, status=400)
+        
+        source = data.get('source', 'TO_PURCHASE')
+        worker_material_id = data.get('worker_material_id')
+        
+        material = JobMaterial.objects.create(
+            jobID=job,
+            workerMaterialID_id=worker_material_id if worker_material_id else None,
+            name=name,
+            description=data.get('description', ''),
+            quantity=data.get('quantity', 1),
+            unit=data.get('unit', ''),
+            source=source,
+            added_by=data.get('added_by', 'WORKER_SUPPLIED'),
+            # If from profile, auto-approve (no cost)
+            client_approved=True if source == 'FROM_PROFILE' else False,
+            client_approved_at=timezone.now() if source == 'FROM_PROFILE' else None,
+        )
+        
+        # Update job materials_status if not already set
+        if job.materials_status == 'NONE':
+            job.materials_status = 'PENDING_PURCHASE'
+            job.save(update_fields=['materials_status'])
+        
+        return {
+            "success": True,
+            "material": {
+                "id": material.jobMaterialID,
+                "name": material.name,
+                "description": material.description,
+                "quantity": material.quantity,
+                "unit": material.unit,
+                "source": material.source,
+                "purchase_price": None,
+                "receipt_image_url": None,
+                "client_approved": material.client_approved,
+                "client_approved_at": material.client_approved_at.isoformat() if material.client_approved_at else None,
+                "client_rejected": material.client_rejected,
+                "rejection_reason": None,
+                "added_by": material.added_by,
+                "worker_material_id": material.workerMaterialID_id,
+                "created_at": material.createdAt.isoformat(),
+            }
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error adding job material: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/{material_id}/purchase-proof", auth=dual_auth)
+def upload_material_purchase_proof(request, job_id: int, material_id: int):
+    """Worker uploads receipt image and actual price for a purchased material."""
+    try:
+        from accounts.models import JobMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        if not (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user):
+            return Response({"error": "Only the assigned worker can upload purchase proof"}, status=403)
+        
+        material = JobMaterial.objects.get(jobMaterialID=material_id, jobID=job)
+        
+        if material.source == 'FROM_PROFILE':
+            return Response({"error": "Cannot upload purchase proof for materials from your profile"}, status=400)
+        
+        # Get purchase price from POST data (multipart form) or JSON body
+        purchase_price = request.POST.get('purchase_price')
+        if purchase_price is None:
+            try:
+                import json
+                data = json.loads(request.body)
+                purchase_price = data.get('purchase_price')
+            except Exception:
+                pass
+        
+        if purchase_price is None or float(purchase_price) <= 0:
+            return Response({"error": "Valid purchase price is required"}, status=400)
+        
+        # Handle receipt image upload via request.FILES
+        receipt_image = request.FILES.get('receipt_image')
+        receipt_image_url = None
+        
+        if receipt_image:
+            try:
+                from django.conf import settings
+                import uuid
+                
+                if not settings.STORAGE:
+                    raise Exception("Storage not configured")
+                file_extension = receipt_image.name.split('.')[-1] if '.' in receipt_image.name else 'jpg'
+                file_name = f"material_receipts/job_{job_id}/{material_id}_{uuid.uuid4().hex}.{file_extension}"
+                
+                # Upload file to Supabase
+                settings.STORAGE.storage().from_('job-images').upload(
+                    file_name,
+                    receipt_image.read(),
+                    {'content-type': receipt_image.content_type or 'image/jpeg'}
+                )
+                
+                # Get public URL
+                receipt_image_url = settings.STORAGE.storage().from_('job-images').get_public_url(file_name)
+                print(f"✅ Material receipt uploaded: {receipt_image_url}")
+            except Exception as upload_err:
+                print(f"❌ Material receipt upload error: {upload_err}")
+                return Response({"error": f"Failed to upload receipt image: {str(upload_err)}"}, status=500)
+        else:
+            # Fallback: check JSON body for receipt_image_url
+            try:
+                import json
+                data = json.loads(request.body)
+                receipt_image_url = data.get('receipt_image_url')
+            except Exception:
+                pass
+        
+        material.purchase_price = Decimal(str(purchase_price))
+        material.receipt_image_url = receipt_image_url or ''
+        material.source = 'PURCHASED'
+        material.client_approved = False  # Reset approval - client must re-approve
+        material.client_rejected = False
+        material.save()
+        
+        # Check if all TO_PURCHASE items are now PURCHASED
+        pending_purchases = JobMaterial.objects.filter(
+            jobID=job, source='TO_PURCHASE'
+        ).count()
+        
+        if pending_purchases == 0:
+            job.materials_status = 'PURCHASED'
+            job.save(update_fields=['materials_status'])
+        
+        return {
+            "success": True,
+            "material": {
+                "id": material.jobMaterialID,
+                "name": material.name,
+                "purchase_price": float(material.purchase_price),
+                "receipt_image_url": material.receipt_image_url,
+                "source": material.source,
+                "client_approved": material.client_approved,
+            }
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except JobMaterial.DoesNotExist:
+        return Response({"error": "Material not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error uploading purchase proof: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/{material_id}/approve", auth=dual_auth)
+def approve_material_purchase(request, job_id: int, material_id: int):
+    """Client approves a material purchase, adding its cost to the job's materialsCost."""
+    try:
+        from accounts.models import JobMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        # Only client can approve
+        if job.clientID.profileID.accountFK != user:
+            return Response({"error": "Only the client can approve material purchases"}, status=403)
+        
+        material = JobMaterial.objects.get(jobMaterialID=material_id, jobID=job)
+        
+        if material.client_approved:
+            return Response({"error": "Material already approved"}, status=400)
+        
+        if material.source == 'FROM_PROFILE':
+            return Response({"error": "Materials from worker's profile don't need approval"}, status=400)
+        
+        if not material.purchase_price or material.purchase_price <= 0:
+            return Response({"error": "Material must have a purchase price before approval"}, status=400)
+        
+        material.client_approved = True
+        material.client_approved_at = timezone.now()
+        material.client_rejected = False
+        material.rejection_reason = None
+        material.save()
+        
+        # Add the approved purchase price to job's materialsCost
+        job.materialsCost += material.purchase_price
+        
+        # Check if all purchased materials are now approved
+        unapproved = JobMaterial.objects.filter(
+            jobID=job,
+            source='PURCHASED',
+            client_approved=False,
+            client_rejected=False
+        ).count()
+        
+        if unapproved == 0:
+            # Also check no items still TO_PURCHASE
+            to_purchase = JobMaterial.objects.filter(jobID=job, source='TO_PURCHASE').count()
+            if to_purchase == 0:
+                job.materials_status = 'APPROVED'
+        
+        job.save(update_fields=['materialsCost', 'materials_status'])
+        
+        return {
+            "success": True,
+            "material_id": material.jobMaterialID,
+            "approved_amount": float(material.purchase_price),
+            "total_materials_cost": float(job.materialsCost),
+            "materials_status": job.materials_status,
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except JobMaterial.DoesNotExist:
+        return Response({"error": "Material not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error approving material: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/{material_id}/reject", auth=dual_auth)
+def reject_material_purchase(request, job_id: int, material_id: int):
+    """Client rejects a material purchase."""
+    try:
+        import json
+        from accounts.models import JobMaterial
+        
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        if job.clientID.profileID.accountFK != user:
+            return Response({"error": "Only the client can reject material purchases"}, status=403)
+        
+        material = JobMaterial.objects.get(jobMaterialID=material_id, jobID=job)
+        
+        if material.client_approved:
+            return Response({"error": "Cannot reject an already approved material"}, status=400)
+        
+        data = json.loads(request.body) if request.body else {}
+        
+        material.client_rejected = True
+        material.rejection_reason = data.get('reason', '')
+        material.save()
+        
+        return {
+            "success": True,
+            "material_id": material.jobMaterialID,
+            "rejection_reason": material.rejection_reason,
+        }
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except JobMaterial.DoesNotExist:
+        return Response({"error": "Material not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error rejecting material: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/mark-buying", auth=dual_auth)
+def mark_materials_buying(request, job_id: int):
+    """Worker marks that they are buying materials."""
+    try:
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        if not (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user):
+            return Response({"error": "Only the assigned worker can update materials status"}, status=403)
+        
+        job.materials_status = 'BUYING'
+        job.save(update_fields=['materials_status'])
+        
+        return {"success": True, "materials_status": "BUYING"}
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error marking materials buying: {e}")
+        return Response({"error": str(e)}, status=500)
+
+
+@router.put("/{job_id}/materials/skip", auth=dual_auth)
+def skip_materials_step(request, job_id: int):
+    """Worker or client skips the materials step (no materials needed)."""
+    try:
+        job = Job.objects.get(jobID=job_id)
+        user = request.auth
+        
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user)
+        
+        if not (is_client or is_worker):
+            return Response({"error": "Not authorized"}, status=403)
+        
+        if job.materials_status in ['APPROVED', 'NONE']:
+            return Response({"error": "Materials step already completed or not needed"}, status=400)
+        
+        job.materials_status = 'APPROVED'
+        job.save(update_fields=['materials_status'])
+        
+        return {"success": True, "materials_status": "APPROVED"}
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error skipping materials: {e}")
+        return Response({"error": str(e)}, status=500)
+

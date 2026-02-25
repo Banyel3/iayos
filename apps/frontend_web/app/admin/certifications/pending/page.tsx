@@ -275,7 +275,7 @@ export default function PendingCertificationsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
           <Card className="border-0 shadow-lg overflow-hidden bg-gradient-to-br from-yellow-50 to-yellow-100/50">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">

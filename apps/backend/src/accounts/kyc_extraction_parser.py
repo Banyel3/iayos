@@ -1075,37 +1075,50 @@ class KYCExtractionParser:
         # NBI CLEARANCE PATTERNS
         # =====================================================================
         if clearance_type == "NBI":
-            # NBI Clearance Number pattern: "NBI CLEARANCE NO: XXXX-XXXXXXXX" or similar
+            # NBI Clearance Number — modern format uses "NBI ID NO: C654BVBN50-R92684150"
             nbi_number_patterns = [
+                r'NBI\s*ID\s*(?:NO|NUMBER)?[:\.\s]+([A-Z0-9\-]+)',
                 r'(?:NBI\s*)?CLEARANCE\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
                 r'NO[:\.\s]*(\d{4}[\-\s]?\d{8})',
                 r'(?:NBI|CLEARANCE)\s*[:\.\s]*([A-Z]?\d{4,}[\-\s]?\d{0,8})',
             ]
-            
+
             for pattern in nbi_number_patterns:
                 match = re.search(pattern, text_upper, re.IGNORECASE)
                 if match:
                     result["clearance_number"] = match.group(1).strip()
                     result["clearance_number_confidence"] = 0.85
                     break
-            
-            # Name pattern: "NAME: JUAN DELA CRUZ" or "DELACRUZ, JUAN SANTOS"
-            name_patterns = [
-                r'NAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
-                r'(?:ISSUED\s+TO|HOLDER)[:\.\s]+([A-Z][A-Z\s,\.]+)',
-            ]
-            
-            for pattern in name_patterns:
-                match = re.search(pattern, text_upper)
-                if match:
-                    name = match.group(1).strip()
-                    # Clean up name (remove trailing dates or extra info)
-                    name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
-                    name = re.sub(r'\s+', ' ', name).strip()
-                    if len(name) > 3:
-                        result["holder_name"] = name.title()
-                        result["holder_name_confidence"] = 0.8
-                        break
+
+            # Modern NBI has separate FAMILY NAME / FIRST NAME / MIDDLE NAME lines
+            _name_stop = r'(?=\s*(?:ADDRESS|DATE|VALID|BIRTH|PURPOSE|STATUS|NBI|CLEARANCE|ISSUED|\d))'
+            _family_match = re.search(r'FAMILY\s*NAME[:\.\s]+([A-Z][A-Z\s\-\.]+)' + _name_stop, text_upper)
+            _first_match  = re.search(r'FIRST\s*NAME[:\.\s]+([A-Z][A-Z\s\-\.]+)' + _name_stop, text_upper)
+            _middle_match = re.search(r'MIDDLE\s*NAME[:\.\s]+([A-Z][A-Z\s\-\.]+)' + _name_stop, text_upper)
+
+            if _family_match:
+                _family = _family_match.group(1).strip()
+                _first  = _first_match.group(1).strip()  if _first_match  else ''
+                _middle = _middle_match.group(1).strip() if _middle_match else ''
+                full_name = ' '.join(part for part in [_first, _middle, _family] if part)
+                result["holder_name"] = full_name.title()
+                result["holder_name_confidence"] = 0.9
+            else:
+                # Fallback: generic NAME / ISSUED TO / HOLDER patterns
+                name_patterns = [
+                    r'(?:ISSUED\s+TO|HOLDER)[:\.\s]+([A-Z][A-Z\s,\.]+)',
+                    r'\bNAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
+                ]
+                for pattern in name_patterns:
+                    match = re.search(pattern, text_upper)
+                    if match:
+                        name = match.group(1).strip()
+                        name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
+                        name = re.sub(r'\s+', ' ', name).strip()
+                        if len(name) > 3:
+                            result["holder_name"] = name.title()
+                            result["holder_name_confidence"] = 0.8
+                            break
         
         # =====================================================================
         # POLICE CLEARANCE PATTERNS

@@ -76,10 +76,10 @@ class BucketInterface:
             # Handle upsert option
             if options and options.get('upsert') == 'true':
                 # Use POST for upsert (will overwrite if exists)
-                response = requests.post(url, data=file_data, headers=upload_headers)
+                response = requests.post(url, data=file_data, headers=upload_headers, timeout=(30, 120))
             else:
                 # Use POST for normal upload
-                response = requests.post(url, data=file_data, headers=upload_headers)
+                response = requests.post(url, data=file_data, headers=upload_headers, timeout=(30, 120))
 
             if response.status_code in [200, 201]:
                 # Success
@@ -131,7 +131,7 @@ class BucketInterface:
                 'expiresIn': expires_in
             }
 
-            response = requests.post(url, json=payload, headers=self.headers)
+            response = requests.post(url, json=payload, headers=self.headers, timeout=(10, 30))
 
             if response.status_code == 200:
                 data = response.json()
@@ -173,7 +173,7 @@ class BucketInterface:
             path = path.lstrip('/')
             url = f"{self.storage_url}/{path}"
 
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=(30, 120))
 
             if response.status_code == 200:
                 return response.content
@@ -202,7 +202,7 @@ class BucketInterface:
                 'prefixes': paths
             }
 
-            response = requests.delete(url, json=payload, headers=self.headers)
+            response = requests.delete(url, json=payload, headers=self.headers, timeout=(10, 30))
 
             if response.status_code in [200, 204]:
                 return {'data': paths, 'error': None}
