@@ -202,7 +202,8 @@ const navigation: NavItem[] = [
       {
         name: "Transactions",
         href: "/admin/payments/transactions",
-        icon:         description: "All payment transactions",
+        icon: PesoSign,
+        description: "All payment transactions",
       },
       {
         name: "Withdrawals",
@@ -295,7 +296,8 @@ const navigation: NavItem[] = [
       {
         name: "Financial Reports",
         href: "/admin/analytics/financial",
-        icon:         description: "Revenue & transactions",
+        icon: PesoSign,
+        description: "Revenue & transactions",
       },
       {
         name: "Custom Reports",
@@ -346,7 +348,7 @@ export default function Sidebar({ className }: SidebarProps) {
         }
       }
     });
-    
+
     // Only update if we have active parents that aren't already expanded
     if (activeParents.length > 0) {
       setExpandedItems((prev) => {
@@ -457,7 +459,7 @@ export default function Sidebar({ className }: SidebarProps) {
           const data = await response.json();
           if (data.user) {
             setAdminUser({
-              name: data.user.first_name && data.user.last_name 
+              name: data.user.first_name && data.user.last_name
                 ? `${data.user.first_name} ${data.user.last_name}`
                 : data.user.email?.split('@')[0] || 'Admin',
               email: data.user.email || '',
@@ -539,7 +541,7 @@ export default function Sidebar({ className }: SidebarProps) {
       )}
     >
       {/* Header */}
-      <div 
+      <div
         className={cn(
           "flex items-center justify-between p-4 border-b border-sidebar-border",
           !collapsed && "cursor-pointer hover:bg-gray-50 transition-colors"
@@ -579,7 +581,7 @@ export default function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav 
+      <nav
         className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide"
         onClick={(e) => {
           if (collapsed && e.target === e.currentTarget) {
