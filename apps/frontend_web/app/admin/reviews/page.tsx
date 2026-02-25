@@ -116,8 +116,8 @@ export default function ReviewsPage() {
           <Star
             key={i}
             className={`h-4 w-4 ${i < rating
-                ? "fill-yellow-400 text-yellow-400"
-                : "fill-gray-200 text-gray-200"
+              ? "fill-yellow-400 text-yellow-400"
+              : "fill-gray-200 text-gray-200"
               }`}
           />
         ))}
@@ -229,7 +229,7 @@ export default function ReviewsPage() {
                   Average Rating
                 </p>
                 <p className="text-3xl font-bold text-gray-900">
-                  ⭐ {avgRating}
+                  {avgRating}
                 </p>
               </CardContent>
             </Card>
@@ -287,37 +287,40 @@ export default function ReviewsPage() {
                 <select
                   value={ratingFilter}
                   onChange={(e) => setRatingFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-10 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "right 16px center" }}
                 >
-                  <option value="all">⭐ All Ratings</option>
-                  <option value="5">⭐⭐⭐⭐⭐ 5 Stars</option>
-                  <option value="4">⭐⭐⭐⭐ 4 Stars</option>
-                  <option value="3">⭐⭐⭐ 3 Stars</option>
-                  <option value="2">⭐⭐ 2 Stars</option>
-                  <option value="1">⭐ 1 Star</option>
+                  <option value="all">All Ratings</option>
+                  <option value="5">5 Stars</option>
+                  <option value="4">4 Stars</option>
+                  <option value="3">3 Stars</option>
+                  <option value="2">2 Stars</option>
+                  <option value="1">1 Star</option>
                 </select>
 
                 {/* Status Filter */}
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-10 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "right 16px center" }}
                 >
-                  <option value="all">📋 All Status</option>
-                  <option value="active">✓ Active</option>
-                  <option value="flagged">🚩 Flagged</option>
-                  <option value="hidden">👁️ Hidden</option>
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="flagged">Flagged</option>
+                  <option value="hidden">Hidden</option>
                 </select>
 
                 {/* User Type Filter */}
                 <select
                   value={userTypeFilter}
                   onChange={(e) => setUserTypeFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-10 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "right 16px center" }}
                 >
-                  <option value="all">👥 All Types</option>
-                  <option value="client_to_worker">👔 Client → Worker</option>
-                  <option value="worker_to_client">👷 Worker → Client</option>
+                  <option value="all">All User Types</option>
+                  <option value="client_to_worker">Client → Worker</option>
+                  <option value="worker_to_client">Worker → Client</option>
                 </select>
               </div>
 
@@ -371,12 +374,12 @@ export default function ReviewsPage() {
                           </div>
                           {review.is_flagged && (
                             <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-                              🚩 Flagged
+                              Flagged
                             </Badge>
                           )}
                           {review.is_hidden && (
                             <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
-                              👁️ Hidden
+                              Hidden
                             </Badge>
                           )}
                         </div>

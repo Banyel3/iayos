@@ -463,11 +463,11 @@ export default function TransactionsPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">📊 All Status</option>
-                  <option value="completed">✓ Completed</option>
-                  <option value="pending">⏳ Pending</option>
-                  <option value="failed">✗ Failed</option>
-                  <option value="refunded">↩ Refunded</option>
+                  <option value="all">All Status</option>
+                  <option value="completed">Completed</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                  <option value="refunded">Refunded</option>
                 </select>
 
                 {/* Payment Method Filter */}
@@ -476,12 +476,12 @@ export default function TransactionsPage() {
                   onChange={(e) => setTypeFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">💳 All Types</option>
-                  <option value="ESCROW">🔒 Escrow</option>
-                  <option value="EARNING">💰 Earning</option>
-                  <option value="PENDING_EARNING">⏳ Pending Earning</option>
-                  <option value="WITHDRAWAL">📤 Withdrawal</option>
-                  <option value="DEPOSIT">📥 Deposit</option>
+                  <option value="all">All Types</option>
+                  <option value="ESCROW">Escrow</option>
+                  <option value="EARNING">Earning</option>
+                  <option value="PENDING_EARNING">Pending Earning</option>
+                  <option value="WITHDRAWAL">Withdrawal</option>
+                  <option value="DEPOSIT">Deposit</option>
                 </select>
 
                 {/* Export Button */}
