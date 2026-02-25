@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import {
-  Banknote, API_BASE } from "@/lib/api/config";
+  Banknote,
+  API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";

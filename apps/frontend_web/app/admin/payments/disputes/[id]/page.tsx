@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Banknote, Banknote, useState, useEffect } from "react";
+  useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";

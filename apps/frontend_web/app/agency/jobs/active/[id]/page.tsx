@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  Banknote, API_BASE } from "@/lib/api/config";
+  Banknote,
+  API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {

@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  Banknote, useState } from "react";
+  Banknote,
+  useState } from "react";
 import {
   Calendar,
   MapPin,

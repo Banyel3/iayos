@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  Banknote, API_BASE } from "@/lib/api/config";
+  Banknote,
+  API_BASE } from "@/lib/api/config";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/form_button";

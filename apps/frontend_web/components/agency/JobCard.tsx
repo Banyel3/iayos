@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import {
-  Banknote, Banknote, Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+  Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {

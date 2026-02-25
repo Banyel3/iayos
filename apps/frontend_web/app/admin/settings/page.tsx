@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Banknote, Banknote, useRouter } from "next/navigation";
+  useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import {
