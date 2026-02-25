@@ -211,7 +211,7 @@ export default function AnalyticsDashboard() {
                         ? "default"
                         : "destructive"
                     }
-                    className="flex items-center space-x-1"
+                    className="flex items-center space-x-1 text-white"
                   >
                     {(stats?.users.growth_rate || 0) >= 0 ? (
                       <ArrowUp className="h-3 w-3" />
@@ -253,7 +253,7 @@ export default function AnalyticsDashboard() {
                   <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 transition-transform">
                     <Briefcase className="h-6 w-6 text-green-600" />
                   </div>
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-white">
                     {stats?.jobs.completion_rate || 0}% completed
                   </Badge>
                 </div>
@@ -295,7 +295,7 @@ export default function AnalyticsDashboard() {
                         ? "default"
                         : "destructive"
                     }
-                    className="flex items-center space-x-1"
+                    className="flex items-center space-x-1 text-white"
                   >
                     {(stats?.revenue.growth_rate || 0) >= 0 ? (
                       <ArrowUp className="h-3 w-3" />
@@ -339,7 +339,7 @@ export default function AnalyticsDashboard() {
                   <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform">
                     <CreditCard className="h-6 w-6 text-orange-600" />
                   </div>
-                  <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
+                  <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 text-white">
                     {stats?.revenue.platform_fees
                       ? (
                         (stats.revenue.platform_fees / stats.revenue.total) *
@@ -560,7 +560,7 @@ export default function AnalyticsDashboard() {
                       <Users className="h-5 w-5 text-blue-600" />
                       <span className="font-medium text-gray-700">Clients</span>
                     </div>
-                    <Badge className="bg-blue-600">
+                    <Badge className="bg-blue-600 text-white">
                       {Math.floor((stats?.users.total || 0) * 0.45)}
                     </Badge>
                   </div>
@@ -569,7 +569,7 @@ export default function AnalyticsDashboard() {
                       <UserCheck className="h-5 w-5 text-green-600" />
                       <span className="font-medium text-gray-700">Workers</span>
                     </div>
-                    <Badge className="bg-green-600">
+                    <Badge className="bg-green-600 text-white">
                       {Math.floor((stats?.users.total || 0) * 0.45)}
                     </Badge>
                   </div>
@@ -580,7 +580,7 @@ export default function AnalyticsDashboard() {
                         Agencies
                       </span>
                     </div>
-                    <Badge className="bg-purple-600">
+                    <Badge className="bg-purple-600 text-white">
                       {Math.floor((stats?.users.total || 0) * 0.1)}
                     </Badge>
                   </div>

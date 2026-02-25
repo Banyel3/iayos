@@ -186,7 +186,7 @@ export default function ScheduledReports() {
             <Button
               variant={activeTab === "scheduled" ? "default" : "outline"}
               onClick={() => setActiveTab("scheduled")}
-              className={activeTab === "scheduled" ? "bg-blue-600" : ""}
+              className={activeTab === "scheduled" ? "bg-blue-600 text-white" : ""}
             >
               <Clock className="h-4 w-4 mr-2" />
               Scheduled Reports
@@ -194,7 +194,7 @@ export default function ScheduledReports() {
             <Button
               variant={activeTab === "history" ? "default" : "outline"}
               onClick={() => setActiveTab("history")}
-              className={activeTab === "history" ? "bg-blue-600" : ""}
+              className={activeTab === "history" ? "bg-blue-600 text-white" : ""}
             >
               <FileText className="h-4 w-4 mr-2" />
               Report History
