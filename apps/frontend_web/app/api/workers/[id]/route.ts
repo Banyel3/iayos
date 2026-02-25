@@ -32,9 +32,10 @@ const workers = [
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const worker = workers.find((w) => w.id === params.id);
+  const { id } = await params;
+  const worker = workers.find((w) => w.id === id);
   if (!worker) {
     return NextResponse.json({ error: "Worker not found" }, { status: 404 });
   }

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  API_BASE } from "@/lib/api/config";
+  API_BASE
+} from "@/lib/api/config";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
@@ -99,7 +100,7 @@ export default function EmployeesPage() {
   const [performanceStats, setPerformanceStats] =
     useState<PerformanceStats | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Add Employee form state - name breakdown
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -112,6 +113,7 @@ export default function EmployeesPage() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editMiddleName, setEditMiddleName] = useState("");
   const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editMobile, setEditMobile] = useState("");
   const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -261,16 +263,16 @@ export default function EmployeesPage() {
   };
 
   const toggleSpecialization = (spec: string) => {
-    setSelectedSpecializations(prev => 
-      prev.includes(spec) 
+    setSelectedSpecializations(prev =>
+      prev.includes(spec)
         ? prev.filter(s => s !== spec)
         : [...prev, spec]
     );
   };
 
   const toggleEditSpecialization = (spec: string) => {
-    setEditSpecializations(prev => 
-      prev.includes(spec) 
+    setEditSpecializations(prev =>
+      prev.includes(spec)
         ? prev.filter(s => s !== spec)
         : [...prev, spec]
     );
@@ -278,12 +280,12 @@ export default function EmployeesPage() {
 
   const saveEditEmployee = async () => {
     if (!editingEmployee) return;
-    
+
     if (!editFirstName.trim() || !editLastName.trim()) {
       toast.error("First name and last name are required");
       return;
     }
-    
+
     if (editSpecializations.length === 0) {
       toast.error("At least one specialization is required");
       return;
@@ -468,21 +470,19 @@ export default function EmployeesPage() {
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab("employees")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === "employees"
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "employees"
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                  }`}
               >
                 <div className="flex items-center space-x-2">
                   <Briefcase className="h-5 w-5" />
                   <span>All Employees</span>
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
-                      activeTab === "employees"
+                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "employees"
                         ? "bg-blue-100 text-blue-600"
                         : "bg-gray-100 text-gray-600"
-                    }`}
+                      }`}
                   >
                     {employees.length}
                   </span>
@@ -491,11 +491,10 @@ export default function EmployeesPage() {
 
               <button
                 onClick={() => setActiveTab("leaderboard")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === "leaderboard"
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "leaderboard"
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                  }`}
               >
                 <div className="flex items-center space-x-2">
                   <Trophy className="h-5 w-5" />
@@ -505,11 +504,10 @@ export default function EmployeesPage() {
 
               <button
                 onClick={() => setActiveTab("performance")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === "performance"
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "performance"
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                  }`}
                 disabled={!selectedEmployee}
               >
                 <div className="flex items-center space-x-2">
@@ -677,11 +675,10 @@ export default function EmployeesPage() {
                             key={spec.specializationID}
                             type="button"
                             onClick={() => toggleSpecialization(spec.categoryName)}
-                            className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                              selectedSpecializations.includes(spec.categoryName)
+                            className={`px-3 py-1 text-sm rounded-full border transition-colors ${selectedSpecializations.includes(spec.categoryName)
                                 ? "bg-blue-600 text-white border-blue-600"
                                 : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                            }`}
+                              }`}
                           >
                             {spec.categoryName}
                             {selectedSpecializations.includes(spec.categoryName) && (
@@ -755,8 +752,8 @@ export default function EmployeesPage() {
                               )}
                             </div>
                             <div className="text-sm text-gray-600">
-                              {(emp.specializations && emp.specializations.length > 0) 
-                                ? emp.specializations.join(", ") 
+                              {(emp.specializations && emp.specializations.length > 0)
+                                ? emp.specializations.join(", ")
                                 : emp.role} • {emp.email}
                             </div>
                             <div className="flex items-center gap-4 mt-1">
@@ -831,28 +828,26 @@ export default function EmployeesPage() {
                   {leaderboard.map((entry, index) => (
                     <div
                       key={entry.employee_id}
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                        index === 0
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${index === 0
                           ? "border-yellow-400 bg-yellow-50"
                           : index === 1
                             ? "border-gray-400 bg-gray-50"
                             : index === 2
                               ? "border-orange-400 bg-orange-50"
                               : "border-gray-200"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-4 flex-1">
                         <div className="relative">
                           <div
-                            className={`text-2xl font-bold ${
-                              index === 0
+                            className={`text-2xl font-bold ${index === 0
                                 ? "text-yellow-600"
                                 : index === 1
                                   ? "text-gray-600"
                                   : index === 2
                                     ? "text-orange-600"
                                     : "text-gray-400"
-                            }`}
+                              }`}
                           >
                             #{entry.rank}
                           </div>
@@ -1196,11 +1191,10 @@ export default function EmployeesPage() {
                         key={spec.specializationID}
                         type="button"
                         onClick={() => toggleEditSpecialization(spec.categoryName)}
-                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                          editSpecializations.includes(spec.categoryName)
+                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${editSpecializations.includes(spec.categoryName)
                             ? "bg-blue-600 text-white border-blue-600"
                             : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                        }`}
+                          }`}
                       >
                         {spec.categoryName}
                         {editSpecializations.includes(spec.categoryName) && (
