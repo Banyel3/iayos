@@ -54,6 +54,8 @@ export default function JobCategoriesPage() {
   const [categories, setCategories] = useState<JobCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<"minimum_rate" | "jobs_count" | "workers_count" | null>(null);
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -220,11 +222,30 @@ export default function JobCategoriesPage() {
   // ──────────────────────────────────────────
   // Derived data
   // ──────────────────────────────────────────
-  const filtered = categories.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.description || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = categories
+    .filter(
+      (c) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.description || "").toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      return sortDir === "desc" ? b[sortField] - a[sortField] : a[sortField] - b[sortField];
+    });
+
+  const handleSort = (field: "minimum_rate" | "jobs_count" | "workers_count") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const clearSort = () => {
+    setSortField(null);
+    setSortDir("desc");
+  };
   const totalCategories = categories.length;
   const avgMinRate =
     categories.length > 0
@@ -314,15 +335,50 @@ export default function JobCategoriesPage() {
             ))}
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="Search categories..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl bg-white shadow-sm"
-            />
+          {/* Search + Sort */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Search categories..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl bg-white shadow-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {([
+                { field: "minimum_rate" as const, label: "Min Rate" },
+                { field: "jobs_count" as const, label: "Jobs" },
+                { field: "workers_count" as const, label: "Workers" },
+              ]).map(({ field, label }) => {
+                const active = sortField === field;
+                return (
+                  <button
+                    key={field}
+                    onClick={() => handleSort(field)}
+                    className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${active
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                      }`}
+                  >
+                    {label}
+                    <span className={`text-xs transition-transform ${active ? "opacity-100" : "opacity-30"}`}>
+                      {active && sortDir === "asc" ? "↑" : "↓"}
+                    </span>
+                  </button>
+                );
+              })}
+              {sortField && (
+                <button
+                  onClick={clearSort}
+                  className="flex items-center gap-1 px-3.5 py-2.5 rounded-xl text-sm font-semibold border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-all"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Category Cards */}
