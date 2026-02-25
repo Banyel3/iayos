@@ -374,7 +374,7 @@ export default function FAQManagementPage() {
                 <CardContent className="p-12 text-center">
                   <HelpCircle className="h-12 w-12 text-gray-400 mx-auto" />
                   <p className="text-gray-500 mt-4">No FAQs found</p>
-                  <Button onClick={() => handleOpenModal()} className="mt-4">
+                  <Button onClick={() => handleOpenModal()} className="mt-4 text-white">
                     Create Your First FAQ
                   </Button>
                 </CardContent>
