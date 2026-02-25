@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Banknote, Banknote, useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
-import { PesoSign } from "@/components/ui/peso-sign";
 import {
   ArrowLeft,
   AlertTriangle,

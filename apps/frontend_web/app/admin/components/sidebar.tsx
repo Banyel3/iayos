@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Banknote, useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "./SidebarContext";
 import UserSearchModal from "@/components/admin/UserSearchModal";
-import { PesoSign } from "@/components/ui/peso-sign";
 import {
   Users,
   UserCheck,
@@ -202,7 +202,7 @@ const navigation: NavItem[] = [
       {
         name: "Transactions",
         href: "/admin/payments/transactions",
-        icon: PesoSign,
+        icon: Banknote,
         description: "All payment transactions",
       },
       {
@@ -296,7 +296,7 @@ const navigation: NavItem[] = [
       {
         name: "Financial Reports",
         href: "/admin/analytics/financial",
-        icon: PesoSign,
+        icon: Banknote,
         description: "Revenue & transactions",
       },
       {

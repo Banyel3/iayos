@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import {
+  Banknote, Banknote, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import {
@@ -14,7 +15,6 @@ import {
   Zap,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../components";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 export default function SettingsPage() {
   const router = useRouter();

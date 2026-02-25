@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Banknote, useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
-import { PesoSign } from "@/components/ui/peso-sign";
 import {
   Briefcase,
   TrendingUp,
@@ -357,7 +357,7 @@ export default function JobAnalytics() {
             <Card className="border-0 shadow-xl">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <PesoSign className="h-5 w-5 text-purple-600" />
+                  <Banknote className="h-5 w-5 text-purple-600" />
                   <span>Budget Distribution</span>
                 </CardTitle>
               </CardHeader>

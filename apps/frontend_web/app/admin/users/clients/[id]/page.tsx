@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { API_BASE } from "@/lib/api/config";
+import {
+  Banknote, API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -30,7 +31,6 @@ import {
 } from "lucide-react";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { Sidebar, useMainContentClass } from "../../../components";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Address {
   street: string;
@@ -526,7 +526,7 @@ export default function ClientDetailPage() {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Total Spent</p>
                     <div className="flex items-center gap-1 text-sm font-medium text-green-600">
-                      <PesoSign className="h-4 w-4" />₱
+                      <Banknote className="h-4 w-4" />₱
                       {client.total_spent?.toLocaleString() || "0"}
                     </div>
                   </div>

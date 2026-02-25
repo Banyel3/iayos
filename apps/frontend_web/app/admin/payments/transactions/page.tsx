@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { PesoSign } from "@/components/ui/peso-sign";
 import {
   ArrowLeft,
   Search,
@@ -330,7 +329,7 @@ export default function TransactionsPage() {
               <div className="text-center">
                 <div className="relative">
                   <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
-                  <PesoSign className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                  <Banknote className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <p className="mt-6 text-lg font-medium text-gray-700">
                   Loading transactions...
@@ -354,7 +353,7 @@ export default function TransactionsPage() {
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
               <div className="flex items-center gap-3 mb-2">
-                <PesoSign className="h-8 w-8" />
+                <Banknote className="h-8 w-8" />
                 <h1 className="text-4xl font-bold">Transactions</h1>
               </div>
               <p className="text-blue-100 text-lg">
@@ -370,7 +369,7 @@ export default function TransactionsPage() {
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
                     <div className="p-3 bg-blue-100 rounded-xl">
-                      <PesoSign className="h-6 w-6 text-blue-600" />
+                      <Banknote className="h-6 w-6 text-blue-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
@@ -561,7 +560,7 @@ export default function TransactionsPage() {
                     {transactions.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-6 py-12 text-center">
-                          <PesoSign className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                           <p className="text-gray-500 font-medium">
                             No transactions found
                           </p>

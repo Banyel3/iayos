@@ -1,6 +1,7 @@
 "use client";
 
-import { API_BASE } from "@/lib/api/config";
+import {
+  Banknote, API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -14,7 +15,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import JobTimeline from "@/components/agency/JobTimeline";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface JobDetail {
   jobID: number;
@@ -126,7 +126,7 @@ export default function JobDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
-              <PesoSign className="text-green-600" size={20} />
+              <Banknote className="text-green-600" size={20} />
             </div>
             <div>
               <p className="text-sm text-gray-600">Budget</p>

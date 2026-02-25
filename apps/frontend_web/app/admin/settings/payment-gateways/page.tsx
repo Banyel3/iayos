@@ -1,6 +1,7 @@
 "use client";
 
-import { API_BASE } from "@/lib/api/config";
+import {
+  Banknote, API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,6 @@ import {
   Building2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface PaymentGateway {
   name: string;
@@ -371,7 +371,7 @@ export default function PaymentGatewaysPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-sky-100 rounded-lg">
-                    <PesoSign className="h-6 w-6 text-sky-600" />
+                    <Banknote className="h-6 w-6 text-sky-600" />
                   </div>
                   <div>
                     <CardTitle className="text-lg">GCash</CardTitle>

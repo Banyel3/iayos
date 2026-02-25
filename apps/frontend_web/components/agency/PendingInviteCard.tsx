@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { PesoSign } from "@/components/ui/peso-sign";
+import {
+  Banknote, useState } from "react";
 import {
   Calendar,
   MapPin,
@@ -205,7 +205,7 @@ export default function PendingInviteCard({
         <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-semibold text-gray-900 flex items-center">
-              <PesoSign className="h-5 w-5 text-green-600 mr-2" />
+              <Banknote className="h-5 w-5 text-green-600 mr-2" />
               Payment Details
             </h4>
             <span className="text-2xl font-bold text-green-600">

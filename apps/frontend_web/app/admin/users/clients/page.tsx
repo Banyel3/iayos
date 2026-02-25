@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Banknote, Banknote, useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import {
@@ -25,7 +26,6 @@ import {
   Briefcase,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Client {
   id: string;

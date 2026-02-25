@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Banknote, Banknote, useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../../components";
@@ -34,7 +35,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface ActivityLog {
   id: number;

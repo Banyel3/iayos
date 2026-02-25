@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import {
+  Banknote, Banknote, useState } from "react";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
-import { PesoSign } from "@/components/ui/peso-sign";
 import {
   FileText,
   Check,

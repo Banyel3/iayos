@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import {
+  Banknote, useState } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -16,7 +17,6 @@ import {
 } from "lucide-react";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface ActiveJob {
   jobID: number;
@@ -253,7 +253,7 @@ export default function ActiveJobsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="flex items-center gap-2 text-sm">
                   <div className="p-1.5 bg-green-100 rounded">
-                    <PesoSign className="text-green-600" size={16} />
+                    <Banknote className="text-green-600" size={16} />
                   </div>
                   <div>
                     <span className="text-gray-700 font-medium">

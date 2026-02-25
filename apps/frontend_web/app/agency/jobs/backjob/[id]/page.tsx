@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { API_BASE } from "@/lib/api/config";
+import {
+  Banknote, API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,7 +17,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { PesoSign } from "@/components/ui/peso-sign";
 import {
   AlertCircle,
   CheckCircle,
@@ -453,7 +453,7 @@ function AgencyBackjobDetailContent({
                 <h3 className="font-semibold text-gray-900">{job.title}</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2 text-gray-600">
-                    <PesoSign className="w-4 h-4" />
+                    <Banknote className="w-4 h-4" />
                     <span>₱{job.budget?.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">

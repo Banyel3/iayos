@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Banknote, useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../components";
 import {
@@ -20,7 +21,6 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { PesoSign } from "@/components/ui/peso-sign";
 
 interface JobStats {
   total_jobs: number;
@@ -210,7 +210,7 @@ export default function JobsManagementPage() {
                 <CardTitle className="text-sm font-medium text-blue-900">
                   Total Budget
                 </CardTitle>
-                <PesoSign className="h-4 w-4 text-blue-600" />
+                <Banknote className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-900">
