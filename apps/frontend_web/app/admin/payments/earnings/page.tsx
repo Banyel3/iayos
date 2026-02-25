@@ -1,8 +1,6 @@
 "use client";
 
-import {
-  Banknote,
-  useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +8,7 @@ import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
+  Banknote,
   TrendingUp,
   Search,
   Users,

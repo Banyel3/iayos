@@ -683,7 +683,8 @@ export default function AnalyticsDashboard() {
                     time: "5 minutes ago",
                   },
                   {
-                    icon:                     color: "text-purple-600",
+                    icon: Banknote,
+                    color: "text-purple-600",
                     bg: "bg-purple-50",
                     text: "Payment processed",
                     time: "12 minutes ago",

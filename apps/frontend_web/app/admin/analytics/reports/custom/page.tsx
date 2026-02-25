@@ -1,7 +1,6 @@
 "use client";
 
-import {
-  useState } from "react";
+import { useState } from "react";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -61,7 +60,8 @@ export default function CustomReportBuilder() {
     },
     {
       name: "Revenue Metrics",
-      icon:       color: "purple",
+      icon: TrendingUp,
+      color: "purple",
       metrics: [
         "Total Revenue",
         "Revenue by Category",
@@ -141,8 +141,8 @@ export default function CustomReportBuilder() {
                     <div className="flex flex-col items-center flex-1">
                       <div
                         className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${currentStep >= step.number
-                            ? "bg-indigo-600 border-indigo-600 text-white"
-                            : "bg-white border-gray-300 text-gray-400"
+                          ? "bg-indigo-600 border-indigo-600 text-white"
+                          : "bg-white border-gray-300 text-gray-400"
                           }`}
                       >
                         {currentStep > step.number ? (
@@ -153,8 +153,8 @@ export default function CustomReportBuilder() {
                       </div>
                       <p
                         className={`mt-2 text-sm font-medium ${currentStep >= step.number
-                            ? "text-gray-900"
-                            : "text-gray-500"
+                          ? "text-gray-900"
+                          : "text-gray-500"
                           }`}
                       >
                         {step.name}
@@ -163,8 +163,8 @@ export default function CustomReportBuilder() {
                     {i < steps.length - 1 && (
                       <div
                         className={`flex-1 h-0.5 mx-4 transition-all ${currentStep > step.number
-                            ? "bg-indigo-600"
-                            : "bg-gray-300"
+                          ? "bg-indigo-600"
+                          : "bg-gray-300"
                           }`}
                       ></div>
                     )}
@@ -208,8 +208,8 @@ export default function CustomReportBuilder() {
                                 key={j}
                                 onClick={() => toggleMetric(metric)}
                                 className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${selectedMetrics.includes(metric)
-                                    ? "border-indigo-600 bg-indigo-50"
-                                    : "border-gray-200 hover:border-gray-300"
+                                  ? "border-indigo-600 bg-indigo-50"
+                                  : "border-gray-200 hover:border-gray-300"
                                   }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -392,21 +392,21 @@ export default function CustomReportBuilder() {
                         key={type.value}
                         onClick={() => setSelectedChartType(type.value)}
                         className={`p-6 rounded-xl border-2 text-left transition-all ${selectedChartType === type.value
-                            ? "border-indigo-600 bg-indigo-50"
-                            : "border-gray-200 hover:border-gray-300"
+                          ? "border-indigo-600 bg-indigo-50"
+                          : "border-gray-200 hover:border-gray-300"
                           }`}
                       >
                         <div className="flex items-start space-x-4">
                           <div
                             className={`p-3 rounded-lg ${selectedChartType === type.value
-                                ? "bg-indigo-600"
-                                : "bg-gray-100"
+                              ? "bg-indigo-600"
+                              : "bg-gray-100"
                               }`}
                           >
                             <type.icon
                               className={`h-6 w-6 ${selectedChartType === type.value
-                                  ? "text-white"
-                                  : "text-gray-600"
+                                ? "text-white"
+                                : "text-gray-600"
                                 }`}
                             />
                           </div>
