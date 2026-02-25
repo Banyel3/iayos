@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Banknote,
   useParams, useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/config";
 import { useEffect, useState } from "react";

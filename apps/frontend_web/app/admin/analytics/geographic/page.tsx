@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Banknote,
   useState } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Banknote,
   useState } from "react";
 import {
   useLeaderboard,
