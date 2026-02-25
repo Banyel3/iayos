@@ -293,16 +293,16 @@ export default function WorkerEarningsPage() {
           {/* Search */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
-              <form onSubmit={handleSearch} className="flex gap-2">
+              <form onSubmit={handleSearch} className="flex items-stretch gap-2">
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search by worker name or email..."
-                  className="flex-1 border-2 border-gray-200 focus:border-blue-500 rounded-xl"
+                  className="flex-1 h-10 border-2 border-gray-200 focus:border-blue-500 rounded-xl"
                 />
                 <Button
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                  className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
                 >
                   <Search className="h-4 w-4" />
                 </Button>
