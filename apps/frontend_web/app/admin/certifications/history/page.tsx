@@ -326,7 +326,7 @@ export default function CertificationHistoryPage() {
                     e.target.value as "all" | "APPROVED" | "REJECTED",
                   )
                 }
-                className="px-4 py-2 border rounded-lg"
+                className="px-4 py-2 border rounded-lg bg-white"
               >
                 <option value="all">All Actions</option>
                 <option value="APPROVED">Approved Only</option>

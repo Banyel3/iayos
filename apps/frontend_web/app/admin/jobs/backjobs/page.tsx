@@ -131,31 +131,31 @@ export default function BackJobsPage() {
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">
-            ⏳ Pending Review
+            Pending Review
           </Badge>
         );
       case "under_review":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
-            👁 Under Review
+            Under Review
           </Badge>
         );
       case "approved":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            ✓ Approved
+            Approved
           </Badge>
         );
       case "rejected":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            ✗ Rejected
+            Rejected
           </Badge>
         );
       case "completed":
         return (
           <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">
-            ✔ Completed
+            Completed
           </Badge>
         );
       default:
@@ -281,9 +281,6 @@ export default function BackJobsPage() {
                     <div className="p-3 bg-green-100 rounded-xl">
                       <CheckCircle className="h-6 w-6 text-green-600" />
                     </div>
-                    <span className="text-xs font-medium text-green-600">
-                      ✓
-                    </span>
                   </div>
                   <p className="text-sm font-medium text-gray-600 mb-1">
                     Approved
@@ -300,7 +297,6 @@ export default function BackJobsPage() {
                     <div className="p-3 bg-red-100 rounded-xl">
                       <AlertTriangle className="h-6 w-6 text-red-600" />
                     </div>
-                    <span className="text-xs font-bold text-red-600">🔥</span>
                   </div>
                   <p className="text-sm font-medium text-gray-600 mb-1">
                     Urgent
@@ -331,23 +327,23 @@ export default function BackJobsPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">📋 All Status</option>
-                  <option value="pending">⏳ Pending</option>
-                  <option value="under_review">👁 Under Review</option>
-                  <option value="approved">✓ Approved</option>
-                  <option value="rejected">✗ Rejected</option>
-                  <option value="completed">✔ Completed</option>
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="under_review">Under Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="completed">Completed</option>
                 </select>
                 <select
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">🎯 All Priority</option>
-                  <option value="urgent">🔴 Urgent</option>
-                  <option value="high">🟠 High</option>
-                  <option value="medium">🟡 Medium</option>
-                  <option value="low">🟢 Low</option>
+                  <option value="all">All Priority</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
                 </select>
                 <Button
                   variant="outline"

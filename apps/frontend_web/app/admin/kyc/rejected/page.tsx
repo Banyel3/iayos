@@ -106,7 +106,7 @@ export default function RejectedKYCPage() {
         // Extract kycType from log data (check if it's agency or user KYC)
         const kycType = log.agencyKycID ? "AGENCY" : "USER";
         const kycId = log.agencyKycID || log.kycID || log.kycLogID;
-        
+
         return {
           id: kycId?.toString() || "0",
           userId: log.userAccountID?.toString() || "0",
@@ -182,7 +182,7 @@ export default function RejectedKYCPage() {
       }
 
       const data = await response.json();
-      
+
       showToast({
         type: "success",
         title: "KYC Deleted",
@@ -236,7 +236,7 @@ export default function RejectedKYCPage() {
                 KYC submissions that were rejected and require resubmission
               </p>
             </div>
-            <Button>
+            <Button className="text-white">
               <FileText className="mr-2 h-4 w-4" />
               Export Rejected Records
             </Button>
@@ -335,7 +335,7 @@ export default function RejectedKYCPage() {
                   onChange={(e) =>
                     setTypeFilter(e.target.value as "all" | "worker" | "client")
                   }
-                  className="px-3 py-2 border rounded-md"
+                  className="px-3 py-2 border rounded-md bg-white"
                 >
                   <option value="all">All Types</option>
                   <option value="worker">Workers</option>
@@ -352,7 +352,7 @@ export default function RejectedKYCPage() {
                       | "resubmitted",
                     )
                   }
-                  className="px-3 py-2 border rounded-md"
+                  className="px-3 py-2 border rounded-md bg-white"
                 >
                   <option value="all">All Statuses</option>
                   <option value="allowed">Can Resubmit</option>
@@ -386,8 +386,8 @@ export default function RejectedKYCPage() {
                         <div className="flex items-center space-x-2 mt-1 mb-3">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-green-100 text-green-800"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-green-100 text-green-800"
                               }`}
                           >
                             {record.userType}
@@ -448,16 +448,16 @@ export default function RejectedKYCPage() {
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => handleViewDetails(record)}
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => handleDelete(record)}

@@ -318,7 +318,7 @@ export default function WorkersPage() {
                 </div>
                 <Button
                   onClick={handleExport}
-                  className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
+                  className="bg-white hover:bg-white/30 border-0 backdrop-blur-sm"
                 >
                   <Download className="mr-2 h-5 w-5" />
                   Export Workers
@@ -421,29 +421,29 @@ export default function WorkersPage() {
                   }
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">📋 All Status</option>
-                  <option value="active">✓ Active</option>
-                  <option value="inactive">✘ Inactive</option>
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
                 <select
                   value={verificationFilter}
                   onChange={(e) => setVerificationFilter(e.target.value as any)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">🔒 All Verification</option>
-                  <option value="verified">✓ Verified</option>
-                  <option value="pending">⏳ Pending</option>
-                  <option value="unverified">✘ Unverified</option>
+                  <option value="all">All Verification</option>
+                  <option value="verified">Verified</option>
+                  <option value="pending">Pending</option>
+                  <option value="unverified">Unverified</option>
                 </select>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="newest">🆕 Newest First</option>
-                  <option value="oldest">📅 Oldest First</option>
-                  <option value="top_rated">⭐ Top Rated</option>
-                  <option value="most_jobs">💼 Most Jobs</option>
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="top_rated">Top Rated</option>
+                  <option value="most_jobs">Most Jobs</option>
                 </select>
               </div>
 

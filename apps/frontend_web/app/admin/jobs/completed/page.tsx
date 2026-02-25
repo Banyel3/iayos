@@ -171,7 +171,6 @@ export default function CompletedJobsPage() {
                   <div className="p-3 bg-blue-100 rounded-xl">
                     <CheckCircle className="h-6 w-6 text-blue-600" />
                   </div>
-                  <span className="text-xs font-bold text-green-600">✓</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Success Rate
@@ -188,7 +187,6 @@ export default function CompletedJobsPage() {
                   <div className="p-3 bg-purple-100 rounded-xl">
                     <DollarSign className="h-6 w-6 text-purple-600" />
                   </div>
-                  <span className="text-xs font-bold text-purple-600">₱</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Paid
@@ -205,9 +203,6 @@ export default function CompletedJobsPage() {
                   <div className="p-3 bg-yellow-100 rounded-xl">
                     <Star className="h-6 w-6 text-yellow-600" />
                   </div>
-                  <span className="text-xs font-medium text-yellow-600">
-                    ⭐
-                  </span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Avg Rating

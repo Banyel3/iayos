@@ -552,17 +552,17 @@ export default function ApprovedKYCPage() {
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">👥 All Types</option>
-                  <option value="worker">👷 Workers</option>
-                  <option value="client">💼 Clients</option>
-                  <option value="agency">🏢 Agencies</option>
+                  <option value="all">All Types</option>
+                  <option value="worker">Workers</option>
+                  <option value="client">Clients</option>
+                  <option value="agency">Agencies</option>
                 </select>
                 <select
                   value={reviewerFilter}
                   onChange={(e) => setReviewerFilter(e.target.value)}
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">✅ All Reviewers</option>
+                  <option value="all">All Reviewers</option>
                   {uniqueReviewers.map((reviewer) => (
                     <option key={reviewer} value={reviewer}>
                       {reviewer}

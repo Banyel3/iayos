@@ -124,19 +124,19 @@ export default function JobRequestsPage() {
       case "PENDING":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">
-            ⏳ Pending
+            Pending
           </Badge>
         );
       case "ACCEPTED":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            ✓ Accepted
+            Accepted
           </Badge>
         );
       case "REJECTED":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            ✗ Rejected
+            Rejected
           </Badge>
         );
       default:
@@ -149,19 +149,19 @@ export default function JobRequestsPage() {
       case "HIGH":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            🔴 High Priority
+            High Priority
           </Badge>
         );
       case "MEDIUM":
         return (
           <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
-            🟡 Medium
+            Medium
           </Badge>
         );
       case "LOW":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            🟢 Low
+            Low
           </Badge>
         );
       default:
@@ -261,7 +261,6 @@ export default function JobRequestsPage() {
                   <div className="p-3 bg-green-100 rounded-xl">
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
-                  <span className="text-xs font-medium text-green-600">✓</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Accepted
@@ -284,7 +283,6 @@ export default function JobRequestsPage() {
                   <div className="p-3 bg-red-100 rounded-xl">
                     <AlertCircle className="h-6 w-6 text-red-600" />
                   </div>
-                  <span className="text-xs font-medium text-red-600">✗</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Rejected
@@ -318,11 +316,11 @@ export default function JobRequestsPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="ACTIVE">⏳ Pending Requests</option>
-                  <option value="IN_PROGRESS">✓ Accepted & In Progress</option>
-                  <option value="COMPLETED">✔ Completed</option>
-                  <option value="CANCELLED">✘ Cancelled</option>
-                  <option value="">📋 All Status</option>
+                  <option value="ACTIVE">Pending Requests</option>
+                  <option value="IN_PROGRESS">Accepted & In Progress</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                  <option value="">All Status</option>
                 </select>
                 <Button
                   variant="outline"

@@ -925,10 +925,10 @@ export default function PendingKYCPage() {
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">📋 All Priorities</option>
-                  <option value="high">🔴 High Priority</option>
-                  <option value="medium">🟡 Medium Priority</option>
-                  <option value="low">🟢 Low Priority</option>
+                  <option value="all">All Priorities</option>
+                  <option value="high">High Priority</option>
+                  <option value="medium">Medium Priority</option>
+                  <option value="low">Low Priority</option>
                 </select>
                 <select
                   value={typeFilter}
@@ -937,9 +937,9 @@ export default function PendingKYCPage() {
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">👥 All Types</option>
-                  <option value="worker">👷 Workers</option>
-                  <option value="client">💼 Clients</option>
+                  <option value="all">All Types</option>
+                  <option value="worker">Workers</option>
+                  <option value="client">Clients</option>
                 </select>
               </div>
             </CardContent>

@@ -164,19 +164,19 @@ export default function JobListingsPage() {
       case "HIGH":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            🔴 High Priority
+            High Priority
           </Badge>
         );
       case "MEDIUM":
         return (
           <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
-            🟡 Medium
+            Medium
           </Badge>
         );
       case "LOW":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            🟢 Low
+            Low
           </Badge>
         );
       default:
@@ -270,7 +270,6 @@ export default function JobListingsPage() {
                   <div className="p-3 bg-purple-100 rounded-xl">
                     <Users className="h-6 w-6 text-purple-600" />
                   </div>
-                  <AlertCircle className="h-5 w-5 text-purple-600" />
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Applications
@@ -287,9 +286,6 @@ export default function JobListingsPage() {
                   <div className="p-3 bg-orange-100 rounded-xl">
                     <AlertCircle className="h-6 w-6 text-orange-600" />
                   </div>
-                  <span className="text-xs font-medium text-orange-600">
-                    🔥
-                  </span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   High Priority
@@ -319,11 +315,11 @@ export default function JobListingsPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="ACTIVE">✓ Open Listings</option>
-                  <option value="IN_PROGRESS">⚡ In Progress</option>
-                  <option value="COMPLETED">✔ Completed</option>
-                  <option value="CANCELLED">✘ Cancelled</option>
-                  <option value="">📋 All Status</option>
+                  <option value="ACTIVE">Open Listings</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                  <option value="">All Status</option>
                 </select>
                 <Button
                   variant="outline"

@@ -197,7 +197,6 @@ export default function ActiveJobsPage() {
                   <div className="p-3 bg-purple-100 rounded-xl">
                     <DollarSign className="h-6 w-6 text-purple-600" />
                   </div>
-                  <span className="text-xs font-bold text-purple-600">₱</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Budget
@@ -214,7 +213,6 @@ export default function ActiveJobsPage() {
                   <div className="p-3 bg-blue-100 rounded-xl">
                     <Users className="h-6 w-6 text-blue-600" />
                   </div>
-                  <span className="text-xs font-medium text-blue-600">👷</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Workers Assigned
