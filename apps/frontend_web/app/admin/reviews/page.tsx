@@ -287,8 +287,8 @@ export default function ReviewsPage() {
                 <select
                   value={ratingFilter}
                   onChange={(e) => setRatingFilter(e.target.value)}
-                  className="pl-4 pr-10 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
-                  style={{ backgroundPosition: "right 16px center" }}
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Ratings</option>
                   <option value="5">5 Stars</option>
@@ -302,8 +302,8 @@ export default function ReviewsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-4 pr-10 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
-                  style={{ backgroundPosition: "right 16px center" }}
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
@@ -315,8 +315,8 @@ export default function ReviewsPage() {
                 <select
                   value={userTypeFilter}
                   onChange={(e) => setUserTypeFilter(e.target.value)}
-                  className="pl-4 pr-10 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
-                  style={{ backgroundPosition: "right 16px center" }}
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All User Types</option>
                   <option value="client_to_worker">Client → Worker</option>

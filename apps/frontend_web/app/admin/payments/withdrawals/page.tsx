@@ -577,8 +577,8 @@ export default function WithdrawalsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-white pl-4 pr-10 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  style={{ backgroundPosition: "right 16px center" }}
+                  className="bg-white pl-4 pr-14 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Status</option>
                   <option value="PENDING">Pending</option>
@@ -588,8 +588,8 @@ export default function WithdrawalsPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="bg-white pl-4 pr-10 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  style={{ backgroundPosition: "right 16px center" }}
+                  className="bg-white pl-4 pr-14 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Types</option>
                   <option value="GCASH">GCash</option>

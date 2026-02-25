@@ -261,8 +261,8 @@ export default function DisputesPage() {
                     setStatusFilter(e.target.value as StatusFilter);
                     setPage(1);
                   }}
-                  className="h-12 pl-4 pr-10 border-2 border-gray-200 rounded-xl focus:border-blue-500 bg-white outline-none"
-                  style={{ backgroundPosition: "right 16px center" }}
+                  className="h-12 pl-4 pr-14 border-2 border-gray-200 rounded-xl focus:border-blue-500 bg-white outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Statuses</option>
                   <option value="pending">Pending</option>

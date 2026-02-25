@@ -134,13 +134,13 @@ export default function TransactionsPage() {
       const data = await response.json();
       setStatistics(
         data.stats ||
-          data || {
-            total_transactions: 0,
-            total_revenue: 0,
-            escrow_held: 0,
-            refunded_amount: 0,
-            platform_fees: 0,
-          },
+        data || {
+          total_transactions: 0,
+          total_revenue: 0,
+          escrow_held: 0,
+          refunded_amount: 0,
+          platform_fees: 0,
+        },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -461,7 +461,8 @@ export default function TransactionsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Status</option>
                   <option value="completed">Completed</option>
@@ -474,7 +475,8 @@ export default function TransactionsPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Types</option>
                   <option value="ESCROW">Escrow</option>
