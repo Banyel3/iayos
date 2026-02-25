@@ -205,6 +205,11 @@ def get_clients_list_optimized(
         status='ACTIVE'
     ).values('revieweeID').annotate(c=Count('reviewID')).values('c')
     
+    # KYC Status subquery
+    kyc_status_sq = kyc.objects.filter(
+        accountFK=OuterRef('accountFK')
+    ).order_by('-createdAt').values('kyc_status')[:1]
+    
     # Main query with annotations
     queryset = Profile.objects.filter(
         profileType='CLIENT'
@@ -216,6 +221,7 @@ def get_clients_list_optimized(
         jobs_active=Coalesce(Subquery(jobs_active_sq), Value(0), output_field=IntegerField()),
         avg_rating=Coalesce(Subquery(rating_sq), Value(0.0), output_field=FloatField()),
         review_count=Coalesce(Subquery(review_count_sq), Value(0), output_field=IntegerField()),
+        kyc_status=Subquery(kyc_status_sq),
     ).order_by('-accountFK__createdAt')
     
     # Apply filters
@@ -257,6 +263,7 @@ def get_clients_list_optimized(
             'jobs_active': profile.jobs_active,
             'rating': round(float(profile.avg_rating), 1),
             'review_count': profile.review_count,
+            'kyc_status': str(profile.kyc_status).upper() if profile.kyc_status else 'UNVERIFIED',
         })
     
     return {
@@ -301,6 +308,11 @@ def get_workers_list_optimized(
         status='ACTIVE'
     ).values('revieweeID').annotate(c=Count('reviewID')).values('c')
     
+    # KYC Status subquery
+    kyc_status_sq = kyc.objects.filter(
+        accountFK=OuterRef('accountFK')
+    ).order_by('-createdAt').values('kyc_status')[:1]
+    
     # Main query
     queryset = Profile.objects.filter(
         profileType='WORKER'
@@ -313,6 +325,7 @@ def get_workers_list_optimized(
         jobs_completed=Coalesce(Subquery(jobs_completed_sq), Value(0), output_field=IntegerField()),
         avg_rating=Coalesce(Subquery(rating_sq), Value(0.0), output_field=FloatField()),
         review_count=Coalesce(Subquery(review_count_sq), Value(0), output_field=IntegerField()),
+        kyc_status=Subquery(kyc_status_sq),
     ).order_by('-accountFK__createdAt')
     
     # Apply filters
@@ -381,6 +394,7 @@ def get_workers_list_optimized(
             'jobs_completed': profile.jobs_completed,
             'rating': round(float(profile.avg_rating), 1),
             'review_count': profile.review_count,
+            'kyc_status': str(profile.kyc_status).upper() if profile.kyc_status else 'UNVERIFIED',
             'skills': skills,
             'skills_count': len(skills),
         })
@@ -425,6 +439,11 @@ def get_agencies_list_optimized(
         status='ACTIVE'
     ).values('revieweeID').annotate(avg=Avg('rating')).values('avg')
     
+    # Agency KYC Status subquery
+    kyc_status_sq = AgencyKYC.objects.filter(
+        agencyID=OuterRef('pk')
+    ).order_by('-createdAt').values('status')[:1]
+    
     # Main query
     queryset = Agency.objects.select_related(
         'accountFK'
@@ -433,6 +452,7 @@ def get_agencies_list_optimized(
         jobs_total=Coalesce(Subquery(jobs_total_sq), Value(0), output_field=IntegerField()),
         jobs_completed=Coalesce(Subquery(jobs_completed_sq), Value(0), output_field=IntegerField()),
         avg_rating=Coalesce(Subquery(rating_sq), Value(0.0), output_field=FloatField()),
+        kyc_status=Subquery(kyc_status_sq),
     ).order_by('-accountFK__createdAt')
     
     # Apply filters
@@ -469,6 +489,7 @@ def get_agencies_list_optimized(
             'total_jobs': agency.jobs_total,
             'completed_jobs': agency.jobs_completed,
             'rating': round(float(agency.avg_rating), 1),
+            'kyc_status': str(agency.kyc_status).upper() if agency.kyc_status else 'UNVERIFIED',
         })
     
     return {

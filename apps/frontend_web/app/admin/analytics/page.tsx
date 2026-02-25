@@ -5,15 +5,12 @@ import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp,
-  TrendingDown,
   Users,
   Briefcase,
   CreditCard,
-  Calendar,
   Download,
   RefreshCw,
   ArrowUp,
@@ -26,7 +23,6 @@ import {
   Clock,
   Star,
   Activity,
-  Eye,
 } from "lucide-react";
 
 interface OverviewStats {
@@ -73,6 +69,7 @@ export default function AnalyticsDashboard() {
 
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange]);
 
   const fetchAnalytics = async () => {
