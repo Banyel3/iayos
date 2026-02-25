@@ -7,12 +7,12 @@ import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   ArrowLeft,
   AlertTriangle,
   User,
   Briefcase,
-  DollarSign,
   FileText,
   CheckCircle2,
   XCircle,

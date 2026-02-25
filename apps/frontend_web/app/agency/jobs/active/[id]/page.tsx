@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  DollarSign,
   MapPin,
   Calendar,
   User,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import JobTimeline from "@/components/agency/JobTimeline";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface JobDetail {
   jobID: number;
@@ -126,7 +126,7 @@ export default function JobDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="text-green-600" size={20} />
+              <PesoSign className="text-green-600" size={20} />
             </div>
             <div>
               <p className="text-sm text-gray-600">Budget</p>

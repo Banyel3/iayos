@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Building2,
   Calendar,
-  DollarSign,
   Loader2,
   ExternalLink,
   AlertCircle,
@@ -33,6 +32,7 @@ import {
 import { Sidebar, useMainContentClass } from "../../../components";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Address {
   street: string;

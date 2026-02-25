@@ -7,10 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   TrendingUp,
   Search,
-  DollarSign,
   Users,
   CheckCircle2,
   Clock,
@@ -278,7 +278,7 @@ export default function WorkerEarningsPage() {
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-purple-100 rounded-xl">
-                      <DollarSign className="h-6 w-6 text-purple-600" />
+                      <PesoSign className="h-6 w-6 text-purple-600" />
                     </div>
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Processed Today</p>

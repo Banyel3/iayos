@@ -4,11 +4,11 @@ import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   MapPin,
   Calendar,
   Clock,
-  DollarSign,
   Briefcase,
   CheckCircle2,
   AlertCircle,

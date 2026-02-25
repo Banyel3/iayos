@@ -7,12 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   TrendingUp,
   TrendingDown,
   Users,
   Briefcase,
-  DollarSign,
   CreditCard,
   Calendar,
   Download,
@@ -287,7 +287,7 @@ export default function AnalyticsDashboard() {
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl group-hover:scale-110 transition-transform">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
+                    <PesoSign className="h-6 w-6 text-purple-600" />
                   </div>
                   <Badge
                     variant={
@@ -594,7 +594,7 @@ export default function AnalyticsDashboard() {
             <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <PesoSign className="h-5 w-5 text-green-600" />
                 </div>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(stats?.transactions.avg_value || 0)}
@@ -684,8 +684,7 @@ export default function AnalyticsDashboard() {
                     time: "5 minutes ago",
                   },
                   {
-                    icon: DollarSign,
-                    color: "text-purple-600",
+                    icon:                     color: "text-purple-600",
                     bg: "bg-purple-50",
                     text: "Payment processed",
                     time: "12 minutes ago",

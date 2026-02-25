@@ -16,13 +16,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   AlertCircle,
   CheckCircle,
   Clock,
   ArrowLeft,
   MapPin,
-  DollarSign,
   Tag,
   User,
   MessageCircle,
@@ -453,7 +453,7 @@ function AgencyBackjobDetailContent({
                 <h3 className="font-semibold text-gray-900">{job.title}</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2 text-gray-600">
-                    <DollarSign className="w-4 h-4" />
+                    <PesoSign className="w-4 h-4" />
                     <span>₱{job.budget?.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">

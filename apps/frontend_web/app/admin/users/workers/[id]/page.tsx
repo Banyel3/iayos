@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Building2,
   Calendar,
-  DollarSign,
   Loader2,
   ExternalLink,
   AlertCircle,
@@ -33,6 +32,7 @@ import {
 import { Sidebar, useMainContentClass } from "../../../components";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Skill {
   name: string;
@@ -497,7 +497,7 @@ export default function WorkerDetailPage() {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Total Earnings</p>
                     <div className="flex items-center gap-1 text-sm font-medium text-green-600">
-                      <DollarSign className="h-4 w-4" />₱
+                      <PesoSign className="h-4 w-4" />₱
                       {worker.worker_data.total_earnings?.toLocaleString() ||
                         "0"}
                     </div>

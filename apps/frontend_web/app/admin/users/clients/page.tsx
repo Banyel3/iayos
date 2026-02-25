@@ -17,7 +17,6 @@ import {
   Search,
   Download,
   Calendar,
-  DollarSign,
   Loader2,
   CheckSquare,
   Square,
@@ -26,6 +25,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Client {
   id: string;

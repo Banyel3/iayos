@@ -22,7 +22,6 @@ import {
 import {
   TrendingUp,
   Briefcase,
-  DollarSign,
   Star,
   Award,
   Download,
@@ -31,6 +30,7 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { format, subMonths } from "date-fns";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 export default function AnalyticsPage() {
   const [weeksRange, setWeeksRange] = useState(12); // Default 12 weeks (3 months)
@@ -102,7 +102,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-gray-600 text-sm font-medium">Total Revenue</h3>
             <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="text-green-600" size={20} />
+              <PesoSign className="text-green-600" size={20} />
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">

@@ -5,6 +5,7 @@ import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   FileText,
   Check,
@@ -17,7 +18,6 @@ import {
   TrendingUp,
   Users,
   Briefcase,
-  DollarSign,
   Activity,
 } from "lucide-react";
 
@@ -61,8 +61,7 @@ export default function CustomReportBuilder() {
     },
     {
       name: "Revenue Metrics",
-      icon: DollarSign,
-      color: "purple",
+      icon:       color: "purple",
       metrics: [
         "Total Revenue",
         "Revenue by Category",

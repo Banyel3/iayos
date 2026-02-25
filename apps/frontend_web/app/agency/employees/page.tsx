@@ -20,10 +20,10 @@ import {
   CheckCircle,
   X,
   Briefcase,
-  DollarSign,
   Edit2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Specialization {
   specializationID: number;
@@ -898,7 +898,7 @@ export default function EmployeesPage() {
                           </div>
                           <div className="text-center">
                             <div className="flex items-center gap-1">
-                              <DollarSign className="h-4 w-4 text-green-400" />
+                              <PesoSign className="h-4 w-4 text-green-400" />
                               <span className="font-semibold">
                                 ₱{parseFloat(entry.total_earnings).toFixed(0)}
                               </span>
@@ -961,7 +961,7 @@ export default function EmployeesPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-8 w-8 text-green-400" />
+                  <PesoSign className="h-8 w-8 text-green-400" />
                   <span className="text-3xl font-bold">
                     ₱
                     {performanceStats

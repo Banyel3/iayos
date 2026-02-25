@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "./SidebarContext";
 import UserSearchModal from "@/components/admin/UserSearchModal";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   Users,
   UserCheck,
@@ -35,7 +36,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  DollarSign,
   AlertTriangle,
   TrendingUp,
   FileCheck,
@@ -202,8 +202,7 @@ const navigation: NavItem[] = [
       {
         name: "Transactions",
         href: "/admin/payments/transactions",
-        icon: DollarSign,
-        description: "All payment transactions",
+        icon:         description: "All payment transactions",
       },
       {
         name: "Withdrawals",
@@ -296,8 +295,7 @@ const navigation: NavItem[] = [
       {
         name: "Financial Reports",
         href: "/admin/analytics/financial",
-        icon: DollarSign,
-        description: "Revenue & transactions",
+        icon:         description: "Revenue & transactions",
       },
       {
         name: "Custom Reports",

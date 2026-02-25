@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   MapPin,
   Calendar,
-  DollarSign,
   Users,
   Clock,
   Star,
@@ -23,6 +22,7 @@ import {
 import { JobDetail, JobDetailResponse } from "@/types/admin-job-detail";
 import { JobTimelineVisualization } from "../../components/JobTimelineVisualization";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -156,7 +156,7 @@ export default function JobDetailPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <PesoSign className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-xs text-muted-foreground">Budget</p>
                     <p className="font-semibold">

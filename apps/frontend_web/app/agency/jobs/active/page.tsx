@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import {
   Clock,
   MapPin,
-  DollarSign,
   User,
   Calendar,
   CheckCircle,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface ActiveJob {
   jobID: number;
@@ -253,7 +253,7 @@ export default function ActiveJobsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="flex items-center gap-2 text-sm">
                   <div className="p-1.5 bg-green-100 rounded">
-                    <DollarSign className="text-green-600" size={16} />
+                    <PesoSign className="text-green-600" size={16} />
                   </div>
                   <div>
                     <span className="text-gray-700 font-medium">

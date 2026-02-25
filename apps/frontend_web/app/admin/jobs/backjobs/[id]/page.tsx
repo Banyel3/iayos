@@ -20,7 +20,6 @@ import {
   AlertTriangle,
   User,
   Briefcase,
-  DollarSign,
   Calendar,
   MessageSquare,
   FileText,
@@ -35,6 +34,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface ActivityLog {
   id: number;

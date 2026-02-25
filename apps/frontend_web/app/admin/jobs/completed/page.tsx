@@ -12,7 +12,6 @@ import {
   Download,
   Eye,
   CheckCircle,
-  DollarSign,
   MapPin,
   Calendar,
   TrendingUp,
@@ -22,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Category {
   id: number;
@@ -185,7 +185,7 @@ export default function CompletedJobsPage() {
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
+                    <PesoSign className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
@@ -265,7 +265,7 @@ export default function CompletedJobsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-purple-100 rounded-lg">
-                            <DollarSign className="h-4 w-4 text-purple-600" />
+                            <PesoSign className="h-4 w-4 text-purple-600" />
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 font-medium">

@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import {
   Settings,
-  DollarSign,
   Shield,
   Server,
   Save,
@@ -17,6 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface PlatformSettings {
   platform_fee_percentage: number;
@@ -329,7 +329,7 @@ export default function PlatformSettingsPage() {
             <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <DollarSign className="h-5 w-5 text-blue-600" />
+                  <PesoSign className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
                   <CardTitle className="text-xl">Financial Settings</CardTitle>

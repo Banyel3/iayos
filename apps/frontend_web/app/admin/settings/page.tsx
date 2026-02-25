@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import {
   Settings,
-  DollarSign,
   FolderTree,
   Mail,
   CreditCard,
@@ -15,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../components";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 export default function SettingsPage() {
   const router = useRouter();

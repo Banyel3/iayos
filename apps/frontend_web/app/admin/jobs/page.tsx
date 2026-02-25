@@ -17,10 +17,10 @@ import {
   CheckCircle,
   AlertTriangle,
   TrendingUp,
-  DollarSign,
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface JobStats {
   total_jobs: number;
@@ -210,7 +210,7 @@ export default function JobsManagementPage() {
                 <CardTitle className="text-sm font-medium text-blue-900">
                   Total Budget
                 </CardTitle>
-                <DollarSign className="h-4 w-4 text-blue-600" />
+                <PesoSign className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-900">

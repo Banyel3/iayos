@@ -15,10 +15,10 @@ import {
   Eye,
   EyeOff,
   Settings,
-  DollarSign,
   Building2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface PaymentGateway {
   name: string;
@@ -371,7 +371,7 @@ export default function PaymentGatewaysPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-sky-100 rounded-lg">
-                    <DollarSign className="h-6 w-6 text-sky-600" />
+                    <PesoSign className="h-6 w-6 text-sky-600" />
                   </div>
                   <div>
                     <CardTitle className="text-lg">GCash</CardTitle>

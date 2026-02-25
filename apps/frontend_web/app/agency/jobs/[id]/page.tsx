@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   MapPin,
   Clock,
-  DollarSign,
   Calendar,
   User,
   Briefcase,
@@ -31,6 +30,7 @@ import { JobSkillSlot, JobSkillSlotsResponse } from "@/types/agency-team-jobs";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
 import { DailyJobScheduleCard } from "@/components/agency/DailyJobScheduleCard";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface AssignedEmployee {
   employee_id: number;
@@ -306,7 +306,7 @@ export default function JobDetailPage() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-start space-x-3">
-                    <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <PesoSign className="h-5 w-5 text-gray-400 mt-0.5" />
                     <div>
                       <div className="text-sm text-gray-600">Budget</div>
                       <div className="text-lg font-semibold text-gray-900">

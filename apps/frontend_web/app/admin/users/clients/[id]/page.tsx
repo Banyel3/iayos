@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Building2,
   Calendar,
-  DollarSign,
   Loader2,
   ExternalLink,
   AlertCircle,
@@ -31,6 +30,7 @@ import {
 } from "lucide-react";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { Sidebar, useMainContentClass } from "../../../components";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Address {
   street: string;
@@ -526,7 +526,7 @@ export default function ClientDetailPage() {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Total Spent</p>
                     <div className="flex items-center gap-1 text-sm font-medium text-green-600">
-                      <DollarSign className="h-4 w-4" />₱
+                      <PesoSign className="h-4 w-4" />₱
                       {client.total_spent?.toLocaleString() || "0"}
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
+import { PesoSign } from "@/components/ui/peso-sign";
 import {
   Search,
   UserCheck,
@@ -14,7 +15,6 @@ import {
   TrendingUp,
   Briefcase,
   Award,
-  DollarSign,
 } from "lucide-react";
 import {
   useAgencyEmployees,
@@ -325,7 +325,7 @@ export default function AgencyWorkersPage() {
 
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <DollarSign className="w-4 h-4 text-green-600" />
+                            <PesoSign className="w-4 h-4 text-green-600" />
                             <p className="text-xs text-gray-600 font-medium">
                               Earnings
                             </p>

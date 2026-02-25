@@ -14,7 +14,6 @@ import {
   Eye,
   MapPin,
   Calendar,
-  DollarSign,
   Users,
   Clock,
   Trash2,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { PesoSign } from "@/components/ui/peso-sign";
 
 interface Category {
   id: number;
@@ -364,7 +364,7 @@ export default function JobListingsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <DollarSign className="h-4 w-4 text-emerald-600" />
+                            <PesoSign className="h-4 w-4 text-emerald-600" />
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 font-medium">
