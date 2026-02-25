@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  useState, useEffect } from "react";
+  useState, useEffect
+} from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,7 +80,7 @@ export default function JobAnalytics() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white shadow-xl mx-8 mt-8">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
