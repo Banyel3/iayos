@@ -239,17 +239,17 @@ export default function DisputesPage() {
           {/* Filters */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
                 <form onSubmit={handleSearch} className="col-span-2 flex gap-2">
                   <Input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search disputes..."
-                    className="flex-1 border-2 border-gray-200 focus:border-blue-500 rounded-xl"
+                    className="flex-1 h-12 border-2 border-gray-200 focus:border-blue-500 rounded-xl px-4"
                   />
                   <Button
                     type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                    className="w-12 h-12 p-0 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl shrink-0"
                   >
                     <Search className="h-4 w-4" />
                   </Button>
@@ -261,12 +261,13 @@ export default function DisputesPage() {
                     setStatusFilter(e.target.value as StatusFilter);
                     setPage(1);
                   }}
-                  className="p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500"
+                  className="h-12 pl-4 pr-14 border-2 border-gray-200 rounded-xl focus:border-blue-500 bg-white outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Statuses</option>
-                  <option value="pending">⏳ Pending</option>
-                  <option value="resolved">✓ Resolved</option>
-                  <option value="rejected">✗ Rejected</option>
+                  <option value="pending">Pending</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="rejected">Rejected</option>
                 </select>
 
                 <select
@@ -275,13 +276,13 @@ export default function DisputesPage() {
                     setPriorityFilter(e.target.value as PriorityFilter);
                     setPage(1);
                   }}
-                  className="p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500"
+                  className="h-12 px-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 bg-white outline-none"
                 >
                   <option value="all">All Priorities</option>
-                  <option value="low">🟢 Low</option>
-                  <option value="medium">🟡 Medium</option>
-                  <option value="high">🟠 High</option>
-                  <option value="urgent">🔴 Urgent</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
                 </select>
               </div>
             </CardContent>

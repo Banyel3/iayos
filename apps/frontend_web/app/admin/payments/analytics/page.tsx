@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   BarChart3,
-  DollarSign,
   TrendingUp,
   TrendingDown,
   Clock,
@@ -244,7 +245,7 @@ export default function AnalyticsPage() {
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-blue-100 rounded-xl">
-                      <DollarSign className="h-6 w-6 text-blue-600" />
+                      <Banknote className="h-6 w-6 text-blue-600" />
                     </div>
                     <Badge
                       className={`${
@@ -354,7 +355,7 @@ export default function AnalyticsPage() {
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-purple-100 rounded-xl">
-                      <DollarSign className="h-6 w-6 text-purple-600" />
+                      <Banknote className="h-6 w-6 text-purple-600" />
                     </div>
                     <Badge
                       className={`${

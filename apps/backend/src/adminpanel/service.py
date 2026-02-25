@@ -2391,6 +2391,115 @@ def get_job_categories_list():
         raise
 
 
+def create_job_category(data: dict):
+    """
+    Create a new job category (Specializations record).
+    data keys: name, description, minimum_rate, rate_type, skill_level,
+               average_project_cost_min, average_project_cost_max
+    """
+    from accounts.models import Specializations
+    from decimal import Decimal
+
+    name = (data.get('name') or '').strip()
+    if not name:
+        raise ValueError("Category name is required")
+
+    category = Specializations.objects.create(
+        specializationName=name,
+        description=(data.get('description') or '').strip(),
+        minimumRate=Decimal(str(data.get('minimum_rate', 0))),
+        rateType=data.get('rate_type', 'hourly'),
+        skillLevel=data.get('skill_level', 'intermediate'),
+        averageProjectCostMin=Decimal(str(data.get('average_project_cost_min', 0))),
+        averageProjectCostMax=Decimal(str(data.get('average_project_cost_max', 0))),
+    )
+    return {
+        'id': category.specializationID,
+        'name': category.specializationName,
+        'description': category.description or '',
+        'minimum_rate': float(category.minimumRate),
+        'rate_type': category.rateType,
+        'skill_level': category.skillLevel,
+        'average_project_cost_min': float(category.averageProjectCostMin),
+        'average_project_cost_max': float(category.averageProjectCostMax),
+        'jobs_count': 0,
+        'workers_count': 0,
+        'clients_count': 0,
+    }
+
+
+def update_job_category(category_id: int, data: dict):
+    """
+    Update an existing job category.
+    Partial update — only provided fields are changed.
+    """
+    from accounts.models import Specializations
+    from decimal import Decimal
+
+    try:
+        category = Specializations.objects.get(specializationID=category_id)
+    except Specializations.DoesNotExist:
+        raise ValueError(f"Category {category_id} not found")
+
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name:
+            raise ValueError("Category name cannot be empty")
+        category.specializationName = name
+    if 'description' in data:
+        category.description = (data['description'] or '').strip()
+    if 'minimum_rate' in data:
+        category.minimumRate = Decimal(str(data['minimum_rate']))
+    if 'rate_type' in data:
+        category.rateType = data['rate_type']
+    if 'skill_level' in data:
+        category.skillLevel = data['skill_level']
+    if 'average_project_cost_min' in data:
+        category.averageProjectCostMin = Decimal(str(data['average_project_cost_min']))
+    if 'average_project_cost_max' in data:
+        category.averageProjectCostMax = Decimal(str(data['average_project_cost_max']))
+
+    category.save()
+    return {
+        'id': category.specializationID,
+        'name': category.specializationName,
+        'description': category.description or '',
+        'minimum_rate': float(category.minimumRate),
+        'rate_type': category.rateType,
+        'skill_level': category.skillLevel,
+        'average_project_cost_min': float(category.averageProjectCostMin),
+        'average_project_cost_max': float(category.averageProjectCostMax),
+    }
+
+
+def delete_job_category(category_id: int):
+    """
+    Delete a job category.
+    Raises ValueError if the category has active jobs assigned to it.
+    """
+    from accounts.models import Specializations, Job
+
+    try:
+        category = Specializations.objects.get(specializationID=category_id)
+    except Specializations.DoesNotExist:
+        raise ValueError(f"Category {category_id} not found")
+
+    active_jobs = Job.objects.filter(
+        categoryID=category,
+        status__in=['ACTIVE', 'IN_PROGRESS']
+    ).count()
+    if active_jobs > 0:
+        raise ValueError(
+            f"Cannot delete category '{category.specializationName}' — "
+            f"it has {active_jobs} active/in-progress job(s). "
+            "Please reassign or complete them first."
+        )
+
+    category_name = category.specializationName
+    category.delete()
+    return {'deleted_name': category_name}
+
+
 def get_job_disputes_list(page=1, page_size=20, status=None, priority=None):
     """
     Get paginated list of job disputes

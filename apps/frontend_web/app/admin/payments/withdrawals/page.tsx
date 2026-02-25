@@ -39,12 +39,12 @@ interface WithdrawalRequest {
   amount: number;
   currency?: string;
   payment_method_type?:
-    | "GCASH"
-    | "BANK"
-    | "PAYPAL"
-    | "VISA"
-    | "GRABPAY"
-    | "MAYA";
+  | "GCASH"
+  | "BANK"
+  | "PAYPAL"
+  | "VISA"
+  | "GRABPAY"
+  | "MAYA";
   payment_method?: {
     type: string;
     account_name: string;
@@ -322,11 +322,11 @@ export default function WithdrawalsPage() {
     // Final confirmation dialog
     const confirmed = confirm(
       `⚠️ FINAL CONFIRMATION\n\n` +
-        `You are about to approve a withdrawal of ₱${(approveModal.amount ?? 0).toLocaleString()} to ${approveModal.userName}.\n\n` +
-        `Reference: ${referenceNumber.trim()}\n` +
-        `Notes: ${approveNotes || "(none)"}\n\n` +
-        `This action CANNOT be undone. The funds will be marked as paid.\n\n` +
-        `Are you absolutely sure you want to proceed?`,
+      `You are about to approve a withdrawal of ₱${(approveModal.amount ?? 0).toLocaleString()} to ${approveModal.userName}.\n\n` +
+      `Reference: ${referenceNumber.trim()}\n` +
+      `Notes: ${approveNotes || "(none)"}\n\n` +
+      `This action CANNOT be undone. The funds will be marked as paid.\n\n` +
+      `Are you absolutely sure you want to proceed?`,
     );
 
     if (!confirmed) {
@@ -370,13 +370,13 @@ export default function WithdrawalsPage() {
     // Final confirmation dialog
     const confirmed = confirm(
       `⚠️ FINAL CONFIRMATION\n\n` +
-        `You are about to REJECT this withdrawal request.\n\n` +
-        `Rejection Reason: ${reason}\n\n` +
-        `This will:\n` +
-        `• Refund the amount back to the user's wallet\n` +
-        `• Notify the user of the rejection\n` +
-        `• This action CANNOT be undone\n\n` +
-        `Are you absolutely sure you want to proceed?`,
+      `You are about to REJECT this withdrawal request.\n\n` +
+      `Rejection Reason: ${reason}\n\n` +
+      `This will:\n` +
+      `• Refund the amount back to the user's wallet\n` +
+      `• Notify the user of the rejection\n` +
+      `• This action CANNOT be undone\n\n` +
+      `Are you absolutely sure you want to proceed?`,
     );
 
     if (!confirmed) {
@@ -398,7 +398,7 @@ export default function WithdrawalsPage() {
       if (data.success) {
         alert(
           data.message ||
-            "Withdrawal rejected and funds refunded to user wallet!",
+          "Withdrawal rejected and funds refunded to user wallet!",
         );
         fetchWithdrawals();
         fetchStatistics();
@@ -562,7 +562,7 @@ export default function WithdrawalsPage() {
           {/* Filters */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
@@ -571,13 +571,14 @@ export default function WithdrawalsPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                    className="pl-10 w-full"
+                    className="pl-10 w-full h-10"
                   />
                 </div>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="bg-white pl-4 pr-14 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Status</option>
                   <option value="PENDING">Pending</option>
@@ -587,7 +588,8 @@ export default function WithdrawalsPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="bg-white pl-4 pr-14 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Types</option>
                   <option value="GCASH">GCash</option>
@@ -599,9 +601,9 @@ export default function WithdrawalsPage() {
                 </select>
                 <Button
                   onClick={fetchWithdrawals}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-white h-10 px-6"
                 >
-                  <RefreshCcw className="h-4 w-4" />
+                  <RefreshCcw className="h-4 w-4 text-white" />
                   Refresh
                 </Button>
               </div>
@@ -642,7 +644,7 @@ export default function WithdrawalsPage() {
                           {getStatusBadge(withdrawal.status)}
                           {getPaymentMethodBadge(
                             withdrawal.payment_method?.type ||
-                              withdrawal.payment_method_type,
+                            withdrawal.payment_method_type,
                           )}
                         </div>
 
@@ -669,7 +671,7 @@ export default function WithdrawalsPage() {
                                 withdrawal.payment_method_type) === "GCASH"
                                 ? "GCash Number"
                                 : (withdrawal.payment_method?.type ||
-                                      withdrawal.payment_method_type) === "BANK"
+                                  withdrawal.payment_method_type) === "BANK"
                                   ? "Account Number"
                                   : "Account Number"}
                             </p>
@@ -700,8 +702,8 @@ export default function WithdrawalsPage() {
                             <p className="font-medium text-gray-900">
                               {withdrawal.created_at
                                 ? new Date(
-                                    withdrawal.created_at,
-                                  ).toLocaleString()
+                                  withdrawal.created_at,
+                                ).toLocaleString()
                                 : "N/A"}
                             </p>
                           </div>

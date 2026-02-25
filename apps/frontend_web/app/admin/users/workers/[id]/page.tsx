@@ -1,16 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { API_BASE } from "@/lib/api/config";
+import {
+  API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  Banknote,
   Building2,
   Calendar,
-  DollarSign,
   Loader2,
   ExternalLink,
   AlertCircle,
@@ -497,7 +498,7 @@ export default function WorkerDetailPage() {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Total Earnings</p>
                     <div className="flex items-center gap-1 text-sm font-medium text-green-600">
-                      <DollarSign className="h-4 w-4" />₱
+                      <Banknote className="h-4 w-4" />₱
                       {worker.worker_data.total_earnings?.toLocaleString() ||
                         "0"}
                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useState } from "react";
 import {
   useLeaderboard,
   useAgencyStats,
@@ -20,9 +21,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
+  Banknote,
   TrendingUp,
   Briefcase,
-  DollarSign,
   Star,
   Award,
   Download,
@@ -102,7 +103,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-gray-600 text-sm font-medium">Total Revenue</h3>
             <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="text-green-600" size={20} />
+              <Banknote className="text-green-600" size={20} />
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
@@ -12,7 +13,6 @@ import {
   AlertTriangle,
   User,
   Briefcase,
-  DollarSign,
   FileText,
   CheckCircle2,
   XCircle,

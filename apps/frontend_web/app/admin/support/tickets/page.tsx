@@ -375,10 +375,10 @@ export default function SupportTicketsPage() {
                       placeholder="Search tickets by subject or description..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 h-10"
                     />
                   </div>
-                  <Button type="submit">Search</Button>
+                  <Button type="submit" className="h-10 px-6 text-white">Search</Button>
                 </form>
 
                 {/* Status Tabs */}
@@ -395,6 +395,7 @@ export default function SupportTicketsPage() {
                       key={status}
                       variant={statusFilter === status ? "default" : "outline"}
                       size="sm"
+                      className={statusFilter === status ? "text-white" : ""}
                       onClick={() => {
                         setStatusFilter(status);
                         setCurrentPage(1);
@@ -416,7 +417,7 @@ export default function SupportTicketsPage() {
                       setTicketTypeFilter(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="px-3 py-2 border rounded-lg text-sm"
+                    className="px-3 py-2 border rounded-lg text-sm bg-gray-100"
                   >
                     <option value="all">All Types</option>
                     <option value="individual">Individual</option>
@@ -426,7 +427,7 @@ export default function SupportTicketsPage() {
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
+                    className="px-3 py-2 border rounded-lg text-sm bg-gray-100"
                   >
                     <option value="all">All Priorities</option>
                     <option value="urgent">Urgent</option>
@@ -438,7 +439,7 @@ export default function SupportTicketsPage() {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
+                    className="px-3 py-2 border rounded-lg text-sm bg-gray-100"
                   >
                     <option value="all">All Categories</option>
                     <option value="account">Account</option>
@@ -455,7 +456,7 @@ export default function SupportTicketsPage() {
                   <select
                     value={assignedFilter}
                     onChange={(e) => setAssignedFilter(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
+                    className="px-3 py-2 border rounded-lg text-sm bg-gray-100"
                   >
                     <option value="all">All Assignments</option>
                     <option value="unassigned">Unassigned</option>
@@ -466,7 +467,7 @@ export default function SupportTicketsPage() {
                   <select
                     value={dateRange}
                     onChange={(e) => setDateRange(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
+                    className="px-3 py-2 border rounded-lg text-sm bg-gray-100"
                   >
                     <option value="last_7_days">Last 7 Days</option>
                     <option value="last_30_days">Last 30 Days</option>

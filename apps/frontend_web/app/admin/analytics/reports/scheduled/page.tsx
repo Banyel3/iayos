@@ -154,7 +154,7 @@ export default function ScheduledReports() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl mx-8 mt-8">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
@@ -186,7 +186,7 @@ export default function ScheduledReports() {
             <Button
               variant={activeTab === "scheduled" ? "default" : "outline"}
               onClick={() => setActiveTab("scheduled")}
-              className={activeTab === "scheduled" ? "bg-blue-600" : ""}
+              className={activeTab === "scheduled" ? "bg-blue-600 !text-white" : ""}
             >
               <Clock className="h-4 w-4 mr-2" />
               Scheduled Reports
@@ -194,7 +194,7 @@ export default function ScheduledReports() {
             <Button
               variant={activeTab === "history" ? "default" : "outline"}
               onClick={() => setActiveTab("history")}
-              className={activeTab === "history" ? "bg-blue-600" : ""}
+              className={activeTab === "history" ? "bg-blue-600 !text-white" : ""}
             >
               <FileText className="h-4 w-4 mr-2" />
               Report History

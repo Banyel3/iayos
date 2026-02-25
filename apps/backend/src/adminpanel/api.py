@@ -13,7 +13,7 @@ from .service import get_agency_kyc_list, review_agency_kyc
 from .service import get_clients_list, get_workers_list, get_agencies_list
 from .service import get_worker_detail, get_client_detail, get_agency_detail
 from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboard_stats
-from .service import get_job_categories_list, get_job_disputes_list, get_disputes_dashboard_stats
+from .service import get_job_categories_list, create_job_category, update_job_category, delete_job_category, get_job_disputes_list, get_disputes_dashboard_stats
 from .service import get_all_reviews_list, get_job_reviews_list, get_reviews_dashboard_stats, get_flagged_reviews_list
 
 # Import optimized query functions for high-traffic endpoints
@@ -969,6 +969,66 @@ def get_job_categories(request):
         return {"success": True, "categories": categories}
     except Exception as e:
         print(f"❌ Error fetching job categories: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/jobs/categories", auth=cookie_auth)
+def create_job_category_endpoint(request):
+    """
+    Create a new job category.
+    Body: { name, description, minimum_rate, rate_type, skill_level,
+            average_project_cost_min, average_project_cost_max }
+    """
+    import json
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        category = create_job_category(data)
+        return {"success": True, "category": category}
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error creating job category: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/jobs/categories/{category_id}", auth=cookie_auth)
+def update_job_category_endpoint(request, category_id: int):
+    """
+    Update an existing job category.
+    Body: any subset of { name, description, minimum_rate, rate_type, skill_level,
+            average_project_cost_min, average_project_cost_max }
+    """
+    import json
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        category = update_job_category(category_id, data)
+        return {"success": True, "category": category}
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error updating job category {category_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/jobs/categories/{category_id}", auth=cookie_auth)
+def delete_job_category_endpoint(request, category_id: int):
+    """
+    Delete a job category.
+    Returns 400 if the category has active/in-progress jobs.
+    """
+    try:
+        result = delete_job_category(category_id)
+        return {"success": True, "message": f"Category '{result['deleted_name']}' deleted successfully"}
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error deleting job category {category_id}: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}

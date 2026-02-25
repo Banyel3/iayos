@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,13 +9,13 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   Search,
   Download,
   Eye,
   AlertTriangle,
   Clock,
   CheckCircle,
-  DollarSign,
   Calendar,
   TrendingUp,
   FileText,
@@ -131,31 +132,31 @@ export default function BackJobsPage() {
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">
-            ⏳ Pending Review
+            Pending Review
           </Badge>
         );
       case "under_review":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
-            👁 Under Review
+            Under Review
           </Badge>
         );
       case "approved":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            ✓ Approved
+            Approved
           </Badge>
         );
       case "rejected":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            ✗ Rejected
+            Rejected
           </Badge>
         );
       case "completed":
         return (
           <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">
-            ✔ Completed
+            Completed
           </Badge>
         );
       default:
@@ -281,9 +282,6 @@ export default function BackJobsPage() {
                     <div className="p-3 bg-green-100 rounded-xl">
                       <CheckCircle className="h-6 w-6 text-green-600" />
                     </div>
-                    <span className="text-xs font-medium text-green-600">
-                      ✓
-                    </span>
                   </div>
                   <p className="text-sm font-medium text-gray-600 mb-1">
                     Approved
@@ -300,7 +298,6 @@ export default function BackJobsPage() {
                     <div className="p-3 bg-red-100 rounded-xl">
                       <AlertTriangle className="h-6 w-6 text-red-600" />
                     </div>
-                    <span className="text-xs font-bold text-red-600">🔥</span>
                   </div>
                   <p className="text-sm font-medium text-gray-600 mb-1">
                     Urgent
@@ -331,23 +328,23 @@ export default function BackJobsPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">📋 All Status</option>
-                  <option value="pending">⏳ Pending</option>
-                  <option value="under_review">👁 Under Review</option>
-                  <option value="approved">✓ Approved</option>
-                  <option value="rejected">✗ Rejected</option>
-                  <option value="completed">✔ Completed</option>
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="under_review">Under Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="completed">Completed</option>
                 </select>
                 <select
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">🎯 All Priority</option>
-                  <option value="urgent">🔴 Urgent</option>
-                  <option value="high">🟠 High</option>
-                  <option value="medium">🟡 Medium</option>
-                  <option value="low">🟢 Low</option>
+                  <option value="all">All Priority</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
                 </select>
                 <Button
                   variant="outline"
@@ -399,7 +396,7 @@ export default function BackJobsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <DollarSign className="h-4 w-4 text-emerald-600" />
+                            <Banknote className="h-4 w-4 text-emerald-600" />
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 font-medium">
@@ -413,7 +410,7 @@ export default function BackJobsPage() {
 
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-orange-100 rounded-lg">
-                            <DollarSign className="h-4 w-4 text-orange-600" />
+                            <Banknote className="h-4 w-4 text-orange-600" />
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 font-medium">

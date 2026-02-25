@@ -228,6 +228,7 @@ export default function CannedResponsesPage() {
                       key={cat}
                       variant={categoryFilter === cat ? "default" : "outline"}
                       size="sm"
+                      className={categoryFilter === cat ? "text-white" : ""}
                       onClick={() => setCategoryFilter(cat)}
                     >
                       {cat.charAt(0).toUpperCase() + cat.slice(1)}

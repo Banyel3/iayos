@@ -5,16 +5,12 @@ import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp,
-  TrendingDown,
   Users,
   Briefcase,
-  DollarSign,
   CreditCard,
-  Calendar,
   Download,
   RefreshCw,
   ArrowUp,
@@ -27,7 +23,6 @@ import {
   Clock,
   Star,
   Activity,
-  Eye,
 } from "lucide-react";
 
 interface OverviewStats {
@@ -74,6 +69,7 @@ export default function AnalyticsDashboard() {
 
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange]);
 
   const fetchAnalytics = async () => {
@@ -125,7 +121,7 @@ export default function AnalyticsDashboard() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 text-white shadow-xl mx-8 mt-8">
           {/* Blur Orbs */}
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
@@ -211,7 +207,7 @@ export default function AnalyticsDashboard() {
                         ? "default"
                         : "destructive"
                     }
-                    className="flex items-center space-x-1"
+                    className="flex items-center space-x-1 !text-white"
                   >
                     {(stats?.users.growth_rate || 0) >= 0 ? (
                       <ArrowUp className="h-3 w-3" />
@@ -253,7 +249,7 @@ export default function AnalyticsDashboard() {
                   <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 transition-transform">
                     <Briefcase className="h-6 w-6 text-green-600" />
                   </div>
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                  <Badge className="bg-green-100 hover:bg-green-100 text-black">
                     {stats?.jobs.completion_rate || 0}% completed
                   </Badge>
                 </div>
@@ -287,7 +283,7 @@ export default function AnalyticsDashboard() {
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl group-hover:scale-110 transition-transform">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
+                    <Banknote className="h-6 w-6 text-purple-600" />
                   </div>
                   <Badge
                     variant={
@@ -295,7 +291,7 @@ export default function AnalyticsDashboard() {
                         ? "default"
                         : "destructive"
                     }
-                    className="flex items-center space-x-1"
+                    className="flex items-center space-x-1 !text-white"
                   >
                     {(stats?.revenue.growth_rate || 0) >= 0 ? (
                       <ArrowUp className="h-3 w-3" />
@@ -339,7 +335,7 @@ export default function AnalyticsDashboard() {
                   <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform">
                     <CreditCard className="h-6 w-6 text-orange-600" />
                   </div>
-                  <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
+                  <Badge className="bg-orange-100 hover:bg-orange-100 text-black">
                     {stats?.revenue.platform_fees
                       ? (
                         (stats.revenue.platform_fees / stats.revenue.total) *
@@ -560,7 +556,7 @@ export default function AnalyticsDashboard() {
                       <Users className="h-5 w-5 text-blue-600" />
                       <span className="font-medium text-gray-700">Clients</span>
                     </div>
-                    <Badge className="bg-blue-600">
+                    <Badge className="bg-blue-600 !text-white">
                       {Math.floor((stats?.users.total || 0) * 0.45)}
                     </Badge>
                   </div>
@@ -569,7 +565,7 @@ export default function AnalyticsDashboard() {
                       <UserCheck className="h-5 w-5 text-green-600" />
                       <span className="font-medium text-gray-700">Workers</span>
                     </div>
-                    <Badge className="bg-green-600">
+                    <Badge className="bg-green-600 !text-white">
                       {Math.floor((stats?.users.total || 0) * 0.45)}
                     </Badge>
                   </div>
@@ -580,7 +576,7 @@ export default function AnalyticsDashboard() {
                         Agencies
                       </span>
                     </div>
-                    <Badge className="bg-purple-600">
+                    <Badge className="bg-purple-600 !text-white">
                       {Math.floor((stats?.users.total || 0) * 0.1)}
                     </Badge>
                   </div>
@@ -594,7 +590,7 @@ export default function AnalyticsDashboard() {
             <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <Banknote className="h-5 w-5 text-green-600" />
                 </div>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(stats?.transactions.avg_value || 0)}
@@ -684,7 +680,7 @@ export default function AnalyticsDashboard() {
                     time: "5 minutes ago",
                   },
                   {
-                    icon: DollarSign,
+                    icon: Banknote,
                     color: "text-purple-600",
                     bg: "bg-purple-50",
                     text: "Payment processed",

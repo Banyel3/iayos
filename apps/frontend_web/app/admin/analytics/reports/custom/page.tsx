@@ -17,7 +17,6 @@ import {
   TrendingUp,
   Users,
   Briefcase,
-  DollarSign,
   Activity,
 } from "lucide-react";
 
@@ -61,7 +60,7 @@ export default function CustomReportBuilder() {
     },
     {
       name: "Revenue Metrics",
-      icon: DollarSign,
+      icon: TrendingUp,
       color: "purple",
       metrics: [
         "Total Revenue",
@@ -113,7 +112,7 @@ export default function CustomReportBuilder() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-xl mx-8 mt-8">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
@@ -142,8 +141,8 @@ export default function CustomReportBuilder() {
                     <div className="flex flex-col items-center flex-1">
                       <div
                         className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${currentStep >= step.number
-                            ? "bg-indigo-600 border-indigo-600 text-white"
-                            : "bg-white border-gray-300 text-gray-400"
+                          ? "bg-indigo-600 border-indigo-600 text-white"
+                          : "bg-white border-gray-300 text-gray-400"
                           }`}
                       >
                         {currentStep > step.number ? (
@@ -154,8 +153,8 @@ export default function CustomReportBuilder() {
                       </div>
                       <p
                         className={`mt-2 text-sm font-medium ${currentStep >= step.number
-                            ? "text-gray-900"
-                            : "text-gray-500"
+                          ? "text-gray-900"
+                          : "text-gray-500"
                           }`}
                       >
                         {step.name}
@@ -164,8 +163,8 @@ export default function CustomReportBuilder() {
                     {i < steps.length - 1 && (
                       <div
                         className={`flex-1 h-0.5 mx-4 transition-all ${currentStep > step.number
-                            ? "bg-indigo-600"
-                            : "bg-gray-300"
+                          ? "bg-indigo-600"
+                          : "bg-gray-300"
                           }`}
                       ></div>
                     )}
@@ -209,8 +208,8 @@ export default function CustomReportBuilder() {
                                 key={j}
                                 onClick={() => toggleMetric(metric)}
                                 className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${selectedMetrics.includes(metric)
-                                    ? "border-indigo-600 bg-indigo-50"
-                                    : "border-gray-200 hover:border-gray-300"
+                                  ? "border-indigo-600 bg-indigo-50"
+                                  : "border-gray-200 hover:border-gray-300"
                                   }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -393,21 +392,21 @@ export default function CustomReportBuilder() {
                         key={type.value}
                         onClick={() => setSelectedChartType(type.value)}
                         className={`p-6 rounded-xl border-2 text-left transition-all ${selectedChartType === type.value
-                            ? "border-indigo-600 bg-indigo-50"
-                            : "border-gray-200 hover:border-gray-300"
+                          ? "border-indigo-600 bg-indigo-50"
+                          : "border-gray-200 hover:border-gray-300"
                           }`}
                       >
                         <div className="flex items-start space-x-4">
                           <div
                             className={`p-3 rounded-lg ${selectedChartType === type.value
-                                ? "bg-indigo-600"
-                                : "bg-gray-100"
+                              ? "bg-indigo-600"
+                              : "bg-gray-100"
                               }`}
                           >
                             <type.icon
                               className={`h-6 w-6 ${selectedChartType === type.value
-                                  ? "text-white"
-                                  : "text-gray-600"
+                                ? "text-white"
+                                : "text-gray-600"
                                 }`}
                             />
                           </div>

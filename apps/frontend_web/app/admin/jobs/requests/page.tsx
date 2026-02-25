@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,12 +9,12 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   Search,
   Download,
   Eye,
   MapPin,
   Calendar,
-  DollarSign,
   Send,
   TrendingUp,
   CheckCircle,
@@ -124,19 +125,19 @@ export default function JobRequestsPage() {
       case "PENDING":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">
-            ⏳ Pending
+            Pending
           </Badge>
         );
       case "ACCEPTED":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            ✓ Accepted
+            Accepted
           </Badge>
         );
       case "REJECTED":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            ✗ Rejected
+            Rejected
           </Badge>
         );
       default:
@@ -149,19 +150,19 @@ export default function JobRequestsPage() {
       case "HIGH":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            🔴 High Priority
+            High Priority
           </Badge>
         );
       case "MEDIUM":
         return (
           <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
-            🟡 Medium
+            Medium
           </Badge>
         );
       case "LOW":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            🟢 Low
+            Low
           </Badge>
         );
       default:
@@ -261,7 +262,6 @@ export default function JobRequestsPage() {
                   <div className="p-3 bg-green-100 rounded-xl">
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
-                  <span className="text-xs font-medium text-green-600">✓</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Accepted
@@ -284,7 +284,6 @@ export default function JobRequestsPage() {
                   <div className="p-3 bg-red-100 rounded-xl">
                     <AlertCircle className="h-6 w-6 text-red-600" />
                   </div>
-                  <span className="text-xs font-medium text-red-600">✗</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Rejected
@@ -318,11 +317,11 @@ export default function JobRequestsPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="ACTIVE">⏳ Pending Requests</option>
-                  <option value="IN_PROGRESS">✓ Accepted & In Progress</option>
-                  <option value="COMPLETED">✔ Completed</option>
-                  <option value="CANCELLED">✘ Cancelled</option>
-                  <option value="">📋 All Status</option>
+                  <option value="ACTIVE">Pending Requests</option>
+                  <option value="IN_PROGRESS">Accepted & In Progress</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                  <option value="">All Status</option>
                 </select>
                 <Button
                   variant="outline"
@@ -366,7 +365,7 @@ export default function JobRequestsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <DollarSign className="h-4 w-4 text-emerald-600" />
+                            <Banknote className="h-4 w-4 text-emerald-600" />
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 font-medium">

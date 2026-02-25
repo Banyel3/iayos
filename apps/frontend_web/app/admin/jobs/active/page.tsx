@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   Search,
   Download,
   Eye,
   Clock,
-  DollarSign,
   MapPin,
   Calendar,
   Activity,
@@ -195,9 +195,8 @@ export default function ActiveJobsPage() {
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
+                    <Banknote className="h-6 w-6 text-purple-600" />
                   </div>
-                  <span className="text-xs font-bold text-purple-600">₱</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Budget
@@ -214,7 +213,6 @@ export default function ActiveJobsPage() {
                   <div className="p-3 bg-blue-100 rounded-xl">
                     <Users className="h-6 w-6 text-blue-600" />
                   </div>
-                  <span className="text-xs font-medium text-blue-600">👷</span>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Workers Assigned
@@ -295,7 +293,7 @@ export default function ActiveJobsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
                           <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <DollarSign className="h-4 w-4 text-emerald-600" />
+                            <Banknote className="h-4 w-4 text-emerald-600" />
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 font-medium">

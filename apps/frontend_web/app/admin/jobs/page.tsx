@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../components";
 import {
@@ -11,13 +12,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Banknote,
   Briefcase,
   ClipboardList,
   Clock,
   CheckCircle,
   AlertTriangle,
   TrendingUp,
-  DollarSign,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -210,7 +211,7 @@ export default function JobsManagementPage() {
                 <CardTitle className="text-sm font-medium text-blue-900">
                   Total Budget
                 </CardTitle>
-                <DollarSign className="h-4 w-4 text-blue-600" />
+                <Banknote className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-900">

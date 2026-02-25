@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
@@ -8,8 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   ArrowLeft,
-  DollarSign,
   User,
   Briefcase,
   Clock,
@@ -237,7 +238,7 @@ export default function TransactionDetailPage() {
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
               <div className="flex items-center gap-3 mb-2">
-                <DollarSign className="h-8 w-8" />
+                <Banknote className="h-8 w-8" />
                 <h1 className="text-4xl font-bold">
                   Transaction #{detail.transaction.id}
                 </h1>
@@ -255,7 +256,7 @@ export default function TransactionDetailPage() {
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-blue-600" />
+                    <Banknote className="h-5 w-5 text-blue-600" />
                     Transaction Details
                   </h2>
                   <div className="grid grid-cols-2 gap-4">

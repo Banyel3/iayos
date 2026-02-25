@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useState } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   MapPin,
   TrendingUp,
   Download,
   RefreshCw,
   Users,
   Briefcase,
-  DollarSign,
   Activity,
 } from "lucide-react";
 
@@ -320,7 +321,7 @@ export default function GeographicAnalytics() {
                       <p className="text-xs text-gray-500 mt-1">Jobs Posted</p>
                     </div>
                     <div className="text-center p-4 bg-purple-50 rounded-xl">
-                      <DollarSign className="h-6 w-6 mx-auto mb-2 text-purple-600" />
+                      <Banknote className="h-6 w-6 mx-auto mb-2 text-purple-600" />
                       <p className="text-2xl font-bold text-gray-900">₱925K</p>
                       <p className="text-xs text-gray-500 mt-1">Revenue</p>
                     </div>
@@ -444,7 +445,7 @@ export default function GeographicAnalytics() {
 
                   <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
                     <div className="flex items-start space-x-3">
-                      <DollarSign className="h-5 w-5 text-purple-600 mt-0.5" />
+                      <Banknote className="h-5 w-5 text-purple-600 mt-0.5" />
                       <div>
                         <p className="font-medium text-gray-900 mb-1">
                           Highest Revenue per User

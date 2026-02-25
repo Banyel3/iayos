@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   Search,
-  DollarSign,
   TrendingUp,
   Clock,
   RefreshCcw,
@@ -137,13 +136,13 @@ export default function TransactionsPage() {
       const data = await response.json();
       setStatistics(
         data.stats ||
-          data || {
-            total_transactions: 0,
-            total_revenue: 0,
-            escrow_held: 0,
-            refunded_amount: 0,
-            platform_fees: 0,
-          },
+        data || {
+          total_transactions: 0,
+          total_revenue: 0,
+          escrow_held: 0,
+          refunded_amount: 0,
+          platform_fees: 0,
+        },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -333,7 +332,7 @@ export default function TransactionsPage() {
               <div className="text-center">
                 <div className="relative">
                   <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
-                  <DollarSign className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                  <Banknote className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <p className="mt-6 text-lg font-medium text-gray-700">
                   Loading transactions...
@@ -357,7 +356,7 @@ export default function TransactionsPage() {
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
               <div className="flex items-center gap-3 mb-2">
-                <DollarSign className="h-8 w-8" />
+                <Banknote className="h-8 w-8" />
                 <h1 className="text-4xl font-bold">Transactions</h1>
               </div>
               <p className="text-blue-100 text-lg">
@@ -373,7 +372,7 @@ export default function TransactionsPage() {
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
                     <div className="p-3 bg-blue-100 rounded-xl">
-                      <DollarSign className="h-6 w-6 text-blue-600" />
+                      <Banknote className="h-6 w-6 text-blue-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
@@ -464,27 +463,29 @@ export default function TransactionsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
-                  <option value="all">📊 All Status</option>
-                  <option value="completed">✓ Completed</option>
-                  <option value="pending">⏳ Pending</option>
-                  <option value="failed">✗ Failed</option>
-                  <option value="refunded">↩ Refunded</option>
+                  <option value="all">All Status</option>
+                  <option value="completed">Completed</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                  <option value="refunded">Refunded</option>
                 </select>
 
                 {/* Payment Method Filter */}
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
-                  <option value="all">💳 All Types</option>
-                  <option value="ESCROW">🔒 Escrow</option>
-                  <option value="EARNING">💰 Earning</option>
-                  <option value="PENDING_EARNING">⏳ Pending Earning</option>
-                  <option value="WITHDRAWAL">📤 Withdrawal</option>
-                  <option value="DEPOSIT">📥 Deposit</option>
+                  <option value="all">All Types</option>
+                  <option value="ESCROW">Escrow</option>
+                  <option value="EARNING">Earning</option>
+                  <option value="PENDING_EARNING">Pending Earning</option>
+                  <option value="WITHDRAWAL">Withdrawal</option>
+                  <option value="DEPOSIT">Deposit</option>
                 </select>
 
                 {/* Export Button */}
@@ -562,7 +563,7 @@ export default function TransactionsPage() {
                     {transactions.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-6 py-12 text-center">
-                          <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                           <p className="text-gray-500 font-medium">
                             No transactions found
                           </p>

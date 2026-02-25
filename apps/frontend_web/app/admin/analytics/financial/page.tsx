@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
-  DollarSign,
   TrendingUp,
   Download,
   RefreshCw,
@@ -27,7 +26,7 @@ export default function FinancialReports() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white shadow-xl mx-8 mt-8">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
@@ -35,7 +34,7 @@ export default function FinancialReports() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center space-x-3 mb-2">
-                  <DollarSign className="h-8 w-8" />
+                  <Banknote className="h-8 w-8" />
                   <h1 className="text-3xl font-bold">Financial Reports</h1>
                 </div>
                 <p className="text-purple-100 text-lg">
@@ -79,7 +78,7 @@ export default function FinancialReports() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-purple-100 rounded-xl">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
+                    <Banknote className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
                 <h3 className="text-3xl font-bold text-gray-900 mb-1">
@@ -276,7 +275,7 @@ export default function FinancialReports() {
             <Card className="border-0 shadow-xl">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-orange-600" />
+                  <Banknote className="h-5 w-5 text-orange-600" />
                   <span>Platform Fees</span>
                 </CardTitle>
               </CardHeader>

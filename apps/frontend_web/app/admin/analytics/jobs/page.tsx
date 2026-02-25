@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useState, useEffect
+} from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   Briefcase,
   TrendingUp,
   TrendingDown,
@@ -14,7 +17,6 @@ import {
   RefreshCw,
   CheckCircle,
   Clock,
-  DollarSign,
   Activity,
   Package,
 } from "lucide-react";
@@ -78,7 +80,7 @@ export default function JobAnalytics() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white shadow-xl mx-8 mt-8">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
@@ -357,7 +359,7 @@ export default function JobAnalytics() {
             <Card className="border-0 shadow-xl">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-purple-600" />
+                  <Banknote className="h-5 w-5 text-purple-600" />
                   <span>Budget Distribution</span>
                 </CardTitle>
               </CardHeader>

@@ -1,12 +1,14 @@
 "use client";
 
-import { API_BASE } from "@/lib/api/config";
+import {
+  API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import {
+  Banknote,
   CreditCard,
   CheckCircle2,
   XCircle,
@@ -15,7 +17,6 @@ import {
   Eye,
   EyeOff,
   Settings,
-  DollarSign,
   Building2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
@@ -371,7 +372,7 @@ export default function PaymentGatewaysPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-sky-100 rounded-lg">
-                    <DollarSign className="h-6 w-6 text-sky-600" />
+                    <Banknote className="h-6 w-6 text-sky-600" />
                   </div>
                   <div>
                     <CardTitle className="text-lg">GCash</CardTitle>

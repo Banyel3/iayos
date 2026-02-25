@@ -327,6 +327,7 @@ export default function UserReportsPage() {
                       key={status}
                       variant={statusFilter === status ? "default" : "outline"}
                       size="sm"
+                      className={statusFilter === status ? "text-white" : ""}
                       onClick={() => setStatusFilter(status)}
                     >
                       {status === "all"
@@ -346,6 +347,7 @@ export default function UserReportsPage() {
                       key={type}
                       variant={typeFilter === type ? "default" : "outline"}
                       size="sm"
+                      className={typeFilter === type ? "text-white" : ""}
                       onClick={() => setTypeFilter(type)}
                     >
                       {type.charAt(0).toUpperCase() + type.slice(1)} Report

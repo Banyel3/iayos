@@ -1,19 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api/config";
+import {
+  API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Banknote,
   AlertCircle,
   CheckCircle,
   Clock,
   RefreshCw,
   ChevronRight,
   MapPin,
-  DollarSign,
   Tag,
   User,
   Camera,
@@ -303,7 +304,7 @@ export default function AgencyBackjobsPage() {
 
                 <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-4">
                   <div className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4" />
+                    <Banknote className="w-4 h-4" />
                     <span>₱{backjob.job_budget?.toLocaleString()}</span>
                   </div>
                   {backjob.job_category && (

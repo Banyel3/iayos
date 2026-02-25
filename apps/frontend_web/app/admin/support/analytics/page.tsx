@@ -203,6 +203,7 @@ export default function SupportAnalyticsPage() {
                         dateRange === range.value ? "default" : "outline"
                       }
                       size="sm"
+                      className={dateRange === range.value ? "text-white" : ""}
                       onClick={() => setDateRange(range.value)}
                     >
                       {range.label}
@@ -510,10 +511,10 @@ export default function SupportAnalyticsPage() {
                     >
                       <div
                         className={`w-full rounded-t ${item.time < 4
-                            ? "bg-green-500"
-                            : item.time < 8
-                              ? "bg-yellow-500"
-                              : "bg-red-500"
+                          ? "bg-green-500"
+                          : item.time < 8
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
                           }`}
                         style={{ height: `${height}%` }}
                         title={`${formatTime(item.time)} on ${item.date}`}
