@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  Banknote,
   Building2,
   Calendar,
   Loader2,

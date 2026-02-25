@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Banknote,
   Briefcase,
   ClipboardList,
   Clock,

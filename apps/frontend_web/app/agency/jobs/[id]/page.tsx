@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/form_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   ArrowLeft,
   MapPin,
   Clock,

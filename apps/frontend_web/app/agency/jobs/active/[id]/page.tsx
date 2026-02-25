@@ -5,6 +5,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Banknote,
   ArrowLeft,
   MapPin,
   Calendar,

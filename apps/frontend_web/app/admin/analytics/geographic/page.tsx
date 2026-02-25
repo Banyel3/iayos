@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   MapPin,
   TrendingUp,
   Download,

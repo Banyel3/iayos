@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import {
+  Banknote,
   CreditCard,
   CheckCircle2,
   XCircle,

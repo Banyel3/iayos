@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   Search,
   Download,
   Eye,

@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import {
+  Banknote,
   Search,
   UserCheck,
   Download,

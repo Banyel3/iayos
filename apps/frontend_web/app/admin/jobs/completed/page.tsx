@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  useState, useEffect } from "react";
+  useState, useEffect
+} from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   Search,
   Download,
   Eye,

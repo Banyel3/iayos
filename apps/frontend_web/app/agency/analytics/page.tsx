@@ -21,6 +21,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
+  Banknote,
   TrendingUp,
   Briefcase,
   Star,

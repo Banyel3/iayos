@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Banknote,
   ArrowLeft,
   User,
   Briefcase,
