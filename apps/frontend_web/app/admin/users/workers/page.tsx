@@ -412,7 +412,7 @@ export default function WorkersPage() {
                     className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
                   />
                 </div>
-                <div className="flex flex-row gap-4">
+                <div className="flex flex-row flex-wrap md:flex-nowrap gap-4">
                   <select
                     value={statusFilter}
                     onChange={(e) =>
@@ -439,7 +439,7 @@ export default function WorkersPage() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
-                    className="flex-1 md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                    className="w-full md:w-auto md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                   >
                     <option value="newest">Newest</option>
                     <option value="oldest">Oldest</option>
