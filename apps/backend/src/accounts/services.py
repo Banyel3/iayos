@@ -432,11 +432,13 @@ def reset_password_verify(verifyToken, userID, data, request=None):
     try:
         user = Accounts.objects.get(accountID=userID, verifyToken=hashed_token)
     except Accounts.DoesNotExist:
-        raise ValueError("Invalid or expired reset token")
+        print(f"⚠️ [ForgotPassword] Token mismatch or account not found for ID {userID}")
+        raise ValueError("Invalid or expired reset token. Please request a new reset code.")
     
-    # 4️⃣ Check if token has expired
-    if user.verifyTokenExpiry < timezone.now():
-        raise ValueError("Reset token has expired")
+    # 4️⃣ Check if token has expired (guard None in case expiry was never set)
+    if user.verifyTokenExpiry is None or user.verifyTokenExpiry < timezone.now():
+        print(f"⚠️ [ForgotPassword] Reset token expired or missing expiry for account {userID}")
+        raise ValueError("Reset token has expired. Please request a new reset code.")
     
     # 5️⃣ Update password, clear reset token, and mark email as verified
     # The user proved email access via OTP during the forgot-password flow,
