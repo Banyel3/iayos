@@ -1411,7 +1411,6 @@ export default function AgencyJobsPage() {
             )}
           </>
         )}
-      </div>
 
       {/* Reject Reason Modal */}
       <RejectReasonModal
