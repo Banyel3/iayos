@@ -91,32 +91,32 @@ export default function CertificationHistoryPage() {
 
       const normalized = Array.isArray(data?.history)
         ? data.history.map((entry: any) => ({
-            cert_id:
-              entry?.certification_id ??
-              entry?.cert_id ??
-              entry?.certificationID ??
-              0,
-            certification_name:
-              entry?.certification_name ??
-              entry?.certificationName ??
-              "Certification",
-            worker_name:
-              entry?.worker_name ??
-              entry?.workerName ??
-              entry?.worker_email ??
-              "Unknown Worker",
-            action: (entry?.action ?? "APPROVED") as "APPROVED" | "REJECTED",
-            reviewed_by_name:
-              entry?.reviewed_by_name ??
-              entry?.reviewedBy ??
-              entry?.reviewed_by ??
-              "System",
-            reviewed_at:
-              entry?.reviewed_at ??
-              entry?.reviewedAt ??
-              new Date().toISOString(),
-            reason: entry?.reason ?? null,
-          }))
+          cert_id:
+            entry?.certification_id ??
+            entry?.cert_id ??
+            entry?.certificationID ??
+            0,
+          certification_name:
+            entry?.certification_name ??
+            entry?.certificationName ??
+            "Certification",
+          worker_name:
+            entry?.worker_name ??
+            entry?.workerName ??
+            entry?.worker_email ??
+            "Unknown Worker",
+          action: (entry?.action ?? "APPROVED") as "APPROVED" | "REJECTED",
+          reviewed_by_name:
+            entry?.reviewed_by_name ??
+            entry?.reviewedBy ??
+            entry?.reviewed_by ??
+            "System",
+          reviewed_at:
+            entry?.reviewed_at ??
+            entry?.reviewedAt ??
+            new Date().toISOString(),
+          reason: entry?.reason ?? null,
+        }))
         : [];
 
       setLogs(normalized);
@@ -253,24 +253,24 @@ export default function CertificationHistoryPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}
-        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-gray-700 to-gray-500 p-8 text-white shadow-xl">
+        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-gray-700 to-gray-500 p-4 sm:p-8 text-white shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24 pointer-events-none"></div>
-          <div className="relative flex items-center justify-between">
+          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <FileText className="h-8 w-8" />
-                <h1 className="text-3xl font-bold">Verification History</h1>
+              <div className="flex items-center gap-3 mb-1 sm:mb-2">
+                <FileText className="h-6 w-6 sm:h-8 sm:w-8" />
+                <h1 className="text-xl sm:text-3xl font-bold">Verification History</h1>
               </div>
-              <p className="text-gray-100 max-w-2xl">
+              <p className="text-gray-100 text-sm sm:text-base max-w-2xl">
                 Complete audit trail of all certification verification actions
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => router.push("/admin/certifications/pending")}
                 variant="outline"
-                className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                className="bg-white/10 border-white/30 text-white hover:bg-white/20 h-9 text-xs sm:text-sm"
               >
                 <Shield className="h-4 w-4 mr-2" />
                 Pending Review
@@ -278,7 +278,7 @@ export default function CertificationHistoryPage() {
               <Button
                 onClick={exportToCSV}
                 variant="outline"
-                className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                className="bg-white/10 border-white/30 text-white hover:bg-white/20 h-9 text-xs sm:text-sm"
                 disabled={filteredLogs.length === 0}
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -405,11 +405,13 @@ export default function CertificationHistoryPage() {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold text-gray-900">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
                               {log.certification_name}
                             </h3>
-                            {getActionBadge(log.action)}
+                            <div className="w-fit">
+                              {getActionBadge(log.action)}
+                            </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-gray-600">
                             <div className="flex items-center gap-2">

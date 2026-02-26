@@ -277,19 +277,19 @@ export default function UserReportsPage() {
       <main className={mainClass}>
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-pink-700 p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-pink-700 p-4 sm:p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="text-center sm:text-left">
+                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <AlertTriangle className="h-8 w-8" />
+                      <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
                     </div>
-                    <h1 className="text-4xl font-bold">User Reports</h1>
+                    <h1 className="text-2xl sm:text-4xl font-bold">User Reports</h1>
                   </div>
-                  <p className="text-red-100 text-lg">
+                  <p className="text-red-100 text-sm sm:text-lg">
                     Review and moderate reported content and users
                   </p>
                 </div>
@@ -299,206 +299,247 @@ export default function UserReportsPage() {
 
           {/* Filters */}
           <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="space-y-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-6">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
                     type="text"
-                    placeholder="Search by reporter, reported user, or description..."
+                    placeholder="Search by reporter, reported user, or reason..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-11 border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 rounded-xl text-sm"
                   />
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-sm font-medium text-gray-700 self-center">
-                    Status:
-                  </span>
-                  {[
-                    "all",
-                    "pending",
-                    "investigating",
-                    "resolved",
-                    "dismissed",
-                  ].map((status) => (
-                    <Button
-                      key={status}
-                      variant={statusFilter === status ? "default" : "outline"}
-                      size="sm"
-                      className={statusFilter === status ? "text-white" : ""}
-                      onClick={() => setStatusFilter(status)}
-                    >
-                      {status === "all"
-                        ? "All"
-                        : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-                          ?.label}
-                    </Button>
-                  ))}
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Status</p>
+                    <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
+                      {[
+                        "all",
+                        "pending",
+                        "investigating",
+                        "resolved",
+                        "dismissed",
+                      ].map((status) => (
+                        <Button
+                          key={status}
+                          variant={statusFilter === status ? "default" : "outline"}
+                          size="sm"
+                          className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${statusFilter === status ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
+                          onClick={() => setStatusFilter(status)}
+                        >
+                          {status === "all"
+                            ? "All"
+                            : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
+                              ?.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-sm font-medium text-gray-700 self-center">
-                    Type:
-                  </span>
-                  {["all", "user", "job", "review", "message"].map((type) => (
-                    <Button
-                      key={type}
-                      variant={typeFilter === type ? "default" : "outline"}
-                      size="sm"
-                      className={typeFilter === type ? "text-white" : ""}
-                      onClick={() => setTypeFilter(type)}
-                    >
-                      {type.charAt(0).toUpperCase() + type.slice(1)} Report
-                    </Button>
-                  ))}
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Type</p>
+                    <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
+                      {["all", "user", "job", "review", "message"].map((type) => (
+                        <Button
+                          key={type}
+                          variant={typeFilter === type ? "default" : "outline"}
+                          size="sm"
+                          className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${typeFilter === type ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
+                          onClick={() => setTypeFilter(type)}
+                        >
+                          {type.charAt(0).toUpperCase() + type.slice(1)} Report
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Reports Table */}
-          <Card className="border-0 shadow-lg">
+          {/* Reports Table / Cards */}
+          <Card className="border-0 shadow-lg overflow-hidden">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              {/* Desktop View */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Report ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Reporter
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Reported User
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Content Type
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Reason
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Description
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Actions
-                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Report ID</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Reporter</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Reported User</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Type & Reason</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Description</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Status</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Date</th>
+                      <th className="px-6 py-4 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-50">
                     {loading ? (
                       <tr>
-                        <td colSpan={9} className="px-6 py-12 text-center">
-                          <AlertTriangle className="h-8 w-8 text-gray-400 animate-pulse mx-auto" />
-                          <p className="text-gray-500 mt-2">
-                            Loading reports...
-                          </p>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <AlertTriangle className="h-8 w-8 text-red-500 animate-pulse mx-auto mb-3" />
+                          <p className="text-gray-500 font-bold tracking-tight">Syncing reports...</p>
                         </td>
                       </tr>
                     ) : filteredReports.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-6 py-12 text-center">
-                          <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto" />
-                          <p className="text-gray-500 font-medium mt-2">
-                            No reports found
-                          </p>
+                        <td colSpan={8} className="px-6 py-20 text-center">
+                          <div className="max-w-md mx-auto flex flex-col items-center gap-3">
+                            <div className="p-4 bg-gray-50 rounded-full">
+                              <AlertTriangle className="h-8 w-8 text-gray-300" />
+                            </div>
+                            <p className="text-lg font-bold text-gray-900 leading-tight">No reports match your filters</p>
+                            <p className="text-sm text-gray-500 leading-relaxed font-medium">Try broadening your search criteria or resetting filters.</p>
+                          </div>
                         </td>
                       </tr>
                     ) : (
                       filteredReports.map((report) => (
                         <tr
                           key={report.id}
-                          className="hover:bg-gray-50 transition-colors"
+                          className="hover:bg-red-50/30 transition-colors group cursor-pointer"
+                          onClick={() => handleViewDetail(report.id)}
                         >
-                          <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                            #{report.id}
-                          </td>
+                          <td className="px-6 py-4 text-sm font-black text-gray-400">#{report.id}</td>
                           <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {report.reporter_name}
-                              </p>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">{report.reporter_name}</span>
                               {report.reporter_total_reports > 1 && (
-                                <p className="text-xs text-gray-500">
-                                  {report.reporter_total_reports} reports
-                                  submitted
-                                </p>
+                                <span className="text-[10px] text-gray-400 font-bold tracking-tight">
+                                  {report.reporter_total_reports} reports submitted
+                                </span>
                               )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {report.reported_user_name}
-                              </p>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">{report.reported_user_name}</span>
                               {report.reported_user_total_reports > 3 && (
-                                <Badge className="bg-red-100 text-red-700 text-xs mt-1">
-                                  {report.reported_user_total_reports} times
-                                  reported
-                                </Badge>
+                                <span className="text-[10px] text-red-600 font-black tracking-tight uppercase">
+                                  {report.reported_user_total_reports} times reported
+                                </span>
                               )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge
-                              className={
-                                CONTENT_TYPE_CONFIG[
-                                  report.reported_content_type
-                                ]?.color
-                              }
-                            >
-                              {report.reported_content_type}
-                            </Badge>
+                            <div className="flex flex-col gap-1.5">
+                              <Badge className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}>
+                                {report.reported_content_type}
+                              </Badge>
+                              <Badge className={`${REASON_CONFIG[report.reason]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}>
+                                {report.reason}
+                              </Badge>
+                            </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge
-                              className={REASON_CONFIG[report.reason]?.color}
-                            >
-                              {report.reason}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p
-                              className="text-sm text-gray-700 max-w-xs truncate"
-                              title={report.description}
-                            >
+                            <p className="text-xs text-gray-500 font-medium leading-relaxed max-w-xs truncate" title={report.description}>
                               {report.description}
                             </p>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge
-                              className={STATUS_CONFIG[report.status].color}
-                            >
+                            <Badge className={`${STATUS_CONFIG[report.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit h-5 uppercase text-[9px] tracking-widest`}>
+                              {(() => {
+                                const Icon = STATUS_CONFIG[report.status].icon;
+                                return <Icon className="h-2.5 w-2.5" />;
+                              })()}
                               {STATUS_CONFIG[report.status].label}
                             </Badge>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
+                          <td className="px-6 py-4 text-[11px] font-bold text-gray-500 tracking-tight">
                             {new Date(report.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleViewDetail(report.id)}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              Review
-                            </Button>
+                            <div className="flex justify-center">
+                              <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-red-600 group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm">
+                                <Eye className="h-4 w-4" />
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="lg:hidden divide-y divide-gray-100">
+                {loading ? (
+                  <div className="p-12 text-center">
+                    <AlertTriangle className="h-8 w-8 text-red-500 animate-pulse mx-auto mb-3" />
+                    <p className="text-sm font-bold text-gray-500 tracking-tight">Loading reports...</p>
+                  </div>
+                ) : filteredReports.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <AlertTriangle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-base font-bold text-gray-900 mb-1">No reports found</p>
+                    <p className="text-xs text-gray-500 font-medium font-bold">Try different filter settings</p>
+                  </div>
+                ) : (
+                  filteredReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="p-4 bg-white active:bg-red-50 transition-colors"
+                      onClick={() => handleViewDetail(report.id)}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">#{report.id}</span>
+                            <Badge className={`${STATUS_CONFIG[report.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase tracking-widest flex items-center gap-1`}>
+                              {(() => {
+                                const Icon = STATUS_CONFIG[report.status].icon;
+                                return <Icon className="h-2 w-2" />;
+                              })()}
+                              {STATUS_CONFIG[report.status].label}
+                            </Badge>
+                          </div>
+                          <h3 className="text-sm font-bold text-gray-900 leading-tight">
+                            Report against {report.reported_user_name}
+                          </h3>
+                        </div>
+                        <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400">
+                          <ChevronRight className="h-4 w-4" />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 mb-4">
+                        <Badge className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}>
+                          {report.reported_content_type}
+                        </Badge>
+                        <Badge className={`${REASON_CONFIG[report.reason]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}>
+                          {report.reason}
+                        </Badge>
+                        {report.reported_user_total_reports > 3 && (
+                          <Badge className="bg-red-600 text-white border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider">
+                            High Risk!
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="p-3 bg-gray-50 rounded-xl mb-4 border border-gray-100">
+                        <p className="text-xs text-gray-600 font-medium leading-relaxed line-clamp-2 italic">
+                          "{report.description}"
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 tracking-tight uppercase">
+                          <Clock className="h-3 w-3" />
+                          {new Date(report.created_at).toLocaleDateString()}
+                        </div>
+                        <div className="text-[10px] font-bold text-gray-400">
+                          By <span className="text-gray-900">{report.reporter_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

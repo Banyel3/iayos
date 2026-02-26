@@ -448,13 +448,13 @@ export default function JobListingsPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex md:flex-col gap-2 sm:gap-3">
-                      <Link href={`/admin/jobs/listings/${job.id}`}>
+                    <div className="grid grid-cols-2 md:flex md:flex-col gap-2 sm:gap-3">
+                      <Link href={`/admin/jobs/listings/${job.id}`} className="min-w-0">
                         <Button
                           size="sm"
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all text-xs sm:text-sm"
                         >
-                          <Eye className="h-4 w-4 mr-2" />
+                          <Eye className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
                           View Details
                         </Button>
                       </Link>
@@ -462,9 +462,9 @@ export default function JobListingsPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => deleteJob(job.id, job.title)}
-                        className="w-full border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all"
+                        className="w-full border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all text-xs sm:text-sm"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
+                        <Trash2 className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
                         Delete
                       </Button>
                     </div>

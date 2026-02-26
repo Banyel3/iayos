@@ -391,39 +391,39 @@ export default function AdminManagementPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}
-        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 p-8 shadow-xl">
+        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 p-6 sm:p-8 shadow-xl mx-4 sm:mx-0 mt-4 sm:mt-0">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-red-500 opacity-20 blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-pink-500 opacity-20 blur-3xl pointer-events-none"></div>
 
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm">
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="text-center sm:text-left">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm mx-auto sm:mx-0">
                 <Shield className="h-4 w-4 text-white" />
-                <span className="text-sm font-medium text-white">
-                  Access Control
+                <span className="text-xs sm:text-sm font-medium text-white">
+                  Access Control Protocol
                 </span>
               </div>
-              <h1 className="mb-2 text-4xl font-bold text-white">
-                Admin User Management
+              <h1 className="mb-2 text-2xl sm:text-4xl font-black text-white uppercase tracking-tight">
+                Admin Management
               </h1>
-              <p className="text-lg text-red-100">
-                Manage administrator accounts, roles, and permissions
+              <p className="text-sm sm:text-lg text-red-100 max-w-2xl font-medium opacity-90">
+                Manage administrator accounts, security levels, and node permissions
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-1 sm:flex gap-3 mt-2 sm:mt-0">
               <Button
                 onClick={() => setShowPermissionsMatrix(true)}
                 variant="secondary"
-                className="gap-2 bg-white/20 hover:bg-white/30 text-white border-white/30"
+                className="gap-2 bg-white/20 hover:bg-white/30 text-white border-white/30 h-11 text-xs font-black uppercase tracking-widest"
               >
-                <Users className="h-4 w-4" />
+                <Users className="h-4 w-4 shrink-0" />
                 Permissions Matrix
               </Button>
               <Button
                 onClick={handleAddAdmin}
-                className="gap-2 bg-white text-red-600 hover:bg-red-50"
+                className="gap-2 bg-white text-red-600 hover:bg-red-50 h-11 text-xs font-black uppercase tracking-widest"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 shrink-0" />
                 Add New Admin
               </Button>
             </div>
@@ -436,7 +436,7 @@ export default function AdminManagementPage() {
             <CardTitle>Administrator Accounts ({admins.length})</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden lg:block">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -521,8 +521,8 @@ export default function AdminManagementPage() {
                           >
                             <span
                               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${admin.is_active
-                                  ? "translate-x-6"
-                                  : "translate-x-1"
+                                ? "translate-x-6"
+                                : "translate-x-1"
                                 }`}
                             />
                           </button>
@@ -555,379 +555,465 @@ export default function AdminManagementPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Cards Layout */}
+            <div className="block lg:hidden divide-y divide-gray-100">
+              {admins.map((admin) => {
+                const isCurrentUser = admin.id === currentAdminId;
+                return (
+                  <div key={admin.id} className={`p-4 ${isCurrentUser ? "bg-blue-50/30" : "bg-white"}`}>
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight truncate max-w-[200px]">
+                            {admin.email}
+                          </h3>
+                          {isCurrentUser && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-blue-100 text-blue-600 rounded">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${getRoleBadgeColor(admin.role)}`}>
+                            {ROLES[admin.role].label}
+                          </span>
+                          <span className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase">
+                            <Clock className="h-3 w-3" />
+                            Joined {new Date(admin.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          onClick={() => handleEditAdmin(admin)}
+                          variant="ghost"
+                          size="sm"
+                          disabled={isCurrentUser}
+                          className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50 disabled:opacity-30"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteClick(admin)}
+                          variant="ghost"
+                          size="sm"
+                          disabled={isCurrentUser}
+                          className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 disabled:opacity-30"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-50">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Permissions</span>
+                        <div className="flex items-center gap-1.5 font-black text-xs text-purple-600">
+                          <Key className="h-3.5 w-3.5" />
+                          {admin.permissions.length}
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Last Active</span>
+                        <span className="text-xs font-bold text-gray-700">
+                          {admin.last_login ? new Date(admin.last_login).toLocaleDateString() : "Never"}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Access</span>
+                        <button
+                          onClick={() => handleToggleStatus(admin)}
+                          disabled={isCurrentUser}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${admin.is_active ? "bg-green-500" : "bg-gray-300"} ${isCurrentUser ? "opacity-30" : ""}`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${admin.is_active ? "translate-x-5" : "translate-x-0.5"}`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
         {/* Add/Edit Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {modalMode === "add" ? "Add New Admin" : "Edit Admin"}
-                </h2>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    placeholder="admin@example.com"
-                    className={formErrors.email ? "border-red-500" : ""}
-                    disabled={modalMode === "edit"}
-                  />
-                  {formErrors.email && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {formErrors.email}
-                    </p>
-                  )}
+        {
+          showModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {modalMode === "add" ? "Add New Admin" : "Edit Admin"}
+                  </h2>
                 </div>
 
-                {modalMode === "add" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Password <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) =>
-                          setFormData({ ...formData, password: e.target.value })
-                        }
-                        placeholder="Min 8 characters"
-                        className={formErrors.password ? "border-red-500" : ""}
-                      />
-                      {formErrors.password && (
-                        <p className="text-sm text-red-600 mt-1">
-                          {formErrors.password}
-                        </p>
-                      )}
-                      {formData.password && (
-                        <div className="mt-2">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-gray-600">
-                              Password Strength
-                            </span>
-                            <span
-                              className={`font-semibold ${passwordStrength >= 75
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      placeholder="admin@example.com"
+                      className={formErrors.email ? "border-red-500" : ""}
+                      disabled={modalMode === "edit"}
+                    />
+                    {formErrors.email && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {formErrors.email}
+                      </p>
+                    )}
+                  </div>
+
+                  {modalMode === "add" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Password <span className="text-red-500">*</span>
+                        </label>
+                        <Input
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) =>
+                            setFormData({ ...formData, password: e.target.value })
+                          }
+                          placeholder="Min 8 characters"
+                          className={formErrors.password ? "border-red-500" : ""}
+                        />
+                        {formErrors.password && (
+                          <p className="text-sm text-red-600 mt-1">
+                            {formErrors.password}
+                          </p>
+                        )}
+                        {formData.password && (
+                          <div className="mt-2">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="text-gray-600">
+                                Password Strength
+                              </span>
+                              <span
+                                className={`font-semibold ${passwordStrength >= 75
                                   ? "text-green-600"
                                   : passwordStrength >= 50
                                     ? "text-yellow-600"
                                     : "text-red-600"
-                                }`}
-                            >
-                              {getPasswordStrengthLabel()}
-                            </span>
+                                  }`}
+                              >
+                                {getPasswordStrengthLabel()}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${getPasswordStrengthColor()}`}
+                                style={{ width: `${passwordStrength}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all ${getPasswordStrengthColor()}`}
-                              style={{ width: `${passwordStrength}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Confirm Password <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        type="password"
-                        value={formData.confirmPassword}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            confirmPassword: e.target.value,
-                          })
-                        }
-                        placeholder="Re-enter password"
-                        className={
-                          formErrors.confirmPassword ? "border-red-500" : ""
-                        }
-                      />
-                      {formErrors.confirmPassword && (
-                        <p className="text-sm text-red-600 mt-1">
-                          {formErrors.confirmPassword}
-                        </p>
-                      )}
-                    </div>
-                  </>
-                )}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Confirm Password <span className="text-red-500">*</span>
+                        </label>
+                        <Input
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              confirmPassword: e.target.value,
+                            })
+                          }
+                          placeholder="Re-enter password"
+                          className={
+                            formErrors.confirmPassword ? "border-red-500" : ""
+                          }
+                        />
+                        {formErrors.confirmPassword && (
+                          <p className="text-sm text-red-600 mt-1">
+                            {formErrors.confirmPassword}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Role
-                  </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value as any })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                  >
-                    <option value="super_admin">
-                      Super Admin - Full Access
-                    </option>
-                    <option value="admin">Admin - Most Features</option>
-                    <option value="moderator">
-                      Moderator - Limited Access
-                    </option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Role
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) =>
+                        setFormData({ ...formData, role: e.target.value as any })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      <option value="super_admin">
+                        Super Admin - Full Access
+                      </option>
+                      <option value="admin">Admin - Most Features</option>
+                      <option value="moderator">
+                        Moderator - Limited Access
+                      </option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Permissions
-                  </label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-4">
-                    {ALL_PERMISSIONS.map((permission) => {
-                      const isChecked = formData.permissions.includes(
-                        permission.id,
-                      );
-                      const isDisabled =
-                        permission.id === "manage_admins" &&
-                        formData.role !== "super_admin";
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Permissions
+                    </label>
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-4">
+                      {ALL_PERMISSIONS.map((permission) => {
+                        const isChecked = formData.permissions.includes(
+                          permission.id,
+                        );
+                        const isDisabled =
+                          permission.id === "manage_admins" &&
+                          formData.role !== "super_admin";
 
-                      return (
-                        <div
-                          key={permission.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg ${isDisabled
+                        return (
+                          <div
+                            key={permission.id}
+                            className={`flex items-start gap-3 p-3 rounded-lg ${isDisabled
                               ? "bg-gray-50 opacity-50"
                               : "hover:bg-gray-50"
-                            }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() =>
-                              handleTogglePermission(permission.id)
-                            }
-                            disabled={isDisabled}
-                            className="mt-1 h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                          />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">
-                              {permission.label}
-                              {isDisabled && (
-                                <span className="ml-2 text-xs text-gray-500">
-                                  (Super Admin only)
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {permission.description}
-                            </p>
+                              }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() =>
+                                handleTogglePermission(permission.id)
+                              }
+                              disabled={isDisabled}
+                              className="mt-1 h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900 text-sm">
+                                {permission.label}
+                                {isDisabled && (
+                                  <span className="ml-2 text-xs text-gray-500">
+                                    (Super Admin only)
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {permission.description}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {modalMode === "add" && (
-                  <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        Send Welcome Email
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Send login credentials to admin
-                      </p>
+                        );
+                      })}
                     </div>
-                    <button
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          send_welcome_email: !formData.send_welcome_email,
-                        })
-                      }
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.send_welcome_email
+                  </div>
+
+                  {modalMode === "add" && (
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          Send Welcome Email
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Send login credentials to admin
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            send_welcome_email: !formData.send_welcome_email,
+                          })
+                        }
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.send_welcome_email
                           ? "bg-green-600"
                           : "bg-gray-300"
-                        }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.send_welcome_email
+                          }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.send_welcome_email
                             ? "translate-x-6"
                             : "translate-x-1"
-                          }`}
-                      />
-                    </button>
-                  </div>
-                )}
-              </div>
+                            }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              <div className="p-6 border-t bg-gray-50 flex gap-3 justify-end">
-                <Button onClick={() => setShowModal(false)} variant="secondary">
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveAdmin}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  {modalMode === "add" ? "Create Admin" : "Save Changes"}
-                </Button>
+                <div className="p-6 border-t bg-gray-50 flex gap-3 justify-end">
+                  <Button onClick={() => setShowModal(false)} variant="secondary">
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveAdmin}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {modalMode === "add" ? "Create Admin" : "Save Changes"}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
         {/* Delete Confirmation Modal */}
-        {showDeleteModal && adminToDelete && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-              <div className="p-6 border-b">
-                <h2 className="text-2xl font-bold text-red-600">
-                  Delete Admin
-                </h2>
-              </div>
+        {
+          showDeleteModal && adminToDelete && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+                <div className="p-6 border-b">
+                  <h2 className="text-2xl font-bold text-red-600">
+                    Delete Admin
+                  </h2>
+                </div>
 
-              <div className="p-6 space-y-4">
-                <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-red-900">Warning</p>
-                    <p className="text-sm text-red-700 mt-1">
-                      Admin "{adminToDelete.email}" will lose access
-                      immediately.
-                    </p>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-red-900">Warning</p>
+                      <p className="text-sm text-red-700 mt-1">
+                        Admin "{adminToDelete.email}" will lose access
+                        immediately.
+                      </p>
+                    </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Reassign pending tasks to:
+                    </label>
+                    <select
+                      value={reassignAdminId}
+                      onChange={(e) => setReassignAdminId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      <option value="">Select admin...</option>
+                      {admins
+                        .filter((a) => a.id !== adminToDelete.id && a.is_active)
+                        .map((admin) => (
+                          <option key={admin.id} value={admin.id}>
+                            {admin.email} ({ROLES[admin.role].label})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <p className="text-sm text-gray-600">
+                    This action cannot be undone.
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reassign pending tasks to:
-                  </label>
-                  <select
-                    value={reassignAdminId}
-                    onChange={(e) => setReassignAdminId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                <div className="p-6 border-t bg-gray-50 flex gap-3 justify-end">
+                  <Button
+                    onClick={() => setShowDeleteModal(false)}
+                    variant="secondary"
                   >
-                    <option value="">Select admin...</option>
-                    {admins
-                      .filter((a) => a.id !== adminToDelete.id && a.is_active)
-                      .map((admin) => (
-                        <option key={admin.id} value={admin.id}>
-                          {admin.email} ({ROLES[admin.role].label})
-                        </option>
-                      ))}
-                  </select>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleDeleteAdmin}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Delete Admin
+                  </Button>
                 </div>
-
-                <p className="text-sm text-gray-600">
-                  This action cannot be undone.
-                </p>
-              </div>
-
-              <div className="p-6 border-t bg-gray-50 flex gap-3 justify-end">
-                <Button
-                  onClick={() => setShowDeleteModal(false)}
-                  variant="secondary"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleDeleteAdmin}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Delete Admin
-                </Button>
               </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
         {/* Permissions Matrix Modal */}
-        {showPermissionsMatrix && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Permissions Matrix
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Overview of role-based permissions
-                </p>
-              </div>
+        {
+          showPermissionsMatrix && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Permissions Matrix
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Overview of role-based permissions
+                  </p>
+                </div>
 
-              <div className="p-6">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                        Permission
-                      </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-red-700">
-                        Super Admin
-                      </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-blue-700">
-                        Admin
-                      </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-green-700">
-                        Moderator
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {ALL_PERMISSIONS.map((permission) => (
-                      <tr key={permission.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-gray-900 text-sm">
-                            {permission.label}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {permission.description}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {permission.id === "manage_admins" ? (
-                            <XCircle className="h-5 w-5 text-red-400 mx-auto" />
-                          ) : (
-                            <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {[
-                            "manage_users",
-                            "approve_kyc",
-                            "view_reports",
-                          ].includes(permission.id) ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-400 mx-auto" />
-                          )}
-                        </td>
+                <div className="p-6">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b-2">
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                          Permission
+                        </th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-red-700">
+                          Super Admin
+                        </th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-blue-700">
+                          Admin
+                        </th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-green-700">
+                          Moderator
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y">
+                      {ALL_PERMISSIONS.map((permission) => (
+                        <tr key={permission.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-900 text-sm">
+                              {permission.label}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {permission.description}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {permission.id === "manage_admins" ? (
+                              <XCircle className="h-5 w-5 text-red-400 mx-auto" />
+                            ) : (
+                              <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {[
+                              "manage_users",
+                              "approve_kyc",
+                              "view_reports",
+                            ].includes(permission.id) ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-red-400 mx-auto" />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              <div className="p-6 border-t bg-gray-50 flex justify-end">
-                <Button
-                  onClick={() => setShowPermissionsMatrix(false)}
-                  variant="secondary"
-                >
-                  Close
-                </Button>
+                <div className="p-6 border-t bg-gray-50 flex justify-end">
+                  <Button
+                    onClick={() => setShowPermissionsMatrix(false)}
+                    variant="secondary"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
+          )
+        }
+      </main >
+    </div >
   );
 }
