@@ -496,15 +496,20 @@ def resend_otp(request, payload: dict = Body(...)):
 def forgot_password_send_verify(request, payload: forgotPasswordSchema):
     """Send 6-digit OTP to email for password reset (mobile flow)"""
     from .services import forgot_password_send_otp
+    print(f"🔑 [ForgotPassword] OTP reset requested for email: {payload.email}")
     try:
         result = forgot_password_send_otp(payload.email)
         try:
             from accounts.mobile_api import _send_otp_email_internal
             _send_otp_email_internal(payload.email)
+            print(f"✅ [ForgotPassword] OTP email sent to {payload.email}")
         except Exception as email_err:
-            print(f"⚠️ Failed to send password reset OTP email: {email_err}")
+            print(f"⚠️ [ForgotPassword] Failed to send OTP email to {payload.email}: {email_err}")
         return result
     except Exception as e:
+        import traceback
+        print(f"❌ [ForgotPassword] Error generating OTP for {payload.email}: {e}")
+        print(traceback.format_exc())
         return {"error": [{"message": "Password reset request failed"}]}
 
 @router.post("/forgot-password/verify-otp")
@@ -543,19 +548,23 @@ def forgot_password_verify_otp_code(request, payload: ForgotPasswordOTPVerifySch
         user.email_otp_attempts += 1
         user.save()
         remaining = 5 - user.email_otp_attempts
+        print(f"⚠️ [ForgotPassword] Invalid OTP for {email} — {remaining} attempt(s) remaining")
         return {
             "success": False,
             "error": f"Invalid code. {remaining} attempt{'s' if remaining != 1 else ''} remaining.",
             "remaining_attempts": remaining,
         }
 
-    # OTP valid — generate reset token and clear OTP
+    # OTP valid — generate reset token (valid 15 min) and clear OTP
+    from datetime import timedelta
     reset_token = str(uuid_lib.uuid4())
     user.verifyToken = hashlib.sha256(reset_token.encode()).hexdigest()
+    user.verifyTokenExpiry = tz.now() + timedelta(minutes=15)
     user.email_otp = None
     user.email_otp_expiry = None
     user.email_otp_attempts = 0
     user.save()
+    print(f"✅ [ForgotPassword] OTP verified for {email} — reset token issued (expires 15 min)")
 
     return {
         "success": True,
@@ -566,13 +575,19 @@ def forgot_password_verify_otp_code(request, payload: ForgotPasswordOTPVerifySch
 
 @router.post("/forgot-password/verify")
 def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: str, id: int):
+    print(f"🔐 [ForgotPassword] Password reset attempt for account ID {id}")
     try:
         result = reset_password_verify(verifyToken, id, payload, request)
+        print(f"✅ [ForgotPassword] Password reset successful for account ID {id}")
         return result
     except ValueError as e:
+        print(f"⚠️ [ForgotPassword] Password reset validation failed for account ID {id}: {e}")
         return {"error": [{"message": str(e)}]}
     except Exception as e:
-        return {"error": [{"message": "Password reset failed"}]}
+        import traceback
+        print(f"❌ [ForgotPassword] Unexpected error resetting password for account ID {id}: {e}")
+        print(traceback.format_exc())
+        return {"error": [{"message": "Password reset failed. Please request a new reset code."}]}
     
 @router.post("/upload/kyc", auth=dual_auth)
 def upload_kyc(request):
