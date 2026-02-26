@@ -33,6 +33,11 @@ import { Image } from "react-native";
 // Required for auth session redirect to complete properly
 WebBrowser.maybeCompleteAuthSession();
 
+// Fallback ensures client_id is never empty even if the env var isn't injected by EAS
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+  "206806083752-1kg56bt2t73c60lh794hr3pubrb175bs.apps.googleusercontent.com";
+
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +49,7 @@ export default function LoginScreen() {
   // Google OAuth - uses authorization code flow (auto-exchanged for tokens)
   const [googleRequest, googleResponse, promptGoogleAsync] =
     Google.useAuthRequest({
-      clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
+      clientId: GOOGLE_WEB_CLIENT_ID,
       ...(process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
         ? { androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }
         : {}),

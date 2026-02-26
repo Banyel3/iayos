@@ -13,6 +13,9 @@
       },
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "206806083752-1kg56bt2t73c60lh794hr3pubrb175bs.apps.googleusercontent.com"
       }
     },
     "preview": {
@@ -22,7 +25,8 @@
         "prebuildCommand": "npx expo prebuild --clean"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.iayos.online"
+        "EXPO_PUBLIC_API_URL": "https://api.iayos.online",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "206806083752-1kg56bt2t73c60lh794hr3pubrb175bs.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -36,7 +40,8 @@
         "resourceClass": "m1-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.iayos.online"
+        "EXPO_PUBLIC_API_URL": "https://api.iayos.online",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "206806083752-1kg56bt2t73c60lh794hr3pubrb175bs.apps.googleusercontent.com"
       }
     }
   },
