@@ -221,25 +221,25 @@ export default function FAQManagementPage() {
       <main className={mainClass}>
         <div className="max-w-[1400px] mx-auto space-y-8">
           {/* Modern Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-green-700 to-teal-700 p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-green-700 to-teal-700 p-4 sm:p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="text-center sm:text-left">
+                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <HelpCircle className="h-8 w-8" />
+                      <HelpCircle className="h-6 w-6 sm:h-8 sm:w-8" />
                     </div>
-                    <h1 className="text-4xl font-bold">FAQ Management</h1>
+                    <h1 className="text-2xl sm:text-4xl font-bold">FAQ Management</h1>
                   </div>
-                  <p className="text-green-100 text-lg">
+                  <p className="text-green-100 text-sm sm:text-lg">
                     Manage frequently asked questions for self-service support
                   </p>
                 </div>
                 <Button
                   onClick={() => handleOpenModal()}
-                  className="bg-white text-green-700 hover:bg-green-50"
+                  className="w-full sm:w-auto bg-white text-green-700 hover:bg-green-50 h-10 sm:h-11 rounded-xl text-sm font-bold shadow-lg"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add FAQ
@@ -250,68 +250,66 @@ export default function FAQManagementPage() {
 
           {/* Filters */}
           <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="space-y-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-6">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
                     type="text"
-                    placeholder="Search FAQs..."
+                    placeholder="Search questions or answers..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-11 border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-200 rounded-xl text-sm"
                   />
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-sm font-medium text-gray-700 self-center">
-                    Category:
-                  </span>
-                  {CATEGORIES.map((cat) => (
-                    <Button
-                      key={cat}
-                      variant={categoryFilter === cat ? "default" : "outline"}
-                      size="sm"
-                      className={categoryFilter === cat ? "text-white" : ""}
-                      onClick={() => setCategoryFilter(cat)}
-                    >
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </Button>
-                  ))}
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Filter by Category</p>
+                    <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
+                      {CATEGORIES.map((cat) => (
+                        <Button
+                          key={cat}
+                          variant={categoryFilter === cat ? "default" : "outline"}
+                          size="sm"
+                          className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${categoryFilter === cat ? "bg-green-600 text-white shadow-md shadow-green-100" : "text-gray-600 hover:bg-green-50 hover:text-green-600 border-2"}`}
+                          onClick={() => setCategoryFilter(cat)}
+                        >
+                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
 
-                <div className="flex gap-2">
-                  <span className="text-sm font-medium text-gray-700 self-center">
-                    Status:
-                  </span>
-                  <Button
-                    variant={publishedFilter === "all" ? "default" : "outline"}
-                    size="sm"
-                    className={publishedFilter === "all" ? "text-white" : ""}
-                    onClick={() => setPublishedFilter("all")}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    variant={
-                      publishedFilter === "published" ? "default" : "outline"
-                    }
-                    size="sm"
-                    className={publishedFilter === "published" ? "text-white" : ""}
-                    onClick={() => setPublishedFilter("published")}
-                  >
-                    Published
-                  </Button>
-                  <Button
-                    variant={
-                      publishedFilter === "draft" ? "default" : "outline"
-                    }
-                    size="sm"
-                    className={publishedFilter === "draft" ? "text-white" : ""}
-                    onClick={() => setPublishedFilter("draft")}
-                  >
-                    Drafts
-                  </Button>
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Publication Status</p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={publishedFilter === "all" ? "default" : "outline"}
+                        size="sm"
+                        className={`flex-1 h-9 rounded-xl font-bold ${publishedFilter === "all" ? "bg-teal-600 text-white shadow-md shadow-teal-100" : "text-gray-600 hover:bg-teal-50 hover:text-teal-600 border-2"}`}
+                        onClick={() => setPublishedFilter("all")}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={publishedFilter === "published" ? "default" : "outline"}
+                        size="sm"
+                        className={`flex-1 h-9 rounded-xl font-bold ${publishedFilter === "published" ? "bg-teal-600 text-white shadow-md shadow-teal-100" : "text-gray-600 hover:bg-teal-50 hover:text-teal-600 border-2"}`}
+                        onClick={() => setPublishedFilter("published")}
+                      >
+                        Published
+                      </Button>
+                      <Button
+                        variant={publishedFilter === "draft" ? "default" : "outline"}
+                        size="sm"
+                        className={`flex-1 h-9 rounded-xl font-bold ${publishedFilter === "draft" ? "bg-teal-600 text-white shadow-md shadow-teal-100" : "text-gray-600 hover:bg-teal-50 hover:text-teal-600 border-2"}`}
+                        onClick={() => setPublishedFilter("draft")}
+                      >
+                        Drafts
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -383,94 +381,101 @@ export default function FAQManagementPage() {
               filteredFaqs.map((faq) => (
                 <Card
                   key={faq.id}
-                  className="border-0 shadow-lg hover:shadow-xl transition-all"
+                  className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden"
                 >
-                  <CardContent className="p-6">
-                    <div className="space-y-3">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="space-y-4">
                       <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedFaqs.includes(faq.id)}
-                          onChange={() => toggleSelectFaq(faq.id)}
-                          className="mt-1"
-                        />
-                        <GripVertical className="h-5 w-5 text-gray-400 mt-1 cursor-move" />
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h3 className="font-bold text-lg text-gray-900">
+                        <div className="flex items-center gap-3 pt-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedFaqs.includes(faq.id)}
+                            onChange={() => toggleSelectFaq(faq.id)}
+                            className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          />
+                          <GripVertical className="hidden sm:block h-5 w-5 text-gray-300 cursor-move" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-black text-sm sm:text-base text-gray-900 leading-tight group-hover:text-green-600 transition-colors">
                                 {faq.question}
                               </h3>
                               {expandedFaqs.includes(faq.id) && (
-                                <p className="text-gray-700 mt-2 whitespace-pre-wrap">
-                                  {faq.answer}
-                                </p>
+                                <div className="mt-3 p-4 bg-gray-50 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                                  <p className="text-xs sm:text-sm text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
+                                    {faq.answer}
+                                  </p>
+                                </div>
                               )}
                             </div>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => toggleExpanded(faq.id)}
+                              className={`h-8 w-8 rounded-full transition-transform duration-300 ${expandedFaqs.includes(faq.id) ? "rotate-180 bg-green-50 text-green-600" : "text-gray-400 hover:bg-gray-100"}`}
                             >
-                              {expandedFaqs.includes(faq.id) ? (
-                                <ChevronUp className="h-5 w-5" />
-                              ) : (
-                                <ChevronDown className="h-5 w-5" />
-                              )}
+                              <ChevronDown className="h-5 w-5" />
                             </Button>
                           </div>
 
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            <Badge className="bg-green-100 text-green-700">
+                          <div className="flex flex-wrap items-center gap-2 mt-3">
+                            <Badge className="bg-green-100 text-green-700 border-0 font-bold px-2 py-0.5 text-[10px] uppercase tracking-wider">
                               {faq.category}
                             </Badge>
                             <Badge
-                              className={
-                                faq.is_published
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-yellow-100 text-yellow-700"
-                              }
+                              className={`${faq.is_published
+                                  ? "bg-teal-100 text-teal-700"
+                                  : "bg-amber-100 text-amber-700"
+                                } border-0 font-black px-2 py-0.5 text-[9px] uppercase tracking-widest`}
                             >
                               {faq.is_published ? "Published" : "Draft"}
                             </Badge>
-                            <Badge variant="outline">
-                              👁 {faq.views} views
-                            </Badge>
-                            <Badge variant="outline">Order: {faq.order}</Badge>
+                            <div className="flex items-center gap-3 ml-1">
+                              <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                                <Eye className="h-3 w-3" /> {faq.views}
+                              </span>
+                              <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                                <GripVertical className="h-3 w-3" /> #{faq.order}
+                              </span>
+                            </div>
                           </div>
 
-                          <div className="flex gap-2 mt-3">
+                          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-50">
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handlePreview(faq)}
+                              className="flex-1 sm:flex-none h-9 rounded-xl font-bold border-2 border-gray-100 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all text-[11px]"
                             >
-                              <Eye className="h-4 w-4 mr-2" />
+                              <Eye className="h-3.5 w-3.5 mr-1.5" />
                               Preview
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handleOpenModal(faq)}
+                              className="flex-1 sm:flex-none h-9 rounded-xl font-bold border-2 border-gray-100 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all text-[11px]"
                             >
-                              <Edit2 className="h-4 w-4 mr-2" />
+                              <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                               Edit
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handleDuplicate(faq)}
+                              className="flex-1 sm:flex-none h-9 rounded-xl font-bold border-2 border-gray-100 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-all text-[11px]"
                             >
-                              <Copy className="h-4 w-4 mr-2" />
-                              Duplicate
+                              <Copy className="h-3.5 w-3.5 mr-1.5" />
+                              Copy
                             </Button>
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="outline"
                               onClick={() => handleDelete(faq.id, faq.views)}
+                              className="h-9 w-9 shrink-0 rounded-xl border-2 border-gray-100 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>

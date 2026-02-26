@@ -247,18 +247,18 @@ export default function PendingCertificationsPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header with Gradient */}
-        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 p-8 text-white shadow-xl">
+        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 p-4 sm:p-8 text-white shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24 pointer-events-none"></div>
-          <div className="relative flex items-center justify-between">
+          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <Shield className="h-8 w-8" />
-                <h1 className="text-3xl font-bold">
+              <div className="flex items-center gap-3 mb-1 sm:mb-2">
+                <Shield className="h-6 w-6 sm:h-8 sm:w-8" />
+                <h1 className="text-xl sm:text-3xl font-bold">
                   Certification Verification
                 </h1>
               </div>
-              <p className="text-blue-100 max-w-2xl">
+              <p className="text-blue-100 text-sm sm:text-base max-w-2xl">
                 Review and verify worker certifications to maintain platform
                 quality and trust
               </p>
@@ -266,7 +266,7 @@ export default function PendingCertificationsPage() {
             <Button
               onClick={() => router.push("/admin/certifications/history")}
               variant="outline"
-              className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+              className="bg-white/10 border-white/30 text-white hover:bg-white/20 w-fit"
             >
               <FileCheck className="h-4 w-4 mr-2" />
               View History
@@ -275,18 +275,18 @@ export default function PendingCertificationsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
           <Card className="border-0 shadow-lg overflow-hidden bg-gradient-to-br from-yellow-50 to-yellow-100/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-yellow-100 rounded-xl">
-                  <Clock className="h-6 w-6 text-yellow-600" />
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="p-2 sm:p-3 bg-yellow-100 rounded-xl">
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
                 </div>
               </div>
               <p className="text-sm font-medium text-gray-600 mb-1">
                 Pending Review
               </p>
-              <p className="text-3xl font-bold text-yellow-600">
+              <p className="text-2xl sm:text-3xl font-bold text-yellow-600">
                 {stats.pending_count}
               </p>
               <p className="text-xs text-gray-500 mt-1">
@@ -296,16 +296,16 @@ export default function PendingCertificationsPage() {
           </Card>
 
           <Card className="border-0 shadow-lg overflow-hidden bg-gradient-to-br from-green-50 to-green-100/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="p-2 sm:p-3 bg-green-100 rounded-xl">
+                  <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                 </div>
               </div>
               <p className="text-sm font-medium text-gray-600 mb-1">
                 Approved Today
               </p>
-              <p className="text-3xl font-bold text-green-600">
+              <p className="text-2xl sm:text-3xl font-bold text-green-600">
                 {stats.approved_today}
               </p>
               <p className="text-xs text-gray-500 mt-1">
@@ -315,16 +315,16 @@ export default function PendingCertificationsPage() {
           </Card>
 
           <Card className="border-0 shadow-lg overflow-hidden bg-gradient-to-br from-red-50 to-red-100/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-red-100 rounded-xl">
-                  <AlertCircle className="h-6 w-6 text-red-600" />
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="p-2 sm:p-3 bg-red-100 rounded-xl">
+                  <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                 </div>
               </div>
               <p className="text-sm font-medium text-gray-600 mb-1">
                 Expiring Soon
               </p>
-              <p className="text-3xl font-bold text-red-600">
+              <p className="text-2xl sm:text-3xl font-bold text-red-600">
                 {stats.expiring_soon_count}
               </p>
               <p className="text-xs text-gray-500 mt-1">Within 30 days</p>
@@ -435,21 +435,21 @@ export default function PendingCertificationsPage() {
                     }
                   >
                     <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">
                             {cert.certification_name}
                           </h3>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-gray-600">
                             {cert.issuing_organization}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between sm:justify-end gap-2">
                           {getExpiryBadge(cert)}
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="gap-2 hover:bg-blue-50"
+                            className="gap-2 hover:bg-blue-50 h-8 sm:h-9"
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(
@@ -458,7 +458,7 @@ export default function PendingCertificationsPage() {
                             }}
                           >
                             <Eye className="h-4 w-4" />
-                            Review
+                            <span className="hidden sm:inline">Review</span>
                           </Button>
                         </div>
                       </div>

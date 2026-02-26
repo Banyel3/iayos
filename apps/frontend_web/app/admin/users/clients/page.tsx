@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  useState, useEffect } from "react";
+  useState, useEffect
+} from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import {
@@ -295,23 +296,23 @@ export default function ClientsPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-5 md:p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <Building2 className="h-8 w-8" />
-                    <h1 className="text-4xl font-bold">Clients Management</h1>
+                    <Building2 className="h-6 w-6 md:h-8 md:w-8" />
+                    <h1 className="text-2xl md:text-4xl font-bold">Clients Management</h1>
                   </div>
-                  <p className="text-emerald-100 text-lg">
+                  <p className="text-emerald-100 text-sm md:text-lg">
                     Manage all job posters and service requesters
                   </p>
                 </div>
                 <Button
                   onClick={handleExport}
-                  className="bg-white hover:bg-white/30 border-0 backdrop-blur-sm"
+                  className="bg-white hover:bg-white/30 border-0 backdrop-blur-sm w-fit"
                 >
                   <Download className="mr-2 h-5 w-5" />
                   Export Clients
@@ -321,56 +322,56 @@ export default function ClientsPage() {
           </div>
 
           {/* Modern Summary Cards with gradients */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 md:grid-cols-3 gap-3 md:gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-xl">
-                    <Building2 className="h-6 w-6 text-blue-600" />
+              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
+                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
+                  <div className="p-2 md:p-3 bg-blue-100 rounded-xl mx-auto md:mx-0">
+                    <Building2 className="h-4 w-4 md:h-6 md:w-6 text-blue-600" />
                   </div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
+                <p className="text-xs md:text-sm font-medium text-gray-600 mb-1">
                   Total Clients
                 </p>
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-xl md:text-3xl font-bold text-gray-900">
                   {totalClients}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Registered clients</p>
+                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Registered clients</p>
               </CardContent>
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-emerald-100 rounded-xl">
-                    <Building2 className="h-6 w-6 text-emerald-600" />
+              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
+                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
+                  <div className="p-2 md:p-3 bg-emerald-100 rounded-xl mx-auto md:mx-0">
+                    <Building2 className="h-4 w-4 md:h-6 md:w-6 text-emerald-600" />
                   </div>
-                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse absolute top-3 right-3 md:static"></div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
+                <p className="text-xs md:text-sm font-medium text-gray-600 mb-1">
                   Active Now
                 </p>
-                <p className="text-3xl font-bold text-emerald-600">
+                <p className="text-xl md:text-3xl font-bold text-emerald-600">
                   {activeClients}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Currently active</p>
+                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Currently active</p>
               </CardContent>
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-purple-100 rounded-xl">
-                    <Star className="h-6 w-6 text-purple-600" />
+              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
+                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
+                  <div className="p-2 md:p-3 bg-purple-100 rounded-xl mx-auto md:mx-0">
+                    <Star className="h-4 w-4 md:h-6 md:w-6 text-purple-600" />
                   </div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
+                <p className="text-xs md:text-sm font-medium text-gray-600 mb-1">
                   Verified Clients
                 </p>
-                <p className="text-3xl font-bold text-purple-600">
+                <p className="text-xl md:text-3xl font-bold text-purple-600">
                   {clients.filter((c) => c.is_verified).length}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Email verified</p>
+                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Email verified</p>
               </CardContent>
             </Card>
           </div>
@@ -388,29 +389,31 @@ export default function ClientsPage() {
                     className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
                   />
                 </div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) =>
-                    setStatusFilter(
-                      e.target.value as "all" | "active" | "inactive",
-                    )
-                  }
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="most_jobs">Most Jobs</option>
-                  <option value="highest_spending">Highest Spending</option>
-                </select>
+                <div className="flex flex-row gap-4">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) =>
+                      setStatusFilter(
+                        e.target.value as "all" | "active" | "inactive",
+                      )
+                    }
+                    className="flex-1 md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="flex-1 md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
+                  >
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="most_jobs">Most Jobs</option>
+                    <option value="highest_spending">Highest Spending</option>
+                  </select>
+                </div>
               </div>
 
               {/* Bulk Actions Bar */}
@@ -608,12 +611,12 @@ export default function ClientsPage() {
                             <td className="px-4 py-2 text-sm">
                               <span
                                 className={`px-2 py-1 rounded-full text-xs font-medium ${client.kyc_status === "APPROVED"
-                                    ? "bg-green-100 text-green-800"
-                                    : client.kyc_status === "PENDING"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : client.kyc_status === "REJECTED"
-                                        ? "bg-red-100 text-red-800"
-                                        : "bg-gray-100 text-gray-800"
+                                  ? "bg-green-100 text-green-800"
+                                  : client.kyc_status === "PENDING"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : client.kyc_status === "REJECTED"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
                                   }`}
                               >
                                 {client.kyc_status}
@@ -622,8 +625,8 @@ export default function ClientsPage() {
                             <td className="px-4 py-2 text-sm">
                               <span
                                 className={`px-2 py-1 rounded-full text-xs font-medium ${client.status === "active"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-gray-100 text-gray-800"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
                                   }`}
                               >
                                 {client.status}

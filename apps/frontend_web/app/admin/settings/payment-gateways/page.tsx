@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  API_BASE } from "@/lib/api/config";
+  API_BASE
+} from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +40,7 @@ interface GatewaysResponse {
 }
 
 export default function PaymentGatewaysPage() {
-  const mainClass = useMainContentClass("p-8 min-h-screen");
+  const mainClass = useMainContentClass("p-4 sm:p-8 min-h-screen");
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [gateways, setGateways] = useState<GatewaysResponse | null>(null);
@@ -231,21 +232,21 @@ export default function PaymentGatewaysPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}
-        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 p-8 shadow-xl">
+        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 p-6 sm:p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-green-500 opacity-20 blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-teal-500 opacity-20 blur-3xl pointer-events-none"></div>
 
-          <div className="relative z-10">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm">
+          <div className="relative z-10 text-center sm:text-left">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm mx-auto sm:mx-0">
               <CreditCard className="h-4 w-4 text-white" />
-              <span className="text-sm font-medium text-white">
+              <span className="text-xs sm:text-sm font-medium text-white">
                 Payment Processing
               </span>
             </div>
-            <h1 className="mb-2 text-4xl font-bold text-white">
+            <h1 className="mb-2 text-2xl sm:text-4xl font-black text-white uppercase tracking-tight">
               Payment Gateways
             </h1>
-            <p className="text-lg text-green-100">
+            <p className="text-sm sm:text-lg text-green-100 font-medium opacity-90 max-w-2xl mx-auto sm:mx-0">
               Configure payment methods and processing settings
             </p>
           </div>
@@ -294,8 +295,8 @@ export default function PaymentGatewaysPage() {
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.paymongo?.enabled
-                        ? "translate-x-6"
-                        : "translate-x-1"
+                      ? "translate-x-6"
+                      : "translate-x-1"
                       }`}
                   />
                 </button>
@@ -496,14 +497,14 @@ export default function PaymentGatewaysPage() {
                     )
                   }
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${gateways.bank_transfer.enabled
-                      ? "bg-green-600"
-                      : "bg-gray-300"
+                    ? "bg-green-600"
+                    : "bg-gray-300"
                     }`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${gateways.bank_transfer.enabled
-                        ? "translate-x-6"
-                        : "translate-x-1"
+                      ? "translate-x-6"
+                      : "translate-x-1"
                       }`}
                   />
                 </button>
@@ -729,29 +730,30 @@ export default function PaymentGatewaysPage() {
                 </div>
               </div>
 
-              <div className="p-6 border-t bg-gray-50 flex gap-3 justify-between">
+              <div className="p-4 sm:p-6 border-t bg-gray-50 flex flex-col sm:flex-row gap-3 sm:justify-between">
                 {selectedGateway !== "bank_transfer" && (
                   <Button
                     onClick={handleTestConnection}
                     disabled={testing}
                     variant="secondary"
-                    className="gap-2"
+                    className="gap-2 w-full sm:w-auto"
                   >
                     {testing ? "Testing..." : "Test Connection"}
                   </Button>
                 )}
-                <div className="flex gap-3 ml-auto">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:ml-auto">
                   <Button
                     onClick={() => setShowConfigModal(false)}
                     variant="secondary"
+                    className="w-full sm:w-auto"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSaveConfig}
-                    className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="gap-2 bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                   >
-                    <Settings className="h-4 w-4" />
+                    <Settings className="h-4 w-4 shrink-0" />
                     Save Configuration
                   </Button>
                 </div>

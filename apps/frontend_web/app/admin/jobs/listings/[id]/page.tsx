@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  useParams, useRouter } from "next/navigation";
+  useParams, useRouter
+} from "next/navigation";
 import { API_BASE } from "@/lib/api/config";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,7 +152,7 @@ export default function JobDetailPage() {
               <CardTitle>Job Description</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words overflow-hidden">
                 {job.description}
               </p>
 
@@ -302,11 +303,10 @@ export default function JobDetailPage() {
                           {Array.from({ length: 5 }).map((_, i) => (
                             <Star
                               key={i}
-                              className={`h-4 w-4 ${
-                                i < review.rating
+                              className={`h-4 w-4 ${i < review.rating
                                   ? "fill-yellow-400 text-yellow-400"
                                   : "text-gray-300"
-                              }`}
+                                }`}
                             />
                           ))}
                         </div>

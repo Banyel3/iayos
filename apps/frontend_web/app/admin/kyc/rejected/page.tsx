@@ -227,23 +227,23 @@ export default function RejectedKYCPage() {
       <Sidebar />
       <main className={mainClass}>
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                 Rejected KYC Records
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm sm:text-base">
                 KYC submissions that were rejected and require resubmission
               </p>
             </div>
-            <Button className="text-white">
+            <Button className="text-white self-start sm:self-auto text-sm">
               <FileText className="mr-2 h-4 w-4" />
               Export Rejected Records
             </Button>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -370,87 +370,115 @@ export default function RejectedKYCPage() {
                 key={record.id}
                 className="hover:shadow-md transition-shadow border-red-200"
               >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                        <XCircle className="h-6 w-6 text-red-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold">
-                          {record.userName}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {record.userEmail}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1 mb-3">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
-                              }`}
-                          >
-                            {record.userType}
-                          </span>
-                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-                            Rejected
-                          </span>
-                          {record.hasResubmitted && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                              Resubmitted
-                            </span>
-                          )}
-                          {!record.resubmissionAllowed && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
-                              Final Rejection
-                            </span>
-                          )}
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col gap-4">
+                    {/* Top Row: User Info + Actions */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start space-x-3 sm:space-x-4 min-w-0 flex-1">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                          <XCircle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                         </div>
-
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
-                          <h4 className="text-sm font-medium text-red-800 mb-1">
-                            Rejection Reason:
-                          </h4>
-                          <p className="text-sm text-red-700">
-                            {record.rejectionReason}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base sm:text-lg font-semibold truncate">
+                            {record.userName}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                            {record.userEmail}
                           </p>
+                          <div className="flex items-center flex-wrap gap-1.5 mt-1">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${record.userType === "worker"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800"
+                                }`}
+                            >
+                              {record.userType}
+                            </span>
+                            <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+                              Rejected
+                            </span>
+                            {record.hasResubmitted && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                Resubmitted
+                              </span>
+                            )}
+                            {!record.resubmissionAllowed && (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
+                                Final Rejection
+                              </span>
+                            )}
+                          </div>
                         </div>
+                      </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">Documents</p>
-                            <p className="font-medium">
-                              {record.documentsCount || 0}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Submitted</p>
-                            <p className="font-medium">
-                              {new Date(
-                                record.submissionDate,
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Rejected</p>
-                            <p className="font-medium">
-                              {new Date(
-                                record.rejectionDate,
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Reviewed By</p>
-                            <p className="font-medium">{record.reviewedBy}</p>
-                          </div>
-                        </div>
+                      {/* Action buttons - visible on md+ inline, on mobile below */}
+                      <div className="hidden md:flex flex-col space-y-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(record)}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Details
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDelete(record)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
                       </div>
                     </div>
 
-                    <div className="flex flex-col space-y-2">
+                    {/* Rejection Reason */}
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <h4 className="text-sm font-medium text-red-800 mb-1">
+                        Rejection Reason:
+                      </h4>
+                      <p className="text-xs sm:text-sm text-red-700">
+                        {record.rejectionReason}
+                      </p>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-sm">
+                      <div>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Documents</p>
+                        <p className="font-medium">
+                          {record.documentsCount || 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Submitted</p>
+                        <p className="font-medium text-xs sm:text-sm">
+                          {new Date(
+                            record.submissionDate,
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Rejected</p>
+                        <p className="font-medium text-xs sm:text-sm">
+                          {new Date(
+                            record.rejectionDate,
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Reviewed By</p>
+                        <p className="font-medium text-xs sm:text-sm">{record.reviewedBy}</p>
+                      </div>
+                    </div>
+
+                    {/* Mobile-only action buttons */}
+                    <div className="flex md:hidden gap-2">
                       <Button
                         variant="outline"
                         size="sm"
+                        className="flex-1"
                         onClick={() => handleViewDetails(record)}
                       >
                         <Eye className="w-4 h-4 mr-2" />
@@ -459,7 +487,7 @@ export default function RejectedKYCPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => handleDelete(record)}
                       >
                         <Trash2 className="w-4 h-4 mr-2" />

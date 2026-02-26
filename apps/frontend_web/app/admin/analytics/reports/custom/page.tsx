@@ -112,64 +112,57 @@ export default function CustomReportBuilder() {
       <Sidebar />
       <div className={mainClass}>
         {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-xl mx-8 mt-8">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-xl mx-4 sm:mx-8 mt-4 sm:mt-8">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
-          <div className="relative px-8 py-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center space-x-3 mb-2">
-                  <FileText className="h-8 w-8" />
-                  <h1 className="text-3xl font-bold">Custom Report Builder</h1>
-                </div>
-                <p className="text-indigo-100 text-lg">
-                  Create custom analytics reports with your preferred metrics
-                </p>
+          <div className="relative px-4 sm:px-8 py-6 sm:py-8">
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                <FileText className="h-6 w-6 sm:h-8 sm:w-8" />
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Report Builder</h1>
               </div>
+              <p className="text-indigo-100 text-sm sm:text-lg max-w-2xl leading-relaxed">
+                Configure your custom analytics reports with precise metrics
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="px-8 py-6">
+        <div className="px-4 sm:px-8 py-6">
           {/* Progress Steps */}
-          <Card className="border-0 shadow-xl mb-6">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+          <Card className="border-0 shadow-xl mb-6 overflow-hidden bg-white">
+            <CardContent className="p-4 sm:p-6 pb-0">
+              <div className="flex items-center justify-between relative">
                 {steps.map((step, i) => (
-                  <div key={step.number} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center flex-1">
-                      <div
-                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${currentStep >= step.number
-                          ? "bg-indigo-600 border-indigo-600 text-white"
-                          : "bg-white border-gray-300 text-gray-400"
-                          }`}
-                      >
-                        {currentStep > step.number ? (
-                          <Check className="h-6 w-6" />
-                        ) : (
-                          <step.icon className="h-6 w-6" />
-                        )}
-                      </div>
-                      <p
-                        className={`mt-2 text-sm font-medium ${currentStep >= step.number
-                          ? "text-gray-900"
-                          : "text-gray-500"
-                          }`}
-                      >
-                        {step.name}
-                      </p>
+                  <div key={step.number} className="flex flex-col items-center z-10">
+                    <div
+                      className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${currentStep >= step.number
+                        ? "bg-indigo-600 border-indigo-600 text-white shadow-lg"
+                        : "bg-white border-gray-200 text-gray-300"
+                        }`}
+                    >
+                      {currentStep > step.number ? (
+                        <Check className="h-4 w-4 sm:h-6 sm:w-6" />
+                      ) : (
+                        <step.icon className="h-4 w-4 sm:h-6 sm:w-6" />
+                      )}
                     </div>
-                    {i < steps.length - 1 && (
-                      <div
-                        className={`flex-1 h-0.5 mx-4 transition-all ${currentStep > step.number
-                          ? "bg-indigo-600"
-                          : "bg-gray-300"
-                          }`}
-                      ></div>
-                    )}
                   </div>
                 ))}
+                {/* Connector line */}
+                <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 w-4/5 h-[2px] bg-gray-100 -z-10">
+                  <div
+                    className="h-full bg-indigo-600 transition-all duration-500"
+                    style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="mt-4 pb-4">
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1 leading-none">Step {currentStep} of {steps.length}</p>
+                  <h3 className="text-sm sm:text-base font-black text-gray-900 uppercase tracking-tight">{steps[currentStep - 1].name}</h3>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -177,47 +170,49 @@ export default function CustomReportBuilder() {
           {/* Step 1: Select Metrics */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <Card className="border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle>Select Metrics to Include</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Choose the data points you want to analyze. Selected:{" "}
-                    {selectedMetrics.length} metrics
+              <Card className="border-0 shadow-xl overflow-hidden bg-white">
+                <CardHeader className="p-4 sm:p-6 bg-slate-50/50 border-b">
+                  <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight">Select Metrics Catalog</CardTitle>
+                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    Selected:{" "}
+                    <span className="text-indigo-600">{selectedMetrics.length}</span> metrics
                   </p>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     {metricCategories.map((category, i) => (
-                      <Card key={i} className="border-2">
-                        <CardHeader>
-                          <CardTitle className="flex items-center space-x-2 text-lg">
+                      <Card key={i} className="border-2 border-gray-100 shadow-sm overflow-hidden group hover:border-indigo-100 transition-colors">
+                        <CardHeader className="p-4 sm:p-6 bg-gray-50/50 border-b">
+                          <CardTitle className="flex items-center space-x-2 text-sm sm:text-base font-black uppercase tracking-tight">
                             <div
-                              className={`p-2 bg-${category.color}-100 rounded-lg`}
+                              className={`p-2 bg-white rounded-xl shadow-sm group-hover:scale-110 transition-transform`}
                             >
                               <category.icon
-                                className={`h-5 w-5 text-${category.color}-600`}
+                                className={`h-4 w-4 sm:h-5 sm:w-5 text-indigo-600`}
                               />
                             </div>
                             <span>{category.name}</span>
                           </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
+                        <CardContent className="p-4 sm:p-6">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
                             {category.metrics.map((metric, j) => (
                               <button
                                 key={j}
                                 onClick={() => toggleMetric(metric)}
-                                className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${selectedMetrics.includes(metric)
-                                  ? "border-indigo-600 bg-indigo-50"
-                                  : "border-gray-200 hover:border-gray-300"
+                                className={`w-full text-left p-3 sm:p-4 rounded-xl border-2 transition-all group/btn ${selectedMetrics.includes(metric)
+                                  ? "border-indigo-600 bg-indigo-50 shadow-inner"
+                                  : "border-gray-50 hover:border-indigo-100 bg-gray-50/50"
                                   }`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium text-gray-900">
+                                  <span className="text-xs sm:text-sm font-black text-gray-600 uppercase tracking-tight leading-none">
                                     {metric}
                                   </span>
                                   {selectedMetrics.includes(metric) && (
-                                    <Check className="h-5 w-5 text-indigo-600" />
+                                    <div className="bg-indigo-600 rounded-full p-1 group-hover/btn:scale-110 transition-transform">
+                                      <Check className="h-3 w-3 text-white" />
+                                    </div>
                                   )}
                                 </div>
                               </button>
@@ -234,7 +229,7 @@ export default function CustomReportBuilder() {
                 <Button
                   onClick={() => setCurrentStep(2)}
                   disabled={selectedMetrics.length === 0}
-                  className="bg-indigo-600 hover:bg-indigo-700"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 >
                   Next: Configure Filters{" "}
                   <ChevronRight className="h-4 w-4 ml-2" />
@@ -246,21 +241,21 @@ export default function CustomReportBuilder() {
           {/* Step 2: Configure Filters */}
           {currentStep === 2 && (
             <div className="space-y-6">
-              <Card className="border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle>Configure Filters</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Define the time range and segments for your report
+              <Card className="border-0 shadow-xl overflow-hidden bg-white">
+                <CardHeader className="p-4 sm:p-6 bg-slate-50/50 border-b">
+                  <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight border-b-2 border-indigo-500 inline-block">Filter Configuration</CardTitle>
+                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    Temporal and segment granularity
                   </p>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="space-y-8">
                     {/* Date Range */}
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">
-                        Date Range
+                      <label className="text-[10px] sm:text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 block">
+                        Analytical Horizon
                       </label>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                         {[
                           "Last 7 Days",
                           "Last 30 Days",
@@ -269,13 +264,14 @@ export default function CustomReportBuilder() {
                           "This Quarter",
                           "Last Quarter",
                           "This Year",
-                          "Custom",
+                          "Custom Range",
                         ].map((range) => (
                           <Button
                             key={range}
                             variant="outline"
-                            className="justify-start"
+                            className="justify-start h-12 text-[10px] sm:text-xs font-black uppercase tracking-tight rounded-xl border-gray-100 hover:border-indigo-600 transition-all hover:bg-indigo-50 flex items-center gap-2 group"
                           >
+                            <Calendar className="h-3.5 w-3.5 text-gray-300 group-hover:text-indigo-600 transition-colors" />
                             {range}
                           </Button>
                         ))}
@@ -284,21 +280,22 @@ export default function CustomReportBuilder() {
 
                     {/* User Segment */}
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">
-                        User Segment
+                      <label className="text-[10px] sm:text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 block">
+                        Segment Drill-Down
                       </label>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                         {[
-                          "All Users",
-                          "Clients Only",
-                          "Workers Only",
-                          "Agencies Only",
+                          "All Segments",
+                          "Clients",
+                          "Workers",
+                          "Agencies",
                         ].map((segment) => (
                           <Button
                             key={segment}
                             variant="outline"
-                            className="justify-start"
+                            className="justify-start h-12 text-[10px] sm:text-xs font-black uppercase tracking-tight rounded-xl border-gray-100 hover:border-indigo-600 transition-all hover:bg-indigo-50 flex items-center gap-2 group"
                           >
+                            <Users className="h-3.5 w-3.5 text-gray-300 group-hover:text-indigo-600 transition-colors" />
                             {segment}
                           </Button>
                         ))}
@@ -307,51 +304,24 @@ export default function CustomReportBuilder() {
 
                     {/* Location Filter */}
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">
-                        Location
+                      <label className="text-[10px] sm:text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 block">
+                        Geographic Analysis
                       </label>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {[
-                          "All Locations",
+                          "Global View (All)",
                           "Zamboanga Peninsula",
-                          "NCR",
-                          "Central Visayas",
-                          "Davao Region",
+                          "National Capital Region",
+                          "Central Visayas Hubs",
+                          "Davao Economic Region",
                           "Northern Mindanao",
                         ].map((loc) => (
                           <Button
                             key={loc}
                             variant="outline"
-                            className="justify-start text-xs"
+                            className="justify-start h-12 text-[10px] sm:text-xs font-black uppercase tracking-tight rounded-xl border-gray-100 hover:border-indigo-600 transition-all hover:bg-indigo-50"
                           >
                             {loc}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Job Category Filter */}
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">
-                        Job Categories
-                      </label>
-                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                        {[
-                          "All Categories",
-                          "Construction",
-                          "Plumbing",
-                          "Electrical",
-                          "Carpentry",
-                          "Painting",
-                          "Cleaning",
-                          "Landscaping",
-                        ].map((cat) => (
-                          <Button
-                            key={cat}
-                            variant="outline"
-                            className="justify-start text-xs"
-                          >
-                            {cat}
                           </Button>
                         ))}
                       </div>
@@ -378,48 +348,47 @@ export default function CustomReportBuilder() {
           {/* Step 3: Choose Visualization */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <Card className="border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle>Choose Visualization Type</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Select how you want your data displayed
-                  </p>
+              <Card className="border-0 shadow-xl overflow-hidden bg-white">
+                <CardHeader className="p-4 sm:p-6 bg-slate-50/50 border-b">
+                  <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight">Visualization Architect</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {chartTypes.map((type) => (
                       <button
                         key={type.value}
                         onClick={() => setSelectedChartType(type.value)}
-                        className={`p-6 rounded-xl border-2 text-left transition-all ${selectedChartType === type.value
-                          ? "border-indigo-600 bg-indigo-50"
-                          : "border-gray-200 hover:border-gray-300"
+                        className={`p-4 sm:p-6 rounded-2xl border-2 text-left transition-all ${selectedChartType === type.value
+                          ? "border-indigo-600 bg-indigo-50 shadow-inner"
+                          : "border-gray-50 hover:border-gray-200 bg-gray-50/50"
                           }`}
                       >
                         <div className="flex items-start space-x-4">
                           <div
-                            className={`p-3 rounded-lg ${selectedChartType === type.value
+                            className={`p-3 rounded-xl shadow-lg ${selectedChartType === type.value
                               ? "bg-indigo-600"
-                              : "bg-gray-100"
+                              : "bg-white"
                               }`}
                           >
                             <type.icon
-                              className={`h-6 w-6 ${selectedChartType === type.value
-                                ? "text-white"
-                                : "text-gray-600"
+                              className={`h-5 w-5 sm:h-6 sm:w-6 ${selectedChartType === type.value
+                                ? "text-white font-black"
+                                : "text-gray-400"
                                 }`}
                             />
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <h3 className="font-semibold text-gray-900">
+                              <h3 className="font-black text-xs sm:text-sm text-gray-900 uppercase tracking-tight">
                                 {type.name}
                               </h3>
                               {selectedChartType === type.value && (
-                                <Check className="h-5 w-5 text-indigo-600" />
+                                <div className="bg-indigo-600 rounded-full p-1">
+                                  <Check className="h-3 w-3 text-white" />
+                                </div>
                               )}
                             </div>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-[10px] sm:text-xs font-bold text-gray-400 leading-none">
                               {type.description}
                             </p>
                           </div>
@@ -469,45 +438,45 @@ export default function CustomReportBuilder() {
           {/* Step 4: Export & Schedule */}
           {currentStep === 4 && (
             <div className="space-y-6">
-              <Card className="border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle>Export Format</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Choose how you want to export your report
-                  </p>
+              <Card className="border-0 shadow-xl overflow-hidden bg-white">
+                <CardHeader className="p-4 sm:p-6 bg-slate-50/50 border-b">
+                  <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight">Delivery Protocol</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <CardContent className="p-4 sm:p-6">
+                  <label className="text-[10px] sm:text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 block">
+                    Export Resolution
+                  </label>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
                       {
-                        format: "PDF",
+                        format: "Secure PDF",
                         icon: FileText,
-                        description: "Printable document",
+                        description: "Standard Document",
                       },
                       {
-                        format: "CSV",
+                        format: "Raw CSV",
                         icon: Download,
-                        description: "Spreadsheet data",
+                        description: "Tabular Data",
                       },
                       {
-                        format: "Excel",
+                        format: "Excel Hub",
                         icon: FileText,
-                        description: "Excel workbook",
+                        description: "Complex Sheets",
                       },
                       {
-                        format: "JSON",
+                        format: "JSON Schema",
                         icon: FileText,
-                        description: "Raw data",
+                        description: "API Grade Data",
                       },
                     ].map((exp) => (
                       <Button
                         key={exp.format}
                         variant="outline"
-                        className="h-auto py-4 flex-col"
+                        className="h-auto py-4 sm:py-6 flex-col group border-2 border-gray-50 hover:border-indigo-600 transition-all rounded-2xl"
                       >
-                        <exp.icon className="h-6 w-6 mb-2" />
-                        <span className="font-semibold">{exp.format}</span>
-                        <span className="text-xs text-gray-500 mt-1">
+                        <exp.icon className="h-5 w-5 sm:h-6 sm:w-6 mb-2 text-indigo-400 group-hover:scale-110 transition-transform" />
+                        <span className="font-black text-[11px] sm:text-xs uppercase tracking-tight">{exp.format}</span>
+                        <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase mt-1 leading-none shadow-sm px-1.5 py-0.5 rounded bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity">
                           {exp.description}
                         </span>
                       </Button>
@@ -516,70 +485,78 @@ export default function CustomReportBuilder() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle>Schedule Report</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Optionally schedule this report to run automatically
-                  </p>
+              <Card className="border-0 shadow-xl overflow-hidden bg-white">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight">Intelligence Dispatch</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {["One-time", "Daily", "Weekly", "Monthly"].map(
-                        (freq) => (
-                          <Button key={freq} variant="outline">
-                            {freq}
-                          </Button>
-                        )
-                      )}
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="text-[10px] sm:text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 block">
+                        Generation Cadence
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {["Static", "Daily Pulse", "Weekly Recap", "Monthly Audit"].map(
+                          (freq) => (
+                            <Button key={freq} variant="outline" className="h-10 text-[10px] font-black uppercase tracking-tight border-b-2 border-gray-100 data-[active=true]:border-indigo-600">
+                              {freq}
+                            </Button>
+                          )
+                        )}
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">
-                        Email Recipients
+                    <div className="group">
+                      <label className="text-[10px] sm:text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-indigo-600 transition-colors">
+                        Dispatch Endpoints (Recipients)
                       </label>
-                      <input
-                        type="text"
-                        placeholder="admin@iayos.com, manager@iayos.com"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Separate multiple emails with commas
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300 group-focus-within:text-indigo-600 transition-colors" />
+                        <input
+                          type="text"
+                          placeholder="admin@iayos.com, data-hub@iayos.com"
+                          className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all font-bold text-sm text-gray-700 placeholder:text-gray-300 uppercase tracking-tight"
+                        />
+                      </div>
+                      <p className="text-[9px] font-bold text-gray-400 mt-2 uppercase tracking-widest pl-1 leading-none">
+                        Separate cluster endpoints with commas
                       </p>
                     </div>
 
-                    <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
-                      <p className="text-sm text-gray-700">
-                        <strong>Note:</strong> Scheduled reports will be
-                        generated and emailed at 8:00 AM PHT
+                    <div className="p-4 bg-indigo-50/50 border-l-4 border-indigo-600 rounded-lg">
+                      <p className="text-[11px] font-bold text-indigo-900 leading-relaxed uppercase tracking-tight">
+                        <span className="opacity-50">Operational Note:</span> Automated telemetry dispatch is synchronized at 08:00 PHT daily.
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-xl bg-gradient-to-br from-indigo-50 to-purple-50">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        Report Summary
+              <Card className="border-0 shadow-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 text-white overflow-hidden group">
+                <CardContent className="p-6 relative">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform"></div>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
+                    <div className="text-center sm:text-left">
+                      <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight mb-2">
+                        Report Finalization
                       </h3>
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <p>• {selectedMetrics.length} metrics selected</p>
-                        <p>• {selectedChartType} chart visualization</p>
-                        <p>• Ready to generate or schedule</p>
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                        <div className="px-2 py-1 bg-white/10 rounded-lg backdrop-blur-md border border-white/20">
+                          <span className="text-[10px] font-black uppercase tracking-widest">{selectedMetrics.length} METRICS</span>
+                        </div>
+                        <div className="px-2 py-1 bg-white/10 rounded-lg backdrop-blur-md border border-white/20">
+                          <span className="text-[10px] font-black uppercase tracking-widest">{selectedChartType} FORMAT</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex space-x-3">
-                      <Button variant="outline">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-md font-black uppercase text-xs h-12 shadow-lg rounded-xl">
                         <Download className="h-4 w-4 mr-2" />
-                        Generate Now
+                        BUILD ENGINE
                       </Button>
-                      <Button className="bg-indigo-600 hover:bg-indigo-700">
+                      <Button className="bg-white text-indigo-600 hover:bg-gray-100 font-black uppercase text-xs h-12 shadow-2xl rounded-xl">
                         <Mail className="h-4 w-4 mr-2" />
-                        Schedule Report
+                        INITIATE DISPATCH
                       </Button>
                     </div>
                   </div>
