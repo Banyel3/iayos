@@ -366,7 +366,7 @@ export default function AgencyReviewsPage() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <Button
             variant={reviewTypeFilter === "ALL" ? "default" : "outline"}
             size="sm"

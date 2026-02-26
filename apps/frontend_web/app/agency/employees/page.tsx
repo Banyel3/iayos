@@ -641,7 +641,7 @@ export default function EmployeesPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Input
                         placeholder="First name *"
                         value={firstName}
@@ -719,7 +719,7 @@ export default function EmployeesPage() {
                     employees.map((emp) => (
                       <div
                         key={emp.id}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
                       >
                         <div className="flex items-center gap-4 flex-1">
                           <div className="relative">
@@ -765,37 +765,38 @@ export default function EmployeesPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button
                             onClick={() => handleEditEmployee(emp)}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             size="sm"
                           >
-                            <Edit2 className="h-4 w-4 mr-1" />
-                            Edit
+                            <Edit2 className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Edit</span>
                           </Button>
                           <Button
                             onClick={() => handleSetEOTM(emp)}
                             className="bg-yellow-500 hover:bg-yellow-600 text-white"
                             size="sm"
                           >
-                            <Award className="h-4 w-4 mr-1" />
-                            EOTM
+                            <Award className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">EOTM</span>
                           </Button>
                           <Button
                             onClick={() => handleViewPerformance(emp)}
                             className="bg-green-600 hover:bg-green-700 text-white"
                             size="sm"
                           >
-                            <TrendingUp className="h-4 w-4 mr-1" />
-                            Stats
+                            <TrendingUp className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Stats</span>
                           </Button>
                           <Button
                             onClick={() => removeEmployee(emp.id, emp.name)}
                             className="bg-red-600 hover:bg-red-700 text-white"
                             size="sm"
                           >
-                            Remove
+                            <X className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Remove</span>
                           </Button>
                         </div>
                       </div>
@@ -872,7 +873,7 @@ export default function EmployeesPage() {
                             {entry.role} • {entry.email}
                           </div>
                         </div>
-                        <div className="flex items-center gap-6 text-sm">
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm">
                           <div className="text-center">
                             <div className="flex items-center gap-1">
                               <Star className="h-4 w-4 text-yellow-400" />
@@ -1137,7 +1138,7 @@ export default function EmployeesPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       First Name *

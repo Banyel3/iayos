@@ -380,7 +380,44 @@ export default function AgencyTransactionsPage() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                {/* Mobile card view */}
+                <div className="md:hidden space-y-3 mb-4">
+                  {paginatedTransactions.map((tx: AgencyTransaction) => (
+                    <div key={tx.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full flex-shrink-0 ${tx.type === "WITHDRAWAL" ? "bg-red-100" : "bg-green-100"}`}>
+                            {getTransactionIcon(tx.type)}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{tx.description || tx.type}</p>
+                            <p className="text-xs text-gray-500">ID: {tx.id}{tx.payment_method && ` • ${tx.payment_method}`}</p>
+                          </div>
+                        </div>
+                        <p className={`font-semibold text-sm flex-shrink-0 ml-2 ${tx.type === "WITHDRAWAL" ? "text-red-600" : "text-green-600"}`}>
+                          {tx.type === "WITHDRAWAL" ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {getTypeBadge(tx.type)}
+                          {getStatusBadge(tx.status)}
+                        </div>
+                        <p className="text-xs text-gray-500 whitespace-nowrap">
+                          {new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      </div>
+                      {tx.balance_after !== undefined && (
+                        <p className="text-xs text-gray-500 mt-2 text-right">
+                          Balance after: ₱{(tx.balance_after ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop table view */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-200">

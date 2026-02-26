@@ -1298,7 +1298,7 @@ const AgencyKYCPage = () => {
                         }`}
                       />
                       {hasAutofillData && (
-                        <div className="absolute right-2 top-2">
+                        <div className="hidden sm:block absolute right-2 top-2">
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full ${getConfidenceColor(
                               getFieldConfidence(field.key),
@@ -1463,7 +1463,7 @@ const AgencyKYCPage = () => {
                         />
                       )}
                       {hasAutofillData && field.type !== "select" && (
-                        <div className="absolute right-2 top-2">
+                        <div className="hidden sm:block absolute right-2 top-2">
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full ${getConfidenceColor(
                               getFieldConfidence(field.key),
