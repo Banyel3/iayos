@@ -457,19 +457,26 @@ def process_refund(
     reason: str,
     refund_to: str = 'WALLET',
     admin=None,
-    request=None
+    request=None,
+    target_wallet=None,
+    txn_type: str = 'REFUND'
 ) -> Dict[str, Any]:
     """
     Process refund for a transaction
-    
+
     Args:
         transaction_id: Original transaction ID
         amount: Refund amount
         reason: Reason for refund
-        refund_to: Refund destination (WALLET/GCASH/BANK_TRANSFER)
+        refund_to: Refund destination label (WALLET/GCASH/BANK_TRANSFER)
         admin: Admin user performing the action
         request: HTTP request object for audit logging
-        
+        target_wallet: If provided, credit this specific wallet instead of the
+                       original transaction's wallet. Use this to route dispute
+                       refunds to the correct party (client or worker).
+        txn_type: Transaction type to create. Use 'REFUND' for client refunds
+                  and 'EARNING' when crediting a worker after a dispute win.
+
     Returns:
         Success/error response
     """
@@ -477,37 +484,42 @@ def process_refund(
         original_txn = Transaction.objects.select_related('walletID').get(
             transactionID=transaction_id
         )
-        
+
         # Validate refund amount
         if Decimal(str(amount)) > original_txn.amount:
             return {
                 'success': False,
                 'error': 'Refund amount cannot exceed original transaction amount'
             }
-        
-        # Create refund transaction
+
+        # Determine which wallet receives the funds.
+        # target_wallet is used by resolve_dispute to route money to the correct
+        # party (client vs worker). If not provided, fall back to the wallet
+        # that was associated with the original transaction.
+        credit_wallet = target_wallet if target_wallet is not None else original_txn.walletID
+
+        # Create refund / earning transaction
         refund_txn = Transaction.objects.create(
-            walletID=original_txn.walletID,
-            transactionType='REFUND',
+            walletID=credit_wallet,
+            transactionType=txn_type,
             amount=Decimal(str(amount)),
             status='COMPLETED',
             paymentMethod=refund_to,
-            description=f"Refund for TXN-{transaction_id}: {reason}",
-            referenceNumber=f"REFUND-{transaction_id}-{timezone.now().timestamp()}",
+            description=f"{'Refund' if txn_type == 'REFUND' else 'Dispute earning'} for TXN-{transaction_id}: {reason}",
+            referenceNumber=f"{txn_type}-{transaction_id}-{timezone.now().timestamp()}",
             relatedJobPosting=original_txn.relatedJobPosting,
             completedAt=timezone.now()
         )
-        
-        # Update wallet balance
-        if original_txn.walletID:
-            wallet = original_txn.walletID
-            wallet.balance += Decimal(str(amount))
-            wallet.save()
-            refund_txn.balanceAfter = wallet.balance
+
+        # Credit the target wallet
+        if credit_wallet:
+            credit_wallet.balance += Decimal(str(amount))
+            credit_wallet.save()
+            refund_txn.balanceAfter = credit_wallet.balance
             refund_txn.save()
-        
-        # Update original transaction
-        original_txn.description = f"{original_txn.description or ''}\nRefunded: ₱{amount} - {reason}".strip()
+
+        # Update original transaction description for audit trail
+        original_txn.description = f"{original_txn.description or ''}\n{'Refunded' if txn_type == 'REFUND' else 'Dispute payment'}: ₱{amount} - {reason}".strip()
         original_txn.save()
         
         # Log audit trail
@@ -1301,27 +1313,95 @@ def resolve_dispute(
         dispute.resolvedDate = timezone.now()
         dispute.save()
         
-        # Process refund if applicable
+        # Resolve wallet payments based on decision.
+        # Money always goes back to the user's in-platform wallet so it
+        # shows up immediately on their wallet screen.
         refund_txn_id = None
-        if refund_amount and refund_amount > 0:
-            # Get escrow transaction for this job
+
+        # Fetch the escrow transaction tied to this job's dispute
+        job = dispute.jobID
+        escrow_txn = None
+        if job:
             escrow_txn = Transaction.objects.filter(
-                relatedJobPosting=dispute.jobID,
+                relatedJobPosting=job,
                 transactionType='PAYMENT'
             ).first()
-            
-            if escrow_txn:
-                refund_result = process_refund(
+
+        # Resolve client and worker wallets safely
+        client_wallet = None
+        worker_wallet = None
+        if job:
+            try:
+                client_wallet = job.clientID.profileID.accountFK.wallet
+            except Exception:
+                pass
+            if job.assignedWorkerID:
+                try:
+                    worker_wallet = job.assignedWorkerID.profileID.accountFK.wallet
+                except Exception:
+                    pass
+
+        decision_lower = decision.lower()
+
+        if escrow_txn:
+            if decision_lower == 'favor_worker':
+                # Worker wins: credit the full escrow amount to the worker wallet
+                worker_amount = float(escrow_txn.amount)
+                worker_result = process_refund(
                     transaction_id=escrow_txn.transactionID,
-                    amount=refund_amount,
-                    reason=f"Dispute #{dispute_id} resolved: {decision}",
+                    amount=worker_amount,
+                    reason=f"Dispute #{dispute_id} resolved in worker's favor: {resolution}",
                     refund_to='WALLET',
                     admin=admin,
-                    request=request
+                    request=request,
+                    target_wallet=worker_wallet,
+                    txn_type='EARNING',
                 )
-                
-                if refund_result['success']:
-                    refund_txn_id = refund_result.get('refund_transaction_id')
+                if worker_result.get('success'):
+                    refund_txn_id = worker_result.get('refund_transaction_id')
+
+            elif decision_lower == 'favor_client' and refund_amount and refund_amount > 0:
+                # Client wins: full amount goes back to the client wallet
+                client_result = process_refund(
+                    transaction_id=escrow_txn.transactionID,
+                    amount=refund_amount,
+                    reason=f"Dispute #{dispute_id} resolved in client's favor: {resolution}",
+                    refund_to='WALLET',
+                    admin=admin,
+                    request=request,
+                    target_wallet=client_wallet,
+                    txn_type='REFUND',
+                )
+                if client_result.get('success'):
+                    refund_txn_id = client_result.get('refund_transaction_id')
+
+            elif decision_lower == 'partial_refund' and refund_amount and refund_amount > 0:
+                # Partial: client gets refund_amount back, worker gets the remainder
+                client_result = process_refund(
+                    transaction_id=escrow_txn.transactionID,
+                    amount=refund_amount,
+                    reason=f"Dispute #{dispute_id} partial refund to client: {resolution}",
+                    refund_to='WALLET',
+                    admin=admin,
+                    request=request,
+                    target_wallet=client_wallet,
+                    txn_type='REFUND',
+                )
+                if client_result.get('success'):
+                    refund_txn_id = client_result.get('refund_transaction_id')
+
+                worker_portion = float(escrow_txn.amount) - refund_amount
+                if worker_portion > 0 and worker_wallet:
+                    process_refund(
+                        transaction_id=escrow_txn.transactionID,
+                        amount=worker_portion,
+                        reason=f"Dispute #{dispute_id} worker's portion from partial resolution: {resolution}",
+                        refund_to='WALLET',
+                        admin=admin,
+                        request=request,
+                        target_wallet=worker_wallet,
+                        txn_type='EARNING',
+                    )
         
         # Log audit trail
         if admin:
