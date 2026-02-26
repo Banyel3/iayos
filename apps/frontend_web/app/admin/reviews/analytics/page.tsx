@@ -53,7 +53,7 @@ export default function AnalyticsPage() {
   const fetchStatistics = async () => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/statistics`,
+        `${API_BASE}/api/adminpanel/reviews/statistics`,
         { credentials: "include" },
       );
 
@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
   const fetchTrends = async () => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/trends?period=${period}`,
+        `${API_BASE}/api/adminpanel/reviews/trends?period=${period}`,
         { credentials: "include" },
       );
 

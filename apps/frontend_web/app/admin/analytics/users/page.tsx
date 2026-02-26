@@ -68,9 +68,9 @@ export default function UserAnalytics() {
   const dau = stats?.active_users?.dau || 0;
   const wau = stats?.active_users?.wau || 0;
   const mau = stats?.active_users?.mau || 0;
-  const dauGrowth = stats?.active_users?.dau_growth || 0;
-  const wauGrowth = stats?.active_users?.wau_growth || 0;
-  const mauGrowth = stats?.active_users?.mau_growth || 0;
+  const dauGrowth = stats?.active_users?.dau_change || 0;
+  const wauGrowth = stats?.active_users?.wau_change || 0;
+  const mauGrowth = stats?.active_users?.mau_change || 0;
   const churnRate = stats?.churn_analysis?.churn_rate || 0;
   const atRiskUsers = stats?.churn_analysis?.at_risk_users || 0;
   const retentionRate = stats?.churn_analysis?.retention_rate || 0;

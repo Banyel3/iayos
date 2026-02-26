@@ -33,10 +33,10 @@ interface WorkerEarning {
 }
 
 interface Statistics {
-  total_workers_with_earnings: number;
-  total_pending_payout: number;
-  total_paid_out: number;
-  payouts_processed_today: number;
+  total_workers: number;
+  pending_payouts: number;
+  total_payouts: number;
+  this_month_payouts?: { count: number; amount: number };
 }
 
 export default function WorkerEarningsPage() {
@@ -94,10 +94,10 @@ export default function WorkerEarningsPage() {
       if (!response.ok) {
         console.warn("Earnings statistics API not available");
         setStatistics({
-          total_workers_with_earnings: 0,
-          total_pending_payout: 0,
-          total_paid_out: 0,
-          payouts_processed_today: 0,
+          total_workers: 0,
+          pending_payouts: 0,
+          total_payouts: 0,
+          this_month_payouts: { count: 0, amount: 0 },
         });
         return;
       }
@@ -241,7 +241,7 @@ export default function WorkerEarningsPage() {
                   </div>
                   <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Workers</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                    {statistics.total_workers_with_earnings}
+                    {statistics.total_workers}
                   </p>
                 </CardContent>
               </Card>
@@ -255,7 +255,7 @@ export default function WorkerEarningsPage() {
                   </div>
                   <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Pending Payout</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">
-                    ₱{(statistics.total_pending_payout ?? 0).toLocaleString()}
+                    ₱{(statistics.pending_payouts ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -269,7 +269,7 @@ export default function WorkerEarningsPage() {
                   </div>
                   <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Total Paid Out</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">
-                    ₱{(statistics.total_paid_out ?? 0).toLocaleString()}
+                    ₱{(statistics.total_payouts ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -283,7 +283,7 @@ export default function WorkerEarningsPage() {
                   </div>
                   <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Processed Today</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                    {statistics.payouts_processed_today}
+                    {statistics.this_month_payouts?.count ?? 0}
                   </p>
                 </CardContent>
               </Card>

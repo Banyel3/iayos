@@ -440,8 +440,9 @@ def get_agencies_list_optimized(
     ).values('revieweeID').annotate(avg=Avg('rating')).values('avg')
     
     # Agency KYC Status subquery
+    # Both Agency and AgencyKYC share accountFK → Accounts; join on that field
     kyc_status_sq = AgencyKYC.objects.filter(
-        agencyID=OuterRef('pk')
+        accountFK=OuterRef('accountFK')
     ).order_by('-createdAt').values('status')[:1]
     
     # Main query
@@ -758,14 +759,33 @@ def get_transaction_stats_optimized() -> Dict[str, Any]:
         month_volume=Coalesce(Sum('amount', filter=Q(createdAt__gte=month_start, status='COMPLETED')), Value(0), output_field=DecimalField()),
     )
     
+    total_count = stats['total_count']
+    total_volume = float(stats['total_volume'])
+    escrow_held = float(stats['escrow_held'])
+    refunded_amount = float(stats['refunded_amount'])
+    platform_fees = round(total_volume * 0.05, 2)
+    average_transaction = round(total_volume / total_count, 2) if total_count > 0 else 0.0
+
     return {
-        'total_transactions': stats['total_count'],
-        'total_volume': float(stats['total_volume']),
-        'total_revenue': float(stats['total_volume']),  # Alias for frontend compatibility
+        'total_transactions': total_count,
+        'total_volume': total_volume,
+        'total_revenue': total_volume,        # alias
         'pending_count': stats['pending_count'],
         'pending_amount': float(stats['pending_amount']),
-        'escrow_held': float(stats['escrow_held']),
-        'refunded_amount': float(stats['refunded_amount']),
+        'escrow_held': escrow_held,
+        'refunded_amount': refunded_amount,
+        # Aliases expected by the payments/analytics frontend
+        'total_escrow_held': escrow_held,
+        'total_refunded': refunded_amount,
+        'platform_fees': platform_fees,
+        'average_transaction': average_transaction,
+        # Change-percent placeholders (historical comparison not yet implemented)
+        'revenue_change_percent': 0.0,
+        'transactions_change_percent': 0.0,
+        'escrow_change_percent': 0.0,
+        'refunded_change_percent': 0.0,
+        'fees_change_percent': 0.0,
+        'avg_transaction_change_percent': 0.0,
         'today_count': stats['today_count'],
         'today_volume': float(stats['today_volume']),
         'month_count': stats['month_count'],

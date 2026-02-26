@@ -68,7 +68,7 @@ export default function ReviewDetailPage() {
   const fetchDetail = async () => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/detail`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/detail`,
         { credentials: "include" },
       );
 
@@ -90,7 +90,7 @@ export default function ReviewDetailPage() {
   const handleFlag = async (reason: string, severity: string) => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/flag`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/flag`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -113,7 +113,7 @@ export default function ReviewDetailPage() {
   const handleHide = async (reason: string) => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/hide`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/hide`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ export default function ReviewDetailPage() {
   const handleDelete = async (reason: string) => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -158,7 +158,7 @@ export default function ReviewDetailPage() {
   const handleRestore = async () => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/restore`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/restore`,
         {
           method: "POST",
           credentials: "include",
