@@ -166,7 +166,7 @@ export default function ApprovedKYCPage() {
 
       // Transform user KYC records that are APPROVED
       const userKYC: ApprovedKYC[] = (data.kyc || [])
-        .filter((kycRecord: any) => 
+        .filter((kycRecord: any) =>
           (kycRecord.kycStatus || "").toUpperCase() === "APPROVED"
         )
         .map((kycRecord: any) => {
@@ -176,20 +176,20 @@ export default function ApprovedKYCPage() {
           const filesCount = (data.kyc_files || []).filter(
             (f: any) => f.kycID_id === kycRecord.kycID
           ).length;
-          
+
           const submissionDate = new Date(kycRecord.createdAt);
           const approvalDate = new Date(kycRecord.updatedAt);
           const processingDays = Math.max(0, Math.floor(
             (approvalDate.getTime() - submissionDate.getTime()) /
             (1000 * 60 * 60 * 24)
           ));
-          
+
           const fullName = user?.firstName && user?.lastName
             ? `${user.firstName} ${user.lastName}`
             : user?.email?.split("@")[0] || "Unknown User";
-          
-          const userType = user?.profileType?.toLowerCase() === "client" 
-            ? "client" 
+
+          const userType = user?.profileType?.toLowerCase() === "client"
+            ? "client"
             : "worker";
 
           return {
@@ -217,7 +217,7 @@ export default function ApprovedKYCPage() {
           const filesCount = (data.agency_kyc_files || []).filter(
             (f: any) => f.agencyKyc_id === rec.agencyKycID
           ).length;
-          
+
           const submissionDate = new Date(rec.createdAt);
           const approvalDate = new Date(rec.updatedAt);
           const processingDays = Math.max(0, Math.floor(
@@ -266,11 +266,11 @@ export default function ApprovedKYCPage() {
     }
 
     setLoadingFiles((prev) => ({ ...prev, [record.id]: true }));
-    
+
     try {
       let kycFiles: any[] = [];
       const isAgency = record.userType === "agency";
-      
+
       if (isAgency) {
         kycFiles = (backendData.agency_kyc_files || []).filter(
           (f: any) => f.agencyKyc_id?.toString() === record.kycId
@@ -285,7 +285,7 @@ export default function ApprovedKYCPage() {
 
       // For agency, map fileType to keys; for user, use fileName patterns
       let frontID, backID, clearance, selfie, addressProof;
-      
+
       if (isAgency) {
         frontID = kycFiles.find((f: any) => f.fileType === "REP_ID_FRONT");
         backID = kycFiles.find((f: any) => f.fileType === "REP_ID_BACK");
@@ -367,7 +367,7 @@ export default function ApprovedKYCPage() {
   const toggleExpanded = (record: ApprovedKYC) => {
     const isExpanded = expandedRecords[record.id];
     setExpandedRecords((prev) => ({ ...prev, [record.id]: !isExpanded }));
-    
+
     // Fetch files when expanding
     if (!isExpanded && !kycFilesMap[record.id]) {
       fetchKYCFiles(record);
@@ -419,19 +419,19 @@ export default function ApprovedKYCPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
-          <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-2xl overflow-hidden">
+          <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 shadow-2xl overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                  <CheckCircle className="h-8 w-8 text-white" />
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-3 sm:p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
+                  <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold text-white mb-2">
+                  <h1 className="text-2xl sm:text-4xl font-bold text-white mb-1 sm:mb-2">
                     Approved KYC Records
                   </h1>
-                  <p className="text-blue-100 text-lg">
+                  <p className="text-blue-100 text-sm sm:text-lg">
                     Successfully verified and approved KYC submissions
                   </p>
                 </div>
@@ -440,7 +440,7 @@ export default function ApprovedKYCPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-6 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -595,13 +595,12 @@ export default function ApprovedKYCPage() {
                         </p>
                         <div className="flex items-center space-x-2 mt-1">
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              record.userType === "worker"
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
                                 ? "bg-blue-100 text-blue-800"
                                 : record.userType === "agency"
-                                ? "bg-purple-100 text-purple-800"
-                                : "bg-green-100 text-green-800"
-                            }`}
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-green-100 text-green-800"
+                              }`}
                           >
                             {record.userType}
                           </span>
@@ -646,8 +645,8 @@ export default function ApprovedKYCPage() {
                         </p>
                       </div>
 
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => toggleExpanded(record)}
                       >
@@ -764,7 +763,7 @@ export default function ApprovedKYCPage() {
                               )}
                             </div>
                           </div>
-                          
+
                           {/* Right Column: User Submitted Data */}
                           <div className="space-y-4">
                             <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">

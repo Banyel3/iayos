@@ -79,7 +79,7 @@ export default function PendingKYCPage() {
   const [expandedRecords, setExpandedRecords] = useState<
     Record<string, boolean>
   >({}); // Track which records are expanded
-  
+
   // Rejection modal state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingRecord, setRejectingRecord] = useState<{ id: string; userType: string; userName: string } | null>(null);
@@ -717,14 +717,14 @@ export default function PendingKYCPage() {
   // Submit rejection with selected reason
   const submitRejection = async () => {
     if (!rejectingRecord) return;
-    
+
     setIsRejecting(true);
-    
+
     const preset = REJECTION_PRESETS.find(p => p.id === selectedRejectionPreset);
-    const reason = selectedRejectionPreset === "custom" 
+    const reason = selectedRejectionPreset === "custom"
       ? customRejectionReason.trim()
       : preset?.reason || "Documents did not meet verification requirements";
-    
+
     if (selectedRejectionPreset === "custom" && !customRejectionReason.trim()) {
       showToast({
         type: "error",
@@ -735,9 +735,9 @@ export default function PendingKYCPage() {
       setIsRejecting(false);
       return;
     }
-    
+
     await handleRejectKYC(rejectingRecord.id, rejectingRecord.userType, reason);
-    
+
     setIsRejecting(false);
     setShowRejectModal(false);
     setRejectingRecord(null);
@@ -803,19 +803,19 @@ export default function PendingKYCPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
-          <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-2xl overflow-hidden">
+          <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 shadow-2xl overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                  <Clock className="h-8 w-8 text-white" />
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-3 sm:p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
+                  <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold text-white mb-2">
+                  <h1 className="text-2xl sm:text-4xl font-bold text-white mb-1 sm:mb-2">
                     Pending KYC Reviews
                   </h1>
-                  <p className="text-blue-100 text-lg">
+                  <p className="text-blue-100 text-sm sm:text-lg">
                     KYC submissions awaiting review and approval
                   </p>
                 </div>
@@ -824,7 +824,7 @@ export default function PendingKYCPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-6 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
             <Card className="border-0 shadow-lg overflow-hidden">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1004,8 +1004,8 @@ export default function PendingKYCPage() {
                         {fetchError
                           ? fetchError
                           : searchTerm ||
-                              priorityFilter !== "all" ||
-                              typeFilter !== "all"
+                            priorityFilter !== "all" ||
+                            typeFilter !== "all"
                             ? "No KYC submissions match your filters"
                             : "All KYC submissions have been reviewed"}
                       </p>
@@ -1046,8 +1046,8 @@ export default function PendingKYCPage() {
                           <div className="flex items-center space-x-2 mt-1">
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-green-100 text-green-800"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800"
                                 }`}
                             >
                               {record.userType}
@@ -1266,7 +1266,7 @@ export default function PendingKYCPage() {
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Right Column: User Submitted Data */}
                           <div>
                             <div className="flex items-center justify-between mb-6">
@@ -1305,7 +1305,7 @@ export default function PendingKYCPage() {
               <p className="text-sm text-muted-foreground">
                 Select a reason for rejection. The user will receive a notification with this message.
               </p>
-              
+
               {/* Quick-Select Preset Options */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Rejection Reason</label>
@@ -1313,11 +1313,10 @@ export default function PendingKYCPage() {
                   {REJECTION_PRESETS.map((preset) => (
                     <label
                       key={preset.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                        selectedRejectionPreset === preset.id
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${selectedRejectionPreset === preset.id
                           ? "border-red-500 bg-red-50"
                           : "border-gray-200 hover:border-red-300 hover:bg-red-50/50"
-                      }`}
+                        }`}
                     >
                       <input
                         type="radio"
@@ -1337,7 +1336,7 @@ export default function PendingKYCPage() {
                   ))}
                 </div>
               </div>
-              
+
               {/* Custom Reason Text Area - Only shown when "Custom" is selected */}
               {selectedRejectionPreset === "custom" && (
                 <div className="space-y-2">
@@ -1355,7 +1354,7 @@ export default function PendingKYCPage() {
                   </p>
                 </div>
               )}
-              
+
               {/* Action Buttons */}
               <div className="flex justify-end space-x-2 pt-4 border-t">
                 <Button

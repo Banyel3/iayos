@@ -227,23 +227,23 @@ export default function RejectedKYCPage() {
       <Sidebar />
       <main className={mainClass}>
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                 Rejected KYC Records
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm sm:text-base">
                 KYC submissions that were rejected and require resubmission
               </p>
             </div>
-            <Button className="text-white">
+            <Button className="text-white self-start sm:self-auto text-sm">
               <FileText className="mr-2 h-4 w-4" />
               Export Rejected Records
             </Button>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
