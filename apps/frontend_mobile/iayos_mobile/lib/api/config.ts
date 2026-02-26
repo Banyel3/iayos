@@ -504,6 +504,7 @@ export const ENDPOINTS = {
   PAYMENT_STATUS: (id: number) => `${API_URL}/api/mobile/payments/status/${id}`,
   PAYMENT_HISTORY: `${API_URL}/api/mobile/payments/history`,
   WALLET_DEPOSIT: `${API_URL}/api/mobile/wallet/deposit`,
+  DEPOSIT_GCASH: `${API_URL}/api/mobile/wallet/deposit-gcash`,
   WALLET_WITHDRAW: `${API_URL}/api/mobile/wallet/withdraw`,
   WALLET_TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
   CREATE_JOB_WITH_PAYMENT: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
