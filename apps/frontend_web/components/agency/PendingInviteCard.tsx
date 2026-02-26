@@ -268,22 +268,22 @@ export default function PendingInviteCard({
               {job.skill_slots.map((slot) => (
                 <div
                   key={slot.skill_slot_id}
-                  className="flex items-center justify-between p-2 bg-white rounded border border-purple-100"
+                  className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-purple-100"
                 >
-                  <div className="flex items-center space-x-2">
-                    <Wrench className="h-4 w-4 text-purple-500" />
-                    <span className="font-medium text-gray-800">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <Wrench className="h-4 w-4 text-purple-500 shrink-0" />
+                    <span className="font-medium text-gray-800 truncate text-sm">
                       {slot.specialization_name}
                     </span>
-                    <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-100 rounded">
+                    <span className="text-xs text-gray-500 px-1.5 py-0.5 bg-gray-100 rounded shrink-0 hidden sm:inline">
                       {slot.skill_level_required}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm text-gray-600">
-                      {slot.workers_needed} worker{slot.workers_needed > 1 ? "s" : ""}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-gray-600 whitespace-nowrap">
+                      {slot.workers_needed}w
                     </span>
-                    <span className="text-sm font-semibold text-purple-600">
+                    <span className="text-sm font-semibold text-purple-600 whitespace-nowrap">
                       ₱{slot.budget_allocated.toLocaleString()}
                     </span>
                   </div>

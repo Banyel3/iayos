@@ -750,11 +750,12 @@ export default function EmployeesPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-gray-600 line-clamp-1">
                               {(emp.specializations && emp.specializations.length > 0)
-                                ? emp.specializations.join(", ")
-                                : emp.role} • {emp.email}
+                                ? emp.specializations.slice(0, 3).join(", ") + (emp.specializations.length > 3 ? ` +${emp.specializations.length - 3}` : "")
+                                : emp.role}
                             </div>
+                            <div className="text-xs text-gray-500 truncate">{emp.email}</div>
                             <div className="flex items-center gap-4 mt-1">
                               <Rating value={emp.rating} />
                               {emp.totalJobsCompleted !== undefined && (
@@ -765,38 +766,39 @@ export default function EmployeesPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
+                        {/* Action buttons: 2x2 grid on mobile, flex row on desktop */}
+                        <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto">
                           <Button
                             onClick={() => handleEditEmployee(emp)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto justify-center"
                             size="sm"
                           >
-                            <Edit2 className="h-4 w-4 sm:mr-1" />
-                            <span className="hidden sm:inline">Edit</span>
+                            <Edit2 className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-1">Edit</span>
                           </Button>
                           <Button
                             onClick={() => handleSetEOTM(emp)}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto justify-center"
                             size="sm"
                           >
-                            <Award className="h-4 w-4 sm:mr-1" />
-                            <span className="hidden sm:inline">EOTM</span>
+                            <Award className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-1">EOTM</span>
                           </Button>
                           <Button
                             onClick={() => handleViewPerformance(emp)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto justify-center"
                             size="sm"
                           >
-                            <TrendingUp className="h-4 w-4 sm:mr-1" />
-                            <span className="hidden sm:inline">Stats</span>
+                            <TrendingUp className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-1">Stats</span>
                           </Button>
                           <Button
                             onClick={() => removeEmployee(emp.id, emp.name)}
-                            className="bg-red-600 hover:bg-red-700 text-white"
+                            className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto justify-center"
                             size="sm"
                           >
-                            <X className="h-4 w-4 sm:mr-1" />
-                            <span className="hidden sm:inline">Remove</span>
+                            <X className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-1">Remove</span>
                           </Button>
                         </div>
                       </div>
