@@ -72,7 +72,9 @@ export default function AnalyticsPage() {
   }
 
   const completionRate = stats
-    ? Math.round((stats.completed_jobs / stats.total_jobs) * 100) || 0
+    ? stats.total_jobs > 0
+      ? Math.round((stats.completed_jobs / stats.total_jobs) * 100)
+      : 0
     : 0;
 
   const handleExportCSV = () => {
@@ -110,7 +112,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">
-            ₱{stats?.total_revenue.toLocaleString() || 0}
+            ₱{(stats?.total_revenue ?? 0).toLocaleString()}
           </p>
           <div className="flex items-center gap-1 mt-2">
             <ArrowUpRight className="text-green-600" size={16} />
@@ -163,7 +165,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">
-            {stats?.average_rating.toFixed(1) || "0.0"}
+            {(stats?.average_rating ?? 0).toFixed(1)}
           </p>
           <div className="flex items-center gap-1 mt-2">
             <Star className="text-yellow-500 fill-yellow-500" size={14} />
@@ -293,7 +295,54 @@ export default function AnalyticsPage() {
           </select>
         </div>
 
-        <div className="overflow-x-auto">
+
+        {/* Mobile leaderboard card view */}
+        <div className="md:hidden space-y-3">
+          {leaderboard && leaderboard.length === 0 ? (
+            <div className="text-center py-12">
+              <Award className="mx-auto text-gray-300" size={48} />
+              <p className="text-gray-600 mt-2">No employee data yet</p>
+            </div>
+          ) : (
+            leaderboard?.slice(0, 10).map((employee, index) => (
+              <div
+                key={employee.employee_id}
+                className={`flex items-center gap-3 p-4 rounded-lg border ${
+                  index < 3 ? "border-blue-200 bg-blue-50/50" : "border-gray-100"
+                }`}
+              >
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {index === 0 && <Award className="text-yellow-500 fill-yellow-500" size={18} />}
+                  {index === 1 && <Award className="text-gray-400 fill-gray-400" size={18} />}
+                  {index === 2 && <Award className="text-orange-600 fill-orange-600" size={18} />}
+                  <span className="font-bold text-gray-900 text-sm">#{employee.rank}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-gray-900 text-sm truncate">{employee.name}</p>
+                    {employee.is_employee_of_month && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        🏆 EOTM
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{employee.email}</p>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className="text-xs text-gray-600 flex items-center gap-1">
+                      <Star className="text-yellow-500 fill-yellow-500" size={12} />
+                      {(employee.rating ?? 0).toFixed(1)}
+                    </span>
+                    <span className="text-xs text-gray-600">{employee.total_jobs_completed} jobs</span>
+                    <span className="text-xs font-semibold text-green-600">₱{(employee.total_earnings ?? 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table view */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -371,7 +420,7 @@ export default function AnalyticsPage() {
                         size={16}
                       />
                       <span className="font-semibold text-gray-900">
-                        {employee.rating.toFixed(1)}
+                        {(employee.rating ?? 0).toFixed(1)}
                       </span>
                     </div>
                   </td>
@@ -382,7 +431,7 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="px-4 py-4 text-right">
                     <span className="font-semibold text-green-600">
-                      ₱{employee.total_earnings.toLocaleString()}
+                      ₱{(employee.total_earnings ?? 0).toLocaleString()}
                     </span>
                   </td>
                 </tr>

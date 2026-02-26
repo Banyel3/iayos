@@ -258,7 +258,7 @@ export default function AgencyMessagesPage() {
               {/* Bottom Row: Budget + Status */}
               <div className="flex items-center justify-between mt-3">
                 <span className="text-sm font-bold text-green-600">
-                  ₱{conversation.job.budget.toLocaleString()}
+                  ₱{(conversation.job.budget ?? 0).toLocaleString()}
                 </span>
                 <div className="flex items-center gap-2">
                   {conversation.job.workerMarkedComplete &&
