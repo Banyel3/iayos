@@ -38,9 +38,9 @@ interface Dispute {
 
 interface Statistics {
   total_disputes: number;
-  pending_disputes: number;
-  resolved_disputes: number;
   average_resolution_days: number;
+  by_status?: Record<string, number>;
+  old_open_disputes?: number;
 }
 
 type StatusFilter = "all" | "pending" | "resolved" | "rejected";
@@ -199,7 +199,7 @@ export default function DisputesPage() {
                   </div>
                   <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 uppercase font-semibold">Pending</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                    {statistics.pending_disputes}
+                    {statistics.by_status?.OPEN ?? 0}
                   </p>
                 </CardContent>
               </Card>
@@ -213,7 +213,7 @@ export default function DisputesPage() {
                   </div>
                   <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 uppercase font-semibold">Resolved</p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                    {statistics.resolved_disputes}
+                    {statistics.by_status?.RESOLVED ?? 0}
                   </p>
                 </CardContent>
               </Card>

@@ -66,7 +66,7 @@ export default function FlaggedReviewsPage() {
       if (severityFilter !== "all") params.append("severity", severityFilter);
 
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/flagged?${params}`,
+        `${API_BASE}/api/adminpanel/reviews/flagged?${params}`,
         { credentials: "include" },
       );
 
@@ -153,7 +153,7 @@ export default function FlaggedReviewsPage() {
 
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/restore`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/restore`,
         {
           method: "POST",
           credentials: "include",

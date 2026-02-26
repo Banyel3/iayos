@@ -2770,7 +2770,7 @@ def get_user_analytics_endpoint(request, period: str = "last_30_days", segment: 
     """Get comprehensive user analytics: DAU, WAU, MAU, demographics, growth trends."""
     try:
         analytics = get_user_analytics(period=period, segment=segment)
-        return {"success": True, "analytics": analytics}
+        return analytics  # already returns {success, analytics: {...}}
     except Exception as e:
         print(f"Error in get_user_analytics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
@@ -2781,7 +2781,7 @@ def get_job_analytics_endpoint(request, period: str = "last_30_days"):
     """Get job marketplace analytics: volume, completion rates, categories, timeline."""
     try:
         analytics = get_job_analytics(period=period)
-        return {"success": True, "analytics": analytics}
+        return analytics  # already returns {success, analytics: {...}}
     except Exception as e:
         print(f"Error in get_job_analytics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
@@ -2792,7 +2792,7 @@ def get_financial_analytics_endpoint(request, period: str = "last_30_days"):
     """Get financial analytics: revenue, transactions, payment methods, trends."""
     try:
         analytics = get_financial_analytics(period=period)
-        return {"success": True, "analytics": analytics}
+        return analytics  # already returns {success, analytics: {...}}
     except Exception as e:
         print(f"Error in get_financial_analytics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
@@ -2803,7 +2803,7 @@ def get_geographic_analytics_endpoint(request):
     """Get geographic analytics: regional breakdown, city stats, heatmap data."""
     try:
         analytics = get_geographic_analytics()
-        return {"success": True, "analytics": analytics}
+        return analytics  # already returns {success, analytics: {...}}
     except Exception as e:
         print(f"Error in get_geographic_analytics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
@@ -2814,7 +2814,7 @@ def get_engagement_analytics_endpoint(request, period: str = "last_30_days"):
     """Get engagement metrics: session duration, pages/session, bounce rate, feature usage."""
     try:
         analytics = get_engagement_analytics(period=period)
-        return {"success": True, "analytics": analytics}
+        return analytics  # already returns {success, analytics: {...}}
     except Exception as e:
         print(f"Error in get_engagement_analytics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
@@ -2825,7 +2825,7 @@ def get_support_statistics_endpoint(request, range: str = "last_30_days"):
     """Get support ticket statistics for support analytics dashboard."""
     try:
         statistics = get_support_statistics(range_param=range)
-        return {"success": True, "statistics": statistics}
+        return statistics  # already returns {success, statistics: {...}}
     except Exception as e:
         print(f"Error in get_support_statistics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}

@@ -74,7 +74,7 @@ export default function ReviewsPage() {
       if (userTypeFilter !== "all") params.append("user_type", userTypeFilter);
 
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/app-reviews/all?${params}`,
+        `${API_BASE}/api/adminpanel/reviews/all?${params}`,
         { credentials: "include" },
       );
 

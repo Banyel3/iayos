@@ -54,12 +54,13 @@ interface BackJob {
 }
 
 interface BackJobStats {
-  total_requests: number;
-  pending_requests: number;
+  total_disputes: number;
+  open_disputes: number;
   under_review: number;
-  approved_requests: number;
+  resolved_disputes: number;
   urgent_requests: number;
-  total_backjob_amount: number;
+  critical_disputes: number;
+  total_disputed_amount: number;
 }
 
 export default function BackJobsPage() {
@@ -255,7 +256,7 @@ export default function BackJobsPage() {
                     Total Requests
                   </p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                    {stats.total_requests}
+                    {stats.total_disputes}
                   </p>
                 </CardContent>
               </Card>
@@ -272,7 +273,7 @@ export default function BackJobsPage() {
                     Pending Review
                   </p>
                   <p className="text-xl sm:text-3xl font-bold text-yellow-600">
-                    {stats.pending_requests}
+                    {stats.open_disputes}
                   </p>
                 </CardContent>
               </Card>
@@ -288,7 +289,7 @@ export default function BackJobsPage() {
                     Approved
                   </p>
                   <p className="text-xl sm:text-3xl font-bold text-green-600">
-                    {stats.approved_requests}
+                    {stats.resolved_disputes}
                   </p>
                 </CardContent>
               </Card>
@@ -304,7 +305,7 @@ export default function BackJobsPage() {
                     Urgent
                   </p>
                   <p className="text-xl sm:text-3xl font-bold text-red-600">
-                    {stats.urgent_requests}
+                    {stats.critical_disputes}
                   </p>
                 </CardContent>
               </Card>

@@ -92,7 +92,7 @@ export default function AnalyticsPage() {
       if (!response.ok) throw new Error("Failed to fetch statistics");
 
       const data = await response.json();
-      setStatistics(data);
+      setStatistics(data.stats);
     } catch (error) {
       console.error("Error:", error);
     }
