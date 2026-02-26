@@ -144,7 +144,7 @@ export default function ActiveJobsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div>
         <div className="animate-pulse space-y-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="bg-gray-200 h-48 rounded-lg" />
@@ -155,7 +155,7 @@ export default function ActiveJobsPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">

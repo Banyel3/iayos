@@ -376,12 +376,12 @@ export default function AgencyMessagesPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
+    <div className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
               <MessageSquare className="h-8 w-8 text-blue-600" />
               Messages
             </h1>

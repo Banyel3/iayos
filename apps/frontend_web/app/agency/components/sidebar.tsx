@@ -26,7 +26,15 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { API_BASE } from "@/lib/api/config";
 
-export default function AgencySidebar({ className }: { className?: string }) {
+interface AgencySidebarProps {
+  className?: string;
+  onMobileClose?: () => void;
+}
+
+export default function AgencySidebar({
+  className,
+  onMobileClose,
+}: AgencySidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();

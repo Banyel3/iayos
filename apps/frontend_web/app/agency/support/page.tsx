@@ -198,9 +198,9 @@ export default function AgencySupportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-50">
+    <div>
       {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 py-10">
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 px-4 py-6 md:px-6 md:py-10">
         <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.5))]" />
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl" />
@@ -220,7 +220,7 @@ export default function AgencySupportPage() {
                 <HelpCircle className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">
+                <h1 className="text-2xl font-bold text-white">
                   Help & Support
                 </h1>
                 <p className="text-blue-100 mt-1">
@@ -240,7 +240,7 @@ export default function AgencySupportPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* FAQ Section */}
           <div className="lg:col-span-2">

@@ -141,18 +141,18 @@ export default function AgencyBackjobsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="mb-6">
+      <div>
         <Button
           variant="ghost"
-          className="mb-4"
+          className="mb-4 pl-0 hover:bg-transparent hover:text-emerald-600"
           onClick={() => router.push("/agency/jobs")}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Jobs
         </Button>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Backjobs</h1>
             <p className="text-gray-500">

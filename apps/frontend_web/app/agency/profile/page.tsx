@@ -417,7 +417,7 @@ export default function AgencyProfilePage() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div>
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Agency Profile</h1>
@@ -446,7 +446,7 @@ export default function AgencyProfilePage() {
 
   if (!profile) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold mb-4">Agency Profile</h1>
           <div className="text-sm text-red-500">Failed to load profile</div>
@@ -456,10 +456,10 @@ export default function AgencyProfilePage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div>
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Agency Profile</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Agency Profile</h1>
           {!isEditing && (
             <Button
               onClick={handleEditClick}

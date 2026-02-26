@@ -229,7 +229,7 @@ export default function AgencyReviewsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold mb-4">Agency Reviews</h1>
           <div className="flex items-center justify-center py-20">
@@ -243,7 +243,7 @@ export default function AgencyReviewsPage() {
 
   if (error) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold mb-4">Agency Reviews</h1>
           <Card className="bg-red-50 border-red-200">
@@ -272,7 +272,7 @@ export default function AgencyReviewsPage() {
   const totalPages = data?.total_pages || 1;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div>
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold mb-4">Agency Reviews</h1>
 
