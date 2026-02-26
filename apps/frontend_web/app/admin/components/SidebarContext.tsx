@@ -74,6 +74,6 @@ export function useMainContentClass(additionalClasses?: string) {
   // On desktop (>= md): left padding to clear fixed sidebar
   const paddingClass = collapsed ? "pl-4 md:pl-24" : "pl-4 md:pl-72";
   // Add top padding on mobile for the mobile top bar
-  const mobilePadding = "pt-14 md:pt-0";
+  const mobilePadding = "pt-16 md:pt-6";
   return `${baseClasses} ${paddingClass} ${mobilePadding} ${additionalClasses || ""}`.trim();
 }
