@@ -145,38 +145,38 @@ export default function SupportAnalyticsPage() {
       <main className={mainClass}>
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Modern Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="text-center sm:text-left">
-                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <BarChart3 className="h-6 w-6 sm:h-8 sm:w-8" />
+                      <BarChart3 className="h-8 w-8" />
                     </div>
-                    <h1 className="text-2xl sm:text-4xl font-bold">Support Analytics</h1>
+                    <h1 className="text-4xl font-bold">Support Analytics</h1>
                   </div>
-                  <p className="text-indigo-100 text-sm sm:text-lg text-center sm:text-left">
-                    Track performance and satisfaction metrics
+                  <p className="text-indigo-100 text-lg">
+                    Track support performance and customer satisfaction metrics
                   </p>
                 </div>
-                <div className="grid grid-cols-2 sm:flex gap-2">
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     onClick={handleExportReport}
-                    className="bg-white/10 border-white/20 hover:bg-white/20 h-9 sm:h-10 text-[11px] sm:text-sm font-bold rounded-xl"
+                    className="bg-white/10 border-white/20 hover:bg-white/20"
                   >
-                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                    Report
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Report
                   </Button>
                   <Button
                     variant="outline"
                     onClick={handleExportData}
-                    className="bg-white/10 border-white/20 hover:bg-white/20 h-9 sm:h-10 text-[11px] sm:text-sm font-bold rounded-xl"
+                    className="bg-white/10 border-white/20 hover:bg-white/20"
                   >
-                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                    CSV Data
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Data
                   </Button>
                 </div>
               </div>
@@ -185,47 +185,43 @@ export default function SupportAnalyticsPage() {
 
           {/* Controls */}
           <Card className="border-0 shadow-lg">
-            <CardContent className="p-4 sm:p-6">
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Time Range</p>
-                  <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
-                    {[
-                      { value: "today", label: "Today" },
-                      { value: "7days", label: "7 Days" },
-                      { value: "30days", label: "30 Days" },
-                      { value: "90days", label: "90 Days" },
-                    ].map((range) => (
-                      <Button
-                        key={range.value}
-                        variant={dateRange === range.value ? "default" : "outline"}
-                        size="sm"
-                        className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${dateRange === range.value ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 border-2"}`}
-                        onClick={() => setDateRange(range.value)}
-                      >
-                        {range.label}
-                      </Button>
-                    ))}
-                  </div>
+            <CardContent className="p-6">
+              <div className="flex flex-wrap gap-4 items-center justify-between">
+                <div className="flex gap-2">
+                  <span className="text-sm font-medium text-gray-700 self-center">
+                    Date Range:
+                  </span>
+                  {[
+                    { value: "today", label: "Today" },
+                    { value: "7days", label: "Last 7 Days" },
+                    { value: "30days", label: "Last 30 Days" },
+                    { value: "90days", label: "Last 90 Days" },
+                  ].map((range) => (
+                    <Button
+                      key={range.value}
+                      variant={
+                        dateRange === range.value ? "default" : "outline"
+                      }
+                      size="sm"
+                      className={dateRange === range.value ? "text-white" : ""}
+                      onClick={() => setDateRange(range.value)}
+                    >
+                      {range.label}
+                    </Button>
+                  ))}
                 </div>
 
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-50 sm:border-0 sm:pt-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={fetchStatistics}
-                    className="flex-1 sm:flex-none h-9 rounded-xl font-bold border-2 text-[11px]"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={fetchStatistics}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
                     Refresh
                   </Button>
                   <Button
                     variant={autoRefresh ? "default" : "outline"}
                     size="sm"
                     onClick={() => setAutoRefresh(!autoRefresh)}
-                    className={`flex-1 sm:flex-none h-9 rounded-xl font-bold border-2 text-[11px] ${autoRefresh ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : ""}`}
                   >
-                    Auto {autoRefresh ? "ON" : "OFF"}
+                    Auto-refresh (60s)
                   </Button>
                 </div>
               </div>
@@ -233,112 +229,162 @@ export default function SupportAnalyticsPage() {
           </Card>
 
           {/* Key Metrics */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Total Tickets */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">Total</p>
-                  <div className={`flex items-center gap-0.5 ${getTrendColor(stats.total_tickets_change)}`}>
+                  <p className="text-sm font-medium text-gray-600">
+                    Total Tickets
+                  </p>
+                  <div
+                    className={`flex items-center gap-1 ${getTrendColor(stats.total_tickets_change)}`}
+                  >
                     {getTrendIcon(stats.total_tickets_change)}
-                    <span className="text-[10px] font-bold">{Math.abs(stats.total_tickets_change)}%</span>
+                    <span className="text-xs font-medium">
+                      {Math.abs(stats.total_tickets_change)}%
+                    </span>
                   </div>
                 </div>
-                <p className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-none">
+                <p className="text-3xl font-bold text-gray-900">
                   {stats.total_tickets}
                 </p>
               </CardContent>
             </Card>
 
             {/* Open Tickets */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">Open</p>
-                  <div className={`flex items-center gap-0.5 ${getTrendColor(stats.open_tickets_change, true)}`}>
+                  <p className="text-sm font-medium text-gray-600">
+                    Open Tickets
+                  </p>
+                  <div
+                    className={`flex items-center gap-1 ${getTrendColor(stats.open_tickets_change, true)}`}
+                  >
                     {getTrendIcon(stats.open_tickets_change)}
-                    <span className="text-[10px] font-bold">{Math.abs(stats.open_tickets_change)}%</span>
+                    <span className="text-xs font-medium">
+                      {Math.abs(stats.open_tickets_change)}%
+                    </span>
                   </div>
                 </div>
-                <p className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-none">
+                <p className="text-3xl font-bold text-gray-900">
                   {stats.open_tickets}
                 </p>
               </CardContent>
             </Card>
 
             {/* Resolved Tickets */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">Resolved</p>
-                  <div className={`flex items-center gap-0.5 ${getTrendColor(stats.resolved_tickets_change)}`}>
+                  <p className="text-sm font-medium text-gray-600">
+                    Resolved Tickets
+                  </p>
+                  <div
+                    className={`flex items-center gap-1 ${getTrendColor(stats.resolved_tickets_change)}`}
+                  >
                     {getTrendIcon(stats.resolved_tickets_change)}
-                    <span className="text-[10px] font-bold">{Math.abs(stats.resolved_tickets_change)}%</span>
+                    <span className="text-xs font-medium">
+                      {Math.abs(stats.resolved_tickets_change)}%
+                    </span>
                   </div>
                 </div>
-                <p className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-none">
+                <p className="text-3xl font-bold text-gray-900">
                   {stats.resolved_tickets}
                 </p>
               </CardContent>
             </Card>
 
             {/* Avg Response Time */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">Avg Resp</p>
-                  <div className={`flex items-center gap-0.5 ${getTrendColor(stats.avg_response_time_change, true)}`}>
+                  <p className="text-sm font-medium text-gray-600">
+                    Avg Response Time
+                  </p>
+                  <div
+                    className={`flex items-center gap-1 ${getTrendColor(stats.avg_response_time_change, true)}`}
+                  >
                     {getTrendIcon(stats.avg_response_time_change)}
-                    <span className="text-[10px] font-bold">{Math.abs(stats.avg_response_time_change)}%</span>
+                    <span className="text-xs font-medium">
+                      {Math.abs(stats.avg_response_time_change)}%
+                    </span>
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                  <p className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-none">
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold text-gray-900">
                     {formatTime(stats.avg_response_time)}
                   </p>
-                  <Badge className={`${stats.avg_response_time < 4 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"} border-0 font-bold px-1.5 py-0 text-[8px] uppercase tracking-tighter w-fit h-4`}>
-                    Target 4h
+                  <Badge
+                    className={
+                      stats.avg_response_time < 4
+                        ? "bg-green-100 text-green-700"
+                        : stats.avg_response_time < 8
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
+                    }
+                  >
+                    Target: 4h
                   </Badge>
                 </div>
               </CardContent>
             </Card>
 
             {/* Avg Resolution Time */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">Avg Resolv</p>
-                  <div className={`flex items-center gap-0.5 ${getTrendColor(stats.avg_resolution_time_change, true)}`}>
+                  <p className="text-sm font-medium text-gray-600">
+                    Avg Resolution Time
+                  </p>
+                  <div
+                    className={`flex items-center gap-1 ${getTrendColor(stats.avg_resolution_time_change, true)}`}
+                  >
                     {getTrendIcon(stats.avg_resolution_time_change)}
-                    <span className="text-[10px] font-bold">{Math.abs(stats.avg_resolution_time_change)}%</span>
+                    <span className="text-xs font-medium">
+                      {Math.abs(stats.avg_resolution_time_change)}%
+                    </span>
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                  <p className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-none">
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold text-gray-900">
                     {formatTime(stats.avg_resolution_time)}
                   </p>
-                  <Badge className={`${stats.avg_resolution_time < 24 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"} border-0 font-bold px-1.5 py-0 text-[8px] uppercase tracking-tighter w-fit h-4`}>
-                    Target 24h
+                  <Badge
+                    className={
+                      stats.avg_resolution_time < 24
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }
+                  >
+                    Target: 24h
                   </Badge>
                 </div>
               </CardContent>
             </Card>
 
             {/* Customer Satisfaction */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all group">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">Customer CSAT</p>
-                  <div className={`flex items-center gap-0.5 ${getTrendColor(stats.satisfaction_rate_change)}`}>
+                  <p className="text-sm font-medium text-gray-600">
+                    Satisfaction Rate
+                  </p>
+                  <div
+                    className={`flex items-center gap-1 ${getTrendColor(stats.satisfaction_rate_change)}`}
+                  >
                     {getTrendIcon(stats.satisfaction_rate_change)}
-                    <span className="text-[10px] font-bold">{Math.abs(stats.satisfaction_rate_change)}%</span>
+                    <span className="text-xs font-medium">
+                      {Math.abs(stats.satisfaction_rate_change)}%
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-none">
+                  <p className="text-3xl font-bold text-gray-900">
                     {stats.satisfaction_rate}%
                   </p>
-                  <ThumbsUp className="h-4 w-4 sm:h-6 sm:w-6 text-green-600" />
+                  <ThumbsUp className="h-6 w-6 text-green-600" />
                 </div>
               </CardContent>
             </Card>
@@ -347,13 +393,12 @@ export default function SupportAnalyticsPage() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Tickets by Category */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
-                <h3 className="text-sm sm:text-lg font-black text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-tight">
-                  <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                  By Category
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  Tickets by Category
                 </h3>
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {(stats.tickets_by_category ?? []).map((item) => {
                     const total = (stats.tickets_by_category ?? []).reduce(
                       (sum, i) => sum + i.count,
@@ -362,18 +407,18 @@ export default function SupportAnalyticsPage() {
                     const percentage =
                       total > 0 ? ((item.count / total) * 100).toFixed(1) : "0";
                     return (
-                      <div key={item.category} className="group/item">
-                        <div className="flex justify-between mb-2">
-                          <span className="text-xs font-bold text-gray-600 capitalize tracking-tight group-hover/item:text-indigo-600 transition-colors">
+                      <div key={item.category}>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-700 capitalize">
                             {item.category}
                           </span>
-                          <span className="text-[10px] font-black text-gray-400">
-                            {item.count} <span className="text-gray-300 mx-0.5">/</span> {percentage}%
+                          <span className="text-sm text-gray-600">
+                            {item.count} ({percentage}%)
                           </span>
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
-                            className="bg-indigo-600 h-1.5 rounded-full transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(79,70,229,0.3)]"
+                            className="bg-indigo-600 h-2 rounded-full"
                             style={{ width: `${percentage}%` }}
                           ></div>
                         </div>
@@ -385,58 +430,57 @@ export default function SupportAnalyticsPage() {
             </Card>
 
             {/* Tickets by Priority */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
-                <h3 className="text-sm sm:text-lg font-black text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-tight">
-                  <div className="w-1.5 h-6 bg-red-600 rounded-full"></div>
-                  By Priority & Status
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  Tickets by Priority & Status
                 </h3>
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {(stats.tickets_by_priority ?? []).map((item) => {
                     const total = item.open + item.in_progress + item.resolved;
                     return (
-                      <div key={item.priority} className="group/item">
+                      <div key={item.priority}>
                         <div className="flex justify-between mb-2">
-                          <span className="text-xs font-bold text-gray-600 uppercase tracking-tight">
+                          <span className="text-sm font-medium text-gray-700 uppercase">
                             {item.priority}
                           </span>
-                          <span className="text-[10px] font-black text-gray-400">
-                            TOTAL: {total}
+                          <span className="text-sm text-gray-600">
+                            Total: {total}
                           </span>
                         </div>
-                        <div className="flex h-2 rounded-full overflow-hidden bg-gray-100">
+                        <div className="flex h-3 rounded-full overflow-hidden">
                           <div
-                            className="bg-red-500 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.1)]"
+                            className="bg-red-500"
                             style={{ width: `${(item.open / total) * 100}%` }}
                             title={`Open: ${item.open}`}
                           ></div>
                           <div
-                            className="bg-amber-400 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.1)]"
+                            className="bg-yellow-500"
                             style={{
                               width: `${(item.in_progress / total) * 100}%`,
                             }}
                             title={`In Progress: ${item.in_progress}`}
                           ></div>
                           <div
-                            className="bg-emerald-500 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.1)]"
+                            className="bg-green-500"
                             style={{
                               width: `${(item.resolved / total) * 100}%`,
                             }}
                             title={`Resolved: ${item.resolved}`}
                           ></div>
                         </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                          <span className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        <div className="flex gap-3 mt-1 text-xs">
+                          <span className="text-gray-600">
+                            <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-1"></span>
                             Open: {item.open}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
-                            Working: {item.in_progress}
+                          <span className="text-gray-600">
+                            <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
+                            In Progress: {item.in_progress}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                            Done: {item.resolved}
+                          <span className="text-gray-600">
+                            <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                            Resolved: {item.resolved}
                           </span>
                         </div>
                       </div>
@@ -448,13 +492,12 @@ export default function SupportAnalyticsPage() {
           </div>
 
           {/* Response Time Trend */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <CardContent className="p-4 sm:p-6">
-              <h3 className="text-sm sm:text-lg font-black text-gray-900 mb-8 flex items-center gap-2 uppercase tracking-tight">
-                <div className="w-1.5 h-6 bg-slate-800 rounded-full"></div>
+          <Card className="border-0 shadow-lg">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-4">
                 Response Time Trend
               </h3>
-              <div className="h-48 sm:h-64 flex items-end gap-1 sm:gap-2">
+              <div className="h-64 flex items-end gap-2">
                 {(stats.response_time_trend ?? []).map((item, index) => {
                   const maxTime = Math.max(
                     ...(stats.response_time_trend ?? []).map((t) => t.time),
@@ -464,21 +507,21 @@ export default function SupportAnalyticsPage() {
                   return (
                     <div
                       key={index}
-                      className="flex-1 flex flex-col items-center group/bar"
+                      className="flex-1 flex flex-col items-center"
                     >
                       <div
-                        className={`w-full rounded-t-lg transition-all duration-500 ${item.time < 4
-                          ? "bg-emerald-500 group-hover/bar:bg-emerald-400"
+                        className={`w-full rounded-t ${item.time < 4
+                          ? "bg-green-500"
                           : item.time < 8
-                            ? "bg-amber-400 group-hover/bar:bg-amber-300"
-                            : "bg-red-500 group-hover/bar:bg-red-400"
-                          } shadow-sm`}
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
+                          }`}
                         style={{ height: `${height}%` }}
                         title={`${formatTime(item.time)} on ${item.date}`}
                       ></div>
-                      <span className="text-[9px] sm:text-xs font-bold text-gray-400 mt-3 whitespace-nowrap rotate-45 sm:rotate-0">
+                      <span className="text-xs text-gray-600 mt-2">
                         {new Date(item.date).toLocaleDateString(undefined, {
-                          month: "numeric",
+                          month: "short",
                           day: "numeric",
                         })}
                       </span>
@@ -486,55 +529,54 @@ export default function SupportAnalyticsPage() {
                   );
                 })}
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-10 pt-6 border-t border-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></div>
-                  <span>&lt; 4h</span>
+              <div className="flex items-center justify-center gap-4 mt-4 text-sm">
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-green-500 rounded"></div>
+                  <span className="text-gray-600">&lt; 4h</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 bg-amber-400 rounded-sm"></div>
-                  <span>4-8h</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+                  <span className="text-gray-600">4-8h</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 bg-red-500 rounded-sm"></div>
-                  <span>&gt; 8h</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-red-500 rounded"></div>
+                  <span className="text-gray-600">&gt; 8h</span>
                 </div>
-                <div className="hidden sm:block w-px h-4 bg-gray-200 mx-2"></div>
-                <div className="text-gray-900 border-b-2 border-indigo-600 pb-0.5">
-                  Target: 4H
+                <div className="border-l pl-4 ml-4">
+                  <span className="text-gray-600">Target: 4 hours</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Top 5 Tables */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Most Active Agents */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
-                <h3 className="text-sm sm:text-lg font-black text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-tight">
-                  <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                  Top Agents
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  Most Active Agents
                 </h3>
                 <div className="space-y-3">
                   {(stats.top_agents ?? []).map((agent, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-indigo-50 transition-colors group/item"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-gray-900 truncate">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
                           {agent.name}
                         </p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                        <p className="text-xs text-gray-600">
                           {agent.tickets_handled} tickets
                         </p>
                       </div>
                       <Badge
-                        className={`${agent.avg_response_time < 4
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
-                          } border-0 font-black text-[9px] px-1.5 py-0 h-5 tracking-tighter uppercase`}
+                        className={
+                          agent.avg_response_time < 4
+                            ? "bg-green-100 text-green-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }
                       >
                         {formatTime(agent.avg_response_time)}
                       </Badge>
@@ -545,27 +587,26 @@ export default function SupportAnalyticsPage() {
             </Card>
 
             {/* Most Common Issues */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
-                <h3 className="text-sm sm:text-lg font-black text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-tight">
-                  <div className="w-1.5 h-6 bg-red-500 rounded-full"></div>
-                  Common Issues
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  Most Common Issues
                 </h3>
                 <div className="space-y-3">
                   {(stats.common_issues ?? []).map((issue, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-red-50 transition-colors"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-gray-900 capitalize truncate">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 capitalize">
                           {issue.category}
                         </p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                        <p className="text-xs text-gray-600">
                           {issue.count} tickets
                         </p>
                       </div>
-                      <Badge className="bg-indigo-100 text-indigo-700 border-0 font-black text-[9px] px-1.5 py-0 h-5 tracking-tighter uppercase">
+                      <Badge className="bg-indigo-100 text-indigo-700">
                         {issue.percentage}%
                       </Badge>
                     </div>
@@ -575,28 +616,27 @@ export default function SupportAnalyticsPage() {
             </Card>
 
             {/* Users with Most Tickets */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardContent className="p-4 sm:p-6">
-                <h3 className="text-sm sm:text-lg font-black text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-tight">
-                  <div className="w-1.5 h-6 bg-slate-800 rounded-full"></div>
-                  Top Users
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  Users with Most Tickets
                 </h3>
                 <div className="space-y-3">
                   {(stats.active_users ?? []).map((user, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-slate-100 transition-colors"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-gray-900 truncate">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
                           {user.name}
                         </p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                          {user.ticket_count} total
+                        <p className="text-xs text-gray-600">
+                          {user.ticket_count} total tickets
                         </p>
                       </div>
                       {user.open_count > 0 && (
-                        <Badge className="bg-red-100 text-red-700 border-0 font-black text-[10px] px-1.5 py-0 h-5 tracking-tighter uppercase">
+                        <Badge className="bg-red-100 text-red-700">
                           {user.open_count} open
                         </Badge>
                       )}

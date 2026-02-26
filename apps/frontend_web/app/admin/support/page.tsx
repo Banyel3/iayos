@@ -88,12 +88,12 @@ export default function SupportPage() {
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <main className={mainClass}>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="text-center sm:text-left">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
               Help & Support
             </h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
+            <p className="text-muted-foreground">
               Get help and support for platform administration
             </p>
           </div>
@@ -102,7 +102,6 @@ export default function SupportPage() {
             variant="outline"
             size="sm"
             disabled={loading}
-            className="w-full sm:w-auto h-10 sm:h-9 rounded-xl sm:rounded-md"
           >
             <RefreshCw
               className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
@@ -111,131 +110,125 @@ export default function SupportPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="rounded-2xl border-0 shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
                 Open Tickets
               </CardTitle>
-              <HelpCircle className="h-4 w-4 text-blue-500" />
+              <HelpCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-black">
+            <CardContent>
+              <div className="text-2xl font-bold">
                 {loading ? "..." : (stats?.open_tickets ?? 0)}
               </div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
+              <p className="text-xs text-muted-foreground">
                 of {stats?.total_tickets ?? 0} total
               </p>
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border-0 shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
                 Response Time
               </CardTitle>
-              <Clock className="h-4 w-4 text-green-500" />
+              <Clock className="h-4 w-4 text-green-600" />
             </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-black">
+            <CardContent>
+              <div className="text-2xl font-bold">
                 {loading ? "..." : formatTime(stats?.avg_response_time ?? 0)}
               </div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Average response</p>
+              <p className="text-xs text-muted-foreground">Average response</p>
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border-0 shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
                 Resolution Rate
               </CardTitle>
-              <CheckCircle className="h-4 w-4 text-amber-500" />
+              <CheckCircle className="h-4 w-4 text-blue-600" />
             </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-black">
+            <CardContent>
+              <div className="text-2xl font-bold">
                 {loading ? "..." : `${stats?.resolution_rate ?? 0}%`}
               </div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Issues resolved</p>
+              <p className="text-xs text-muted-foreground">Issues resolved</p>
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border-0 shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-              <CardTitle className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
                 Satisfaction
               </CardTitle>
-              <Star className="h-4 w-4 text-purple-500" />
+              <Star className="h-4 w-4 text-purple-600" />
             </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-black">
+            <CardContent>
+              <div className="text-2xl font-bold">
                 {loading
                   ? "..."
                   : (stats?.satisfaction_rate?.toFixed(1) ?? "0.0")}
               </div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Out of 5.0</p>
+              <p className="text-xs text-muted-foreground">Out of 5.0</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="rounded-2xl border-0 shadow-md">
-            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
-              <CardTitle className="text-lg sm:text-xl font-bold">Contact Support</CardTitle>
-              <CardDescription className="text-xs sm:text-sm font-medium">
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Support</CardTitle>
+              <CardDescription>
                 Get in touch with our support team
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4 pt-0">
-              <div className="flex items-center space-x-3 p-3 sm:p-4 bg-gray-50 border border-gray-100 rounded-2xl group hover:border-blue-100 transition-all">
-                <div className="p-2 bg-blue-100 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <Mail className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 text-sm sm:text-base">Email Support</div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                <Mail className="h-5 w-5 text-blue-600" />
+                <div>
+                  <div className="font-medium">Email Support</div>
+                  <div className="text-sm text-muted-foreground">
                     support@iayos.com
                   </div>
                 </div>
-                <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl border-2 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                <Button variant="outline" size="sm">
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="flex items-center space-x-3 p-3 sm:p-4 bg-gray-50 border border-gray-100 rounded-2xl group hover:border-green-100 transition-all">
-                <div className="p-2 bg-green-100 text-green-600 rounded-xl group-hover:bg-green-600 group-hover:text-white transition-colors">
-                  <Phone className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 text-sm sm:text-base">Phone Support</div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">
+              <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                <Phone className="h-5 w-5 text-green-600" />
+                <div>
+                  <div className="font-medium">Phone Support</div>
+                  <div className="text-sm text-muted-foreground">
                     +63 (917) 123-4567
                   </div>
                 </div>
-                <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl border-2 hover:bg-green-50 hover:text-green-600 transition-colors">
+                <Button variant="outline" size="sm">
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="flex items-center space-x-3 p-3 sm:p-4 bg-gray-50 border border-gray-100 rounded-2xl group hover:border-purple-100 transition-all">
-                <div className="p-2 bg-purple-100 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                  <MessageSquare className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 text-sm sm:text-base">Live Chat</div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">
+              <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                <MessageSquare className="h-5 w-5 text-purple-600" />
+                <div>
+                  <div className="font-medium">Live Chat</div>
+                  <div className="text-sm text-muted-foreground">
                     Available 24/7
                   </div>
                 </div>
-                <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl border-2 hover:bg-purple-50 hover:text-purple-600 transition-colors">
+                <Button variant="outline" size="sm">
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-0 shadow-md">
-            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
-              <CardTitle className="text-lg sm:text-xl font-bold">Quick Help</CardTitle>
-              <CardDescription className="text-xs sm:text-sm font-medium">Common questions and resources</CardDescription>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Help</CardTitle>
+              <CardDescription>Common questions and resources</CardDescription>
             </CardHeader>
-            <CardContent className="p-4 sm:p-6 space-y-2.5 sm:space-y-3 pt-0">
+            <CardContent className="space-y-4">
               {[
                 "How to manage user accounts?",
                 "Setting up payment processing",
@@ -245,10 +238,10 @@ export default function SupportPage() {
               ].map((question, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 sm:p-3.5 bg-gray-50 border border-gray-100 rounded-2xl group hover:border-blue-100 transition-all"
+                  className="flex items-center justify-between p-3 border rounded-lg"
                 >
-                  <span className="text-xs sm:text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors">{question}</span>
-                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl border-2 shrink-0 ml-3 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                  <span className="text-sm">{question}</span>
+                  <Button variant="outline" size="sm">
                     <HelpCircle className="h-4 w-4" />
                   </Button>
                 </div>

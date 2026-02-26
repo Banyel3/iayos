@@ -53,7 +53,7 @@ const ACTION_TYPES = [
 ];
 
 export default function AuditLogsPage() {
-  const mainClass = useMainContentClass("p-4 sm:p-8 min-h-screen");
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -233,24 +233,24 @@ export default function AuditLogsPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}
-        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-slate-600 via-gray-700 to-zinc-700 p-6 sm:p-8 shadow-xl">
+        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-slate-600 via-gray-700 to-zinc-700 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-slate-500 opacity-20 blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-zinc-500 opacity-20 blur-3xl pointer-events-none"></div>
 
-          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div className="text-center sm:text-left">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm mx-auto sm:mx-0">
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm">
                 <FileText className="h-4 w-4 text-white" />
-                <span className="text-xs sm:text-sm font-medium text-white">
+                <span className="text-sm font-medium text-white">
                   Activity Monitor
                 </span>
               </div>
-              <h1 className="mb-2 text-2xl sm:text-4xl font-black text-white uppercase tracking-tight">Audit Logs</h1>
-              <p className="text-sm sm:text-lg text-slate-100 font-medium opacity-90 max-w-2xl">
+              <h1 className="mb-2 text-4xl font-bold text-white">Audit Logs</h1>
+              <p className="text-lg text-slate-100">
                 Track administrator actions and system events
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex gap-3">
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm">
                 <div className="flex items-center gap-2">
                   <button
@@ -401,7 +401,7 @@ export default function AuditLogsPage() {
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto hidden lg:block">
+            <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -501,56 +501,6 @@ export default function AuditLogsPage() {
                   )}
                 </tbody>
               </table>
-            </div>
-
-            {/* Mobile Cards Layout */}
-            <div className="block lg:hidden divide-y divide-gray-100">
-              {logs.length === 0 ? (
-                <div className="p-12 text-center">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-500 font-medium">No logs found</p>
-                  <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
-                </div>
-              ) : (
-                logs.map((log) => (
-                  <div key={log.id} className="p-4 bg-white hover:bg-gray-50 flex flex-col gap-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-gray-400 shrink-0" />
-                        <h3 className="text-sm font-black text-gray-900 truncate max-w-[200px]">
-                          {log.admin_email}
-                        </h3>
-                      </div>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase border tracking-widest shrink-0 ${getActionBadgeColor(log.action)}`}>
-                        {formatActionLabel(log.action)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-600 line-clamp-2">
-                        {typeof log.details === "string" ? log.details : JSON.stringify(log.details).substring(0, 100)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
-                          <Clock className="h-3 w-3 text-gray-400 shrink-0" />
-                          {getTimeAgo(log.timestamp)}
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => handleViewDetail(log)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-slate-600 hover:text-slate-700 hover:bg-slate-50 shrink-0"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </CardContent>
 

@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  useState, useEffect
-} from "react";
+  useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -201,22 +200,22 @@ export default function JobRequestsPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
               <div className="flex items-center gap-3 mb-2">
-                <Send className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Job Requests</h1>
+                <Send className="h-8 w-8" />
+                <h1 className="text-4xl font-bold">Job Requests</h1>
               </div>
-              <p className="text-blue-100 text-sm sm:text-lg">
+              <p className="text-blue-100 text-lg">
                 Direct hire invitations sent to specific workers or agencies
               </p>
             </div>
           </div>
 
           {/* Modern Summary Cards */}
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -228,7 +227,7 @@ export default function JobRequestsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Requests
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-gray-900">
+                <p className="text-3xl font-bold text-gray-900">
                   {jobs.length}
                 </p>
               </CardContent>
@@ -245,7 +244,7 @@ export default function JobRequestsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Pending
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-yellow-600">
+                <p className="text-3xl font-bold text-yellow-600">
                   {
                     jobs.filter(
                       (job) =>
@@ -267,7 +266,7 @@ export default function JobRequestsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Accepted
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-green-600">
+                <p className="text-3xl font-bold text-green-600">
                   {
                     jobs.filter(
                       (job) =>
@@ -289,7 +288,7 @@ export default function JobRequestsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Rejected
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-red-600">
+                <p className="text-3xl font-bold text-red-600">
                   {
                     jobs.filter(
                       (job) => job.invite_status?.toUpperCase() === "REJECTED",
@@ -342,8 +341,8 @@ export default function JobRequestsPage() {
                 key={job.id}
                 className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
               >
-                <CardContent className="relative p-4 sm:p-6">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                <CardContent className="relative p-6">
+                  <div className="flex items-start justify-between gap-6">
                     <div className="flex-1 space-y-4">
                       <div className="space-y-3">
                         <div className="flex items-start gap-3 flex-wrap">
@@ -462,7 +461,7 @@ export default function JobRequestsPage() {
                       </div>
                     </div>
 
-                    <div className="flex md:flex-col gap-2 sm:gap-3">
+                    <div className="flex flex-col gap-3">
                       <Link href={`/admin/jobs/listings/${job.id}`}>
                         <Button
                           size="sm"

@@ -440,36 +440,55 @@ export default function WithdrawalsPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex items-center gap-3 mb-1 sm:mb-2">
-                <Wallet className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Withdrawal Requests</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <Wallet className="h-8 w-8" />
+                <h1 className="text-4xl font-bold">Withdrawal Requests</h1>
               </div>
-              <p className="text-orange-100 text-sm sm:text-lg">
-                Manually process pending withdrawal requests - GCash, Bank Transfers, and PayPal
+              <p className="text-orange-100 text-lg">
+                Manually process pending withdrawal requests - GCash, Bank
+                Transfers, and PayPal
               </p>
             </div>
           </div>
 
           {/* Alert Banner for Manual Processing */}
           <Card className="border-l-4 border-l-amber-500 bg-amber-50">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-start gap-3 sm:gap-4">
-                <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-1" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-amber-900 mb-1 sm:mb-2 text-ellipsis overflow-hidden">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <AlertCircle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-1" />
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-amber-900 mb-2">
                     Manual Processing Required
                   </h3>
-                  <p className="text-amber-800 text-xs sm:text-sm mb-3 sm:mb-4">
-                    All withdrawal requests require manual approval and fund transfer.
+                  <p className="text-amber-800 mb-4">
+                    All withdrawal requests require manual approval and fund
+                    transfer. Follow these steps:
                   </p>
-                  <ol className="list-decimal list-inside space-y-1 sm:space-y-2 text-amber-800 text-[11px] sm:text-sm">
-                    <li>Send money to recipient number/account</li>
-                    <li>Mark as Completed to update status</li>
-                    <li>Reject if there is an issue</li>
+                  <ol className="list-decimal list-inside space-y-2 text-amber-800 text-sm">
+                    <li>
+                      <strong>GCash:</strong> Send money via GCash app to the
+                      recipient's number
+                    </li>
+                    <li>
+                      <strong>Bank Transfer:</strong> Use InstaPay/PESONet to
+                      transfer funds to the bank account
+                    </li>
+                    <li>
+                      <strong>PayPal:</strong> Send payment via PayPal to the
+                      recipient's email
+                    </li>
+                    <li>
+                      After sending funds, click "Mark as Completed" to update
+                      the status
+                    </li>
+                    <li>
+                      If there's an issue, click "Reject" to refund the amount
+                      to user's wallet
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -478,60 +497,61 @@ export default function WithdrawalsPage() {
 
           {/* Statistics Cards */}
           {statistics && (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-amber-100 rounded-xl">
-                      <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
+                    <div className="p-3 bg-amber-100 rounded-xl">
+                      <Clock className="h-6 w-6 text-amber-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     {(statistics?.pending_withdrawals ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Pending Requests</p>
+                  <p className="text-sm text-gray-600 mt-1">Pending Requests</p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-orange-100 rounded-xl">
-                      <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+                    <div className="p-3 bg-orange-100 rounded-xl">
+                      <Wallet className="h-6 w-6 text-orange-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     ₱{(statistics?.pending_amount ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Pending Amount</p>
+                  <p className="text-sm text-gray-600 mt-1">Pending Amount</p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-green-100 rounded-xl">
-                      <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                    <div className="p-3 bg-green-100 rounded-xl">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     {(statistics?.completed_today ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Completed Today</p>
+                  <p className="text-sm text-gray-600 mt-1">Completed Today</p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-emerald-100 rounded-xl">
-                      <Download className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600" />
+                    <div className="p-3 bg-emerald-100 rounded-xl">
+                      <Download className="h-6 w-6 text-emerald-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
-                    ₱{(statistics?.completed_amount_today ?? 0).toLocaleString()}
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
+                    ₱
+                    {(statistics?.completed_amount_today ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                     Completed Amount Today
                   </p>
                 </CardContent>
@@ -542,50 +562,50 @@ export default function WithdrawalsPage() {
           {/* Filters */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
                     type="text"
-                    placeholder="Search user, email, or account..."
+                    placeholder="Search by user name, email, or account number..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                    className="pl-10 w-full h-11 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
+                    className="pl-10 w-full h-10"
                   />
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-white pl-3 pr-8 h-11 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none text-sm font-medium text-gray-700"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="PENDING">Pending</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="FAILED">Failed</option>
-                  </select>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="bg-white pl-3 pr-8 h-11 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none text-sm font-medium text-gray-700"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="GCASH">GCash</option>
-                    <option value="BANK">Bank Transfer</option>
-                    <option value="PAYPAL">PayPal</option>
-                    <option value="VISA">Visa/Credit Card</option>
-                    <option value="GRABPAY">GrabPay</option>
-                    <option value="MAYA">Maya</option>
-                  </select>
-                  <Button
-                    onClick={fetchWithdrawals}
-                    className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 text-white h-11 rounded-xl bg-blue-600 hover:bg-blue-700"
-                  >
-                    <RefreshCcw className="h-4 w-4" />
-                    Refresh
-                  </Button>
-                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-white pl-4 pr-14 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
+                >
+                  <option value="all">All Status</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="bg-white pl-4 pr-14 h-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
+                >
+                  <option value="all">All Types</option>
+                  <option value="GCASH">GCash</option>
+                  <option value="BANK">Bank Transfer</option>
+                  <option value="PAYPAL">PayPal</option>
+                  <option value="VISA">Visa/Credit Card</option>
+                  <option value="GRABPAY">GrabPay</option>
+                  <option value="MAYA">Maya</option>
+                </select>
+                <Button
+                  onClick={fetchWithdrawals}
+                  className="flex items-center gap-2 text-white h-10 px-6"
+                >
+                  <RefreshCcw className="h-4 w-4 text-white" />
+                  Refresh
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -612,83 +632,108 @@ export default function WithdrawalsPage() {
                   key={withdrawal.id || withdrawal.transaction_id}
                   className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
                 >
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-4">
-                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate max-w-[200px] sm:max-w-none">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <h3 className="text-lg font-semibold text-gray-900">
                             {withdrawal.user?.name ||
                               withdrawal.user_name ||
                               "Unknown"}
                           </h3>
-                          <div className="flex flex-wrap gap-2">
-                            {getStatusBadge(withdrawal.status)}
-                            {getPaymentMethodBadge(
-                              withdrawal.payment_method?.type ||
-                              withdrawal.payment_method_type,
-                            )}
-                          </div>
+                          {getStatusBadge(withdrawal.status)}
+                          {getPaymentMethodBadge(
+                            withdrawal.payment_method?.type ||
+                            withdrawal.payment_method_type,
+                          )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8 text-xs sm:text-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
-                            <p className="text-gray-500 mb-0.5">User Details</p>
-                            <p className="font-medium text-gray-900 truncate">
-                              {withdrawal.user?.email || withdrawal.user_email || "N/A"}
+                            <p className="text-gray-600">Email</p>
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.user?.email ||
+                                withdrawal.user_email ||
+                                "N/A"}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-500 mb-0.5">Recipient</p>
-                            <p className="font-medium text-gray-900 truncate">
-                              {withdrawal.payment_method?.account_name || withdrawal.recipient_name || "N/A"}
+                            <p className="text-gray-600">Recipient Name</p>
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.payment_method?.account_name ||
+                                withdrawal.recipient_name ||
+                                "N/A"}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-500 mb-0.5">
-                              {(withdrawal.payment_method?.type || withdrawal.payment_method_type) === "GCASH"
+                            <p className="text-gray-600">
+                              {(withdrawal.payment_method?.type ||
+                                withdrawal.payment_method_type) === "GCASH"
                                 ? "GCash Number"
-                                : "Account Number"}
+                                : (withdrawal.payment_method?.type ||
+                                  withdrawal.payment_method_type) === "BANK"
+                                  ? "Account Number"
+                                  : "Account Number"}
                             </p>
-                            <p className="font-medium text-gray-900 font-mono tracking-tight">
-                              {withdrawal.payment_method?.account_number || withdrawal.account_number || "N/A"}
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.payment_method?.account_number ||
+                                withdrawal.account_number ||
+                                "N/A"}
                             </p>
                           </div>
                           {withdrawal.bank_name && (
                             <div>
-                              <p className="text-gray-500 mb-0.5">Bank Name</p>
-                              <p className="font-medium text-gray-900 truncate">
+                              <p className="text-gray-600">Bank Name</p>
+                              <p className="font-medium text-gray-900">
                                 {withdrawal.bank_name}
                               </p>
                             </div>
                           )}
                           <div>
-                            <p className="text-gray-500 mb-0.5">Created At</p>
-                            <p className="font-medium text-gray-900">
-                              {withdrawal.created_at ? new Date(withdrawal.created_at).toLocaleDateString() : "N/A"}
+                            <p className="text-gray-600">Reference Number</p>
+                            <p className="font-mono text-xs text-gray-700">
+                              {withdrawal.reference_number ||
+                                withdrawal.disbursement_id ||
+                                "N/A"}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-500 mb-0.5">Reference</p>
-                            <p className="font-mono text-[10px] text-gray-600 truncate">
-                              {withdrawal.reference_number || withdrawal.disbursement_id || "N/A"}
+                            <p className="text-gray-600">Created At</p>
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.created_at
+                                ? new Date(
+                                  withdrawal.created_at,
+                                ).toLocaleString()
+                                : "N/A"}
                             </p>
                           </div>
                         </div>
 
                         {(withdrawal.notes || withdrawal.description) && (
                           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                            <p className="text-[10px] text-gray-500 font-medium uppercase mb-1">Notes</p>
-                            <p className="text-xs sm:text-sm text-gray-900">
+                            <p className="text-xs text-gray-600 mb-1">Notes</p>
+                            <p className="text-sm text-gray-900">
                               {withdrawal.notes || withdrawal.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {withdrawal.admin_reference_number && (
+                          <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                            <p className="text-xs text-green-600 mb-1">
+                              Admin Reference #
+                            </p>
+                            <p className="text-sm font-mono text-green-800">
+                              {withdrawal.admin_reference_number}
                             </p>
                           </div>
                         )}
                       </div>
 
-                      <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-start gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                      <div className="ml-6 flex flex-col items-end gap-4">
                         <div className="text-right">
-                          <p className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase mb-0.5">Amount</p>
-                          <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                          <p className="text-sm text-gray-600">Amount</p>
+                          <p className="text-3xl font-bold text-gray-900">
                             ₱{(withdrawal.amount ?? 0).toLocaleString()}
                           </p>
                         </div>
@@ -697,17 +742,20 @@ export default function WithdrawalsPage() {
                           <div className="flex gap-2">
                             <Button
                               onClick={() => openApproveModal(withdrawal)}
-                              className="h-9 sm:h-10 bg-green-600 hover:bg-green-700 text-white flex items-center gap-1 sm:gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+                              className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                             >
-                              <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">Mark</span> Completed
+                              <CheckCircle className="h-4 w-4" />
+                              Mark Completed
                             </Button>
                             <Button
-                              onClick={() => handleReject(withdrawal.id || withdrawal.transaction_id || "")}
-                              variant="outline"
-                              className="h-9 sm:h-10 border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1 px-3 sm:px-4 text-xs sm:text-sm"
+                              onClick={() =>
+                                handleReject(
+                                  withdrawal.id || withdrawal.transaction_id || "",
+                                )
+                              }
+                              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
                             >
-                              <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                              <XCircle className="h-4 w-4" />
                               Reject
                             </Button>
                           </div>

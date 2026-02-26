@@ -37,7 +37,7 @@ interface TemplatesResponse {
 }
 
 export default function NotificationTemplatesPage() {
-  const mainClass = useMainContentClass("p-4 sm:p-8 min-h-screen");
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
@@ -228,21 +228,21 @@ export default function NotificationTemplatesPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}
-        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 sm:p-8 shadow-xl">
+        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-indigo-500 opacity-20 blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-pink-500 opacity-20 blur-3xl pointer-events-none"></div>
 
-          <div className="relative z-10 text-center sm:text-left">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm mx-auto sm:mx-0">
+          <div className="relative z-10">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm">
               <Mail className="h-4 w-4 text-white" />
-              <span className="text-xs sm:text-sm font-medium text-white">
+              <span className="text-sm font-medium text-white">
                 Communication Templates
               </span>
             </div>
-            <h1 className="mb-2 text-2xl sm:text-4xl font-black text-white uppercase tracking-tight">
+            <h1 className="mb-2 text-4xl font-bold text-white">
               Notification Templates
             </h1>
-            <p className="text-sm sm:text-lg text-purple-100 font-medium opacity-90 max-w-2xl mx-auto sm:mx-0">
+            <p className="text-lg text-purple-100">
               Manage email, SMS, and push notification templates
             </p>
           </div>
@@ -291,8 +291,8 @@ export default function NotificationTemplatesPage() {
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${template.is_active
-                              ? "translate-x-6"
-                              : "translate-x-1"
+                                ? "translate-x-6"
+                                : "translate-x-1"
                               }`}
                           />
                         </button>
@@ -356,8 +356,8 @@ export default function NotificationTemplatesPage() {
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${template.is_active
-                              ? "translate-x-6"
-                              : "translate-x-1"
+                                ? "translate-x-6"
+                                : "translate-x-1"
                               }`}
                           />
                         </button>
@@ -421,8 +421,8 @@ export default function NotificationTemplatesPage() {
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${template.is_active
-                              ? "translate-x-6"
-                              : "translate-x-1"
+                                ? "translate-x-6"
+                                : "translate-x-1"
                               }`}
                           />
                         </button>
@@ -480,9 +480,9 @@ export default function NotificationTemplatesPage() {
               </div>
 
               <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <div className="grid grid-cols-3 gap-6">
                   {/* Editor Section */}
-                  <div className="md:col-span-2 space-y-4">
+                  <div className="col-span-2 space-y-4">
                     {selectedTemplate.type === "email" && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -537,8 +537,8 @@ export default function NotificationTemplatesPage() {
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.is_active
-                            ? "translate-x-6"
-                            : "translate-x-1"
+                              ? "translate-x-6"
+                              : "translate-x-1"
                             }`}
                         />
                       </button>

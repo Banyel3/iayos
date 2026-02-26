@@ -289,22 +289,22 @@ export default function JobCategoriesPage() {
         <div className="max-w-7xl mx-auto space-y-8">
 
           {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="relative flex items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <Briefcase className="h-6 w-6 sm:h-8 sm:w-8" />
-                  <h1 className="text-2xl sm:text-4xl font-bold">Job Categories & Rates</h1>
+                  <Briefcase className="h-8 w-8" />
+                  <h1 className="text-4xl font-bold">Job Categories & Rates</h1>
                 </div>
-                <p className="text-blue-100 text-sm sm:text-lg">
+                <p className="text-blue-100 text-lg">
                   Minimum rates based on DOLE guidelines and industry standards
                 </p>
               </div>
               <button
                 onClick={openCreate}
-                className="flex items-center gap-2 bg-white text-blue-700 font-semibold px-5 py-2.5 rounded-xl shadow hover:bg-blue-50 hover:shadow-md transition-all shrink-0 self-start sm:self-auto text-sm"
+                className="flex items-center gap-2 bg-white text-blue-700 font-semibold px-5 py-2.5 rounded-xl shadow hover:bg-blue-50 hover:shadow-md transition-all shrink-0"
               >
                 <Plus className="h-5 w-5" />
                 Add Category
@@ -313,7 +313,7 @@ export default function JobCategoriesPage() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[
               { label: "Total Categories", value: totalCategories, icon: Target, color: "blue" },
               { label: "Avg Min Rate", value: `₱${avgMinRate}`, icon: Banknote, color: "emerald" },
@@ -328,7 +328,7 @@ export default function JobCategoriesPage() {
                     </div>
                   </div>
                   <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-                  <p className={`text-xl sm:text-3xl font-bold text-${color}-600`}>{value}</p>
+                  <p className={`text-3xl font-bold text-${color}-600`}>{value}</p>
                 </CardContent>
               </Card>
             ))}
@@ -378,8 +378,8 @@ export default function JobCategoriesPage() {
                 key={category.id}
                 className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
               >
-                <CardContent className="relative p-4 sm:p-6">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                <CardContent className="relative p-6">
+                  <div className="flex items-start justify-between gap-6">
                     <div className="flex-1 space-y-4">
                       <div className="space-y-3">
                         <div className="flex items-start gap-3 flex-wrap">
@@ -438,7 +438,7 @@ export default function JobCategoriesPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex md:flex-col gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => openEdit(category)}
                         className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors border border-blue-100"

@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  API_BASE
-} from "@/lib/api/config";
+  API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -321,7 +320,7 @@ export default function WorkerDetailPage() {
             Back to Workers
           </Button>
 
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 Worker Profile
@@ -333,22 +332,22 @@ export default function WorkerDetailPage() {
               <div className="flex gap-2">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${worker.status === "active" || worker.status === "verified"
-                    ? "bg-green-100 text-green-800"
-                    : worker.status === "banned"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-yellow-100 text-yellow-800"
+                      ? "bg-green-100 text-green-800"
+                      : worker.status === "banned"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-yellow-100 text-yellow-800"
                     }`}
                 >
                   {(worker.status || "inactive").toUpperCase()}
                 </span>
                 <span
                   className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${worker.kyc_status === "APPROVED"
-                    ? "bg-green-100 text-green-800"
-                    : worker.kyc_status === "PENDING"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : worker.kyc_status === "REJECTED"
-                        ? "bg-red-100 text-red-800"
-                        : "bg-gray-100 text-gray-600"
+                      ? "bg-green-100 text-green-800"
+                      : worker.kyc_status === "PENDING"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : worker.kyc_status === "REJECTED"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-600"
                     }`}
                 >
                   {worker.kyc_status === "APPROVED" && (
@@ -426,7 +425,7 @@ export default function WorkerDetailPage() {
         {/* Profile Overview Card */}
         <Card className="mb-6">
           <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+            <div className="flex items-start gap-6">
               {/* Avatar */}
               <div className="relative">
                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
@@ -442,7 +441,7 @@ export default function WorkerDetailPage() {
 
               {/* Info */}
               <div className="flex-1">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
                       {worker.full_name ||
@@ -451,7 +450,7 @@ export default function WorkerDetailPage() {
                     <p className="text-sm text-green-600 font-medium mt-1">
                       {worker.worker_data.availability_status || "Worker"}
                     </p>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Mail className="h-4 w-4" />
                         {worker.email}
@@ -480,7 +479,7 @@ export default function WorkerDetailPage() {
                 </div>
 
                 {/* Additional Info Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t">
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Member Since</p>
                     <div className="flex items-center gap-1 text-sm font-medium">
@@ -704,12 +703,12 @@ export default function WorkerDetailPage() {
                     <span className="text-gray-600">KYC Status</span>
                     <span
                       className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${worker.kyc_status === "APPROVED"
-                        ? "bg-green-100 text-green-800"
-                        : worker.kyc_status === "PENDING"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : worker.kyc_status === "REJECTED"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-gray-100 text-gray-800"
+                          ? "bg-green-100 text-green-800"
+                          : worker.kyc_status === "PENDING"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : worker.kyc_status === "REJECTED"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
                         }`}
                     >
                       {worker.kyc_status || "NOT_SUBMITTED"}
@@ -719,11 +718,11 @@ export default function WorkerDetailPage() {
                     <span className="text-gray-600">Account Status</span>
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-semibold ${worker.status === "active" ||
-                        worker.status === "verified"
-                        ? "bg-green-100 text-green-800"
-                        : worker.status === "banned"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
+                          worker.status === "verified"
+                          ? "bg-green-100 text-green-800"
+                          : worker.status === "banned"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-yellow-100 text-yellow-800"
                         }`}
                     >
                       {(worker.status || "inactive").toUpperCase()}

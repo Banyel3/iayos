@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  API_BASE
-} from "@/lib/api/config";
+  API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +39,7 @@ interface PlatformSettings {
 }
 
 export default function PlatformSettingsPage() {
-  const mainClass = useMainContentClass("p-4 sm:p-8 min-h-screen");
+  const mainClass = useMainContentClass("p-8 min-h-screen");
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -249,41 +248,41 @@ export default function PlatformSettingsPage() {
       <Sidebar />
       <main className={mainClass}>
         {/* Header */}
-        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-6 sm:p-8 shadow-xl">
+        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-xl">
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-blue-500 opacity-20 blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-indigo-500 opacity-20 blur-3xl pointer-events-none"></div>
 
-          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div className="text-center sm:text-left">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm mx-auto sm:mx-0">
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 backdrop-blur-sm">
                 <Settings className="h-4 w-4 text-white" />
-                <span className="text-xs sm:text-sm font-medium text-white">
+                <span className="text-sm font-medium text-white">
                   Platform Configuration
                 </span>
               </div>
-              <h1 className="mb-2 text-2xl sm:text-4xl font-black text-white uppercase tracking-tight">
+              <h1 className="mb-2 text-4xl font-bold text-white">
                 Platform Settings
               </h1>
-              <p className="text-sm sm:text-lg text-blue-100 font-medium opacity-90 max-w-2xl mx-auto sm:mx-0">
+              <p className="text-lg text-blue-100">
                 Configure system-wide settings, fees, and policies
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex gap-3">
               <Button
                 onClick={handleReset}
                 variant="secondary"
                 disabled={saving}
-                className="gap-2 bg-white/20 hover:bg-white/30 text-white border-white/30 w-full sm:w-auto"
+                className="gap-2 bg-white/20 hover:bg-white/30 text-white border-white/30"
               >
-                <RotateCcw className="h-4 w-4 shrink-0" />
-                Reset Defaults
+                <RotateCcw className="h-4 w-4" />
+                Reset to Defaults
               </Button>
               <Button
                 onClick={handleSave}
                 disabled={saving || !hasUnsavedChanges}
-                className="gap-2 bg-white text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
+                className="gap-2 bg-white text-blue-600 hover:bg-blue-50"
               >
-                <Save className="h-4 w-4 shrink-0" />
+                <Save className="h-4 w-4" />
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -343,7 +342,7 @@ export default function PlatformSettingsPage() {
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               {/* Platform Fee */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Platform Fee Percentage
@@ -413,7 +412,7 @@ export default function PlatformSettingsPage() {
               <div className="h-px bg-gray-200"></div>
 
               {/* Budget Limits */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Minimum Job Budget
@@ -511,16 +510,18 @@ export default function PlatformSettingsPage() {
                         !settings.worker_verification_required,
                       )
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.worker_verification_required
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.worker_verification_required
                         ? "bg-green-600"
                         : "bg-gray-300"
-                      }`}
+                    }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.worker_verification_required
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.worker_verification_required
                           ? "translate-x-6"
                           : "translate-x-1"
-                        }`}
+                      }`}
                     />
                   </button>
                 </div>
@@ -542,14 +543,16 @@ export default function PlatformSettingsPage() {
                         !settings.auto_approve_kyc,
                       )
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.auto_approve_kyc ? "bg-green-600" : "bg-gray-300"
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.auto_approve_kyc ? "bg-green-600" : "bg-gray-300"
+                    }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.auto_approve_kyc
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.auto_approve_kyc
                           ? "translate-x-6"
                           : "translate-x-1"
-                        }`}
+                      }`}
                     />
                   </button>
                 </div>
@@ -579,21 +582,23 @@ export default function PlatformSettingsPage() {
                             !settings.kyc_require_user_confirmation,
                           )
                         }
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.kyc_require_user_confirmation
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          settings.kyc_require_user_confirmation
                             ? "bg-blue-600"
                             : "bg-gray-300"
-                          }`}
+                        }`}
                       >
                         <span
-                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${settings.kyc_require_user_confirmation
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            settings.kyc_require_user_confirmation
                               ? "translate-x-5"
                               : "translate-x-1"
-                            }`}
+                          }`}
                         />
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Min. Confidence Score
@@ -729,14 +734,16 @@ export default function PlatformSettingsPage() {
                         );
                       }
                     }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.maintenance_mode ? "bg-red-600" : "bg-gray-300"
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.maintenance_mode ? "bg-red-600" : "bg-gray-300"
+                    }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.maintenance_mode
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.maintenance_mode
                           ? "translate-x-6"
                           : "translate-x-1"
-                        }`}
+                      }`}
                     />
                   </button>
                 </div>
@@ -745,7 +752,7 @@ export default function PlatformSettingsPage() {
               <div className="h-px bg-gray-200"></div>
 
               {/* Other System Settings */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Session Timeout

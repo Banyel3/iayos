@@ -351,15 +351,15 @@ export default function TransactionsPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex items-center gap-3 mb-1 sm:mb-2">
-                <Banknote className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Transactions</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <Banknote className="h-8 w-8" />
+                <h1 className="text-4xl font-bold">Transactions</h1>
               </div>
-              <p className="text-blue-100 text-sm sm:text-lg">
+              <p className="text-blue-100 text-lg">
                 Monitor all payment transactions and financial flows
               </p>
             </div>
@@ -367,76 +367,76 @@ export default function TransactionsPage() {
 
           {/* Statistics Cards */}
           {statistics && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-blue-100 rounded-xl">
-                      <Banknote className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <Banknote className="h-6 w-6 text-blue-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     {statistics?.total_transactions?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                     Total Transactions
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-green-100 rounded-xl">
-                      <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                    <div className="p-3 bg-green-100 rounded-xl">
+                      <TrendingUp className="h-6 w-6 text-green-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     ₱{statistics?.total_revenue?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Total Revenue</p>
+                  <p className="text-sm text-gray-600 mt-1">Total Revenue</p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-yellow-100 rounded-xl">
-                      <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
+                    <div className="p-3 bg-yellow-100 rounded-xl">
+                      <Clock className="h-6 w-6 text-yellow-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     ₱{statistics?.escrow_held?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Escrow Held</p>
+                  <p className="text-sm text-gray-600 mt-1">Escrow Held</p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-orange-100 rounded-xl">
-                      <RefreshCcw className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+                    <div className="p-3 bg-orange-100 rounded-xl">
+                      <RefreshCcw className="h-6 w-6 text-orange-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     ₱{statistics?.refunded_amount?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Refunded</p>
+                  <p className="text-sm text-gray-600 mt-1">Refunded</p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
+                <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-purple-100 rounded-xl">
-                      <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                      <Wallet className="h-6 w-6 text-purple-600" />
                     </div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
+                  <p className="text-3xl font-bold text-gray-900 mt-4">
                     {statistics?.pending_count?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Pending</p>
+                  <p className="text-sm text-gray-600 mt-1">Pending</p>
                 </CardContent>
               </Card>
             </div>
@@ -455,7 +455,7 @@ export default function TransactionsPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && fetchTransactions()}
-                    className="pl-12 h-11 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
+                    className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
                   />
                 </div>
 
@@ -463,7 +463,8 @@ export default function TransactionsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Status</option>
                   <option value="completed">Completed</option>
@@ -476,7 +477,8 @@ export default function TransactionsPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
+                  className="pl-4 pr-14 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none"
+                  style={{ backgroundPosition: "calc(100% - 16px) center" }}
                 >
                   <option value="all">All Types</option>
                   <option value="ESCROW">Escrow</option>
@@ -489,7 +491,7 @@ export default function TransactionsPage() {
                 {/* Export Button */}
                 <Button
                   onClick={exportToCSV}
-                  className="h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm"
+                  className="h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export CSV
@@ -497,27 +499,27 @@ export default function TransactionsPage() {
               </div>
 
               {/* Date Range */}
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div>
-                  <label className="text-[11px] sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2 block">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
                     From Date
                   </label>
                   <Input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="h-10 sm:h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl text-xs sm:text-sm px-2"
+                    className="h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2 block">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
                     To Date
                   </label>
                   <Input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="h-10 sm:h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl text-xs sm:text-sm px-2"
+                    className="h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
                   />
                 </div>
               </div>
@@ -525,197 +527,144 @@ export default function TransactionsPage() {
           </Card>
 
           {/* Transactions Table */}
-          {/* Transactions List */}
-          <Card className="border-0 shadow-lg overflow-hidden">
+          <Card className="border-0 shadow-lg">
             <CardContent className="p-0">
-              {/* Desktop Table View */}
-              <div className="hidden md:block">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b-2 border-gray-200 bg-gray-50">
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">ID</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Type</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">User</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Amount</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Status</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Job</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Date</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Actions</th>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200 bg-gray-50">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        ID
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        Type
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        User
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        Amount
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        Job
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500 font-medium">
+                            No transactions found
+                          </p>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {transactions.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="px-6 py-12 text-center">
-                            <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-500 font-medium">No transactions found</p>
+                    ) : (
+                      transactions.map((transaction) => (
+                        <tr
+                          key={transaction.id}
+                          className="hover:bg-blue-50 transition-colors cursor-pointer"
+                          onClick={() =>
+                            router.push(
+                              `/admin/payments/transactions/${transaction.id}`,
+                            )
+                          }
+                        >
+                          <td className="px-6 py-4 text-sm font-mono text-gray-900">
+                            #{transaction.id}
+                          </td>
+                          <td className="px-6 py-4">
+                            {getTypeBadge(transaction.type)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            <div>
+                              <p className="font-medium">
+                                {transaction.user?.name || "Unknown"}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {transaction.user?.email || "-"}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                            ₱{(transaction.amount ?? 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            {getStatusBadge(transaction.status)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {transaction.job_title || transaction.job_id ? (
+                              <div>
+                                {transaction.job_title && (
+                                  <p className="font-medium text-gray-800 text-xs leading-tight">{transaction.job_title}</p>
+                                )}
+                                {transaction.job_id && (
+                                  <span className="font-mono text-blue-600 text-xs">#{transaction.job_id}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {new Date(
+                              transaction.created_at,
+                            ).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {/* Release button for pending earnings */}
+                              {transaction.type === "PENDING_EARNING" &&
+                                transaction.status === "PENDING" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReleasePayment(transaction);
+                                    }}
+                                    disabled={releasingId === transaction.id}
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                  >
+                                    {releasingId === transaction.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Unlock className="h-4 w-4 mr-1" />
+                                        Release
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(
+                                    `/admin/payments/transactions/${transaction.id}`,
+                                  );
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                View
+                                <ChevronRight className="h-4 w-4 ml-1" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
-                      ) : (
-                        transactions.map((transaction) => (
-                          <tr
-                            key={transaction.id}
-                            className="hover:bg-blue-50 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/admin/payments/transactions/${transaction.id}`)}
-                          >
-                            <td className="px-6 py-4 text-sm font-mono text-gray-900">#{transaction.id}</td>
-                            <td className="px-6 py-4">{getTypeBadge(transaction.type)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-700">
-                              <div>
-                                <p className="font-medium text-xs sm:text-sm">{transaction.user?.name || "Unknown"}</p>
-                                <p className="text-xs text-gray-500">{transaction.user?.email || "-"}</p>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                              ₱{(transaction.amount ?? 0).toLocaleString()}
-                            </td>
-                            <td className="px-6 py-4">{getStatusBadge(transaction.status)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {transaction.job_title || transaction.job_id ? (
-                                <div>
-                                  {transaction.job_title && (
-                                    <p className="font-medium text-gray-800 text-xs leading-tight">{transaction.job_title}</p>
-                                  )}
-                                  {transaction.job_id && (
-                                    <span className="font-mono text-blue-600 text-xs">#{transaction.job_id}</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {new Date(transaction.created_at).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                {transaction.type === "PENDING_EARNING" &&
-                                  transaction.status === "PENDING" && (
-                                    <Button
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleReleasePayment(transaction);
-                                      }}
-                                      disabled={releasingId === transaction.id}
-                                      className="bg-green-600 hover:bg-green-700 text-white"
-                                    >
-                                      {releasingId === transaction.id ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <Unlock className="h-4 w-4 mr-1" />
-                                          Release
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    router.push(`/admin/payments/transactions/${transaction.id}`);
-                                  }}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                                >
-                                  View
-                                  <ChevronRight className="h-4 w-4 ml-1" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="md:hidden divide-y divide-gray-100">
-                {transactions.length === 0 ? (
-                  <div className="px-6 py-12 text-center">
-                    <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">No transactions found</p>
-                  </div>
-                ) : (
-                  transactions.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="p-4 active:bg-gray-50 transition-colors"
-                      onClick={() => router.push(`/admin/payments/transactions/${transaction.id}`)}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="text-xs font-mono text-gray-500 mb-1">#{transaction.id}</p>
-                          <p className="font-semibold text-gray-900">₱{(transaction.amount ?? 0).toLocaleString()}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          {getStatusBadge(transaction.status)}
-                          <p className="text-[10px] text-gray-400">
-                            {new Date(transaction.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {getTypeBadge(transaction.type)}
-                      </div>
-
-                      <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] font-bold text-blue-600">U</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-800 truncate">{transaction.user?.name || "Unknown"}</p>
-                          </div>
-                        </div>
-
-                        {transaction.job_title && (
-                          <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-                            <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <span className="text-[10px] font-bold text-purple-600">J</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] sm:text-xs text-gray-600 truncate">{transaction.job_title}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end mt-3 gap-2">
-                        {transaction.type === "PENDING_EARNING" &&
-                          transaction.status === "PENDING" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleReleasePayment(transaction);
-                              }}
-                              disabled={releasingId === transaction.id}
-                              className="h-8 text-xs border-green-200 text-green-700 hover:bg-green-50"
-                            >
-                              {releasingId === transaction.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                "Release"
-                              )}
-                            </Button>
-                          )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 text-xs text-blue-600 hover:bg-blue-50"
-                        >
-                          View Details →
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>

@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  API_BASE
-} from "@/lib/api/config";
+  API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -376,7 +375,7 @@ export default function ClientDetailPage() {
             Back to Clients
           </Button>
 
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 Client Profile
@@ -452,7 +451,7 @@ export default function ClientDetailPage() {
         {/* Profile Overview Card */}
         <Card className="mb-6">
           <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+            <div className="flex items-start gap-6">
               {/* Avatar */}
               <div className="relative">
                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
@@ -468,7 +467,7 @@ export default function ClientDetailPage() {
 
               {/* Info */}
               <div className="flex-1">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
                       {client.full_name ||
@@ -480,7 +479,7 @@ export default function ClientDetailPage() {
                         {client.agency_info.employee_count} employees
                       </p>
                     )}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Mail className="h-4 w-4" />
                         {client.email}
@@ -509,7 +508,7 @@ export default function ClientDetailPage() {
                 </div>
 
                 {/* Additional Info Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t">
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Member Since</p>
                     <div className="flex items-center gap-1 text-sm font-medium">
@@ -706,8 +705,8 @@ export default function ClientDetailPage() {
                     {getStatusBadge(client.status)}
                   </div>
                   {client.kyc_status !== "APPROVED" && (
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       className="w-full mt-2"
                       onClick={() => router.push(`/admin/kyc/pending`)}
                     >

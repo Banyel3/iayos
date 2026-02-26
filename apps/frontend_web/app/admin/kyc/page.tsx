@@ -245,17 +245,17 @@ export default function KYCManagementPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <Shield className="h-6 w-6 sm:h-8 sm:w-8" />
-                    <h1 className="text-2xl sm:text-4xl font-bold">KYC Management</h1>
+                    <Shield className="h-8 w-8" />
+                    <h1 className="text-4xl font-bold">KYC Management</h1>
                   </div>
-                  <p className="text-blue-100 text-sm sm:text-lg">
+                  <p className="text-blue-100 text-lg">
                     Manage Know Your Customer verification processes
                   </p>
                 </div>
@@ -263,13 +263,13 @@ export default function KYCManagementPage() {
                   <Button
                     variant="outline"
                     onClick={() => router.push("/admin/kyc/audit")}
-                    className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm text-sm"
+                    className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
                   >
-                    <FileText className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                    <FileText className="mr-2 h-5 w-5" />
                     Audit Log
                   </Button>
-                  <Button className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm text-sm">
-                    <Download className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                  <Button className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm">
+                    <Download className="mr-2 h-5 w-5" />
                     Export Report
                   </Button>
                 </div>
@@ -278,7 +278,7 @@ export default function KYCManagementPage() {
           </div>
 
           {/* Modern Summary Cards with gradients */}
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -432,22 +432,22 @@ export default function KYCManagementPage() {
                         <div className="flex items-center space-x-2 mt-2">
                           <span
                             className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${record.userType === "worker"
-                              ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
-                              : record.userType === "agency"
-                                ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-                                : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
+                                ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
+                                : record.userType === "agency"
+                                  ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+                                  : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
                               }`}
                           >
                             {record.userType}
                           </span>
                           <span
                             className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${record.status === "approved"
-                              ? "bg-gradient-to-r from-green-500 to-green-600 text-white"
-                              : record.status === "rejected"
-                                ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
-                                : record.status === "under_review"
-                                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
-                                  : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
+                                ? "bg-gradient-to-r from-green-500 to-green-600 text-white"
+                                : record.status === "rejected"
+                                  ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
+                                  : record.status === "under_review"
+                                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
+                                    : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white"
                               }`}
                           >
                             {record.status.replace("_", " ")}
@@ -480,10 +480,10 @@ export default function KYCManagementPage() {
                           </div>
                           <span
                             className={`px-2 py-1 rounded-lg text-xs font-semibold ${doc.status === "approved"
-                              ? "bg-green-100 text-green-700"
-                              : doc.status === "rejected"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-yellow-100 text-yellow-700"
+                                ? "bg-green-100 text-green-700"
+                                : doc.status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-yellow-100 text-yellow-700"
                               }`}
                           >
                             {doc.status}

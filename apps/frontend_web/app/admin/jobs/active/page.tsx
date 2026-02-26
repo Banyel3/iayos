@@ -155,25 +155,25 @@ export default function ActiveJobsPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
               <div className="flex items-center gap-3 mb-2">
                 <div className="relative">
-                  <Activity className="h-6 w-6 sm:h-8 sm:w-8" />
+                  <Activity className="h-8 w-8" />
                   <div className="absolute -top-1 -right-1 h-3 w-3 bg-yellow-400 rounded-full animate-pulse"></div>
                 </div>
-                <h1 className="text-2xl sm:text-4xl font-bold">Active Jobs</h1>
+                <h1 className="text-4xl font-bold">Active Jobs</h1>
               </div>
-              <p className="text-blue-100 text-sm sm:text-lg">
+              <p className="text-blue-100 text-lg">
                 Jobs currently in progress with assigned workers
               </p>
             </div>
           </div>
 
           {/* Modern Summary Cards */}
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -185,7 +185,7 @@ export default function ActiveJobsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Active Now
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-gray-900">
+                <p className="text-3xl font-bold text-gray-900">
                   {jobs.length}
                 </p>
               </CardContent>
@@ -201,7 +201,7 @@ export default function ActiveJobsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Budget
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-purple-600">
+                <p className="text-3xl font-bold text-purple-600">
                   ₱{(totalBudget ?? 0).toLocaleString()}
                 </p>
               </CardContent>
@@ -217,7 +217,7 @@ export default function ActiveJobsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Workers Assigned
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-blue-600">
+                <p className="text-3xl font-bold text-blue-600">
                   {assignedWorkers}
                 </p>
               </CardContent>
@@ -234,7 +234,7 @@ export default function ActiveJobsPage() {
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Avg Budget
                 </p>
-                <p className="text-xl sm:text-3xl font-bold text-orange-600">
+                <p className="text-3xl font-bold text-orange-600">
                   ₱{avgBudget.toLocaleString()}
                 </p>
               </CardContent>
@@ -272,8 +272,8 @@ export default function ActiveJobsPage() {
                 key={job.id}
                 className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
               >
-                <CardContent className="relative p-4 sm:p-6">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                <CardContent className="relative p-6">
+                  <div className="flex items-start justify-between gap-6">
                     <div className="flex-1 space-y-4">
                       <div className="space-y-3">
                         <div className="flex items-start gap-3 flex-wrap">
@@ -394,7 +394,7 @@ export default function ActiveJobsPage() {
                       </div>
                     </div>
 
-                    <div className="flex md:flex-col gap-2 sm:gap-3">
+                    <div className="flex flex-col gap-3">
                       <Link href={`/admin/jobs/listings/${job.id}`}>
                         <Button
                           size="sm"

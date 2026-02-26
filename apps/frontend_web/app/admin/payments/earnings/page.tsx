@@ -215,15 +215,15 @@ export default function WorkerEarningsPage() {
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl text-center sm:text-left">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex flex-col sm:flex-row items-center sm:items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Worker Earnings</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <TrendingUp className="h-8 w-8" />
+                <h1 className="text-4xl font-bold">Worker Earnings</h1>
               </div>
-              <p className="text-blue-100 text-sm sm:text-lg">
+              <p className="text-blue-100 text-lg">
                 Manage payouts and worker earnings
               </p>
             </div>
@@ -233,56 +233,56 @@ export default function WorkerEarningsPage() {
           {statistics && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between mb-2 sm:mb-4">
-                    <div className="p-2 sm:p-3 bg-blue-100 rounded-xl">
-                      <Users className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                <CardContent className="p-6 relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <Users className="h-6 w-6 text-blue-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Workers</p>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-600 mb-1">Workers</p>
+                  <p className="text-3xl font-bold text-gray-900">
                     {statistics.total_workers_with_earnings}
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between mb-2 sm:mb-4">
-                    <div className="p-2 sm:p-3 bg-yellow-100 rounded-xl">
-                      <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
+                <CardContent className="p-6 relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-yellow-100 rounded-xl">
+                      <Clock className="h-6 w-6 text-yellow-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Pending Payout</p>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">
+                  <p className="text-sm text-gray-600 mb-1">Pending Payout</p>
+                  <p className="text-3xl font-bold text-gray-900">
                     ₱{(statistics.total_pending_payout ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between mb-2 sm:mb-4">
-                    <div className="p-2 sm:p-3 bg-green-100 rounded-xl">
-                      <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                <CardContent className="p-6 relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-green-100 rounded-xl">
+                      <CheckCircle2 className="h-6 w-6 text-green-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Total Paid Out</p>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">
+                  <p className="text-sm text-gray-600 mb-1">Total Paid Out</p>
+                  <p className="text-3xl font-bold text-gray-900">
                     ₱{(statistics.total_paid_out ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between mb-2 sm:mb-4">
-                    <div className="p-2 sm:p-3 bg-purple-100 rounded-xl">
-                      <Banknote className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+                <CardContent className="p-6 relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                      <Banknote className="h-6 w-6 text-purple-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Processed Today</p>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-600 mb-1">Processed Today</p>
+                  <p className="text-3xl font-bold text-gray-900">
                     {statistics.payouts_processed_today}
                   </p>
                 </CardContent>
@@ -294,206 +294,141 @@ export default function WorkerEarningsPage() {
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
               <form onSubmit={handleSearch} className="flex items-stretch gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by worker..."
-                    className="w-full pl-9 h-11 border-2 border-gray-200 focus:border-blue-500 rounded-xl text-sm"
-                  />
-                </div>
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by worker name or email..."
+                  className="flex-1 h-10 border-2 border-gray-200 focus:border-blue-500 rounded-xl"
+                />
                 <Button
                   type="submit"
-                  className="h-11 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md"
+                  className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
                 >
-                  <span className="hidden sm:inline mr-2">Search</span>
                   <Search className="h-4 w-4" />
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
-            {/* Desktop Table */}
-            <Card className="border-0 shadow-lg hidden md:block">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b-2 border-gray-100">
-                        <th className="text-left p-6 font-semibold text-gray-600 uppercase text-xs tracking-wider">
-                          Worker
-                        </th>
-                        <th className="text-left p-6 font-semibold text-gray-600 uppercase text-xs tracking-wider">
-                          Earnings
-                        </th>
-                        <th className="text-left p-6 font-semibold text-gray-600 uppercase text-xs tracking-wider">
-                          Stats
-                        </th>
-                        <th className="text-right p-6 font-semibold text-gray-600 uppercase text-xs tracking-wider">
-                          Actions
-                        </th>
+          {/* Workers Table */}
+          <Card className="border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Worker
+                      </th>
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Total Earnings
+                      </th>
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Pending Payout
+                      </th>
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Paid Out
+                      </th>
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Jobs Done
+                      </th>
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Rating
+                      </th>
+                      <th className="text-left p-4 font-semibold text-gray-700">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workers.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-12">
+                          <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600">No workers found</p>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {workers.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="text-center py-12">
-                            <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                            <p className="text-gray-500">No workers found</p>
+                    ) : (
+                      workers.map((worker) => (
+                        <tr
+                          key={worker.id}
+                          className="border-b border-gray-100 hover:bg-blue-50 transition-colors"
+                        >
+                          <td className="p-4">
+                            <p className="font-semibold text-gray-900">
+                              {worker.worker_name}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {worker.worker_email}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <p className="font-semibold text-gray-900">
+                              ₱{(worker.total_earnings ?? 0).toLocaleString()}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <Badge className="bg-yellow-100 text-yellow-700">
+                              ₱{(worker.pending_payout ?? 0).toLocaleString()}
+                            </Badge>
+                          </td>
+                          <td className="p-4">
+                            <p className="text-gray-900">
+                              ₱{(worker.paid_out ?? 0).toLocaleString()}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <p className="text-gray-900">
+                              {worker.jobs_completed}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <Badge className="bg-green-100 text-green-700">
+                              ⭐ {worker.average_rating.toFixed(1)}
+                            </Badge>
+                          </td>
+                          <td className="p-4">
+                            <Button
+                              onClick={() => openPayoutModal(worker)}
+                              disabled={worker.pending_payout === 0}
+                              className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:cursor-not-allowed"
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Process Payout
+                            </Button>
                           </td>
                         </tr>
-                      ) : (
-                        workers.map((worker) => (
-                          <tr
-                            key={worker.id}
-                            className="border-b border-gray-50 hover:bg-blue-50/50 transition-colors"
-                          >
-                            <td className="p-6">
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                                  {worker.worker_name.charAt(0)}
-                                </div>
-                                <div>
-                                  <p className="font-semibold text-gray-900">
-                                    {worker.worker_name}
-                                  </p>
-                                  <p className="text-sm text-gray-500">
-                                    {worker.worker_email}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-6">
-                              <div className="space-y-1">
-                                <p className="text-sm text-gray-600">
-                                  Total: <span className="font-bold">₱{worker.total_earnings.toLocaleString()}</span>
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-                                    ₱{worker.pending_payout.toLocaleString()} Pending
-                                  </Badge>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-6">
-                              <div className="flex gap-4">
-                                <div>
-                                  <p className="text-[10px] text-gray-500 uppercase">Jobs</p>
-                                  <p className="font-semibold text-gray-900">{worker.jobs_completed}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] text-gray-500 uppercase">Rating</p>
-                                  <p className="font-semibold text-green-600 text-sm">⭐ {worker.average_rating.toFixed(1)}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-6 text-right">
-                              <Button
-                                onClick={() => openPayoutModal(worker)}
-                                disabled={worker.pending_payout === 0}
-                                size="sm"
-                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
-                              >
-                                <Send className="h-3.5 w-3.5 mr-2" />
-                                Payout
-                              </Button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Mobile Cards */}
-            <div className="grid grid-cols-1 gap-4 md:hidden">
-              {workers.length === 0 ? (
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-12 text-center">
-                    <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No workers found</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                workers.map((worker) => (
-                  <Card key={worker.id} className="border-0 shadow-md overflow-hidden hover:shadow-lg transition-all">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                            {worker.worker_name.charAt(0)}
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-gray-900 truncate max-w-[150px]">{worker.worker_name}</h3>
-                            <p className="text-xs text-gray-500 truncate max-w-[150px]">{worker.worker_email}</p>
-                          </div>
-                        </div>
-                        <Badge className="bg-green-100 text-green-700 text-[10px]">
-                          ⭐ {worker.average_rating.toFixed(1)}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gray-50 rounded-xl">
-                        <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Pending</p>
-                          <p className="font-bold text-amber-600">₱{worker.pending_payout.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Paid</p>
-                          <p className="font-bold text-gray-900">₱{worker.paid_out.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Total</p>
-                          <p className="font-bold text-gray-900 text-xs">₱{worker.total_earnings.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Jobs</p>
-                          <p className="font-bold text-gray-900 text-xs">{worker.jobs_completed}</p>
-                        </div>
-                      </div>
-
-                      <Button
-                        onClick={() => openPayoutModal(worker)}
-                        disabled={worker.pending_payout === 0}
-                        className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md gap-2"
-                      >
-                        <Send className="h-4 w-4" />
-                        Process Payout
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Pagination */}
           <Card className="border-0 shadow-lg">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between gap-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
                 <Button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
                   variant="outline"
-                  className="h-10 px-3 sm:px-6 border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 rounded-xl text-xs sm:text-sm font-semibold"
+                  className="border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl"
                 >
                   Previous
                 </Button>
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline text-gray-500 text-sm">Page</span>
-                  <span className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center bg-blue-100 text-blue-700 rounded-lg font-bold text-sm">
+                <span className="text-gray-700 font-medium">
+                  Page{" "}
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg">
                     {page}
                   </span>
-                </div>
+                </span>
                 <Button
                   onClick={() => setPage((p) => p + 1)}
                   disabled={workers.length < pageSize}
                   variant="outline"
-                  className="h-10 px-3 sm:px-6 border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 rounded-xl text-xs sm:text-sm font-semibold"
+                  className="border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl"
                 >
                   Next
                 </Button>

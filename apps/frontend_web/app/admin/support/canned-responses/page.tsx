@@ -180,25 +180,25 @@ export default function CannedResponsesPage() {
       <main className={mainClass}>
         <div className="max-w-[1400px] mx-auto space-y-8">
           {/* Modern Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 p-8 text-white shadow-xl">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="text-center sm:text-left">
-                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <MessageCircle className="h-6 w-6 sm:h-8 sm:w-8" />
+                      <MessageCircle className="h-8 w-8" />
                     </div>
-                    <h1 className="text-2xl sm:text-4xl font-bold">Canned Responses</h1>
+                    <h1 className="text-4xl font-bold">Canned Responses</h1>
                   </div>
-                  <p className="text-purple-100 text-sm sm:text-lg">
+                  <p className="text-purple-100 text-lg">
                     Quick reply templates for common support questions
                   </p>
                 </div>
                 <Button
                   onClick={() => handleOpenModal()}
-                  className="w-full sm:w-auto bg-white text-purple-700 hover:bg-purple-50 h-10 sm:h-11 rounded-xl text-sm font-bold shadow-lg"
+                  className="bg-white text-purple-700 hover:bg-purple-50"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Response
@@ -209,26 +209,26 @@ export default function CannedResponsesPage() {
 
           {/* Filters */}
           <Card className="border-0 shadow-lg">
-            <CardContent className="p-4 sm:p-6">
+            <CardContent className="p-6">
               <div className="space-y-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
                     type="text"
-                    placeholder="Search templates..."
+                    placeholder="Search responses..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11 border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl"
+                    className="pl-10"
                   />
                 </div>
 
-                <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
+                <div className="flex flex-wrap gap-2">
                   {CATEGORIES.map((cat) => (
                     <Button
                       key={cat}
                       variant={categoryFilter === cat ? "default" : "outline"}
                       size="sm"
-                      className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${categoryFilter === cat ? "bg-purple-600 text-white shadow-md shadow-purple-100" : "text-gray-600 hover:bg-purple-50 hover:text-purple-600 border-2"}`}
+                      className={categoryFilter === cat ? "text-white" : ""}
                       onClick={() => setCategoryFilter(cat)}
                     >
                       {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -255,47 +255,47 @@ export default function CannedResponsesPage() {
               filteredResponses.map((response) => (
                 <Card
                   key={response.id}
-                  className="border-0 shadow-lg hover:shadow-xl transition-all group overflow-hidden"
+                  className="border-0 shadow-lg hover:shadow-xl transition-all"
                 >
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="space-y-4">
+                  <CardContent className="p-6">
+                    <div className="space-y-3">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-black text-base sm:text-lg text-gray-900 leading-tight group-hover:text-purple-600 transition-colors">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg text-gray-900">
                             {response.title}
                           </h3>
-                          <p className="text-xs sm:text-sm text-gray-500 mt-1.5 line-clamp-2 font-medium leading-relaxed">
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                             {response.content}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="bg-purple-100 text-purple-700 border-0 font-bold px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge className="bg-purple-100 text-purple-700">
                           {response.category}
                         </Badge>
-                        <Badge variant="outline" className="border-2 font-bold px-2 py-0.5 text-[10px] uppercase tracking-wider">
-                          Used {response.usage_count}x
+                        <Badge variant="outline">
+                          Used {response.usage_count} times
                         </Badge>
                         {response.shortcuts?.map((shortcut) => (
                           <Badge
                             key={shortcut}
                             variant="outline"
-                            className="bg-gray-50 border-2 font-black text-[9px] px-1.5 py-0.5 text-gray-400"
+                            className="text-xs"
                           >
                             {shortcut}
                           </Badge>
                         ))}
                       </div>
 
-                      <div className="flex gap-2 pt-2 border-t border-gray-50">
+                      <div className="flex gap-2 pt-2">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() =>
                             handleCopy(response.content, response.id)
                           }
-                          className={`flex-1 h-10 rounded-xl font-bold border-2 transition-all ${copiedId === response.id ? "bg-green-50 border-green-200 text-green-600" : "hover:bg-purple-50 hover:border-purple-200 hover:text-purple-600 border-gray-100"}`}
+                          className="flex-1"
                         >
                           {copiedId === response.id ? (
                             <>
@@ -310,18 +310,16 @@ export default function CannedResponsesPage() {
                           )}
                         </Button>
                         <Button
-                          size="icon"
+                          size="sm"
                           variant="outline"
                           onClick={() => handleOpenModal(response)}
-                          className="h-10 w-10 shrink-0 rounded-xl border-2 border-gray-100 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all"
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
                         <Button
-                          size="icon"
+                          size="sm"
                           variant="outline"
                           onClick={() => handleDelete(response.id)}
-                          className="h-10 w-10 shrink-0 rounded-xl border-2 border-gray-100 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
