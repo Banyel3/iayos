@@ -229,7 +229,7 @@ export default function CustomReportBuilder() {
                 <Button
                   onClick={() => setCurrentStep(2)}
                   disabled={selectedMetrics.length === 0}
-                  className="bg-indigo-600 hover:bg-indigo-700"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-black"
                 >
                   Next: Configure Filters{" "}
                   <ChevronRight className="h-4 w-4 ml-2" />
