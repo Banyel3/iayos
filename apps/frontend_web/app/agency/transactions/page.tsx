@@ -215,12 +215,12 @@ export default function AgencyTransactionsPage() {
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
             <p className="text-gray-600 mt-1">View and manage your wallet transactions</p>
           </div>
           <Button

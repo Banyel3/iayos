@@ -205,14 +205,14 @@ export default function AgencyDashboardPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Agency Dashboard</h1>
         <p className="text-muted-foreground mb-6">
           Simplified control panel focused on worker management and operations.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader className="flex items-center justify-between pb-2">
               <CardTitle className="text-sm text-gray-600">

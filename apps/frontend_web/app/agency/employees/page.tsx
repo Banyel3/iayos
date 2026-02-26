@@ -400,7 +400,7 @@ export default function EmployeesPage() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold mb-4">Employees</h1>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -452,11 +452,10 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Employee Management
           </h1>
           <p className="text-gray-600">
@@ -467,7 +466,7 @@ export default function EmployeesPage() {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-4 md:space-x-8 overflow-x-auto">
               <button
                 onClick={() => setActiveTab("employees")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "employees"
@@ -535,13 +534,13 @@ export default function EmployeesPage() {
                 if (eotm) {
                   return (
                     <Card className="border-yellow-200 bg-yellow-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-yellow-800">
+                      <CardHeader className="p-4 md:p-6">
+                        <CardTitle className="flex items-center gap-2 text-yellow-800 text-lg">
                           <Award className="h-5 w-5" />
                           Employee of the Month
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
                         <div className="flex items-start gap-4">
                           <img
                             src={
@@ -1228,7 +1227,6 @@ export default function EmployeesPage() {
             </Card>
           </div>
         )}
-      </div>
     </div>
   );
 }

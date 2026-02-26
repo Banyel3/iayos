@@ -171,13 +171,13 @@ export default function AgencySettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-50">
+    <div>
       {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-gray-700 to-slate-800 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r from-gray-700 to-slate-800 text-white -mx-4 lg:-mx-6 -mt-4 lg:-mt-6">
         <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-gray-600/20 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative px-8 py-10">
+        <div className="relative px-4 py-6 md:px-8 md:py-10">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -191,7 +191,7 @@ export default function AgencySettingsPage() {
               <Settings className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Settings</h1>
+              <h1 className="text-2xl font-bold">Settings</h1>
               <p className="text-gray-300 mt-1">
                 Manage your agency preferences
               </p>
@@ -201,7 +201,7 @@ export default function AgencySettingsPage() {
       </div>
 
       {/* Content */}
-      <div className="px-8 py-8 max-w-3xl mx-auto">
+      <div className="py-8 max-w-3xl mx-auto">
         {/* Appearance */}
         <SettingsSection title="Appearance">
           <SettingsRow

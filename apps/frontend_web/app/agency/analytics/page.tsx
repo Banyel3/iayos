@@ -50,10 +50,10 @@ export default function AnalyticsPage() {
 
   if (statsLoading || leaderboardLoading || trendsLoading) {
     return (
-      <div className="p-6">
+      <div>
         <div className="animate-pulse space-y-4">
           <div className="bg-gray-200 h-32 rounded-lg" />
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gray-200 h-32 rounded-lg" />
             <div className="bg-gray-200 h-32 rounded-lg" />
             <div className="bg-gray-200 h-32 rounded-lg" />
@@ -78,11 +78,11 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900">
             Analytics Dashboard
           </h1>
           <p className="text-gray-600 mt-1">Track performance and insights</p>

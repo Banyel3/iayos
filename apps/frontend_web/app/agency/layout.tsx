@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-// Import client sidebar dynamically
-import AgencySidebar from "./components/sidebar";
+import AgencyShell from "./components/AgencyShell";
 import KycGateClient from "./components/KycGateClient";
 
 export default async function AgencyLayout({
@@ -101,24 +100,15 @@ export default async function AgencyLayout({
   }
 
   return (
-    <div
-      className={`agency-theme min-h-screen flex bg-gray-50 ${
-        kycVerified ? "agency-verified" : ""
-      }`}
-    >
-      <div>
-        <AgencySidebar />
-      </div>
-      <main className="flex-1 p-6">
-        <KycGateClient
-          kycVerified={kycVerified}
-          hasSubmission={hasSubmission}
-          submissionStatus={submissionStatus}
-          submissionNotes={submissionNotes}
-        >
-          {children}
-        </KycGateClient>
-      </main>
-    </div>
+    <AgencyShell kycVerified={kycVerified}>
+      <KycGateClient
+        kycVerified={kycVerified}
+        hasSubmission={hasSubmission}
+        submissionStatus={submissionStatus}
+        submissionNotes={submissionNotes}
+      >
+        {children}
+      </KycGateClient>
+    </AgencyShell>
   );
 }

@@ -709,7 +709,7 @@ export default function AgencyJobsPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">Available Jobs</h1>
           <div className="flex items-center justify-center py-12">
@@ -724,22 +724,21 @@ export default function AgencyJobsPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        {/* Page Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Job Management
-          </h1>
-          <p className="text-gray-600">
-            Browse available jobs and manage direct invitations
-          </p>
-        </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Job Management
+        </h1>
+        <p className="text-gray-600">
+          Browse available jobs and manage direct invitations
+        </p>
+      </div>
 
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200 overflow-x-auto">
-            <nav className="-mb-px flex space-x-4 md:space-x-8 min-w-max">
+      {/* Tabs */}
+      <div>
+        <div className="border-b border-gray-200 overflow-x-auto">
+          <nav className="-mb-px flex space-x-4 md:space-x-8 min-w-max pb-px">
               <button
                 onClick={() => setActiveTab("invites")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${

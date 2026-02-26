@@ -233,21 +233,21 @@ export default function AgencyNotificationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div>
       {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 text-white -mx-4 lg:-mx-6 -mt-4 lg:-mt-6">
         <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative px-8 py-10">
-          <div className="flex items-center justify-between">
+        <div className="relative px-4 py-6 md:px-8 md:py-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-white/10 backdrop-blur-sm rounded-xl">
                 <BellRing className="h-8 w-8" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold">Notifications</h1>
+                <h1 className="text-2xl font-bold">Notifications</h1>
                 <p className="text-blue-100 mt-1">
                   Stay updated on your agency activities
                 </p>
@@ -279,7 +279,7 @@ export default function AgencyNotificationsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-4 mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
             <Card className="bg-white/10 border-white/20 backdrop-blur-sm">
               <CardContent className="p-4 text-center">
                 <p className="text-blue-100 text-sm">Total</p>
@@ -307,7 +307,7 @@ export default function AgencyNotificationsPage() {
       </div>
 
       {/* Content */}
-      <div className="px-8 py-6">
+      <div className="py-6">
         {/* Filters and Search */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           {/* Search */}

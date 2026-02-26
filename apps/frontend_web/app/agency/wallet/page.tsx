@@ -113,21 +113,21 @@ export default function AgencyWalletPage() {
   const recentTransactions = transactions.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
+    <div>
       {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 to-green-700 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 to-green-700 text-white -mx-4 lg:-mx-6 -mt-4 lg:-mt-6">
         <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-green-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative px-8 py-10">
-          <div className="flex items-center justify-between">
+        <div className="relative px-4 py-6 md:px-8 md:py-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-white/10 backdrop-blur-sm rounded-xl">
                 <Wallet className="h-8 w-8" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold">Wallet</h1>
+                <h1 className="text-2xl font-bold">Wallet</h1>
                 <p className="text-green-100 mt-1">Manage your agency finances</p>
               </div>
             </div>
@@ -171,12 +171,12 @@ export default function AgencyWalletPage() {
       </div>
 
       {/* Content */}
-      <div className="px-8 py-8">
+      <div className="py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Stats & Pending */}
           <div className="lg:col-span-2 space-y-6">
             {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Card className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-4 text-center">
                   <div className="p-2 bg-green-100 rounded-lg inline-block mb-2">
