@@ -290,7 +290,7 @@ export default function AgencyNotificationsPage() {
               <CardContent className="p-4 text-center">
                 <p className="text-blue-100 text-sm">Unread</p>
                 <p className="text-3xl font-bold text-yellow-300">
-                  {unreadCount}
+                  {unreadCount ?? 0}
                 </p>
               </CardContent>
             </Card>
@@ -298,7 +298,7 @@ export default function AgencyNotificationsPage() {
               <CardContent className="p-4 text-center">
                 <p className="text-blue-100 text-sm">Read</p>
                 <p className="text-3xl font-bold text-green-300">
-                  {notifications.length - unreadCount}
+                  {notifications.length - (unreadCount ?? 0)}
                 </p>
               </CardContent>
             </Card>
@@ -332,7 +332,7 @@ export default function AgencyNotificationsPage() {
                 className={filter === f ? "bg-blue-600" : ""}
               >
                 {f === "all" && "All"}
-                {f === "unread" && `Unread (${unreadCount})`}
+                {f === "unread" && `Unread (${unreadCount ?? 0})`}
                 {f === "read" && "Read"}
               </Button>
             ))}
@@ -359,7 +359,7 @@ export default function AgencyNotificationsPage() {
           </div>
 
           {/* Mark All Read */}
-          {unreadCount > 0 && (
+          {(unreadCount ?? 0) > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -463,7 +463,7 @@ export default function AgencyNotificationsPage() {
                           </div>
 
                           {/* Actions */}
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             {!notif.isRead && (
                               <Button
                                 variant="ghost"

@@ -145,7 +145,7 @@ export default function AgencyWalletPage() {
           {/* Balance Card */}
           <Card className="mt-8 bg-white/10 border-white/20 backdrop-blur-sm">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <p className="text-green-100 text-sm">Available Balance</p>
                   {isLoadingWallet ? (

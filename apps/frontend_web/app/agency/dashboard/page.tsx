@@ -277,16 +277,16 @@ export default function AgencyDashboardPage() {
         </div>
 
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
               <h2 className="text-lg font-semibold">Operations</h2>
               <p className="text-sm text-gray-600">Quick actions and status</p>
             </div>
-            <div className="space-x-2">
-              <Button onClick={() => router.push("/agency/employees")}>
+            <div className="flex gap-2">
+              <Button className="flex-1 sm:flex-none" onClick={() => router.push("/agency/employees")}>
                 Manage Employees
               </Button>
-              <Button onClick={() => router.push("/agency/jobs")}>
+              <Button className="flex-1 sm:flex-none" onClick={() => router.push("/agency/jobs")}>
                 Jobs & Assignments
               </Button>
             </div>
