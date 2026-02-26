@@ -499,7 +499,7 @@ export default function AgencyChatScreen() {
                 variant="outline"
                 className="text-blue-700 border-blue-300"
               >
-                ₱{job.budget.toLocaleString()}
+                ₱{(job.budget ?? 0).toLocaleString()}
               </Badge>
             </div>
             {/* Multi-employee display */}
