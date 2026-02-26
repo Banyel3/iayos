@@ -70,9 +70,9 @@ export function useSidebar() {
 export function useMainContentClass(additionalClasses?: string) {
   const { collapsed } = useSidebar();
   const baseClasses = "transition-all duration-[400ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]";
-  // On mobile (< md): small left padding for breathing room (sidebar is overlay drawer)
+  // On mobile (< md): symmetric horizontal padding for even spacing
   // On desktop (>= md): left padding to clear fixed sidebar
-  const paddingClass = collapsed ? "pl-4 md:pl-24" : "pl-4 md:pl-72";
+  const paddingClass = collapsed ? "px-4 md:pl-24" : "px-4 md:pl-72";
   // Add top padding on mobile for the mobile top bar
   const mobilePadding = "pt-16 md:pt-6";
   return `${baseClasses} ${paddingClass} ${mobilePadding} ${additionalClasses || ""}`.trim();
