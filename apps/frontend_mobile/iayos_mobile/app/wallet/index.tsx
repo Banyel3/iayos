@@ -37,6 +37,7 @@ import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useWallet, PendingEarningItem } from "@/lib/hooks/useWallet";
 import { useTransactions } from "@/lib/hooks/useTransactions";
 import TransactionCard from "@/components/TransactionCard";
+import PaymentReceiptModal from "@/components/PaymentReceiptModal";
 import EmptyState from "@/components/ui/EmptyState";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import Card from "@/components/ui/Card";
@@ -48,6 +49,8 @@ export default function WalletScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<TransactionFilter>("all");
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [receiptVisible, setReceiptVisible] = useState(false);
 
   // Fetch wallet data
   const {
@@ -429,8 +432,8 @@ export default function WalletScreen() {
                 key={`${transaction.id}-${index}`}
                 transaction={transaction}
                 onPress={() => {
-                  // Navigate to transaction details
-                  // router.push(`/wallet/transaction/${transaction.id}` as any);
+                  setSelectedTransaction(transaction);
+                  setReceiptVisible(true);
                 }}
               />
             ))}
@@ -452,6 +455,18 @@ export default function WalletScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Transaction Receipt Modal */}
+      {selectedTransaction && (
+        <PaymentReceiptModal
+          visible={receiptVisible}
+          receipt={selectedTransaction}
+          onClose={() => {
+            setReceiptVisible(false);
+            setSelectedTransaction(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

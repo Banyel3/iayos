@@ -273,6 +273,13 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 <Ionicons name="open-outline" size={18} color={Colors.primary} />
                 <Text style={styles.paymongoButtonText}>View on PayMongo</Text>
               </TouchableOpacity>
+            ) : receipt.payment_method?.toLowerCase() === "direct_test" ? (
+              <View style={styles.testModeNotice}>
+                <Ionicons name="flask-outline" size={16} color="#92400e" />
+                <Text style={styles.testModeNoticeText}>
+                  This transaction was processed in test mode. No PayMongo receipt is available.
+                </Text>
+              </View>
             ) : null}
             <TouchableOpacity
               style={[styles.actionButton, styles.downloadPdfButton]}
@@ -353,6 +360,23 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.medium as any,
     color: Colors.primary,
+  },
+  testModeNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.xs,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  testModeNoticeText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: "#92400e",
+    lineHeight: 18,
   },
   downloadPdfButton: {
     backgroundColor: Colors.primary,
