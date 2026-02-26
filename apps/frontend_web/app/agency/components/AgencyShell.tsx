@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import AgencySidebar from "./sidebar";
@@ -15,10 +15,22 @@ export default function AgencyShell({ children, kycVerified }: AgencyShellProps)
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close sidebar on route change
-  // useEffect(() => {
-  //   setSidebarOpen(false);
-  // }, [pathname]);
+  // Auto-close drawer when the route changes (user tapped a nav link)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll while drawer is open on mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
 
   return (
     <div
@@ -27,63 +39,77 @@ export default function AgencyShell({ children, kycVerified }: AgencyShellProps)
         kycVerified ? "agency-verified" : ""
       )}
     >
-      {/* Mobile Header */}
-      <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="font-bold text-lg text-blue-600">iAyos Agency</div>
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 -mr-2 text-gray-600 hover:text-gray-900 focus:outline-none"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
+      {/* Desktop sidebar — always visible on lg+ */}
+      <div className="hidden lg:flex lg:flex-shrink-0">
+        <AgencySidebar />
       </div>
 
-      {/* Sidebar - Desktop (Static) & Mobile (Overlay) */}
-      <div
-        className={cn(
-          "fixed inset-0 z-40 lg:static lg:z-auto transition-visibility duration-300",
-          sidebarOpen ? "visible" : "invisible lg:visible"
-        )}
-      >
-        {/* Mobile Overlay Backdrop */}
+      {/* Mobile overlay drawer */}
+      {sidebarOpen && (
         <div
-          className={cn(
-            "fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity duration-300 lg:hidden",
-            sidebarOpen ? "opacity-100" : "opacity-0"
-          )}
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-
-        {/* Sidebar Container */}
-        <div
-          className={cn(
-            "fixed inset-y-0 left-0 z-40 w-64 bg-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-screen lg:border-r lg:border-gray-200",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          )}
+          className="fixed inset-0 z-50 lg:hidden"
+          aria-modal="true"
+          role="dialog"
         >
-          {/* Mobile Close Button */}
-          <div className="absolute right-0 top-0 -mr-12 pt-2 lg:hidden">
-            <button
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <span className="sr-only">Close sidebar</span>
-              <X className="h-6 w-6 text-white" aria-hidden="true" />
-            </button>
-          </div>
-
-          <AgencySidebar 
-             className="h-full"
-             onMobileClose={() => setSidebarOpen(false)}
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
           />
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-4 lg:p-6">
-        {children}
-      </main>
+          {/* Drawer panel */}
+          <div className="absolute inset-y-0 left-0 flex flex-col w-[280px] max-w-[85vw] bg-white shadow-2xl">
+            {/* Drawer header: brand + close button */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
+              <span className="text-xl font-bold leading-none">
+                <span className="text-blue-600">iAyos</span>
+                <span className="text-gray-500 font-normal"> Agency</span>
+              </span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+                aria-label="Close navigation menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scrollable nav items */}
+            <div className="flex-1 overflow-y-auto">
+              <AgencySidebar
+                isMobileDrawer
+                onMobileClose={() => setSidebarOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Right side: mobile top header + page content */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Mobile top header */}
+        <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 -ml-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="font-bold text-base">
+            <span className="text-blue-600">iAyos</span>
+            <span className="text-gray-500 font-normal"> Agency</span>
+          </span>
+          {/* Spacer so title stays visually centred */}
+          <div className="w-9" aria-hidden="true" />
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 min-w-0 overflow-y-auto p-4 lg:p-6">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
