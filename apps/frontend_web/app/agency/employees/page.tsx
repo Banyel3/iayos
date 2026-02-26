@@ -880,7 +880,7 @@ export default function EmployeesPage() {
                             <div className="flex items-center gap-1">
                               <Star className="h-4 w-4 text-yellow-400" />
                               <span className="font-semibold">
-                                {entry.rating.toFixed(1)}
+                                {(entry.rating ?? 0).toFixed(1)}
                               </span>
                             </div>
                             <div className="text-xs text-gray-500">Rating</div>
@@ -898,7 +898,7 @@ export default function EmployeesPage() {
                             <div className="flex items-center gap-1">
                               <Banknote className="h-4 w-4 text-green-400" />
                               <span className="font-semibold">
-                                ₱{parseFloat(entry.total_earnings).toFixed(0)}
+                                ₱{parseFloat(entry.total_earnings || "0").toFixed(0)}
                               </span>
                             </div>
                             <div className="text-xs text-gray-500">
@@ -928,7 +928,7 @@ export default function EmployeesPage() {
                 <div className="flex items-center gap-2">
                   <Star className="h-8 w-8 text-yellow-400" />
                   <span className="text-3xl font-bold">
-                    {performanceStats?.rating.toFixed(1) || "N/A"}
+                    {performanceStats ? (performanceStats.rating ?? 0).toFixed(1) : "N/A"}
                   </span>
                   <span className="text-gray-500">/ 5.0</span>
                 </div>
@@ -980,7 +980,7 @@ export default function EmployeesPage() {
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-8 w-8 text-blue-400" />
                   <span className="text-3xl font-bold">
-                    {performanceStats?.job_completion_rate.toFixed(0) || 0}%
+                    {(performanceStats?.job_completion_rate ?? 0).toFixed(0)}%
                   </span>
                 </div>
               </CardContent>
@@ -1025,7 +1025,7 @@ export default function EmployeesPage() {
                     </p>
                     <p className="text-gray-600 mb-1">
                       <strong>Average Rating:</strong>{" "}
-                      {performanceStats?.average_rating.toFixed(2)} / 5.0
+                      {(performanceStats?.average_rating ?? 0).toFixed(2)} / 5.0
                     </p>
                     {performanceStats?.employee_of_month_reason && (
                       <p className="text-gray-700 mt-3 italic">

@@ -69,7 +69,9 @@ export default function AnalyticsPage() {
   }
 
   const completionRate = stats
-    ? Math.round((stats.completed_jobs / stats.total_jobs) * 100) || 0
+    ? stats.total_jobs > 0
+      ? Math.round((stats.completed_jobs / stats.total_jobs) * 100)
+      : 0
     : 0;
 
   const handleExportCSV = () => {
@@ -107,7 +109,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">
-            ₱{stats?.total_revenue.toLocaleString() || 0}
+            ₱{(stats?.total_revenue ?? 0).toLocaleString()}
           </p>
           <div className="flex items-center gap-1 mt-2">
             <ArrowUpRight className="text-green-600" size={16} />
@@ -160,7 +162,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">
-            {stats?.average_rating.toFixed(1) || "0.0"}
+            {(stats?.average_rating ?? 0).toFixed(1)}
           </p>
           <div className="flex items-center gap-1 mt-2">
             <Star className="text-yellow-500 fill-yellow-500" size={14} />
@@ -324,10 +326,10 @@ export default function AnalyticsPage() {
                   <div className="flex items-center gap-4 mt-1">
                     <span className="text-xs text-gray-600 flex items-center gap-1">
                       <Star className="text-yellow-500 fill-yellow-500" size={12} />
-                      {employee.rating.toFixed(1)}
+                      {(employee.rating ?? 0).toFixed(1)}
                     </span>
                     <span className="text-xs text-gray-600">{employee.total_jobs_completed} jobs</span>
-                    <span className="text-xs font-semibold text-green-600">₱{employee.total_earnings.toLocaleString()}</span>
+                    <span className="text-xs font-semibold text-green-600">₱{(employee.total_earnings ?? 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -414,7 +416,7 @@ export default function AnalyticsPage() {
                         size={16}
                       />
                       <span className="font-semibold text-gray-900">
-                        {employee.rating.toFixed(1)}
+                        {(employee.rating ?? 0).toFixed(1)}
                       </span>
                     </div>
                   </td>
@@ -425,7 +427,7 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="px-4 py-4 text-right">
                     <span className="font-semibold text-green-600">
-                      ₱{employee.total_earnings.toLocaleString()}
+                      ₱{(employee.total_earnings ?? 0).toLocaleString()}
                     </span>
                   </td>
                 </tr>
