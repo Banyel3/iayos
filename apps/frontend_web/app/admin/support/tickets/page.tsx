@@ -11,7 +11,6 @@ import {
   Ticket,
   Search,
   Filter,
-  UserPlus,
   Clock,
   AlertCircle,
   CheckCircle2,
@@ -259,7 +258,7 @@ export default function SupportTicketsPage() {
             <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
             <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="text-center sm:text-left">
                   <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
@@ -271,13 +270,6 @@ export default function SupportTicketsPage() {
                     Manage customer support tickets and inquiries
                   </p>
                 </div>
-                <Button
-                  onClick={() => router.push("/admin/support/tickets/new")}
-                  className="w-full sm:w-auto bg-white text-blue-700 hover:bg-blue-50 h-10 sm:h-11 rounded-xl text-sm font-bold shadow-lg"
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  New Ticket
-                </Button>
               </div>
             </div>
           </div>

@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   XCircle,
   Download,
+  Wallet,
 } from "lucide-react";
 
 interface DisputeDetail {
@@ -349,8 +350,9 @@ export default function DisputeDetailPage() {
               {detail.dispute.status === "pending" && (
                 <Card className="border-0 shadow-lg">
                   <CardContent className="p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">
-                      Resolve Dispute
+                    <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Wallet className="h-5 w-5 text-blue-600" />
+                      Resolve Dispute &amp; Issue Refund
                     </h2>
                     {!showResolutionForm ? (
                       <Button
@@ -372,21 +374,73 @@ export default function DisputeDetailPage() {
                             className="w-full p-3 border border-gray-300 rounded-lg"
                           >
                             <option value="favor_client">
-                              ✓ Favor Client (Full Refund)
+                              ✓ Favor Client — Full refund to client wallet
                             </option>
                             <option value="favor_worker">
-                              ✓ Favor Worker (No Refund)
+                              ✓ Favor Worker — Full payment to worker wallet
                             </option>
                             <option value="partial_refund">
-                              ⚖️ Partial Refund
+                              ⚖️ Partial Refund — Split between client &amp; worker
                             </option>
                           </select>
+                        </div>
+
+                        {/* Wallet impact summary */}
+                        <div className="rounded-lg border-2 border-blue-100 bg-blue-50 p-4 space-y-2">
+                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide flex items-center gap-1">
+                            <Wallet className="h-3 w-3" />
+                            Wallet Impact
+                          </p>
+                          {decision === "favor_client" && (
+                            <p className="text-sm text-blue-900">
+                              <span className="font-semibold">{detail.client.name}</span> will receive{" "}
+                              <span className="font-bold">
+                                ₱{detail.dispute.amount.toLocaleString()}
+                              </span>{" "}
+                              back to their wallet.
+                            </p>
+                          )}
+                          {decision === "favor_worker" && (
+                            <p className="text-sm text-blue-900">
+                              <span className="font-semibold">{detail.worker.name}</span> will receive{" "}
+                              <span className="font-bold">
+                                ₱{detail.dispute.amount.toLocaleString()}
+                              </span>{" "}
+                              as earnings to their wallet.
+                            </p>
+                          )}
+                          {decision === "partial_refund" && (
+                            <div className="space-y-1 text-sm text-blue-900">
+                              <p>
+                                <span className="font-semibold">{detail.client.name}:</span>{" "}
+                                receives{" "}
+                                <span className="font-bold">
+                                  ₱{refundAmount ? parseFloat(refundAmount).toLocaleString() : "—"}
+                                </span>{" "}
+                                back to wallet.
+                              </p>
+                              <p>
+                                <span className="font-semibold">{detail.worker.name}:</span>{" "}
+                                receives{" "}
+                                <span className="font-bold">
+                                  ₱
+                                  {refundAmount
+                                    ? (
+                                        detail.dispute.amount -
+                                        parseFloat(refundAmount || "0")
+                                      ).toLocaleString()
+                                    : detail.dispute.amount.toLocaleString()}
+                                </span>{" "}
+                                as earnings to wallet.
+                              </p>
+                            </div>
+                          )}
                         </div>
 
                         {decision === "partial_refund" && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Refund Amount (₱)
+                              Client Refund Amount (₱)
                             </label>
                             <input
                               type="number"
@@ -397,7 +451,7 @@ export default function DisputeDetailPage() {
                               placeholder="0.00"
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                              Max: ₱{detail.dispute.amount.toLocaleString()}
+                              Max: ₱{detail.dispute.amount.toLocaleString()} — remainder goes to worker
                             </p>
                           </div>
                         )}
@@ -421,7 +475,7 @@ export default function DisputeDetailPage() {
                             className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                           >
                             <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Submit Resolution
+                            Submit Resolution &amp; Process Wallet Credit
                           </Button>
                           <Button
                             onClick={() => setShowResolutionForm(false)}

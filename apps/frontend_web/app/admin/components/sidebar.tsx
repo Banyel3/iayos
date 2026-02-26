@@ -45,6 +45,8 @@ import {
   ArrowDownToLine,
   Menu,
   X,
+  Globe,
+  LockKeyhole,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -97,6 +99,12 @@ const navigation: NavItem[] = [
         icon: Building2,
         description: "Agency accounts",
       },
+      {
+        name: "Pending Users",
+        href: "/admin/users/pending",
+        icon: UserX,
+        description: "Accounts awaiting approval",
+      },
     ],
   },
   {
@@ -123,6 +131,18 @@ const navigation: NavItem[] = [
         icon: XCircle,
         description: "Failed verification",
       },
+      {
+        name: "Audit Log",
+        href: "/admin/kyc/audit",
+        icon: Archive,
+        description: "Full KYC review history",
+      },
+      {
+        name: "Agency KYC",
+        href: "/admin/agency-kyc",
+        icon: Building2,
+        description: "Agency verification queue",
+      },
     ],
   },
   {
@@ -136,6 +156,12 @@ const navigation: NavItem[] = [
         href: "/admin/jobs/listings",
         icon: ClipboardList,
         description: "Open posts accepting applications",
+      },
+      {
+        name: "Applications",
+        href: "/admin/jobs/applications",
+        icon: FileText,
+        description: "All job applications",
       },
       {
         name: "Job Requests",
@@ -226,6 +252,12 @@ const navigation: NavItem[] = [
         description: "Payment disputes",
       },
       {
+        name: "Escrow",
+        href: "/admin/payments/escrow",
+        icon: LockKeyhole,
+        description: "Escrow deposits & releases",
+      },
+      {
         name: "Analytics",
         href: "/admin/payments/analytics",
         icon: BarChart3,
@@ -300,6 +332,18 @@ const navigation: NavItem[] = [
         href: "/admin/analytics/financial",
         icon: Banknote,
         description: "Revenue & transactions",
+      },
+      {
+        name: "Engagement",
+        href: "/admin/analytics/engagement",
+        icon: Activity,
+        description: "User engagement metrics",
+      },
+      {
+        name: "Geographic",
+        href: "/admin/analytics/geographic",
+        icon: Globe,
+        description: "Location-based insights",
       },
       {
         name: "Custom Reports",
