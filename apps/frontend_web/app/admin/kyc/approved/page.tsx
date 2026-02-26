@@ -580,75 +580,82 @@ export default function ApprovedKYCPage() {
                 key={record.id}
                 className="hover:shadow-md transition-shadow overflow-hidden"
               >
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                        <CheckCircle className="h-6 w-6 text-green-600" />
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    {/* User Info */}
+                    <div className="flex items-center space-x-3 sm:space-x-4">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold">
+                      <div className="min-w-0">
+                        <h3 className="text-base sm:text-lg font-semibold truncate">
                           {record.userName}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
                           {record.userEmail}
                         </p>
-                        <div className="flex items-center space-x-2 mt-1">
+                        <div className="flex items-center flex-wrap gap-1.5 mt-1">
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
-                                ? "bg-blue-100 text-blue-800"
-                                : record.userType === "agency"
-                                  ? "bg-purple-100 text-purple-800"
-                                  : "bg-green-100 text-green-800"
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${record.userType === "worker"
+                              ? "bg-blue-100 text-blue-800"
+                              : record.userType === "agency"
+                                ? "bg-purple-100 text-purple-800"
+                                : "bg-green-100 text-green-800"
                               }`}
                           >
                             {record.userType}
                           </span>
-                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                          <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                             Approved
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-6">
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">
-                          Documents
-                        </p>
-                        <p className="text-lg font-semibold">
-                          {record.documentsCount}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">
-                          Processing Time
-                        </p>
-                        <p className="text-lg font-semibold text-green-600">
-                          {record.processingDays} days
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">
-                          Approved Date
-                        </p>
-                        <p className="text-sm">
-                          {new Date(record.approvalDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">
-                          Reviewed By
-                        </p>
-                        <p className="text-sm font-medium">
-                          {record.reviewedBy}
-                        </p>
+                    {/* Stats + Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                      {/* Stats Row */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
+                        <div className="text-left sm:text-center">
+                          <p className="text-xs sm:text-sm text-muted-foreground">
+                            Documents
+                          </p>
+                          <p className="text-base sm:text-lg font-semibold">
+                            {record.documentsCount}
+                          </p>
+                        </div>
+                        <div className="text-left sm:text-center">
+                          <p className="text-xs sm:text-sm text-muted-foreground">
+                            Processing Time
+                          </p>
+                          <p className="text-base sm:text-lg font-semibold text-green-600">
+                            {record.processingDays} days
+                          </p>
+                        </div>
+                        <div className="text-left sm:text-center">
+                          <p className="text-xs sm:text-sm text-muted-foreground">
+                            Approved Date
+                          </p>
+                          <p className="text-xs sm:text-sm">
+                            {new Date(record.approvalDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-left sm:text-center">
+                          <p className="text-xs sm:text-sm text-muted-foreground">
+                            Reviewed By
+                          </p>
+                          <p className="text-xs sm:text-sm font-medium">
+                            {record.reviewedBy}
+                          </p>
+                        </div>
                       </div>
 
+                      {/* Action Button */}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => toggleExpanded(record)}
+                        className="self-start sm:self-auto"
                       >
                         {expandedRecords[record.id] ? (
                           <>

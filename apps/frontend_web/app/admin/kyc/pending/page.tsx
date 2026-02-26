@@ -1028,24 +1028,25 @@ export default function PendingKYCPage() {
                   key={record.id}
                   className="hover:shadow-md transition-shadow"
                 >
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="font-semibold text-primary text-lg">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      {/* User Info */}
+                      <div className="flex items-center space-x-3 sm:space-x-4">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <span className="font-semibold text-primary text-base sm:text-lg">
                             {record.userName.charAt(0)}
                           </span>
                         </div>
-                        <div>
-                          <h3 className="text-lg font-semibold">
+                        <div className="min-w-0">
+                          <h3 className="text-base sm:text-lg font-semibold truncate">
                             {record.userName}
                           </h3>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">
                             {record.userEmail}
                           </p>
-                          <div className="flex items-center space-x-2 mt-1">
+                          <div className="flex items-center flex-wrap gap-1.5 mt-1">
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${record.userType === "worker"
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${record.userType === "worker"
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-green-100 text-green-800"
                                 }`}
@@ -1053,7 +1054,7 @@ export default function PendingKYCPage() {
                               {record.userType}
                             </span>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(record.priority)}`}
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(record.priority)}`}
                             >
                               {record.priority} priority
                             </span>
@@ -1061,37 +1062,42 @@ export default function PendingKYCPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-6">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">
-                            Documents
-                          </p>
-                          <p className="text-lg font-semibold">
-                            {record.documentsCount || 0}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">
-                            Days Pending
-                          </p>
-                          <p
-                            className={`text-lg font-semibold ${getDaysPendingColor(record.daysPending)}`}
-                          >
-                            {record.daysPending || 0}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">
-                            Submitted
-                          </p>
-                          <p className="text-sm">
-                            {new Date(
-                              record.submissionDate,
-                            ).toLocaleDateString()}
-                          </p>
+                      {/* Stats + Actions */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                        {/* Stats Row */}
+                        <div className="grid grid-cols-3 gap-3 sm:flex sm:items-center sm:space-x-6">
+                          <div className="text-left sm:text-center">
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              Documents
+                            </p>
+                            <p className="text-base sm:text-lg font-semibold">
+                              {record.documentsCount || 0}
+                            </p>
+                          </div>
+                          <div className="text-left sm:text-center">
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              Days Pending
+                            </p>
+                            <p
+                              className={`text-base sm:text-lg font-semibold ${getDaysPendingColor(record.daysPending)}`}
+                            >
+                              {record.daysPending || 0}
+                            </p>
+                          </div>
+                          <div className="text-left sm:text-center">
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              Submitted
+                            </p>
+                            <p className="text-xs sm:text-sm">
+                              {new Date(
+                                record.submissionDate,
+                              ).toLocaleDateString()}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="flex space-x-2">
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -1314,8 +1320,8 @@ export default function PendingKYCPage() {
                     <label
                       key={preset.id}
                       className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${selectedRejectionPreset === preset.id
-                          ? "border-red-500 bg-red-50"
-                          : "border-gray-200 hover:border-red-300 hover:bg-red-50/50"
+                        ? "border-red-500 bg-red-50"
+                        : "border-gray-200 hover:border-red-300 hover:bg-red-50/50"
                         }`}
                     >
                       <input
