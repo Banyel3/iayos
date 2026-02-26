@@ -407,8 +407,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Cookie settings - environment-aware (secure in production, permissive in dev)
 SESSION_COOKIE_SECURE = not DEBUG      # True for HTTPS in production
 CSRF_COOKIE_SECURE = not DEBUG         # True for HTTPS in production
-SESSION_COOKIE_SAMESITE = 'Lax' if not DEBUG else None  # Lax in production, None for dev
-CSRF_COOKIE_SAMESITE = 'Lax' if not DEBUG else None     # Lax in production, None for dev
+SESSION_COOKIE_SAMESITE = 'Lax'      # Lax in production and dev
+CSRF_COOKIE_SAMESITE = 'Lax'         # Lax in production and dev
 SESSION_COOKIE_DOMAIN = None    # Use default domain
 CSRF_COOKIE_HTTPONLY = False    # Allow JavaScript to read CSRF token
 
