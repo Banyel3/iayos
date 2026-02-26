@@ -40,7 +40,7 @@ function StarRating({ rating }: { rating: number }) {
           }`}
         />
       ))}
-      <span className="ml-1 text-sm font-medium">{rating.toFixed(1)}</span>
+      <span className="ml-1 text-sm font-medium">{(rating ?? 0).toFixed(1)}</span>
     </div>
   );
 }
@@ -200,7 +200,7 @@ export default function AgencyReviewsPage() {
             <CardContent>
               <div className="flex items-center gap-2">
                 <span className="text-3xl font-bold text-yellow-900">
-                  {stats.average_rating.toFixed(1)}
+                  {(stats.average_rating ?? 0).toFixed(1)}
                 </span>
                 <Star className="h-6 w-6 fill-yellow-400 text-yellow-400" />
               </div>
