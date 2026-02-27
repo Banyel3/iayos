@@ -83,8 +83,6 @@ export default function WelcomeScreen() {
           <View style={styles.indicatorsSection}>
             <View style={styles.indicatorRow}>
               <View style={[styles.indicator, styles.activeIndicator]} />
-              <View style={styles.indicator} />
-              <View style={styles.indicator} />
             </View>
           </View>
         </View>

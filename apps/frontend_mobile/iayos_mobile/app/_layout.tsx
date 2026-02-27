@@ -13,9 +13,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { AppThemeProvider, useTheme } from "@/context/ThemeContext";
 import Toast from "react-native-toast-message";
 
 if (__DEV__) {
@@ -214,7 +214,6 @@ export default function RootLayout() {
   if (__DEV__) console.log("[RootLayout] component render");
   // Stable QueryClient instance per component lifecycle — not module scope
   const [queryClient] = useState(() => new QueryClient());
-  const colorScheme = useColorScheme();
 
   useEffect(() => {
     if (__DEV__) console.log("[RootLayout] mount effect start");
@@ -229,15 +228,31 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-      <AppUpdateWrapper>
-      <AuthProvider>
-        <NotificationProvider>
-          <PaperProvider>
-            <ThemeProvider
-              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-            >
+    <AppThemeProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <AppUpdateWrapper>
+            <AuthProvider>
+              <InnerLayout />
+            </AuthProvider>
+          </AppUpdateWrapper>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </AppThemeProvider>
+  );
+}
+
+/**
+ * InnerLayout reads from ThemeContext so the react-navigation ThemeProvider
+ * respects the user's stored preference instead of just the system setting.
+ */
+function InnerLayout() {
+  const { isDarkMode } = useTheme();
+
+  return (
+    <NotificationProvider>
+      <PaperProvider>
+        <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
               <Stack
                 screenOptions={{
                   headerShown: false, // Hide default headers globally
@@ -278,7 +293,7 @@ export default function RootLayout() {
                 />
               </Stack>
               <StatusBar
-                style={colorScheme === "dark" ? "light" : "dark"}
+                style={isDarkMode ? "light" : "dark"}
                 backgroundColor="transparent"
                 translucent
               />
@@ -286,9 +301,5 @@ export default function RootLayout() {
             </ThemeProvider>
           </PaperProvider>
         </NotificationProvider>
-      </AuthProvider>
-      </AppUpdateWrapper>
-    </QueryClientProvider>
-    </ErrorBoundary>
   );
 }
