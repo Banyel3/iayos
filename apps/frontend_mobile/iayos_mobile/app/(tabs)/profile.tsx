@@ -47,8 +47,10 @@ export default function ProfileScreen() {
   const createWorker = useCreateWorkerProfile();
   const switchProfile = useSwitchProfile();
 
-  // Get unread notifications count
-  const { data: unreadCount = 0 } = useUnreadNotificationsCount();
+  // Get unread notifications count (scoped to current profile type so cache is separate per profile)
+  const { data: unreadCount = 0 } = useUnreadNotificationsCount(
+    user?.profile_data?.profileType ?? undefined
+  );
   const {
     data: walletData,
     isLoading: walletLoading,
@@ -667,12 +669,17 @@ export default function ProfileScreen() {
               <InfoRow
                 icon="star-outline"
                 label="Rating"
-                value="No ratings yet"
+                value={
+                  user?.profile_data?.workerRating &&
+                  user.profile_data.workerRating > 0
+                    ? `${user.profile_data.workerRating} / 5`
+                    : "No ratings yet"
+                }
               />
               <InfoRow
                 icon="briefcase-outline"
                 label="Jobs Completed"
-                value="0"
+                value={String(user?.profile_data?.jobsCompleted ?? 0)}
               />
             </View>
           </View>
