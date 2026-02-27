@@ -19,6 +19,7 @@ export interface Notification {
   relatedJobID: number | null;
   relatedApplicationID: number | null;
   relatedKYCLogID: number | null;
+  relatedConversationID: number | null;
 }
 
 export interface NotificationSettings {

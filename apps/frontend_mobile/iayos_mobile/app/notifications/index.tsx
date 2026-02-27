@@ -74,7 +74,12 @@ export default function NotificationsScreen() {
           `/applications/${notification.relatedApplicationID}` as any
         );
       } else if (notification.notificationType === "MESSAGE") {
-        router.push("/messages" as any);
+        // Deep-link to specific conversation when ID is available, else open inbox
+        if (notification.relatedConversationID) {
+          router.push(`/messages/${notification.relatedConversationID}` as any);
+        } else {
+          router.push("/messages" as any);
+        }
       } else if (
         notification.notificationType?.includes("KYC") ||
         notification.notificationType?.includes("AGENCY_KYC")
