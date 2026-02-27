@@ -1241,6 +1241,7 @@ def get_conversation_messages(request, conversation_id: int):
                 'client__accountFK',
                 'worker__accountFK',
                 'relatedJobPosting',
+                'relatedJobPosting__assignedAgencyFK',
                 'agency'
             ).get(conversationID=conversation_id)
         except Conversation.DoesNotExist:
@@ -1250,7 +1251,24 @@ def get_conversation_messages(request, conversation_id: int):
             )
         
         # Check if this is an agency conversation
+        # Primary check: conversation has agency set and no individual worker
         is_agency_conversation = conversation.agency is not None and conversation.worker is None
+        
+        # Secondary check: if the job itself has an assigned agency, this IS an agency conversation
+        # This handles cases where the conversation was created without the agency field
+        job_ref = conversation.relatedJobPosting
+        if not is_agency_conversation and job_ref and getattr(job_ref, 'assignedAgencyFK_id', None):
+            print(f"⚠️ [AGENCY FIX] Conversation {conversation.conversationID} missing agency field but job {job_ref.jobID} has assignedAgencyFK. Repairing...")
+            try:
+                conversation.agency = job_ref.assignedAgencyFK
+                conversation.worker = None  # Ensure worker is None for agency conversations
+                conversation.save(update_fields=['agency', 'worker'])
+                is_agency_conversation = True
+                print(f"✅ [AGENCY FIX] Conversation {conversation.conversationID} agency field repaired")
+            except Exception as repair_err:
+                print(f"❌ [AGENCY FIX] Failed to repair conversation: {repair_err}")
+                # Still set is_agency_conversation based on job, even if DB repair fails
+                is_agency_conversation = True
         
         # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
@@ -1267,8 +1285,12 @@ def get_conversation_messages(request, conversation_id: int):
         
         # For agency conversations, check if user is the agency owner
         is_agency_owner = False
-        if is_agency_conversation and conversation.agency:
-            is_agency_owner = conversation.agency.accountFK == request.auth
+        if is_agency_conversation:
+            if conversation.agency:
+                is_agency_owner = conversation.agency.accountFK == request.auth
+            elif job_ref and getattr(job_ref, 'assignedAgencyFK', None):
+                # Fallback: check via job's agency FK if conversation agency wasn't repaired
+                is_agency_owner = job_ref.assignedAgencyFK.accountFK == request.auth
         
         print(f"   Conversation ID: {conversation.conversationID}")
         print(f"   Client Profile ID: {conversation.client.profileID}")
@@ -1567,8 +1589,11 @@ def get_conversation_messages(request, conversation_id: int):
                 status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
             ).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
             
+            print(f"   📋 [AGENCY EMPLOYEES] Job #{job.jobID}: Found {assignments.count()} assignments")
+            
             for assignment in assignments:
                 emp = assignment.employee
+                print(f"      👤 Employee #{emp.employeeID} ({emp.name}): dispatched={assignment.dispatched}, arrived={assignment.clientConfirmedArrival}, agencyComplete={assignment.agencyMarkedComplete}, clientApproved={getattr(assignment, 'clientApproved', False)}")
                 assigned_employees_list.append({
                     "id": emp.employeeID,
                     "name": emp.name,
