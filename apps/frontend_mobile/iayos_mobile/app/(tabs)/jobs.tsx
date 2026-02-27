@@ -53,6 +53,8 @@ interface MyJob {
   total_workers_needed?: number;
   total_workers_assigned?: number;
   team_fill_percentage?: number;
+  // Application count for client navigation
+  application_count?: number;
 }
 
 interface MyJobsResponse {
@@ -473,6 +475,15 @@ export default function JobsScreen() {
               </View>
             )}
           </View>
+
+          {/* Application Count (for client posts to show how many workers applied) */}
+          {isClient && job.application_count !== null && job.application_count !== undefined && job.application_count > 0 && (
+            <View style={styles.applicationCountContainer}>
+              <Text style={styles.applicationCountText}>
+                {job.application_count} applied
+              </Text>
+            </View>
+          )}
 
           {/* Delete Button (only for clients on non-in-progress/completed jobs) */}
           {isClient &&
@@ -1664,5 +1675,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.textSecondary,
     minWidth: 55,
+  },
+  // Application count styles
+  applicationCountContainer: {
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  applicationCountText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
+    color: "#0369A1",
   },
 });
