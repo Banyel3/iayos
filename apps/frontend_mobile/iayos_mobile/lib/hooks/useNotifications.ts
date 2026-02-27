@@ -36,10 +36,16 @@ export interface NotificationSettings {
 
 /**
  * Fetch all notifications
+ * @param limit      Max results to return (default 50)
+ * @param unreadOnly Return only unread notifications
+ * @param profileType Currently active profile type – used as part of the
+ *                    query key so switching profiles invalidates the cache
+ *                    and immediately fetches profile-specific notifications.
+ *                    The backend already reads profile type from the JWT.
  */
-export const useNotifications = (limit = 50, unreadOnly = false) => {
+export const useNotifications = (limit = 50, unreadOnly = false, profileType?: string) => {
   return useQuery({
-    queryKey: ["notifications", limit, unreadOnly],
+    queryKey: ["notifications", limit, unreadOnly, profileType ?? "unknown"],
     queryFn: async () => {
       const url = `${ENDPOINTS.NOTIFICATIONS}?limit=${limit}&unread_only=${unreadOnly}`;
       const response = await apiRequest(url, {
@@ -61,10 +67,11 @@ export const useNotifications = (limit = 50, unreadOnly = false) => {
 
 /**
  * Fetch unread notification count
+ * @param profileType Currently active profile type – keeps per-profile caches separate.
  */
-export const useUnreadNotificationsCount = () => {
+export const useUnreadNotificationsCount = (profileType?: string) => {
   return useQuery({
-    queryKey: ["unreadNotificationsCount"],
+    queryKey: ["unreadNotificationsCount", profileType ?? "unknown"],
     queryFn: async () => {
       const response = await apiRequest(ENDPOINTS.UNREAD_NOTIFICATIONS_COUNT, {
         method: "GET",
