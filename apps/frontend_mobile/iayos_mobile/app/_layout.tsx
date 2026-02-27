@@ -12,6 +12,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
@@ -228,17 +229,19 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AppThemeProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AppUpdateWrapper>
-            <AuthProvider>
-              <InnerLayout />
-            </AuthProvider>
-          </AppUpdateWrapper>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </AppThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppThemeProvider>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AppUpdateWrapper>
+              <AuthProvider>
+                <InnerLayout />
+              </AuthProvider>
+            </AppUpdateWrapper>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </AppThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
