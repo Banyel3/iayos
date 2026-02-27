@@ -4003,13 +4003,16 @@ def get_mobile_config(request):
 
 # TODO: REMOVE FOR PROD - Testing only direct deposit (bypasses PayMongo)
 @mobile_router.post("/wallet/deposit-gcash", auth=jwt_auth)
-@require_kyc
 def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     """
     TODO: REMOVE FOR PROD - Testing only
     Mobile wallet deposit via INSTANT direct deposit (bypasses PayMongo entirely).
     Directly credits wallet balance without any payment gateway validation.
     Only available when TESTING=true in environment.
+
+    NOTE: @require_kyc is intentionally omitted — this is a test-mode endpoint
+    used to seed wallet balance before KYC is complete during QA/testing.
+    The TESTING guard below ensures this is never reachable in production.
     """
     from django.conf import settings
 
@@ -4021,12 +4024,12 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
         )
 
     try:
-        from .models import Wallet, Transaction, Profile
+        from .models import Wallet, Transaction
         from decimal import Decimal
         from django.utils import timezone
+        from django.db import transaction as db_transaction
 
         amount = payload.amount
-        payment_method = "DIRECT_TEST"
 
         if amount <= 0:
             return Response(
@@ -4040,35 +4043,36 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
                 status=400
             )
 
-        # Get or create wallet
-        wallet, created = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': Decimal('0.00')}
-        )
+        # Wrap in atomic block so wallet and transaction record update together
+        with db_transaction.atomic():
+            # Get or create wallet
+            wallet, created = Wallet.objects.get_or_create(
+                accountFK=request.auth,
+                defaults={'balance': Decimal('0.00')}
+            )
 
-        # Calculate new balance
-        old_balance = wallet.balance
-        new_balance = old_balance + Decimal(str(amount))
+            # Calculate new balance
+            new_balance = wallet.balance + Decimal(str(amount))
 
-        # Update wallet balance immediately
-        wallet.balance = new_balance
-        wallet.save()
+            # Update wallet balance
+            wallet.balance = new_balance
+            wallet.save()
 
-        # Create COMPLETED transaction (no pending state needed)
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType=Transaction.TransactionType.DEPOSIT,
-            amount=Decimal(str(amount)),
-            balanceAfter=new_balance,
-            status=Transaction.TransactionStatus.COMPLETED,
-            description=f"Direct Test Deposit - \u20b1{amount}",
-            paymentMethod=payment_method,
-            completedAt=timezone.now(),
-        )
+            # Create COMPLETED transaction record
+            txn = Transaction.objects.create(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.DEPOSIT,
+                amount=Decimal(str(amount)),
+                balanceAfter=new_balance,
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f"Direct Test Deposit - \u20b1{amount}",
+                paymentMethod=Transaction.PaymentMethod.GCASH,
+                completedAt=timezone.now(),
+            )
 
         return {
             "success": True,
-            "transaction_id": transaction.transactionID,
+            "transaction_id": txn.transactionID,
             "amount": amount,
             "new_balance": float(new_balance),
             "provider": "direct_test",
