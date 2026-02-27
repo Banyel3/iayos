@@ -107,16 +107,18 @@ export default function EmployeesPage() {
   const [lastName, setLastName] = useState("");
   const [mobile, setMobile] = useState("");
   const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
+  const [isAddingEmployee, setIsAddingEmployee] = useState(false);
+  const [mobileError, setMobileError] = useState<string | null>(null);
 
   // Edit Employee modal state
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editMiddleName, setEditMiddleName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
   const [editMobile, setEditMobile] = useState("");
   const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editMobileError, setEditMobileError] = useState<string | null>(null);
 
   // EOTM modal state
   const [settingEOTM, setSettingEOTM] = useState(false);
@@ -280,6 +282,9 @@ export default function EmployeesPage() {
 
   const saveEditEmployee = async () => {
     if (!editingEmployee) return;
+    
+    // Clear previous errors
+    setEditMobileError(null);
 
     if (!editFirstName.trim() || !editLastName.trim()) {
       toast.error("First name and last name are required");
@@ -312,10 +317,19 @@ export default function EmployeesPage() {
       if (res.ok) {
         toast.success("Employee updated successfully");
         setEditingEmployee(null);
+        setEditMobileError(null);
         fetchEmployees();
       } else {
         const err = await res.json();
-        toast.error(err.error || "Failed to update employee");
+        const errorMessage = err.error || "Failed to update employee";
+        
+        // Check if it's a mobile number duplicate error
+        if (errorMessage.toLowerCase().includes("mobile number already in use")) {
+          setEditMobileError(errorMessage);
+          toast.error(errorMessage);
+        } else {
+          toast.error(errorMessage);
+        }
       }
     } catch (error) {
       console.error("Error updating employee:", error);
@@ -326,6 +340,9 @@ export default function EmployeesPage() {
   };
 
   const addEmployee = async () => {
+    // Clear previous errors
+    setMobileError(null);
+    
     if (!firstName.trim() || !lastName.trim()) {
       toast.error("First name and last name are required");
       return;
@@ -341,6 +358,7 @@ export default function EmployeesPage() {
       return;
     }
 
+    setIsAddingEmployee(true);
     try {
       const formData = new FormData();
       formData.append("firstName", firstName.trim());
@@ -362,14 +380,25 @@ export default function EmployeesPage() {
         setLastName("");
         setMobile("");
         setSelectedSpecializations([]);
+        setMobileError(null);
         fetchEmployees();
       } else {
         const err = await res.json();
-        toast.error(err.error || "Failed to add employee");
+        const errorMessage = err.error || "Failed to add employee";
+        
+        // Check if it's a mobile number duplicate error
+        if (errorMessage.toLowerCase().includes("mobile number already in use")) {
+          setMobileError(errorMessage);
+          toast.error(errorMessage);
+        } else {
+          toast.error(errorMessage);
+        }
       }
     } catch (error) {
       console.error("Error adding employee:", error);
       toast.error("Error adding employee");
+    } finally {
+      setIsAddingEmployee(false);
     }
   };
 
@@ -658,12 +687,24 @@ export default function EmployeesPage() {
                       value={middleName}
                       onChange={(e) => setMiddleName(e.target.value)}
                     />
-                    <Input
-                      placeholder="Mobile number (e.g. 09171234567) *"
-                      type="tel"
-                      value={mobile}
-                      onChange={(e) => setMobile(e.target.value)}
-                    />
+                    <div>
+                      <Input
+                        placeholder="Mobile number (e.g. 09171234567) *"
+                        type="tel"
+                        value={mobile}
+                        onChange={(e) => {
+                          setMobile(e.target.value);
+                          if (mobileError) setMobileError(null);
+                        }}
+                        className={mobileError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
+                      />
+                      {mobileError && (
+                        <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                          <X className="h-4 w-4" />
+                          {mobileError}
+                        </p>
+                      )}
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Specializations * (select one or more)
@@ -692,8 +733,12 @@ export default function EmployeesPage() {
                         </p>
                       )}
                     </div>
-                    <Button onClick={addEmployee} className="w-full">
-                      Add Employee
+                    <Button 
+                      onClick={addEmployee} 
+                      disabled={isAddingEmployee}
+                      className="w-full"
+                    >
+                      {isAddingEmployee ? "Adding..." : "Add Employee"}
                     </Button>
                   </div>
                 </CardContent>
@@ -1132,7 +1177,10 @@ export default function EmployeesPage() {
                     Edit Employee
                   </CardTitle>
                   <button
-                    onClick={() => setEditingEmployee(null)}
+                    onClick={() => {
+                      setEditingEmployee(null);
+                      setEditMobileError(null);
+                    }}
                     className="text-gray-400 hover:text-gray-600"
                   >
                     <X className="h-5 w-5" />
@@ -1174,14 +1222,24 @@ export default function EmployeesPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
+                    Mobile Number *
                   </label>
                   <Input
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    placeholder="Email address"
+                    type="tel"
+                    value={editMobile}
+                    onChange={(e) => {
+                      setEditMobile(e.target.value);
+                      if (editMobileError) setEditMobileError(null);
+                    }}
+                    placeholder="Mobile number (e.g. 09171234567)"
+                    className={editMobileError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
                   />
+                  {editMobileError && (
+                    <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                      <X className="h-4 w-4" />
+                      {editMobileError}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1220,7 +1278,10 @@ export default function EmployeesPage() {
                     {isSavingEdit ? "Saving..." : "Save Changes"}
                   </Button>
                   <Button
-                    onClick={() => setEditingEmployee(null)}
+                    onClick={() => {
+                      setEditingEmployee(null);
+                      setEditMobileError(null);
+                    }}
                     className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
                   >
                     Cancel
