@@ -66,6 +66,7 @@ export default function RegisterScreen() {
   const [postalCode, setPostalCode] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
 
@@ -293,6 +294,11 @@ export default function RegisterScreen() {
 
     if (!postalRegex.test(trimmedPostal)) {
       Alert.alert("Error", "Postal code must be exactly 4 digits");
+      return;
+    }
+
+    if (!termsAccepted) {
+      Alert.alert("Error", "Please accept the Terms of Service to continue");
       return;
     }
 
@@ -843,11 +849,41 @@ export default function RegisterScreen() {
               }}
             />
 
+            {/* Terms & Conditions */}
+            <View style={styles.termsContainer}>
+              <TouchableOpacity
+                style={styles.termsCheckboxRow}
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                disabled={isLoading}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    termsAccepted && styles.checkboxChecked,
+                  ]}
+                >
+                  {termsAccepted && (
+                    <Ionicons name="checkmark" size={14} color={Colors.white} />
+                  )}
+                </View>
+                <Text style={styles.termsText}>
+                  I agree to the{" "}
+                  <Text
+                    style={styles.termsLink}
+                    onPress={() => router.push("/legal/terms" as any)}
+                  >
+                    Terms of Service
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Register Button */}
             <Button
               testID="register-submit-button"
               onPress={handleRegister}
-              disabled={isLoading}
+              disabled={isLoading || !termsAccepted}
               loading={isLoading}
               variant="primary"
               size="lg"
@@ -1238,5 +1274,39 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textHint,
     marginTop: Spacing.sm,
+  },
+  // Terms & Conditions Styles
+  termsContainer: {
+    marginVertical: Spacing.lg,
+  },
+  termsCheckboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.white,
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: Colors.primary,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 });

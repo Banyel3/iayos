@@ -131,9 +131,11 @@ export default function TermsOfServiceScreen() {
             security, and customer support.
           </Text>
           <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Payment Methods:</Text> We accept GCash,
-            wallet deposits, and cash payments (with admin verification). All
-            payments are processed securely through our payment partner.
+            <Text style={styles.bold}>Payment Methods:</Text> Deposits are
+            processed via PayQR powered by PayMongo. All deposit transactions
+            are handled securely through PayMongo's payment platform.
+            Withdrawals are processed manually by the iAyos team and are
+            subject to processing times.
           </Text>
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Worker Earnings &amp; Payment Buffer:</Text>{" "}
@@ -142,10 +144,10 @@ export default function TermsOfServiceScreen() {
             buffer period allows for dispute resolution and payment verification.
           </Text>
           <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Withdrawals:</Text> Workers may withdraw
-            their wallet balance at any time, subject to a minimum withdrawal
-            amount of ₱100. Automatic withdrawals are processed every Friday
-            for wallets with balances of ₱100 or more (if enabled).
+            <Text style={styles.bold}>Withdrawals:</Text> Workers may request
+            a withdrawal of their wallet balance at any time, subject to a
+            minimum withdrawal amount of ₱100. Withdrawals are processed
+            manually by the iAyos team. Processing times may vary.
           </Text>
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Refunds:</Text> Refund eligibility is
