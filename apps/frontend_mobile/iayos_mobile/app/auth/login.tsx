@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../context/AuthContext";
@@ -100,11 +100,11 @@ export default function LoginScreen() {
   const lastFocusedRef = useRef<any>(null);
 
   // Redirect authenticated users away from login screen
-  // Only redirect if user exists AND there's a valid token in AsyncStorage
+  // Only redirect if user exists AND there's a valid token in SecureStore
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
-      // Check if there's a token in AsyncStorage
-      const token = await AsyncStorage.getItem("access_token");
+      // Check if there's a token in SecureStore
+      const token = await getAccessToken();
 
       if (!token) {
         // No token = definitely not authenticated, stay on login

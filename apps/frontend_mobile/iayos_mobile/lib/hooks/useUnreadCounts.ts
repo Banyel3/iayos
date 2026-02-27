@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 export function useUnreadMessageCount() {
@@ -7,7 +7,7 @@ export function useUnreadMessageCount() {
     queryKey: ["unread-messages"],
     queryFn: async () => {
       try {
-        const token = await AsyncStorage.getItem("access_token");
+        const token = await getAccessToken();
         if (!token) {
           return 0;
         }
@@ -43,7 +43,7 @@ export function useUnreadNotificationCount() {
     queryKey: ["unread-notifications"],
     queryFn: async () => {
       try {
-        const token = await AsyncStorage.getItem("access_token");
+        const token = await getAccessToken();
         if (!token) {
           return 0;
         }

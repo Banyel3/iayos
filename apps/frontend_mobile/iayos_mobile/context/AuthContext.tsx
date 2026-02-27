@@ -8,6 +8,11 @@ import React, {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  getAccessToken,
+  setAccessToken,
+  removeAccessToken,
+} from "../lib/utils/tokenStorage";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { CacheManager } from "../lib/utils/cacheManager";
@@ -167,14 +172,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("🗑️ [CLEAR_CACHE] clearAllCaches called!");
     }
 
-    // Clear AsyncStorage auth keys
-    const cacheKeys = [
-      "cached_user",
-      "cached_worker_availability",
-      "access_token",
-    ];
+    // Clear AsyncStorage auth keys (non-sensitive cached data)
+    const cacheKeys = ["cached_user", "cached_worker_availability"];
     await Promise.all(cacheKeys.map((key) => AsyncStorage.removeItem(key)));
-    console.log("🗑️ [CLEAR_CACHE] Removed AsyncStorage keys:", cacheKeys);
+    if (__DEV__) {
+      console.log("🗑️ [CLEAR_CACHE] Removed AsyncStorage keys:", cacheKeys);
+    }
+    // Clear the secure access token separately
+    await removeAccessToken();
+    if (__DEV__) {
+      console.log("🗑️ [CLEAR_CACHE] Removed access_token from SecureStore");
+    }
 
     // Clear React Query cache to prevent cross-user data leakage
     queryClient.clear();
@@ -310,9 +318,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("No access token received");
       }
 
-      // Store access token for future API requests
-      await AsyncStorage.setItem("access_token", token);
-      console.log("✅ Access token stored successfully");
+      // Store access token securely for future API requests
+      await setAccessToken(token);
+      if (__DEV__) console.log("✅ Access token stored successfully");
 
       // Fetch user data after successful login (token now stored)
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
@@ -483,8 +491,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("No access token received from Google sign-in");
       }
 
-      await AsyncStorage.setItem("access_token", token);
-      console.log("✅ [GOOGLE] Access token stored");
+      await setAccessToken(token);
+      if (__DEV__) console.log("✅ [GOOGLE] Access token stored");
 
       // Fetch user data
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
@@ -592,9 +600,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("No access token received from server");
       }
 
-      // Store new access token
-      await AsyncStorage.setItem("access_token", newAccessToken);
-      console.log(`✅ Switched to ${profileType} profile, new token stored`);
+      // Store new access token securely
+      await setAccessToken(newAccessToken);
+      if (__DEV__) console.log(`✅ Switched to ${profileType} profile, new token stored`);
 
       // Fetch updated user data with new profile
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
@@ -725,10 +733,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         // Step 1: Check for stored token
         console.log("🔍 [INIT] Step 1: Checking for stored access_token...");
-        const token = await AsyncStorage.getItem("access_token");
-        console.log(
-          `🔍 [INIT] Token found: ${token ? "YES (length: " + token.length + ")" : "NO"}`,
-        );
+        const token = await getAccessToken();
+        if (__DEV__) {
+          console.log(
+            `🔍 [INIT] Token found: ${token ? "YES (length: " + token.length + ")" : "NO"}`,
+          );
+        }
 
         if (!token) {
           // No token = not authenticated
