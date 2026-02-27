@@ -18,6 +18,7 @@ import PendingReviewModal from "@/components/PendingReviewModal";
 import KYCRequiredListener from "@/components/KYCRequiredListener";
 import { usePendingReviews } from "@/lib/hooks/useReviews";
 import { useUnreadMessageCount } from "@/lib/hooks/useUnreadCounts";
+import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
 // Debug imports at runtime to detect undefined exports
 if (__DEV__) {
   try {
@@ -40,6 +41,7 @@ export default function TabLayout() {
 
   // Unread messages badge
   const { data: unreadMessages = 0 } = useUnreadMessageCount();
+  const { data: unreadNotifications = 0 } = useUnreadNotificationsCount();
 
   // Pending review check - force review on app reopen
   const [showPendingReview, setShowPendingReview] = useState(false);
@@ -205,6 +207,7 @@ export default function TabLayout() {
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="person.fill" color={color} />
             ),
+            tabBarBadge: unreadNotifications > 0 ? unreadNotifications : undefined,
           }}
         />
       </Tabs>

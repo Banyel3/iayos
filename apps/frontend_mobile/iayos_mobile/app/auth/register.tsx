@@ -33,6 +33,27 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { Image } from "react-native";
 import { useBarangays, Barangay } from "@/lib/hooks/useLocations";
+import * as Haptics from "expo-haptics";
+
+function getPasswordStrength(pw: string): {
+  score: number;
+  label: string;
+  color: string;
+} {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const map = [
+    { label: "Weak", color: "#E53E3E" },
+    { label: "Weak", color: "#E53E3E" },
+    { label: "Fair", color: "#D97706" },
+    { label: "Good", color: "#0891B2" },
+    { label: "Strong", color: "#16A34A" },
+  ];
+  return { score, ...map[score] };
+}
 
 const DEFAULT_COUNTRY = "Philippines";
 const DEFAULT_CITY = "Zamboanga City";
@@ -302,6 +323,7 @@ export default function RegisterScreen() {
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
       const response = await register({
@@ -673,6 +695,33 @@ export default function RegisterScreen() {
                 lastFocusedRef.current = passwordRef;
               }}
             />
+
+            {/* Password Strength Indicator */}
+            {password.length > 0 &&
+              (() => {
+                const { score, label, color } = getPasswordStrength(password);
+                return (
+                  <View style={styles.strengthContainer}>
+                    <View style={styles.strengthBarRow}>
+                      {[1, 2, 3, 4].map((i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.strengthSegment,
+                            {
+                              backgroundColor:
+                                i <= score ? color : Colors.border,
+                            },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.strengthLabel, { color }]}>
+                      Password strength: {label}
+                    </Text>
+                  </View>
+                );
+              })()}
 
             {/* Confirm Password */}
             <Input
@@ -1308,5 +1357,24 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: "600",
     textDecorationLine: "underline",
+  },
+  strengthContainer: {
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingHorizontal: 2,
+  },
+  strengthBarRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginBottom: 4,
+  },
+  strengthSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  strengthLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
   },
 });

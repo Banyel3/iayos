@@ -29,6 +29,13 @@ import { Ionicons } from "@expo/vector-icons";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { Image } from "react-native";
+import * as Haptics from "expo-haptics";
+import { useBiometricAuth } from "@/lib/hooks/useBiometricAuth";
+import {
+  saveBiometricCredentials,
+  getBiometricCredentials,
+  hasBiometricCredentials,
+} from "@/lib/utils/biometricCredentials";
 
 // Required for auth session redirect to complete properly
 WebBrowser.maybeCompleteAuthSession();
@@ -42,7 +49,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isBiometricReady, setIsBiometricReady] = useState(false);
   const { login, googleSignIn, user } = useAuth();
+  const { checkAvailability, authenticate, biometricLabel } = useBiometricAuth();
   const router = useRouter();
 
   // Google OAuth - uses authorization code flow (auto-exchanged for tokens)
@@ -148,15 +157,36 @@ export default function LoginScreen() {
     };
   }, []);
 
+  // Check if biometric login is available on mount
+  useEffect(() => {
+    const checkBiometric = async () => {
+      const { isAvailable, isEnrolled } = await checkAvailability();
+      if (isAvailable && isEnrolled) {
+        const hasCredentials = await hasBiometricCredentials();
+        setIsBiometricReady(hasCredentials);
+      }
+    };
+    checkBiometric();
+  }, []);
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
       const userData = await login(email, password);
+      // Silently save credentials for future biometric login
+      try {
+        const { isAvailable, isEnrolled } = await checkAvailability();
+        if (isAvailable && isEnrolled) {
+          await saveBiometricCredentials(email.trim().toLowerCase(), password);
+          setIsBiometricReady(true);
+        }
+      } catch {}
       // Check profileType immediately from returned data
       if (!userData?.profile_data?.profileType) {
         router.replace("/auth/select-role");
@@ -165,6 +195,33 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       Alert.alert("Error", error.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const credentials = await getBiometricCredentials();
+    if (!credentials) {
+      Alert.alert(
+        "Not Set Up",
+        "Log in with your email first to enable biometric login."
+      );
+      return;
+    }
+    const success = await authenticate(`Login as ${credentials.email}`);
+    if (!success) return;
+    setIsLoading(true);
+    try {
+      const userData = await login(credentials.email, credentials.password);
+      if (!userData?.profile_data?.profileType) {
+        router.replace("/auth/select-role");
+      } else {
+        router.replace("/(tabs)");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Biometric login failed");
     } finally {
       setIsLoading(false);
     }
@@ -270,6 +327,31 @@ export default function LoginScreen() {
             >
               Login
             </Button>
+
+            {/* Biometric Login Button */}
+            {isBiometricReady && (
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                disabled={isLoading || isGoogleLoading}
+                activeOpacity={0.7}
+                testID="login-biometric-button"
+              >
+                <Ionicons
+                  name={
+                    biometricLabel === "Face ID"
+                      ? "scan-outline"
+                      : "finger-print-outline"
+                  }
+                  size={22}
+                  color={Colors.primary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <Text style={styles.biometricButtonText}>
+                  Login with {biometricLabel}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* OR Divider */}
             <View style={styles.dividerContainer}>
@@ -431,5 +513,21 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  biometricButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    height: 52,
+  },
+  biometricButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 });
