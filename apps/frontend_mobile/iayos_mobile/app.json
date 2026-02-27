@@ -45,7 +45,6 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true,
             "permissions": [
               "android.permission.REQUEST_INSTALL_PACKAGES"
             ]

@@ -84,7 +84,8 @@ export default function BrowseJobsScreen() {
     if (!isWorker && viewTab === "workers" && workersQuery.data) {
       workersQuery.refetch();
     }
-  }, [maxDistance, sortBy, selectedCategory, minRating]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxDistance, sortBy, selectedCategory, minRating, isWorker, viewTab]);
   const categories = categoriesData?.categories || [];
 
   // WORKER: Only fetch jobs

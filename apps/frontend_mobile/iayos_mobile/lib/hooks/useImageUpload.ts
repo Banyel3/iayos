@@ -1,7 +1,7 @@
 // lib/hooks/useImageUpload.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 import { compressImage } from "@/lib/utils/image-utils";
 import { API_BASE_URL } from "@/lib/api/config";
 
@@ -82,8 +82,8 @@ export const useImageUpload = () => {
           });
         }
 
-        // Get auth token from storage (before Promise to avoid async issues)
-        const token = await AsyncStorage.getItem("access_token");
+        // Get auth token from secure storage (before Promise to avoid async issues)
+        const token = await getAccessToken();
 
         // Build full endpoint URL if relative path provided
         let fullEndpoint = endpoint;
@@ -243,7 +243,7 @@ export const useMultiImageUpload = () => {
           }
 
           // Get auth token before creating Promise
-          const token = await AsyncStorage.getItem("access_token");
+          const token = await getAccessToken();
 
           // Build full endpoint URL if relative path provided
           let fullEndpoint = endpoint;

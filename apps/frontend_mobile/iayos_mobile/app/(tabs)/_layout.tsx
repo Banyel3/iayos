@@ -19,18 +19,19 @@ import KYCRequiredListener from "@/components/KYCRequiredListener";
 import { usePendingReviews } from "@/lib/hooks/useReviews";
 import { useUnreadMessageCount } from "@/lib/hooks/useUnreadCounts";
 // Debug imports at runtime to detect undefined exports
-try {
-  // eslint-disable-next-line no-console
-  console.log("[TabsLayout] Imports:", {
-    Tabs: typeof Tabs !== "undefined" ? "defined" : "undefined",
-    HapticTab: typeof HapticTab !== "undefined" ? "defined" : "undefined",
-    IconSymbol: typeof IconSymbol !== "undefined" ? "defined" : "undefined",
-    Colors: typeof Colors !== "undefined" ? "defined" : "undefined",
-    useColorScheme:
-      typeof useColorScheme !== "undefined" ? "defined" : "undefined",
-    useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
-  });
-} catch (e) {}
+if (__DEV__) {
+  try {
+    console.log("[TabsLayout] Imports:", {
+      Tabs: typeof Tabs !== "undefined" ? "defined" : "undefined",
+      HapticTab: typeof HapticTab !== "undefined" ? "defined" : "undefined",
+      IconSymbol: typeof IconSymbol !== "undefined" ? "defined" : "undefined",
+      Colors: typeof Colors !== "undefined" ? "defined" : "undefined",
+      useColorScheme:
+        typeof useColorScheme !== "undefined" ? "defined" : "undefined",
+      useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
+    });
+  } catch (e) {}
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -100,20 +101,20 @@ export default function TabLayout() {
 
   // Wait for auth state to be determined before rendering anything
   if (isLoading) {
-    console.log("⏳ [TABS] Still loading, showing blank screen");
+    if (__DEV__) console.log("⏳ [TABS] Still loading, showing blank screen");
     return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;
   }
 
   // After loading is complete, check auth state
   if (!isAuthenticated) {
-    console.log(
+    if (__DEV__) console.log(
       "🔀 [TABS] Not authenticated after loading, redirecting to login",
     );
     return <Redirect href="/auth/login" />;
   }
 
   if (!user?.profile_data?.profileType) {
-    console.log(
+    if (__DEV__) console.log(
       "🔀 [TABS] No profile type after loading, redirecting to role selection",
     );
     return <Redirect href="/auth/select-role" />;
@@ -162,6 +163,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
+            tabBarAccessibilityLabel: "Home tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="house.fill" color={color} />
             ),
@@ -171,6 +173,7 @@ export default function TabLayout() {
           name="jobs"
           options={{
             title: "Jobs",
+            tabBarAccessibilityLabel: "Jobs tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="briefcase.fill" color={color} />
             ),
@@ -187,6 +190,7 @@ export default function TabLayout() {
           name="messages"
           options={{
             title: "Messages",
+            tabBarAccessibilityLabel: "Messages tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="message.fill" color={color} />
             ),
@@ -197,6 +201,7 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Profile",
+            tabBarAccessibilityLabel: "Profile tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="person.fill" color={color} />
             ),

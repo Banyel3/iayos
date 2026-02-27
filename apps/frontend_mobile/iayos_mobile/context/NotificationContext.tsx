@@ -22,6 +22,7 @@ import {
 } from "@/lib/hooks/useNotifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { handleNotificationDeepLink } from "@/lib/utils/deepLinkHandler";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 
 interface NotificationContextType {
   expoPushToken: string | null;
@@ -66,7 +67,7 @@ export function NotificationProvider({
 
         // Register token with backend
         // Only attempt backend registration if user is authenticated
-        const accessToken = await AsyncStorage.getItem("access_token");
+        const accessToken = await getAccessToken();
         if (!accessToken) {
           console.warn(
             "Skipping backend push token registration: user not authenticated"

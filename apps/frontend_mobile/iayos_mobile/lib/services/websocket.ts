@@ -1,7 +1,7 @@
 // WebSocket Service for Real-Time Chat
 // Manages WebSocket connection with auto-reconnect and heartbeat
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken } from "../utils/tokenStorage";
 import { WS_BASE_URL } from "../api/config";
 
 type MessageHandler = (data: any) => void;
@@ -69,8 +69,8 @@ class WebSocketService {
         return;
       }
 
-      // Get JWT token from AsyncStorage for authentication
-      const token = await AsyncStorage.getItem("access_token");
+      // Get JWT token from SecureStore for authentication
+      const token = await getAccessToken();
       if (!token) {
         console.error("[WebSocket] No access token found, cannot connect");
         this.connectionState = "error";
