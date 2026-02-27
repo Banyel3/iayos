@@ -4171,7 +4171,17 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         assignment.agencyMarkedComplete = True
         assignment.agencyMarkedCompleteAt = timezone.now()
         assignment.completionNotes = notes or ""
-        assignment.save()
+        assignment.save(update_fields=['agencyMarkedComplete', 'agencyMarkedCompleteAt', 'completionNotes'])
+        
+        # POST-SAVE VERIFICATION: Re-read from DB to confirm the save persisted
+        try:
+            verified = JobEmployeeAssignment.objects.values_list('agencyMarkedComplete', flat=True).get(pk=assignment.pk)
+            if verified:
+                logger.info(f"✅ [DB VERIFY] Assignment #{assignment.pk} agencyMarkedComplete=True CONFIRMED in DB")
+            else:
+                logger.error(f"❌ [DB VERIFY] Assignment #{assignment.pk} agencyMarkedComplete=False AFTER SAVE! Save did NOT persist!")
+        except Exception as verify_err:
+            logger.error(f"❌ [DB VERIFY] Failed to verify assignment #{assignment.pk}: {verify_err}")
         
         # Check if ALL employees are complete
         all_assignments = JobEmployeeAssignment.objects.filter(
