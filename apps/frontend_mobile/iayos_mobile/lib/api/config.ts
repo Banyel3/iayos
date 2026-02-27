@@ -7,6 +7,7 @@
 import { Platform, Alert } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import Constants from "expo-constants";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 
 // PRODUCTION URL - hardcoded as the authoritative production endpoint
 const PRODUCTION_API_URL = "https://api.iayos.online";
@@ -63,16 +64,18 @@ const API_URL = normalizeApiUrl(
 
 const DEBUG_NETWORK = process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true";
 
-// Log the API URL being used (helps debug network issues)
-console.log(`[API Config] API_URL = ${API_URL}`);
-console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
-console.log(
-  `[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`,
-);
+// Log the API URL being used — only in dev builds
+if (__DEV__) {
+  console.log(`[API Config] API_URL = ${API_URL}`);
+  console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
+  console.log(
+    `[API Config] EXPO_PUBLIC_API_URL = ${process.env.EXPO_PUBLIC_API_URL || "(not set)"}`,
+  );
+}
 
-// DEBUG: Show alert in production builds to verify API URL configuration
-// Remove this after confirming the network issue is resolved
-if (!__DEV__ && DEBUG_NETWORK) {
+// DEBUG: Only show alert in dev builds when debug mode is enabled
+// Never show raw debug alerts in production builds
+if (__DEV__ && DEBUG_NETWORK) {
   // Delay alert to ensure app is fully loaded
   setTimeout(() => {
     Alert.alert(
@@ -666,8 +669,6 @@ export const ENDPOINTS = {
   DAILY_CANCEL: (jobId: number) => `${API_URL}/api/jobs/${jobId}/daily/cancel`,
 };
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 // HTTP Request helper with credentials
 // API request helper with built-in timeout using AbortController
 export const DEFAULT_REQUEST_TIMEOUT = 120000; // 2 minutes (increased for slow networks)
@@ -707,8 +708,8 @@ export const apiRequest = async (
     }
   }
 
-  // Try to attach bearer token from AsyncStorage if present
-  const token = await AsyncStorage.getItem("access_token");
+  // Try to attach bearer token from SecureStore if present
+  const token = await getAccessToken();
 
   const defaultHeaders: Record<string, string> = {
     ...(userHeaders as Record<string, string> | undefined),
