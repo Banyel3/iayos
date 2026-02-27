@@ -2548,11 +2548,18 @@ def assign_employees_to_slots(
             defaults={
                 'client': job.clientID.profileID,
                 'worker': None,  # Agency job - no individual worker
+                'agency': agency,  # Link conversation to agency for proper filtering
                 'status': Conversation.ConversationStatus.ACTIVE
             }
         )
         if created:
             print(f"✅ Created group conversation {conversation.conversationID} for multi-employee job")
+        elif not conversation.agency:
+            # Repair: conversation exists but missing agency field
+            conversation.agency = agency
+            conversation.worker = None
+            conversation.save(update_fields=['agency', 'worker'])
+            print(f"🔧 Repaired conversation {conversation.conversationID}: added missing agency field")
         
         # Create job log
         JobLog.objects.create(
