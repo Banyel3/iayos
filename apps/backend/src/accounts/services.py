@@ -565,6 +565,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
+                    "isVerified": account.isVerified,
                     "kycVerified": account.KYCVerified,
                     "profile_data": {
                         "profileType": "AGENCY",
@@ -641,6 +642,15 @@ def fetch_currentUser(accountID, profile_type=None):
                     profile_data["bio"] = worker_profile.bio or ""
                     profile_data["hourlyRate"] = float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None
                     profile_data["softSkills"] = worker_profile.soft_skills or ""
+                    # Worker stats — used by mobile profile screen
+                    profile_data["workerRating"] = float(worker_profile.workerRating) if worker_profile.workerRating else 0.0
+                    profile_data["totalEarningGross"] = float(worker_profile.totalEarningGross) if worker_profile.totalEarningGross else 0.0
+                    # Count of COMPLETED jobs assigned to this worker
+                    from .models import JobPosting as _JobPosting
+                    profile_data["jobsCompleted"] = _JobPosting.objects.filter(
+                        assignedWorkerID=worker_profile,
+                        status=_JobPosting.JobStatus.COMPLETED
+                    ).count()
                     print(f"   🔧 Added worker profile ID: {worker_profile.id}")
                     
                     # Get skills with certification counts
@@ -677,6 +687,7 @@ def fetch_currentUser(accountID, profile_type=None):
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,  # <-- systemRole from SystemRoles
+                "isVerified": account.isVerified,  # email verification status
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
                 "accountType": "individual",
@@ -697,6 +708,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
+                    "isVerified": account.isVerified,
                     "kycVerified": account.KYCVerified,
                     "profile_data": {
                         "profileType": "AGENCY",
@@ -712,6 +724,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
+                    "isVerified": account.isVerified,
                     "kycVerified": account.KYCVerified,
                     "profile_data": None,
                     "user_data": {},

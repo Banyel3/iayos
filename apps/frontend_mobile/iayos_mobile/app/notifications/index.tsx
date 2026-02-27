@@ -27,6 +27,7 @@ import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
 import { Colors, Typography, Spacing } from "@/constants/theme";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
+import { useAuth } from "@/context/AuthContext";
 
 import NotificationCard from "@/components/Notifications/NotificationCard";
 import {
@@ -43,6 +44,8 @@ export default function NotificationsScreen() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
   const routerHook = useRouter(); // For safe back navigation
+  const { user } = useAuth();
+  const profileType = user?.profile_data?.profileType ?? undefined;
 
   // Fetch notifications based on filter
   const {
@@ -52,7 +55,7 @@ export default function NotificationsScreen() {
     error,
     refetch,
     isRefetching,
-  } = useNotifications(50, filter === "unread");
+  } = useNotifications(50, filter === "unread", profileType);
 
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
