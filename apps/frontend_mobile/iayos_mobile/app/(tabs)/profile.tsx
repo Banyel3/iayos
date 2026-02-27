@@ -158,36 +158,36 @@ export default function ProfileScreen() {
     const totalReviews = profileMetrics.total_reviews || 0;
 
     return (
-      <View style={styles.trustGrid}>
-        <TrustMetricCard
+      <View style={styles.infoCard}>
+        <InfoRow
+          icon="card-outline"
           label="Payment Method"
           value={paymentVerified ? "Verified" : "Not Verified"}
-          helper={paymentHelper}
-          status={paymentVerified ? "success" : "default"}
+          valueColor={paymentVerified ? Colors.success : Colors.textSecondary}
         />
-        <TrustMetricCard
+        <InfoRow
+          icon="chatbubbles-outline"
           label="Response Rate"
           value={
             responseRateValue !== null
               ? `${responseRateValue.toFixed(1)}%`
               : "No data yet"
           }
-          helper={responseHelper}
-          status={responseRateValue !== null ? "success" : "warning"}
+          valueColor={responseRateValue !== null ? Colors.success : Colors.textSecondary}
         />
-        <TrustMetricCard
+        <InfoRow
+          icon="star-outline"
           label="Average Rating"
           value={
             ratingValue && ratingValue > 0
-              ? `${ratingValue.toFixed(1)} ★`
+              ? `${ratingValue.toFixed(1)} / 5${
+                  totalReviews > 0
+                    ? ` (${totalReviews} review${totalReviews === 1 ? "" : "s"})`
+                    : ""
+                }`
               : "No reviews yet"
           }
-          helper={
-            totalReviews > 0
-              ? `${totalReviews} review${totalReviews === 1 ? "" : "s"}`
-              : undefined
-          }
-          fullWidth
+          valueColor={ratingValue && ratingValue > 0 ? Colors.textPrimary : Colors.textSecondary}
         />
       </View>
     );
