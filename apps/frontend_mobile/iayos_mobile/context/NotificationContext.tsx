@@ -22,6 +22,8 @@ import {
 } from "@/lib/hooks/useNotifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { handleNotificationDeepLink } from "@/lib/utils/deepLinkHandler";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 interface NotificationContextType {
   expoPushToken: string | null;
@@ -100,6 +102,30 @@ export function NotificationProvider({
   // Initialize notifications on mount
   useEffect(() => {
     registerForPushNotifications();
+
+    // Restore the user's saved notification preferences so Android channels
+    // and the foreground DND handler reflect what was last configured.
+    const applyPersistedSettings = async () => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) return; // Not logged in yet – skip silently
+        const response = await apiRequest(ENDPOINTS.GET_NOTIFICATION_SETTINGS, {
+          method: "GET",
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.settings) {
+            await NotificationService.applyNotificationSettings(data.settings);
+          }
+        }
+      } catch (err) {
+        console.warn(
+          "[NotificationContext] Could not apply persisted notification settings:",
+          err,
+        );
+      }
+    };
+    applyPersistedSettings();
 
     // Notification received listener (when app is in foreground)
     notificationListener.current =

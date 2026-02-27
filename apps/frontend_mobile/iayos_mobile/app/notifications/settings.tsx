@@ -27,6 +27,7 @@ import {
   useUpdateNotificationSettings,
   NotificationSettings,
 } from "@/lib/hooks/useNotifications";
+import NotificationService from "@/lib/services/notificationService";
 
 export default function NotificationSettingsScreen() {
   const {
@@ -71,6 +72,33 @@ export default function NotificationSettingsScreen() {
     const updatedSettings = { ...localSettings, [key]: newValue };
     setLocalSettings(updatedSettings);
 
+    // Apply settings to Android notification channels immediately so the
+    // change takes effect even before the backend round-trip completes.
+    const channelKeys: Array<keyof NotificationSettings> = [
+      "pushEnabled",
+      "soundEnabled",
+      "jobUpdates",
+      "messages",
+      "payments",
+      "reviews",
+      "kycUpdates",
+    ];
+    if (channelKeys.includes(key)) {
+      NotificationService.applyNotificationSettings({
+        pushEnabled: updatedSettings.pushEnabled ?? true,
+        soundEnabled: updatedSettings.soundEnabled ?? true,
+        jobUpdates: updatedSettings.jobUpdates ?? true,
+        messages: updatedSettings.messages ?? true,
+        payments: updatedSettings.payments ?? true,
+        reviews: updatedSettings.reviews ?? true,
+        kycUpdates: updatedSettings.kycUpdates ?? true,
+        doNotDisturbStart: updatedSettings.doNotDisturbStart ?? null,
+        doNotDisturbEnd: updatedSettings.doNotDisturbEnd ?? null,
+      }).catch((err) =>
+        console.warn("[NotificationSettings] Failed to apply channel settings:", err),
+      );
+    }
+
     // Update backend
     updateSettingsMutation.mutate(
       { [key]: newValue },
@@ -98,6 +126,20 @@ export default function NotificationSettingsScreen() {
     const key = type === "start" ? "doNotDisturbStart" : "doNotDisturbEnd";
     const updatedSettings = { ...localSettings, [key]: time };
     setLocalSettings(updatedSettings);
+
+    // Keep the in-memory DND window cache in sync so the foreground handler
+    // enforces the updated schedule without waiting for a backend response.
+    NotificationService.updateCachedSettings({
+      pushEnabled: updatedSettings.pushEnabled ?? true,
+      soundEnabled: updatedSettings.soundEnabled ?? true,
+      jobUpdates: updatedSettings.jobUpdates ?? true,
+      messages: updatedSettings.messages ?? true,
+      payments: updatedSettings.payments ?? true,
+      reviews: updatedSettings.reviews ?? true,
+      kycUpdates: updatedSettings.kycUpdates ?? true,
+      doNotDisturbStart: updatedSettings.doNotDisturbStart ?? null,
+      doNotDisturbEnd: updatedSettings.doNotDisturbEnd ?? null,
+    });
 
     updateSettingsMutation.mutate(
       { [key]: time },
