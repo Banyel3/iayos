@@ -8,17 +8,64 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
+// ---------------------------------------------------------------------------
+// Module-level cached notification settings
+// Updated by NotificationService.updateCachedSettings / applyNotificationSettings
+// so the foreground handler can check them without any async calls.
+// ---------------------------------------------------------------------------
+export interface CachedNotificationSettings {
+  pushEnabled: boolean;
+  soundEnabled: boolean;
+  jobUpdates: boolean;
+  messages: boolean;
+  payments: boolean;
+  reviews: boolean;
+  kycUpdates: boolean;
+  doNotDisturbStart: string | null;
+  doNotDisturbEnd: string | null;
+}
+
+let _cachedSettings: CachedNotificationSettings | null = null;
+
+/** Returns true when the current local time falls within the DND window. */
+function _isInDndWindow(s: CachedNotificationSettings): boolean {
+  if (!s.doNotDisturbStart || !s.doNotDisturbEnd) return false;
+  const now = new Date();
+  const current = `${now.getHours().toString().padStart(2, "0")}:${now
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+  const { doNotDisturbStart: start, doNotDisturbEnd: end } = s;
+  // Same-day window (08:00–22:00) or overnight window (22:00–08:00)
+  return start <= end
+    ? current >= start && current < end
+    : current >= start || current < end;
+}
+
 // Configure how notifications are handled when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    // Newer versions of Expo expect these fields as well
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => {
+      if (_cachedSettings) {
+        // Honour the global push-enabled toggle
+        if (!_cachedSettings.pushEnabled) {
+          return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+        }
+        // Honour Do Not Disturb schedule
+        if (_isInDndWindow(_cachedSettings)) {
+          return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+        }
+      }
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: _cachedSettings?.soundEnabled !== false,
+        shouldSetBadge: true,
+      };
+    },
+  });
+} catch (error) {
+  console.warn("[Notifications] Failed to set notification handler:", error);
+}
 
 export interface NotificationResponse {
   notification: Notifications.Notification;
@@ -28,6 +75,58 @@ export interface NotificationResponse {
 export class NotificationService {
   private static notificationListener: Notifications.Subscription | null = null;
   private static responseListener: Notifications.Subscription | null = null;
+
+  /**
+   * Default Android channel configurations.
+   * Stored here so applyNotificationSettings can restore them when re-enabling a category.
+   */
+  private static readonly defaultChannelConfigs: Record<
+    string,
+    Notifications.NotificationChannelInput
+  > = {
+    default: {
+      name: "Default",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#007AFF",
+    },
+    "job-updates": {
+      name: "Job Updates",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#007AFF",
+      description:
+        "Notifications for job applications, status changes, and completions",
+    },
+    messages: {
+      name: "Messages",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#007AFF",
+      description: "New messages from clients and workers",
+    },
+    payments: {
+      name: "Payments",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#4CAF50",
+      description: "Payment confirmations and updates",
+    },
+    reviews: {
+      name: "Reviews",
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FFC107",
+      description: "New reviews and ratings",
+    },
+    kyc: {
+      name: "KYC Verification",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#9C27B0",
+      description: "KYC verification status updates",
+    },
+  };
 
   /**
    * Request notification permissions from the user
@@ -261,6 +360,101 @@ export class NotificationService {
    */
   static async cancelNotification(notificationId: string) {
     await Notifications.dismissNotificationAsync(notificationId);
+  }
+
+  /**
+   * Cache the user's notification settings so the foreground handler and DND
+   * check can read them synchronously without extra async calls.
+   */
+  static updateCachedSettings(settings: CachedNotificationSettings): void {
+    _cachedSettings = settings;
+  }
+
+  /**
+   * Apply notification settings to Android notification channels.
+   *
+   * Android does not let apps lower a channel's importance once the user has
+   * interacted with it.  The only reliable workaround is to delete the channel
+   * and recreate it with the desired importance.  This resets any per-channel
+   * customisations the user may have made in system settings, but it is the
+   * only way to programmatically honour in-app preferences.
+   *
+   * On iOS this is a no-op; the OS controls notification delivery.
+   */
+  static async applyNotificationSettings(settings: {
+    pushEnabled: boolean;
+    soundEnabled: boolean;
+    jobUpdates: boolean;
+    messages: boolean;
+    payments: boolean;
+    reviews: boolean;
+    kycUpdates: boolean;
+    doNotDisturbStart?: string | null;
+    doNotDisturbEnd?: string | null;
+  }): Promise<void> {
+    // Keep the in-memory cache in sync so the foreground handler is up-to-date.
+    _cachedSettings = {
+      pushEnabled: settings.pushEnabled,
+      soundEnabled: settings.soundEnabled,
+      jobUpdates: settings.jobUpdates,
+      messages: settings.messages,
+      payments: settings.payments,
+      reviews: settings.reviews,
+      kycUpdates: settings.kycUpdates,
+      doNotDisturbStart:
+        settings.doNotDisturbStart !== undefined
+          ? settings.doNotDisturbStart
+          : (_cachedSettings?.doNotDisturbStart ?? null),
+      doNotDisturbEnd:
+        settings.doNotDisturbEnd !== undefined
+          ? settings.doNotDisturbEnd
+          : (_cachedSettings?.doNotDisturbEnd ?? null),
+    };
+
+    if (Platform.OS !== "android") return;
+
+    const channelSettings: Array<{ channelId: string; enabled: boolean }> = [
+      { channelId: "default",     enabled: settings.pushEnabled },
+      { channelId: "job-updates", enabled: settings.pushEnabled && settings.jobUpdates },
+      { channelId: "messages",    enabled: settings.pushEnabled && settings.messages },
+      { channelId: "payments",    enabled: settings.pushEnabled && settings.payments },
+      { channelId: "reviews",     enabled: settings.pushEnabled && settings.reviews },
+      { channelId: "kyc",         enabled: settings.pushEnabled && settings.kycUpdates },
+    ];
+
+    for (const { channelId, enabled } of channelSettings) {
+      try {
+        // Delete first so we can change the importance level.
+        await Notifications.deleteNotificationChannelAsync(channelId);
+
+        const base =
+          this.defaultChannelConfigs[channelId] ??
+          ({ name: channelId, importance: Notifications.AndroidImportance.DEFAULT } as Notifications.NotificationChannelInput);
+
+        if (enabled) {
+          await Notifications.setNotificationChannelAsync(channelId, {
+            ...base,
+            sound: settings.soundEnabled ? "notification.wav" : undefined,
+            vibrationPattern: settings.soundEnabled
+              ? (base.vibrationPattern ?? [0, 250, 250, 250])
+              : [0],
+            enableVibrate: settings.soundEnabled,
+          });
+        } else {
+          // Recreate as a silent/hidden channel so push payloads targeting it
+          // are still received by the OS but never shown to the user.
+          await Notifications.setNotificationChannelAsync(channelId, {
+            name: typeof base.name === "string" ? base.name : channelId,
+            importance: Notifications.AndroidImportance.NONE,
+          });
+        }
+      } catch (err) {
+        console.warn(
+          `[NotificationService] Could not update channel "${channelId}":`,
+          err,
+        );
+      }
+    }
   }
 
   /**
