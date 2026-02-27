@@ -5,14 +5,16 @@ from typing import Any, Dict, Optional, Tuple
 
 from django.utils import timezone
 
+from django.db.models import Avg as _Avg
+
 from .models import (
     Accounts,
     JobApplication,
+    JobReview,
     Profile,
     Transaction,
     Wallet,
 )
-from .review_service import get_review_stats
 
 
 def _get_payment_status(wallet: Optional[Wallet]) -> Tuple[bool, Optional[str]]:
@@ -72,14 +74,22 @@ def get_profile_metrics(account: Accounts) -> Dict[str, Any]:
     rating_count = 0
     rating_breakdown: Optional[Dict[str, int]] = None
     try:
-        stats = get_review_stats(account.accountID)
-        rating_value = round(float(stats.average_rating or 0), 1)
-        rating_count = stats.total_reviews
-        rating_breakdown = (
-            stats.rating_breakdown.dict()
-            if getattr(stats, "rating_breakdown", None)
-            else None
-        )
+        # Ratings for the client Trust & Performance section = reviews received
+        # as a CLIENT (i.e. workers reviewing the client).  We must scope to the
+        # CLIENT profile so that a dual-profile user's worker reviews do NOT bleed
+        # into their client stats.
+        client_profile = Profile.objects.filter(
+            accountFK=account,
+            profileType='CLIENT'
+        ).first()
+        if client_profile:
+            client_reviews = JobReview.objects.filter(
+                revieweeProfileID=client_profile,
+                status='ACTIVE'
+            )
+            avg = client_reviews.aggregate(avg=_Avg('rating'))['avg']
+            rating_value = round(float(avg or 0), 1)
+            rating_count = client_reviews.count()
     except Exception:
         # Lack of reviews shouldn't break the endpoint
         rating_value = 0.0
