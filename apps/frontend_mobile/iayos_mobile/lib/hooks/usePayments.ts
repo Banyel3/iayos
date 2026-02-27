@@ -287,14 +287,10 @@ export const useWalletDepositGCash = () => {
     mutationFn: async ({ amount }: WalletDepositParams) => {
       return fetchJson<WalletDepositResponse>(ENDPOINTS.DEPOSIT_GCASH, {
         method: "POST",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          amount,
-          payment_method: "DIRECT_TEST",
-        }),
+        body: JSON.stringify({ amount }),
       });
     },
     onSuccess: (data) => {
