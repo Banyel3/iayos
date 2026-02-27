@@ -182,9 +182,9 @@ RATE_LIMIT_DISABLED = os.environ.get('RATE_LIMIT_DISABLED', 'false').lower() == 
 # MOBILE APP VERSION CONFIGURATION
 # ============================================================================
 # Used for in-app update prompts and download page
-MOBILE_MIN_VERSION = os.environ.get('MOBILE_MIN_VERSION', '1.8.11')  # Minimum supported version
-MOBILE_CURRENT_VERSION = os.environ.get('MOBILE_CURRENT_VERSION', '1.8.11')  # Latest version
-MOBILE_FORCE_UPDATE = os.environ.get('MOBILE_FORCE_UPDATE', 'true').lower() == 'true'  # Block app until updated
+MOBILE_MIN_VERSION = os.environ.get('MOBILE_MIN_VERSION', '1.0.0')  # Minimum (lowered for dev compatibility)
+MOBILE_CURRENT_VERSION = os.environ.get('MOBILE_CURRENT_VERSION', '1.0.8')  # Current version in main
+MOBILE_FORCE_UPDATE = os.environ.get('MOBILE_FORCE_UPDATE', 'false').lower() == 'true'  # Disabled for development
 MOBILE_DOWNLOAD_URL = os.environ.get('MOBILE_DOWNLOAD_URL', 'https://github.com/Banyel3/iayos/releases/latest')
 
 # Query caching

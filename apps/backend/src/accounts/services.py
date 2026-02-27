@@ -565,6 +565,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
+                    "isVerified": account.isVerified,  # Email verification status
                     "kycVerified": account.KYCVerified,
                     "profile_data": {
                         "profileType": "AGENCY",
@@ -677,6 +678,7 @@ def fetch_currentUser(accountID, profile_type=None):
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,  # <-- systemRole from SystemRoles
+                "isVerified": account.isVerified,  # <-- Email verification status from Accounts
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
                 "accountType": "individual",
@@ -697,6 +699,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
+                    "isVerified": account.isVerified,  # Email verification status
                     "kycVerified": account.KYCVerified,
                     "profile_data": {
                         "profileType": "AGENCY",
@@ -712,6 +715,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
+                    "isVerified": account.isVerified,  # Email verification status
                     "kycVerified": account.KYCVerified,
                     "profile_data": None,
                     "user_data": {},
