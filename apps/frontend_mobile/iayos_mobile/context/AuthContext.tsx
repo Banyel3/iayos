@@ -12,6 +12,9 @@ import {
   getAccessToken,
   setAccessToken,
   removeAccessToken,
+  getCachedUser,
+  setCachedUser,
+  removeCachedUser,
 } from "../lib/utils/tokenStorage";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -173,8 +176,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Clear AsyncStorage auth keys (non-sensitive cached data)
-    const cacheKeys = ["cached_user", "cached_worker_availability"];
+    const cacheKeys = ["cached_worker_availability"];
     await Promise.all(cacheKeys.map((key) => AsyncStorage.removeItem(key)));
+    await removeCachedUser();
     if (__DEV__) {
       console.log("🗑️ [CLEAR_CACHE] Removed AsyncStorage keys:", cacheKeys);
     }
@@ -224,8 +228,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(userData);
 
         // Cache user data
-        await AsyncStorage.setItem(
-          "cached_user",
+        await setCachedUser(
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
@@ -278,9 +281,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Clear AsyncStorage auth keys for the previous session
       await AsyncStorage.multiRemove([
         "access_token",
-        "cached_user",
         "cached_worker_availability",
       ]);
+      await removeCachedUser();
       setUser(null);
 
       if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
@@ -329,8 +332,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userData = await userDataResponse.json();
         setUser(userData);
 
-        await AsyncStorage.setItem(
-          "cached_user",
+        await setCachedUser(
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
@@ -343,18 +345,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         await AsyncStorage.multiRemove([
           "access_token",
-          "cached_user",
           "cached_worker_availability",
         ]);
+        await removeCachedUser();
         throw new Error("Failed to fetch user data after login");
       }
     } catch (error) {
       setUser(null);
       await AsyncStorage.multiRemove([
         "access_token",
-        "cached_user",
         "cached_worker_availability",
       ]);
+      await removeCachedUser();
       throw error;
     }
   };
@@ -453,9 +455,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       await AsyncStorage.multiRemove([
         "access_token",
-        "cached_user",
         "cached_worker_availability",
       ]);
+      await removeCachedUser();
       setUser(null);
 
       await preflightBackendReachability("googleSignIn");
@@ -501,8 +503,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userData = await userDataResponse.json();
         setUser(userData);
 
-        await AsyncStorage.setItem(
-          "cached_user",
+        await setCachedUser(
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
@@ -515,18 +516,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         await AsyncStorage.multiRemove([
           "access_token",
-          "cached_user",
           "cached_worker_availability",
         ]);
+        await removeCachedUser();
         throw new Error("Failed to fetch user data after Google sign-in");
       }
     } catch (error) {
       setUser(null);
       await AsyncStorage.multiRemove([
         "access_token",
-        "cached_user",
         "cached_worker_availability",
       ]);
+      await removeCachedUser();
       throw error;
     }
   };
@@ -621,8 +622,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(userData);
 
-        await AsyncStorage.setItem(
-          "cached_user",
+        await setCachedUser(
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
@@ -675,9 +675,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Clear AsyncStorage auth keys
       await AsyncStorage.multiRemove([
         "access_token",
-        "cached_user",
         "cached_worker_availability",
       ]);
+      await removeCachedUser();
       console.log("🗑️ [LOGOUT] Cleared AsyncStorage auth keys");
 
       // Call backend logout endpoint (best effort, don't block on errors)
@@ -704,9 +704,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       await AsyncStorage.multiRemove([
         "access_token",
-        "cached_user",
         "cached_worker_availability",
       ]);
+      await removeCachedUser();
       router.replace("/welcome");
     }
   };
@@ -749,7 +749,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Step 2: Load cached user data
         console.log("🔍 [INIT] Step 2: Loading cached user data...");
-        const cachedUserJson = await AsyncStorage.getItem("cached_user");
+        const cachedUserJson = await getCachedUser();
         console.log(
           `🔍 [INIT] Cached user found: ${cachedUserJson ? "YES (length: " + cachedUserJson.length + ")" : "NO"}`,
         );
@@ -824,8 +824,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(userData);
 
         // Update cache
-        await AsyncStorage.setItem(
-          "cached_user",
+        await setCachedUser(
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),

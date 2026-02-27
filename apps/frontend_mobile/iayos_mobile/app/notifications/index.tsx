@@ -36,6 +36,8 @@ import {
   useDeleteNotification,
   Notification,
 } from "@/lib/hooks/useNotifications";
+import Swipeable from "react-native-gesture-handler/Swipeable";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function NotificationsScreen() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -74,7 +76,12 @@ export default function NotificationsScreen() {
           `/applications/${notification.relatedApplicationID}` as any
         );
       } else if (notification.notificationType === "MESSAGE") {
-        router.push("/messages" as any);
+        // Deep-link to specific conversation when ID is available, else open inbox
+        if (notification.relatedConversationID) {
+          router.push(`/messages/${notification.relatedConversationID}` as any);
+        } else {
+          router.push("/messages" as any);
+        }
       } else if (
         notification.notificationType?.includes("KYC") ||
         notification.notificationType?.includes("AGENCY_KYC")
@@ -136,16 +143,35 @@ export default function NotificationsScreen() {
 
   // Render notification item
   const renderNotification = useCallback(
-    ({ item }: { item: Notification }) => (
-      <NotificationCard
-        notification={item}
-        onPress={() => handleNotificationPress(item)}
-        onMarkRead={
-          !item.isRead ? () => handleMarkRead(item.notificationID) : undefined
-        }
-        onDelete={() => handleDelete(item.notificationID)}
-      />
-    ),
+    ({ item }: { item: Notification }) => {
+      const renderRightActions = () => (
+        <TouchableOpacity
+          style={styles.swipeDeleteAction}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            handleDelete(item.notificationID);
+          }}
+        >
+          <Ionicons name="trash-outline" size={22} color={Colors.white} />
+          <Text style={styles.swipeDeleteText}>Delete</Text>
+        </TouchableOpacity>
+      );
+
+      return (
+        <Swipeable renderRightActions={renderRightActions}>
+          <NotificationCard
+            notification={item}
+            onPress={() => handleNotificationPress(item)}
+            onMarkRead={
+              !item.isRead
+                ? () => handleMarkRead(item.notificationID)
+                : undefined
+            }
+            onDelete={() => handleDelete(item.notificationID)}
+          />
+        </Swipeable>
+      );
+    },
     [handleNotificationPress, handleMarkRead, handleDelete]
   );
 
@@ -443,5 +469,18 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: Colors.primary,
+  },
+  swipeDeleteAction: {
+    backgroundColor: Colors.error,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    marginVertical: 2,
+  },
+  swipeDeleteText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
   },
 });

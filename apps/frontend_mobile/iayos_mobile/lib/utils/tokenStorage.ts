@@ -32,3 +32,32 @@ export const removeAccessToken = async (): Promise<void> => {
     // Key may not exist — ignore
   }
 };
+
+// ---------------------------------------------------------------------------
+// Cached user — store in SecureStore instead of plain AsyncStorage so that
+// profile data is encrypted at rest and not accessible to other apps.
+// ---------------------------------------------------------------------------
+const CACHED_USER_KEY = "cached_user";
+
+/** Retrieve the cached user JSON from SecureStore. */
+export const getCachedUser = async (): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(CACHED_USER_KEY);
+  } catch {
+    return null;
+  }
+};
+
+/** Store the cached user JSON securely. */
+export const setCachedUser = async (value: string): Promise<void> => {
+  await SecureStore.setItemAsync(CACHED_USER_KEY, value);
+};
+
+/** Delete the cached user from SecureStore (e.g. on logout). */
+export const removeCachedUser = async (): Promise<void> => {
+  try {
+    await SecureStore.deleteItemAsync(CACHED_USER_KEY);
+  } catch {
+    // Key may not exist — ignore
+  }
+};

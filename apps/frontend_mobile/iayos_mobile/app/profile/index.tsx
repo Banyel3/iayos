@@ -161,6 +161,8 @@ export default function ProfileScreen() {
   // Portfolio viewer state
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  // Completeness banner state
+  const [completionDismissed, setCompletionDismissed] = useState(false);
 
   // Fetch profile data (only if worker)
   const {
@@ -253,6 +255,24 @@ export default function ProfileScreen() {
   // ===== MAIN CONTENT =====
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Profile Completeness Banner */}
+      {!completionDismissed && completionPercentage < 80 && (
+        <View style={styles.completionBanner}>
+          <Ionicons name="information-circle-outline" size={18} color={Colors.white} />
+          <Text style={styles.completionBannerText}>
+            Complete your profile to get more jobs — {completionPercentage}% done
+          </Text>
+          <Pressable
+            style={styles.completionBannerAction}
+            onPress={() => router.push("/profile/edit" as any)}
+          >
+            <Text style={styles.completionBannerActionText}>Complete</Text>
+          </Pressable>
+          <Pressable onPress={() => setCompletionDismissed(true)} style={styles.completionBannerDismiss}>
+            <Ionicons name="close" size={16} color={Colors.white} />
+          </Pressable>
+        </View>
+      )}
       {/* Header Section */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -1261,5 +1281,32 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.primary,
     fontWeight: "600",
+  },
+  completionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  completionBannerText: {
+    flex: 1,
+    ...Typography.body.small,
+    color: Colors.white,
+  },
+  completionBannerAction: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.small,
+  },
+  completionBannerActionText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  completionBannerDismiss: {
+    padding: 4,
   },
 });

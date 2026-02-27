@@ -106,6 +106,7 @@ export default function ChatScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
   // Per-employee approval tracking
   const [approvingEmployeeId, setApprovingEmployeeId] = useState<number | null>(null);
   const [approvingEmployeeName, setApprovingEmployeeName] = useState<string>("");
@@ -1084,7 +1085,7 @@ export default function ChatScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      await uploadImageMessage(result.assets[0].uri);
+      setPendingImageUri(result.assets[0].uri);
     }
   };
 
@@ -1107,7 +1108,7 @@ export default function ChatScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      await uploadImageMessage(result.assets[0].uri);
+      setPendingImageUri(result.assets[0].uri);
     }
   };
 
@@ -1266,11 +1267,14 @@ export default function ChatScreen() {
   const renderOfflineIndicator = () => {
     // Device truly has no internet connection
     if (!isNetworkOnline) {
+      const queueCount = pendingMessages.length;
       return (
         <View style={styles.offlineIndicator}>
           <Ionicons name="cloud-offline-outline" size={16} color={Colors.white} />
           <Text style={styles.offlineText}>
-            {"You're offline. Messages will be sent when you reconnect."}
+            {queueCount > 0
+              ? `Offline — ${queueCount} message${queueCount !== 1 ? "s" : ""} queued`
+              : "You're offline. Messages will be sent when you reconnect."}
           </Text>
         </View>
       );
@@ -4467,6 +4471,42 @@ export default function ChatScreen() {
         )}
       </KeyboardAvoidingView>
 
+      {/* Photo Preview Modal */}
+      <Modal
+        visible={!!pendingImageUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingImageUri(null)}
+      >
+        <View style={styles.photoPreviewOverlay}>
+          <Image
+            source={{ uri: pendingImageUri! }}
+            style={styles.photoPreviewImage}
+            resizeMode="contain"
+          />
+          <View style={styles.photoPreviewActions}>
+            <TouchableOpacity
+              style={styles.photoPreviewCancel}
+              onPress={() => setPendingImageUri(null)}
+            >
+              <Ionicons name="close-outline" size={20} color={Colors.textPrimary} />
+              <Text style={styles.photoPreviewCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.photoPreviewSend}
+              onPress={async () => {
+                const uri = pendingImageUri;
+                setPendingImageUri(null);
+                await uploadImageMessage(uri!);
+              }}
+            >
+              <Ionicons name="send-outline" size={20} color={Colors.white} />
+              <Text style={styles.photoPreviewSendText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Payment Method Modal */}
       <Modal
         visible={showPaymentModal}
@@ -5256,6 +5296,49 @@ const styles = StyleSheet.create({
     color: Colors.white,
     flex: 1,
   },
+  photoPreviewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  photoPreviewImage: {
+    width: "90%" as any,
+    height: "70%" as any,
+  },
+  photoPreviewActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginTop: Spacing.lg,
+  },
+  photoPreviewCancel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+  },
+  photoPreviewCancelText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  photoPreviewSend: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.medium,
+  },
+  photoPreviewSendText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
+  },
   // Payment Modal Styles
   modalOverlay: {
     flex: 1,
@@ -5398,6 +5481,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     maxHeight: 400, // Allow scrolling if content is tall
+    marginBottom: Spacing.md,
   },
   reviewWaitingContainer: {
     alignItems: "center",
@@ -5413,9 +5497,6 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.textSecondary,
     textAlign: "center",
-  },
-  reviewSection: {
-    marginBottom: Spacing.md,
   },
   reviewSectionTitle: {
     ...Typography.body.large,

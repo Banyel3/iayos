@@ -18,8 +18,8 @@ import * as Linking from 'expo-linking';
 import ProfileMenuItem from '@/components/profile/ProfileMenuItem';
 import { useLogout } from '@/lib/hooks/useLogout';
 import { useUserProfile } from '@/lib/hooks/useUserProfile';
+import { useTheme } from '@/context/ThemeContext';
 
-const THEME_STORAGE_KEY = '@iayos_theme';
 const LANGUAGE_STORAGE_KEY = '@iayos_language';
 
 export default function SettingsScreen() {
@@ -27,7 +27,7 @@ export default function SettingsScreen() {
   const { data: userProfile, isLoading } = useUserProfile();
   const logout = useLogout();
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [language, setLanguage] = useState<'en' | 'tl'>('en');
 
@@ -40,22 +40,14 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const theme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       const lang = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
 
-      if (theme) setIsDarkMode(theme === 'dark');
       if (lang) setLanguage(lang as 'en' | 'tl');
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
   };
 
-  const toggleTheme = async () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme ? 'dark' : 'light');
-    Alert.alert('Theme Updated', 'The app theme will update on next launch.');
-  };
 
   const toggleNotifications = () => {
     setNotificationsEnabled(!notificationsEnabled);
@@ -126,8 +118,7 @@ export default function SettingsScreen() {
                 {
                   text: 'Proceed',
                   onPress: () => {
-                    // TODO: Implement account deletion API call
-                    Alert.alert('Account Deletion', 'Please contact support to delete your account.');
+                    Linking.openURL('mailto:support@iayos.com?subject=Account%20Deletion%20Request');
                   },
                 },
               ]

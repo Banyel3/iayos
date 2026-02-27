@@ -250,7 +250,7 @@ export const WS_BASE_URL =
       ? `ws://${DEV_IP}:8000`
       : "wss://api.iayos.online");
 
-console.log(`[API Config] WS_BASE_URL = ${WS_BASE_URL}`);
+if (__DEV__) console.log(`[API Config] WS_BASE_URL = ${WS_BASE_URL}`);
 
 /**
  * Convert relative media URLs to absolute URLs for React Native Image component.
@@ -757,9 +757,9 @@ export const apiRequest = async (
   };
 
   try {
-    console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
+    if (__DEV__) console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
     const resp = await fetch(url, defaultOptions);
-    console.log(
+    if (__DEV__) console.log(
       `[API] Response: ${resp.status} ${resp.statusText} from ${url}`,
     );
 
@@ -843,8 +843,8 @@ export async function fetchJson<T = any>(
   const resp = await apiRequest(url, options);
   const text = await resp.text();
 
-  // Log response details for debugging
-  console.log(`[API] Response from ${url}:`, {
+  // Log response details for debugging (only when DEBUG_NETWORK is enabled)
+  if (DEBUG_NETWORK) console.log(`[API] Response from ${url}:`, {
     status: resp.status,
     statusText: resp.statusText,
     headers: Object.fromEntries(resp.headers.entries()),
