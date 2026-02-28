@@ -181,7 +181,7 @@ export default function CreateJobScreen() {
   const router = useRouter();
 
   // Debug logging
-  console.log(
+  if (__DEV__) console.log(
     "[CreateJob] Screen loaded - workerId:",
     workerId,
     "agencyId:",
@@ -632,7 +632,7 @@ export default function CreateJobScreen() {
         if (matchingCat && matchingCat.minimum_rate > 0) {
           setBudget(matchingCat.minimum_rate.toFixed(2));
         }
-        console.log(`[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`);
+        if (__DEV__) console.log(`[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`);
       }
     }
   }, [workerId, workerDetailsData, categories, skillSlots.length]);
@@ -658,14 +658,14 @@ export default function CreateJobScreen() {
   const barangays = barangaysData || [];
 
   // Debug logging
-  console.log("[CreateJob] Barangays:", {
+  if (__DEV__) console.log("[CreateJob] Barangays:", {
     count: barangays.length,
     loading: barangaysLoading,
     error: barangaysError,
     firstThree: barangays.slice(0, 3).map((b) => b.name),
   });
 
-  console.log(
+  if (__DEV__) console.log(
     "[CreateJob] Categories:",
     categories,
     "Type:",

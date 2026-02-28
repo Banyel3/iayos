@@ -27,6 +27,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface Agency {
   id: string;
@@ -274,7 +275,7 @@ export default function AgencyPage() {
     setSelectedAgencies(new Set());
     setSelectAll(false);
 
-    alert(
+    toast.success(
       `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} agencies successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`,
     );
 

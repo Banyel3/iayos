@@ -32,6 +32,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../../components";
+import { toast } from "sonner";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
@@ -156,7 +157,7 @@ export default function AgencyDetailPage() {
   // Account action handlers
   const handleSuspend = async () => {
     if (!actionReason.trim()) {
-      alert("Please provide a reason for suspension");
+      toast.error("Please provide a reason for suspension");
       return;
     }
     setActionLoading(true);
@@ -171,16 +172,16 @@ export default function AgencyDetailPage() {
         },
       );
       if (response.ok) {
-        alert("Agency suspended successfully");
+        toast.success("Agency suspended successfully");
         setShowSuspendModal(false);
         setActionReason("");
         refetchAgency();
       } else {
-        alert("Failed to suspend agency");
+        toast.error("Failed to suspend agency");
       }
     } catch (error) {
       console.error("Suspend error:", error);
-      alert(getErrorMessage(error, "Failed to suspend agency"));
+      toast.error(getErrorMessage(error, "Failed to suspend agency"));
     } finally {
       setActionLoading(false);
     }
@@ -188,7 +189,7 @@ export default function AgencyDetailPage() {
 
   const handleBan = async () => {
     if (!actionReason.trim()) {
-      alert("Please provide a reason for banning");
+      toast.error("Please provide a reason for banning");
       return;
     }
     setActionLoading(true);
@@ -203,16 +204,16 @@ export default function AgencyDetailPage() {
         },
       );
       if (response.ok) {
-        alert("Agency banned successfully");
+        toast.success("Agency banned successfully");
         setShowBanModal(false);
         setActionReason("");
         refetchAgency();
       } else {
-        alert("Failed to ban agency");
+        toast.error("Failed to ban agency");
       }
     } catch (error) {
       console.error("Ban error:", error);
-      alert(getErrorMessage(error, "Failed to ban agency"));
+      toast.error(getErrorMessage(error, "Failed to ban agency"));
     } finally {
       setActionLoading(false);
     }
@@ -230,16 +231,16 @@ export default function AgencyDetailPage() {
         },
       );
       if (response.ok) {
-        alert("Agency activated successfully");
+        toast.success("Agency activated successfully");
         setShowActivateModal(false);
         refetchAgency();
       } else {
         const data = await response.json().catch(() => ({}));
-        alert(data.error || "Failed to activate agency");
+        toast.error(data.error || "Failed to activate agency");
       }
     } catch (error) {
       console.error("Activate error:", error);
-      alert(getErrorMessage(error, "Failed to activate agency"));
+      toast.error(getErrorMessage(error, "Failed to activate agency"));
     } finally {
       setActionLoading(false);
     }
@@ -247,7 +248,7 @@ export default function AgencyDetailPage() {
 
   const handleDelete = async () => {
     if (deleteConfirmText !== "DELETE") {
-      alert('Please type "DELETE" to confirm');
+      toast.error('Please type "DELETE" to confirm');
       return;
     }
     setActionLoading(true);
@@ -260,15 +261,15 @@ export default function AgencyDetailPage() {
         },
       );
       if (response.ok) {
-        alert("Agency deleted successfully");
+        toast.success("Agency deleted successfully");
         router.push("/admin/users/agency");
       } else {
         const data = await response.json().catch(() => ({}));
-        alert(data.error || "Failed to delete agency");
+        toast.error(data.error || "Failed to delete agency");
       }
     } catch (error) {
       console.error("Delete error:", error);
-      alert(getErrorMessage(error, "Failed to delete agency"));
+      toast.error(getErrorMessage(error, "Failed to delete agency"));
     } finally {
       setActionLoading(false);
     }

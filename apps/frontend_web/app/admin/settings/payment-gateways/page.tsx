@@ -21,6 +21,7 @@ import {
   Building2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface PaymentGateway {
   name: string;
@@ -106,11 +107,11 @@ export default function PaymentGatewaysPage() {
       if (data.success) {
         fetchGateways();
       } else {
-        alert(data.error || "Failed to update gateway");
+        toast.error(data.error || "Failed to update gateway");
       }
     } catch (error) {
       console.error("Error toggling gateway:", error);
-      alert("Failed to update gateway");
+      toast.error("Failed to update gateway");
     }
   };
 
@@ -148,15 +149,15 @@ export default function PaymentGatewaysPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Gateway configuration saved successfully!");
+        toast.success("Gateway configuration saved successfully!");
         setShowConfigModal(false);
         fetchGateways();
       } else {
-        alert(data.error || "Failed to save configuration");
+        toast.error(data.error || "Failed to save configuration");
       }
     } catch (error) {
       console.error("Error saving config:", error);
-      alert("Failed to save configuration");
+      toast.error("Failed to save configuration");
     }
   };
 
@@ -178,13 +179,13 @@ export default function PaymentGatewaysPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert("✓ Connection test successful!");
+        toast.success("✓ Connection test successful!");
       } else {
-        alert("✗ Connection test failed: " + (data.error || "Unknown error"));
+        toast.error("✗ Connection test failed: " + (data.error || "Unknown error"));
       }
     } catch (error) {
       console.error("Error testing connection:", error);
-      alert("✗ Connection test failed");
+      toast.error("✗ Connection test failed");
     } finally {
       setTesting(false);
     }
@@ -192,7 +193,7 @@ export default function PaymentGatewaysPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert("Copied to clipboard!");
+    toast.success("Copied to clipboard!");
   };
 
   const maskApiKey = (key: string) => {

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -109,11 +110,11 @@ export default function FlaggedReviewsPage() {
 
       if (!response.ok) throw new Error("Failed to hide review");
 
-      alert("Review hidden successfully");
+      toast.success("Review hidden successfully");
       fetchFlaggedReviews();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to hide review");
+      toast.error("Failed to hide review");
     }
   };
 
@@ -140,11 +141,11 @@ export default function FlaggedReviewsPage() {
 
       if (!response.ok) throw new Error("Failed to delete review");
 
-      alert("Review deleted successfully");
+      toast.success("Review deleted successfully");
       fetchFlaggedReviews();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to delete review");
+      toast.error("Failed to delete review");
     }
   };
 
@@ -162,11 +163,11 @@ export default function FlaggedReviewsPage() {
 
       if (!response.ok) throw new Error("Failed to dismiss flag");
 
-      alert("Flag dismissed successfully");
+      toast.success("Flag dismissed successfully");
       fetchFlaggedReviews();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to dismiss flag");
+      toast.error("Failed to dismiss flag");
     }
   };
 
@@ -180,7 +181,7 @@ export default function FlaggedReviewsPage() {
 
   const handleBulkHide = async () => {
     if (selectedReviews.size === 0) {
-      alert("Please select reviews to hide");
+      toast.error("Please select reviews to hide");
       return;
     }
 
@@ -201,7 +202,7 @@ export default function FlaggedReviewsPage() {
       }
     }
 
-    alert(
+    toast.success(
       `Successfully hidden ${successCount} of ${selectedReviews.size} reviews`,
     );
     setSelectedReviews(new Set());
@@ -210,7 +211,7 @@ export default function FlaggedReviewsPage() {
 
   const handleBulkDelete = async () => {
     if (selectedReviews.size === 0) {
-      alert("Please select reviews to delete");
+      toast.error("Please select reviews to delete");
       return;
     }
 
@@ -236,7 +237,7 @@ export default function FlaggedReviewsPage() {
       }
     }
 
-    alert(
+    toast.success(
       `Successfully deleted ${successCount} of ${selectedReviews.size} reviews`,
     );
     setSelectedReviews(new Set());

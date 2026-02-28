@@ -18,6 +18,7 @@ import {
   Copy,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface NotificationTemplate {
   id: string;
@@ -117,16 +118,16 @@ export default function NotificationTemplatesPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Template updated successfully!");
+        toast.success("Template updated successfully!");
         setShowEditModal(false);
         setHasUnsavedChanges(false);
         fetchTemplates();
       } else {
-        alert(data.error || "Failed to update template");
+        toast.error(data.error || "Failed to update template");
       }
     } catch (error) {
       console.error("Error saving template:", error);
-      alert("Failed to save template");
+      toast.error("Failed to save template");
     }
   };
 

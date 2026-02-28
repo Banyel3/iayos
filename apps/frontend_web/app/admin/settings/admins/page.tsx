@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface Admin {
   id: string;
@@ -192,7 +193,7 @@ export default function AdminManagementPage() {
   const handleEditAdmin = (admin: Admin) => {
     // Cannot edit own account
     if (admin.id === currentAdminId) {
-      alert("You cannot edit your own account");
+      toast.error("You cannot edit your own account");
       return;
     }
 
@@ -245,7 +246,7 @@ export default function AdminManagementPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert(
+        toast.success(
           modalMode === "add"
             ? "Admin created successfully!"
             : "Admin updated successfully!",
@@ -253,18 +254,18 @@ export default function AdminManagementPage() {
         setShowModal(false);
         fetchAdmins();
       } else {
-        alert(data.error || "Failed to save admin");
+        toast.error(data.error || "Failed to save admin");
       }
     } catch (error) {
       console.error("Error saving admin:", error);
-      alert("Failed to save admin");
+      toast.error("Failed to save admin");
     }
   };
 
   const handleToggleStatus = async (admin: Admin) => {
     // Cannot disable own account
     if (admin.id === currentAdminId) {
-      alert("You cannot disable your own account");
+      toast.error("You cannot disable your own account");
       return;
     }
 
@@ -292,7 +293,7 @@ export default function AdminManagementPage() {
   const handleDeleteClick = (admin: Admin) => {
     // Cannot delete own account
     if (admin.id === currentAdminId) {
-      alert("You cannot delete your own account");
+      toast.error("You cannot delete your own account");
       return;
     }
 
@@ -316,15 +317,15 @@ export default function AdminManagementPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Admin deleted successfully!");
+        toast.success("Admin deleted successfully!");
         setShowDeleteModal(false);
         fetchAdmins();
       } else {
-        alert(data.error || "Failed to delete admin");
+        toast.error(data.error || "Failed to delete admin");
       }
     } catch (error) {
       console.error("Error deleting admin:", error);
-      alert("Failed to delete admin");
+      toast.error("Failed to delete admin");
     }
   };
 

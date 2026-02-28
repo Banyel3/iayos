@@ -46,16 +46,16 @@ export default function MessagesTabScreen() {
     const unsubscribe = setupNetworkListener(
       // On online
       async () => {
-        console.log("[Messages Tab] Device back online, processing queue...");
+        if (__DEV__) console.log("[Messages Tab] Device back online, processing queue...");
         await processOfflineQueue(async (message) => {
-          console.log("[Messages Tab] Sending queued message:", message.id);
+          if (__DEV__) console.log("[Messages Tab] Sending queued message:", message.id);
           return true;
         });
         refetch();
       },
       // On offline
       () => {
-        console.log("[Messages Tab] Device offline");
+        if (__DEV__) console.log("[Messages Tab] Device offline");
       }
     );
 
