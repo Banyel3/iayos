@@ -16,9 +16,9 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
@@ -74,7 +74,7 @@ export default function PendingEarningsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

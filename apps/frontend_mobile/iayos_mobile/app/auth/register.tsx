@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Alert,
   Keyboard,
   TextInput as RNTextInput,
@@ -15,6 +14,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -360,7 +360,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} testID="register-screen">
+    <SafeAreaView style={styles.container} edges={["top"]} testID="register-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

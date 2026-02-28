@@ -23,8 +23,8 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -611,7 +611,7 @@ export default function CreateTeamJobScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <Stack.Screen
         options={{
           headerShown: false,

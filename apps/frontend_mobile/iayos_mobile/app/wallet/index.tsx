@@ -18,11 +18,12 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
+
   ActivityIndicator,
   RefreshControl,
   FlatList,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   Colors,
@@ -127,7 +128,7 @@ export default function WalletScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

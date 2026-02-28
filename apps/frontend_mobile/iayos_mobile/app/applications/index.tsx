@@ -5,11 +5,11 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   RefreshControl,
   ActivityIndicator,
   Image,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -106,7 +106,7 @@ export default function MyApplicationsScreen() {
 
   if (!isWorker) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyState}>
           <Ionicons
             name="document-text-outline"
@@ -122,7 +122,7 @@ export default function MyApplicationsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={

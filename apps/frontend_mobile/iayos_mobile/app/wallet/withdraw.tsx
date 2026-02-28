@@ -19,12 +19,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
@@ -239,7 +239,7 @@ export default function WithdrawScreen() {
 
   if (walletLoading || methodsLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading...</Text>
@@ -252,7 +252,7 @@ export default function WithdrawScreen() {
     const withdrawResult = withdrawMutation.data as WithdrawResponse;
 
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.successContainer}>
           <View style={styles.successIcon}>
             <Ionicons
@@ -355,7 +355,7 @@ export default function WithdrawScreen() {
     !selectedMethodId;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

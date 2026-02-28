@@ -20,10 +20,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ActivityIndicator,
   FlatList,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -85,7 +85,7 @@ export default function AgencyDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => safeGoBack(router, "/(tabs)/jobs")}
@@ -103,7 +103,7 @@ export default function AgencyDetailScreen() {
 
   if (error || !data) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => safeGoBack(router, "/(tabs)/jobs")}
@@ -190,7 +190,7 @@ export default function AgencyDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity

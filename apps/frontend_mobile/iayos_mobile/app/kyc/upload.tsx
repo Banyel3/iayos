@@ -13,12 +13,12 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Modal,
   Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -1604,7 +1604,7 @@ export default function KYCUploadScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Custom Header */}

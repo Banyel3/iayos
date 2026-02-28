@@ -7,12 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Alert,
   Keyboard,
   TextInput as RNTextInput,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { getAccessToken } from "@/lib/utils/tokenStorage";
 import * as Google from "expo-auth-session/providers/google";
@@ -231,7 +231,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} testID="login-screen">
+    <SafeAreaView style={styles.container} edges={["top"]} testID="login-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -388,7 +388,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name="logo-google"
                   size={20}
-                  color="#DB4437"
+                  color="#4da9ff"
                   style={{ marginRight: Spacing.sm }}
                 />
               )}

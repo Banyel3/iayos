@@ -12,8 +12,8 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
@@ -84,7 +84,7 @@ export default function ActiveCallScreen() {
   const avatarUrl = recipientAvatar ? getAbsoluteMediaUrl(recipientAvatar) : null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar style="light" />
 
       {/* Header */}

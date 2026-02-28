@@ -24,8 +24,8 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -437,7 +437,7 @@ export default function EditJobScreen() {
 
   if (jobLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading job details...</Text>
@@ -448,7 +448,7 @@ export default function EditJobScreen() {
 
   if (jobError || !jobData) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors.error} />
           <Text style={styles.errorText}>Failed to load job details</Text>
@@ -466,7 +466,7 @@ export default function EditJobScreen() {
   // Check if job is editable
   if (jobData.status !== "ACTIVE") {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.errorContainer}>
           <Ionicons name="lock-closed" size={48} color={Colors.warning} />
           <Text style={styles.errorText}>
@@ -485,7 +485,7 @@ export default function EditJobScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView
         style={styles.container}

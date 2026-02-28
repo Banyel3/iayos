@@ -13,10 +13,10 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Image,
   TouchableOpacity,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -405,7 +405,7 @@ export default function EditProfileScreen() {
   // ===== LOADING STATE =====
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading profile...</Text>
@@ -416,7 +416,7 @@ export default function EditProfileScreen() {
 
   // ===== MAIN CONTENT =====
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

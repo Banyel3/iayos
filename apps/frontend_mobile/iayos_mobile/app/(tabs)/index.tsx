@@ -17,13 +17,13 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
   Modal,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -597,7 +597,7 @@ export default function BrowseJobsScreen() {
   // Error state
   if (isError) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <ErrorState
           title={`Failed to load ${isWorker ? "jobs" : "workers"}`}
           message="Something went wrong. Please try again."
@@ -608,7 +608,7 @@ export default function BrowseJobsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <FlatList
         data={items as any}
         renderItem={renderItem as any}

@@ -11,9 +11,9 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  SafeAreaView,
   Image,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -120,7 +120,7 @@ export default function MaterialsScreen() {
   // ===== LOADING STATE =====
   if (isLoading && !refreshing) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <MaterialForm
           visible={formVisible}
           onClose={handleFormClose}
@@ -137,7 +137,7 @@ export default function MaterialsScreen() {
   // ===== ERROR STATE =====
   if (error && !refreshing) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <MaterialForm
           visible={formVisible}
           onClose={handleFormClose}
@@ -161,7 +161,7 @@ export default function MaterialsScreen() {
   // ===== EMPTY STATE =====
   if (materials.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <MaterialForm
           visible={formVisible}
           onClose={handleFormClose}
@@ -280,7 +280,7 @@ export default function MaterialsScreen() {
 
   // ===== MAIN RENDER =====
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <MaterialForm
         visible={formVisible}
         onClose={handleFormClose}

@@ -6,12 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -98,7 +98,7 @@ export default function CreateTicketScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

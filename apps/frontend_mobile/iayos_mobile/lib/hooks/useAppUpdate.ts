@@ -442,12 +442,16 @@ export function useAppUpdate() {
       }
       
       const config = await response.json() as { version?: VersionInfo };
+      console.log('[APP UPDATE] Raw API response:', JSON.stringify(config, null, 2));
       const versionInfo: VersionInfo = config.version || {} as VersionInfo;
+      console.log('[APP UPDATE] Extracted version info:', JSON.stringify(versionInfo, null, 2));
       
       const minVersion = versionInfo.min_version || '0.0.0';
       const currentVersion = versionInfo.current_version || '0.0.0';
       const forceUpdate = versionInfo.force_update ?? true;
       const downloadUrl = versionInfo.download_url || 'https://github.com/Banyel3/iayos/releases/latest';
+      
+      console.log('[APP UPDATE] Final values:', { minVersion, currentVersion, forceUpdate, installedVersion });
       
       // Check if update is required (installed < min_version)
       const updateRequired = compareVersions(installedVersion, minVersion) < 0;

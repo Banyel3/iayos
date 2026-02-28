@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
@@ -42,7 +42,7 @@ export default function SelectRoleScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Choose Your Role</Text>

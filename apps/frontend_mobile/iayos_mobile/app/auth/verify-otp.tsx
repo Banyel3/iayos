@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -202,7 +202,7 @@ export default function VerifyOTPScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

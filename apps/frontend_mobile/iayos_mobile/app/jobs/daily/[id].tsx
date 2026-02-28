@@ -10,11 +10,12 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
+
   ActivityIndicator,
   RefreshControl,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
@@ -333,7 +334,7 @@ export default function DailyJobDetailScreen() {
   // Loading state
   if (isLoadingJob || isLoadingSummary) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading job details...</Text>
@@ -345,7 +346,7 @@ export default function DailyJobDetailScreen() {
   // Error state
   if (!job) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors.error} />
           <Text style={styles.errorText}>Job not found</Text>
@@ -373,7 +374,7 @@ export default function DailyJobDetailScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBackButton} onPress={() => safeGoBack(router, "/(tabs)/jobs")}>

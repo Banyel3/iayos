@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name='team_conversation_participations',
-                to='profiles.profile',
+                to='accounts.profile',
             ),
         ),
         # 2. Add admin_account FK to ConversationParticipant

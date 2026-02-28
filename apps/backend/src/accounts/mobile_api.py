@@ -1172,6 +1172,8 @@ def mobile_my_jobs(
                 'total_workers_needed': job.total_workers_needed if job.is_team_job else None,
                 'total_workers_assigned': job.total_workers_assigned if job.is_team_job else None,
                 'team_fill_percentage': job.team_fill_percentage if job.is_team_job else None,
+                # Application count for clients to see how many workers applied
+                'application_count': job.applications.count() if profile.profileType == 'CLIENT' else None,
             }
             
             if job.clientID:

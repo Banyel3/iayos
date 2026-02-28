@@ -7,12 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
   Keyboard,
   TextInput as RNTextInput,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -285,7 +285,7 @@ export default function ForgotPasswordScreen() {
   const { icon, title, subtitle } = stepConfig[step];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

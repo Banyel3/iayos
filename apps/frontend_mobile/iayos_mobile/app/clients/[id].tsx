@@ -20,9 +20,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -61,7 +61,7 @@ const ClientDetailSkeleton = () => {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => safeGoBack(router, "/(tabs)/jobs")}
@@ -166,7 +166,7 @@ export default function ClientDetailScreen() {
 
   if (error || !clientData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => safeGoBack(router, "/(tabs)/jobs")}
@@ -219,7 +219,7 @@ export default function ClientDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

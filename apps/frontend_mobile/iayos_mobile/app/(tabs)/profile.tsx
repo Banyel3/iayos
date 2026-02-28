@@ -5,11 +5,11 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Image,
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "expo-router";
 import {
@@ -202,7 +202,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Top Action Buttons */}
       <View style={styles.topActionsContainer}>
         {/* Location Button */}

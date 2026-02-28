@@ -17,6 +17,7 @@ import * as SystemUI from "expo-system-ui";
 import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
