@@ -46,14 +46,15 @@ export function useAgencyStats() {
 
       const data = await response.json();
 
-      // Transform to stats format
+      // Transform to stats format — backend nests under data.statistics
+      const stats = data.statistics || data;
       return {
-        total_jobs: data.total_jobs || 0,
-        completed_jobs: data.completed_jobs || 0,
-        active_jobs: data.active_jobs || 0,
-        cancelled_jobs: data.cancelled_jobs || 0,
-        total_revenue: data.total_revenue || 0,
-        average_rating: data.average_rating || 0,
+        total_jobs: stats.total_jobs || 0,
+        completed_jobs: stats.completed_jobs || 0,
+        active_jobs: stats.active_jobs || 0,
+        cancelled_jobs: stats.cancelled_jobs || 0,
+        total_revenue: stats.total_revenue || 0,
+        average_rating: stats.average_rating || 0,
       };
     },
     refetchOnWindowFocus: false,

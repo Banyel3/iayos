@@ -66,8 +66,18 @@ export default function JobDetailPage() {
 
   if (!job) {
     return (
-      <div className="p-6">
-        <p className="text-gray-600">Job not found</p>
+      <div className="p-6 max-w-7xl mx-auto">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition"
+        >
+          <ArrowLeft size={20} />
+          <span className="font-medium">Back to Active Jobs</span>
+        </button>
+        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+          <p className="text-xl font-semibold text-gray-700 mb-2">Job not found</p>
+          <p className="text-gray-500">This job may have been removed or you don&apos;t have access.</p>
+        </div>
       </div>
     );
   }
