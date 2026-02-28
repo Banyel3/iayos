@@ -4767,33 +4767,6 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  reviewWaitingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xl,
-  },
-  reviewSection: {
-    marginBottom: Spacing.md,
-  },
-  reviewSectionTitle: {
-    ...Typography.body.large,
-    fontWeight: "700",
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  reviewCard: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.medium,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  reviewCardSubtitle: {
-    ...Typography.body.medium,
-    color: Colors.textSecondary,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -5499,7 +5472,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   reviewWaitingContainer: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xl,
   },
   reviewWaitingTitle: {
