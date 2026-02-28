@@ -2235,15 +2235,17 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
         
         total = reviews_query.count()
         
-        # Calculate stats
-        all_ratings = list(reviews_query.values_list('rating', flat=True))
+        # FIX #1: Stats ALWAYS from base_query (unfiltered) so all tab badges stay
+        # correct regardless of which review_type filter is currently active.
+        base_total = base_query.count()
+        all_ratings = list(base_query.values_list('rating', flat=True))
         avg_rating = sum(float(r) for r in all_ratings) / len(all_ratings) if all_ratings else 0.0
         positive_count = sum(1 for r in all_ratings if float(r) >= 4.0)
         neutral_count = sum(1 for r in all_ratings if 3.0 <= float(r) < 4.0)
         negative_count = sum(1 for r in all_ratings if float(r) < 3.0)
         
-        agency_reviews_count = reviews_query.filter(revieweeAgencyID=agency).count()
-        employee_reviews_count = reviews_query.filter(revieweeEmployeeID__in=employee_ids).count()
+        agency_reviews_count = base_query.filter(revieweeAgencyID=agency).count()
+        employee_reviews_count = base_query.filter(revieweeEmployeeID__in=employee_ids).count()
         
         # Pagination
         start_idx = (page - 1) * limit
@@ -2253,18 +2255,26 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
         # Build response
         reviews_data = []
         for review in reviews_page:
-            # Get reviewer (client) info
-            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
-            client_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}" if reviewer_profile else "Unknown Client"
+            # FIX #3: Prefer CLIENT profile for dual-profile users so we show the
+            # client's platform data (name/avatar), not their worker profile.
+            reviewer_profile = (
+                Profile.objects.filter(accountFK=review.reviewerID, profileType='CLIENT').first()
+                or Profile.objects.filter(accountFK=review.reviewerID).first()
+            )
+            client_name = (
+                f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                if reviewer_profile else "Unknown Client"
+            )
             client_avatar = reviewer_profile.profileImg if reviewer_profile else None
             
-            # Determine review type and employee info
+            # FIX #2: Use review_type_str (not review_type) to avoid shadowing the
+            # function parameter and corrupting subsequent loop iterations.
             if review.revieweeEmployeeID:
-                review_type = "EMPLOYEE"
+                review_type_str = "EMPLOYEE"
                 employee_name = review.revieweeEmployeeID.name
                 employee_id = review.revieweeEmployeeID.employeeID
             else:
-                review_type = "AGENCY"
+                review_type_str = "AGENCY"
                 employee_name = None
                 employee_id = None
             
@@ -2277,7 +2287,7 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
                 "rating": float(review.rating) if review.rating else 0.0,
                 "comment": review.comment,
                 "created_at": review.createdAt,
-                "review_type": review_type,
+                "review_type": review_type_str,
                 "employee_name": employee_name,
                 "employee_id": employee_id,
                 "agency_response": review.agency_response,
@@ -2289,7 +2299,7 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
             "success": True,
             "reviews": reviews_data,
             "stats": {
-                "total_reviews": total,
+                "total_reviews": base_total,
                 "average_rating": round(avg_rating, 2),
                 "positive_reviews": positive_count,
                 "neutral_reviews": neutral_count,
