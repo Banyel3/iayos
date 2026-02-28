@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   FlatList,
   Dimensions,
   Animated,
@@ -72,7 +71,7 @@ export default function WelcomeScreen() {
   }, []);
 
   const markSeen = () =>
-    AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, "true").catch(() => {});
+    AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, "true").catch(() => { });
 
   const renderPage = ({ item }: { item: (typeof PAGES)[number] }) => (
     <View style={styles.page}>
