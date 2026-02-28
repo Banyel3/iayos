@@ -66,8 +66,6 @@ function combineKYCData(data: any): KYCRecord[] {
       const user = data.users?.find((u: any) => u.accountID === kyc.accountFK);
       const files = data.files?.filter((f: any) => f.kycID === kyc.kycID) || [];
 
-      console.log(`Processing KYC ${kyc.kycID}:`, { kyc, user, files });
-
       if (user) {
         records.push({
           id: `kyc_${kyc.kycID}`,
@@ -222,8 +220,6 @@ export default function KYCDetailPage() {
       if (record.documents.birCertificate)
         requestBody.addressProofLink = record.documents.birCertificate;
 
-      console.log("Fetching signed URLs for documents:", requestBody);
-
       if (Object.keys(requestBody).length === 0) {
         console.warn("No document paths found for KYC record");
         return;
@@ -236,8 +232,6 @@ export default function KYCDetailPage() {
         credentials: "include",
       });
 
-      console.log("Signed URLs response status:", response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Failed to fetch signed URLs:", errorText);
@@ -245,7 +239,6 @@ export default function KYCDetailPage() {
       }
 
       const signedData = await response.json();
-      console.log("Signed URLs received:", signedData);
 
       // Backend returns { frontIDLink: "url", backIDLink: "url", ... }
       const docs: SignedDocument[] = [];
@@ -295,7 +288,6 @@ export default function KYCDetailPage() {
         });
       }
 
-      console.log("Signed documents ready:", docs);
       setSignedDocuments(docs);
 
       if (docs.length === 0) {
