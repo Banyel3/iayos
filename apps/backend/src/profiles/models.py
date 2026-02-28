@@ -307,12 +307,24 @@ class ConversationParticipant(models.Model):
     profile = models.ForeignKey(
         Profile,
         on_delete=models.CASCADE,
-        related_name='team_conversation_participations'
+        related_name='team_conversation_participations',
+        null=True,
+        blank=True
+    )
+
+    # Admin account (for backjob negotiation chat)
+    admin_account = models.ForeignKey(
+        'accounts.Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='negotiation_conversations'
     )
     
     class ParticipantType(models.TextChoices):
         CLIENT = "CLIENT", "Client (Job Owner)"
         WORKER = "WORKER", "Worker (Team Member)"
+        ADMIN = "ADMIN", "Admin (Negotiation)"
     
     participant_type = models.CharField(
         max_length=10,
@@ -351,12 +363,22 @@ class ConversationParticipant(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['conversation', 'profile'],
+                condition=models.Q(profile__isnull=False),
                 name='unique_conversation_participant'
-            )
+            ),
+            models.UniqueConstraint(
+                fields=['conversation', 'admin_account'],
+                condition=models.Q(admin_account__isnull=False),
+                name='unique_conversation_admin'
+            ),
         ]
     
     def __str__(self):
-        return f"{self.profile.firstName} in {self.conversation}"
+        if self.profile:
+            return f"{self.profile.firstName} in {self.conversation}"
+        elif self.admin_account:
+            return f"Admin ({self.admin_account.email}) in {self.conversation}"
+        return f"Participant in {self.conversation}"
     
     def mark_as_read(self):
         """Mark all messages as read for this participant."""
@@ -394,6 +416,15 @@ class Message(models.Model):
         related_name='sent_messages',
         null=True,
         blank=True
+    )
+    
+    # Message sender - Admin (for backjob negotiation messages)
+    sender_admin = models.ForeignKey(
+        'accounts.Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='admin_messages'
     )
     
     # Message content
@@ -450,16 +481,18 @@ class Message(models.Model):
         return f"Message from {sender_name} at {self.createdAt}"
     
     def get_sender_name(self):
-        """Get sender name (works for both Profile and Agency senders)"""
+        """Get sender name (works for Profile, Agency, and Admin senders)"""
         if self.sender:
             return f"{self.sender.firstName} {self.sender.lastName}"
         elif self.senderAgency:
             return self.senderAgency.businessName
+        elif self.sender_admin:
+            return f"Admin ({self.sender_admin.email})"
         return "Unknown"
     
     def get_sender(self):
-        """Get sender object (Profile or Agency)"""
-        return self.sender or self.senderAgency
+        """Get sender object (Profile, Agency, or Admin)"""
+        return self.sender or self.senderAgency or self.sender_admin
     
     def save(self, *args, **kwargs):
         """Update conversation's last message info"""
@@ -482,6 +515,10 @@ class Message(models.Model):
         elif self.senderAgency:
             # Agency sent message, increment client's unread count
             conv.unreadCountClient += 1
+        elif self.sender_admin:
+            # Admin sent message, increment both client and worker unread counts
+            conv.unreadCountClient += 1
+            conv.unreadCountWorker += 1
         
         conv.save(update_fields=['lastMessageText', 'lastMessageTime', 'lastMessageSender', 'unreadCountClient', 'unreadCountWorker', 'updatedAt'])
     

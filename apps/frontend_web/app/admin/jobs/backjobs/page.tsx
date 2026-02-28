@@ -21,6 +21,7 @@ import {
   TrendingUp,
   FileText,
   Users,
+  MessageSquare,
   ChevronRight,
   XCircle,
 } from "lucide-react";
@@ -44,7 +45,7 @@ interface BackJob {
   reason: string;
   description: string;
   requested_date: string;
-  status: "pending" | "under_review" | "approved" | "rejected" | "completed";
+  status: "pending" | "in_negotiation" | "under_review" | "approved" | "rejected" | "completed";
   priority: "low" | "medium" | "high" | "urgent";
   job_amount: number;
   backjob_amount: number;
@@ -56,6 +57,7 @@ interface BackJob {
 interface BackJobStats {
   total_disputes: number;
   open_disputes: number;
+  in_negotiation: number;
   under_review: number;
   resolved_disputes: number;
   urgent_requests: number;
@@ -135,6 +137,12 @@ export default function BackJobsPage() {
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">
             Pending Review
+          </Badge>
+        );
+      case "in_negotiation":
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
+            ⚖️ In Negotiation
           </Badge>
         );
       case "under_review":
@@ -243,7 +251,7 @@ export default function BackJobsPage() {
 
           {/* Modern Summary Cards */}
           {stats && (
-            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-5">
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
                 <CardContent className="relative p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -274,6 +282,23 @@ export default function BackJobsPage() {
                   </p>
                   <p className="text-xl sm:text-3xl font-bold text-yellow-600">
                     {stats.open_disputes}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+                <CardContent className="relative p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                      <MessageSquare className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="h-2 w-2 bg-purple-500 rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="text-sm font-medium text-gray-600 mb-1">
+                    In Negotiation
+                  </p>
+                  <p className="text-xl sm:text-3xl font-bold text-purple-600">
+                    {stats.in_negotiation ?? 0}
                   </p>
                 </CardContent>
               </Card>
@@ -332,6 +357,7 @@ export default function BackJobsPage() {
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
+                  <option value="in_negotiation">In Negotiation</option>
                   <option value="under_review">Under Review</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>

@@ -4587,6 +4587,8 @@ export default function ChatScreen() {
                 <Text style={styles.backjobStatusTextCompact}>
                   {conversation.backjob.status === "UNDER_REVIEW"
                     ? "Action"
+                    : conversation.backjob.status === "IN_NEGOTIATION"
+                    ? "Negotiating"
                     : "Pending"}
                 </Text>
               </View>

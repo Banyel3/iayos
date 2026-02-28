@@ -4868,9 +4868,20 @@ def mobile_get_review_stats(request, worker_id: int):
 
 @mobile_router.put("/reviews/{review_id}", auth=jwt_auth)
 @require_kyc
-def mobile_edit_review(request, review_id: int, rating: int, comment: str):
+def mobile_edit_review(
+    request,
+    review_id: int,
+    rating: int,
+    comment: str,
+    rating_quality: Optional[int] = None,
+    rating_communication: Optional[int] = None,
+    rating_punctuality: Optional[int] = None,
+    rating_professionalism: Optional[int] = None,
+):
     """
-    Edit an existing review (only allowed within 24 hours)
+    Edit an existing review.
+    Allowed within 24 hours of creation OR within the 7-day backjob edit window.
+    Accepts optional multi-criteria sub-ratings.
     """
     from .mobile_services import edit_review_mobile
 
@@ -4880,7 +4891,11 @@ def mobile_edit_review(request, review_id: int, rating: int, comment: str):
             user=user,
             review_id=review_id,
             rating=rating,
-            comment=comment
+            comment=comment,
+            rating_quality=rating_quality,
+            rating_communication=rating_communication,
+            rating_punctuality=rating_punctuality,
+            rating_professionalism=rating_professionalism,
         )
 
         if result['success']:

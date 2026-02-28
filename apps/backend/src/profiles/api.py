@@ -1365,23 +1365,33 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         for msg in messages:
             # Handle system messages (both sender and senderAgency are None)
-            if msg.sender is None and msg.senderAgency is None:
+            if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
                 is_mine = False
                 sender_name = "System"
                 sender_avatar = None
+                sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
+            elif msg.sender is None and msg.senderAgency is None and msg.sender_admin:
+                # Admin message (negotiation chat)
+                is_mine = False
+                sender_name = "Admin"
+                sender_avatar = None
+                sender_type = "admin"
+                print(f"   Admin message from {msg.sender_admin.email}")
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
                 sender_name = msg.senderAgency.businessName if msg.senderAgency else (conversation.agency.businessName if conversation.agency else "Agency")
                 sender_avatar = "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
+                sender_type = "agency"
                 print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
                 # Regular message from a Profile
                 is_mine = msg.sender == user_profile
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
+                sender_type = "profile"
                 print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
             
             # Get attachments for this message
@@ -1406,6 +1416,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "message_id": msg.messageID,
                 "sender_name": sender_name,
                 "sender_avatar": sender_avatar,
+                "sender_type": sender_type,
                 "message_text": msg.messageText,
                 "message_type": msg.messageType,
                 "is_read": msg.isRead,
