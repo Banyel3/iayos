@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   Image,
   Modal,
@@ -13,6 +12,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useSafeBack, safeGoBack } from "@/lib/hooks/useSafeBack";
@@ -1018,7 +1018,7 @@ export default function JobDetailScreen() {
   // Show skeleton while loading
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -1043,7 +1043,7 @@ export default function JobDetailScreen() {
   // Handle invalid job ID
   if (!isValidJobId) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.errorContainer}>
           <Ionicons
             name="alert-circle-outline"
@@ -1067,7 +1067,7 @@ export default function JobDetailScreen() {
 
   if (error || !job) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.errorContainer}>
           <Ionicons
             name="alert-circle-outline"
@@ -1130,7 +1130,7 @@ export default function JobDetailScreen() {
     (job.reviews?.clientToWorker || job.reviews?.workerToClient);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

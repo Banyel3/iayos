@@ -184,7 +184,7 @@ export default function SkillsScreen() {
   // Loading state
   if (mySkillsLoading && !refreshing) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <Pressable onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -201,7 +201,7 @@ export default function SkillsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>

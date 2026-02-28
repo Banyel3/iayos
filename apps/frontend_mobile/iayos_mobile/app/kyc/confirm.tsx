@@ -11,10 +11,10 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -290,7 +290,7 @@ export default function KYCConfirmScreen() {
   // Loading state
   if (autofillLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -303,7 +303,7 @@ export default function KYCConfirmScreen() {
   // Error state
   if (isError) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.customHeader}>
           <CustomBackButton />
@@ -334,7 +334,7 @@ export default function KYCConfirmScreen() {
   // No data available
   if (!hasAutofillData || extractionStatus === "PENDING") {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.customHeader}>
           <CustomBackButton />
@@ -367,7 +367,7 @@ export default function KYCConfirmScreen() {
   // Already confirmed
   if (isConfirmed) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.customHeader}>
           <CustomBackButton />
@@ -392,7 +392,7 @@ export default function KYCConfirmScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Custom Header */}

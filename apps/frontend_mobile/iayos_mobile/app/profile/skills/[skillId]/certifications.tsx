@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
@@ -233,7 +233,7 @@ export default function SkillCertificationsScreen() {
   // Loading state
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <CustomBackButton />
           <Text style={styles.headerTitle}>
@@ -252,7 +252,7 @@ export default function SkillCertificationsScreen() {
   // Error state
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <CustomBackButton />
           <Text style={styles.headerTitle}>
@@ -276,7 +276,7 @@ export default function SkillCertificationsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <CustomBackButton />

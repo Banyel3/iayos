@@ -5,13 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   RefreshControl,
   ActivityIndicator,
   Image,
   Alert,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -665,7 +665,7 @@ export default function JobsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} testID="jobs-screen">
+    <SafeAreaView style={styles.container} edges={["top"]} testID="jobs-screen">
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={

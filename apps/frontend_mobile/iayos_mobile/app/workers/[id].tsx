@@ -21,10 +21,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ActivityIndicator,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
@@ -113,7 +113,7 @@ const WorkerDetailSkeleton = () => {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => safeGoBack(router, "/(tabs)")}
@@ -320,7 +320,7 @@ export default function WorkerDetailScreen() {
   // Show error only if not loading and there's an error
   if (error || !data) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => safeGoBack(router, "/(tabs)")}
@@ -359,7 +359,7 @@ export default function WorkerDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
