@@ -1377,7 +1377,8 @@ export default function ChatScreen() {
           {conversation.is_agency_job &&
             conversation.my_role === "CLIENT" &&
             conversation.assigned_employees &&
-            conversation.assigned_employees.length > 0 && (
+            conversation.assigned_employees.length > 0 &&
+            !conversation.job.workerMarkedComplete && (
               <View style={styles.assignedWorkerBadge}>
                 <Ionicons name="people" size={12} color={Colors.primary} />
                 <Text style={styles.assignedWorkerText} numberOfLines={1}>
@@ -2265,7 +2266,10 @@ export default function ChatScreen() {
                   conversation.team_worker_assignments &&
                   conversation.team_worker_assignments.length > 0 &&
                   (() => {
+                    // For agency jobs: treat job-level workerMarkedComplete as all-complete
+                    // (agency marks complete as a unit; individual assignment flags may not be set)
                     const allWorkersComplete =
+                      conversation.job.workerMarkedComplete ||
                       conversation.team_worker_assignments.every(
                         (a) => a.worker_marked_complete,
                       );
@@ -2277,10 +2281,13 @@ export default function ChatScreen() {
                       conversation.team_worker_assignments.filter(
                         (a) => a.client_confirmed_arrival,
                       ).length;
-                    const completedCount =
-                      conversation.team_worker_assignments.filter(
-                        (a) => a.worker_marked_complete,
-                      ).length;
+                    // For agency jobs: when agency marks complete at job level,
+                    // treat all assigned workers as having completed.
+                    const completedCount = conversation.job.workerMarkedComplete
+                      ? conversation.team_worker_assignments.length
+                      : conversation.team_worker_assignments.filter(
+                          (a) => a.worker_marked_complete,
+                        ).length;
 
                     // Show waiting for arrivals if not all arrived
                     if (!allWorkersArrived) {
