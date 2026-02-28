@@ -318,7 +318,7 @@ export default function TransactionsPage() {
   };
 
   const exportToCSV = () => {
-    alert("Export to CSV functionality - Coming soon");
+    toast.info("Export to CSV functionality - Coming soon");
   };
 
   if (loading && transactions.length === 0) {

@@ -33,6 +33,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../../components";
+import { toast } from "sonner";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 
@@ -148,7 +149,7 @@ export default function WorkerDetailPage() {
   // Account action handlers
   const handleSuspend = async () => {
     if (!actionReason.trim()) {
-      alert("Please provide a reason for suspension");
+      toast.error("Please provide a reason for suspension");
       return;
     }
     setActionLoading(true);
@@ -164,16 +165,16 @@ export default function WorkerDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Worker suspended successfully");
+        toast.success("Worker suspended successfully");
         setShowSuspendModal(false);
         setActionReason("");
         fetchWorker();
       } else {
-        alert(data.error || "Failed to suspend worker");
+        toast.error(data.error || "Failed to suspend worker");
       }
     } catch (error) {
       console.error("Suspend error:", error);
-      alert(getErrorMessage(error, "Failed to suspend worker"));
+      toast.error(getErrorMessage(error, "Failed to suspend worker"));
     } finally {
       setActionLoading(false);
     }
@@ -181,7 +182,7 @@ export default function WorkerDetailPage() {
 
   const handleBan = async () => {
     if (!actionReason.trim()) {
-      alert("Please provide a reason for banning");
+      toast.error("Please provide a reason for banning");
       return;
     }
     setActionLoading(true);
@@ -197,16 +198,16 @@ export default function WorkerDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Worker banned successfully");
+        toast.success("Worker banned successfully");
         setShowBanModal(false);
         setActionReason("");
         fetchWorker();
       } else {
-        alert(data.error || "Failed to ban worker");
+        toast.error(data.error || "Failed to ban worker");
       }
     } catch (error) {
       console.error("Ban error:", error);
-      alert(getErrorMessage(error, "Failed to ban worker"));
+      toast.error(getErrorMessage(error, "Failed to ban worker"));
     } finally {
       setActionLoading(false);
     }
@@ -225,15 +226,15 @@ export default function WorkerDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Worker activated successfully");
+        toast.success("Worker activated successfully");
         setShowActivateModal(false);
         fetchWorker();
       } else {
-        alert(data.error || "Failed to activate worker");
+        toast.error(data.error || "Failed to activate worker");
       }
     } catch (error) {
       console.error("Activate error:", error);
-      alert(getErrorMessage(error, "Failed to activate worker"));
+      toast.error(getErrorMessage(error, "Failed to activate worker"));
     } finally {
       setActionLoading(false);
     }
@@ -241,7 +242,7 @@ export default function WorkerDetailPage() {
 
   const handleDelete = async () => {
     if (deleteConfirmText !== "DELETE") {
-      alert('Please type "DELETE" to confirm');
+      toast.error('Please type "DELETE" to confirm');
       return;
     }
     setActionLoading(true);
@@ -255,14 +256,14 @@ export default function WorkerDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Worker deleted successfully");
+        toast.success("Worker deleted successfully");
         router.push("/admin/users/workers");
       } else {
-        alert(data.error || "Failed to delete worker");
+        toast.error(data.error || "Failed to delete worker");
       }
     } catch (error) {
       console.error("Delete error:", error);
-      alert(getErrorMessage(error, "Failed to delete worker"));
+      toast.error(getErrorMessage(error, "Failed to delete worker"));
     } finally {
       setActionLoading(false);
     }

@@ -27,6 +27,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface Client {
   id: string;
@@ -257,7 +258,7 @@ export default function ClientsPage() {
     setSelectedClients(new Set());
     setSelectAll(false);
 
-    alert(
+    toast.success(
       `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} clients successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`,
     );
 

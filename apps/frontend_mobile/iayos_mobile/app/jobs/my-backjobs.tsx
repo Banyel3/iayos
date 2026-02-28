@@ -67,7 +67,7 @@ export default function MyBackjobsScreen() {
           backjobs: BackjobItem[];
           total: number;
         };
-        console.log("📋 Backjobs data:", data);
+        if (__DEV__) console.log("📋 Backjobs data:", data);
         // Transform avatar URLs to absolute URLs for local storage compatibility
         const transformedBackjobs = (data.backjobs || []).map((item) => ({
           ...item,

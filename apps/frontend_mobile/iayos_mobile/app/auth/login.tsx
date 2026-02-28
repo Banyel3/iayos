@@ -116,18 +116,18 @@ export default function LoginScreen() {
 
       if (!token) {
         // No token = definitely not authenticated, stay on login
-        console.log("🔀 [LOGIN] No token found, staying on login screen");
+        if (__DEV__) console.log("🔀 [LOGIN] No token found, staying on login screen");
         return;
       }
 
       // Token exists, check user state
       if (user?.profile_data?.profileType) {
-        console.log(
+        if (__DEV__) console.log(
           "🔀 [LOGIN] User already authenticated, redirecting to tabs",
         );
         router.replace("/(tabs)");
       } else if (user && !user.profile_data?.profileType) {
-        console.log(
+        if (__DEV__) console.log(
           "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
         );
         router.replace("/auth/select-role");
