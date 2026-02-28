@@ -28,6 +28,7 @@ export type Message = {
   is_read: boolean;
   created_at: string;
   is_mine: boolean;
+  sender_type?: "profile" | "agency" | "admin" | "system";
   message_id?: number;
   attachments?: MessageAttachment[];
 };
@@ -158,7 +159,7 @@ export type ConversationDetail = {
     has_backjob: boolean;
     dispute_id?: number;
     reason?: string;
-    status?: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED";
+    status?: "OPEN" | "IN_NEGOTIATION" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED";
     backjob_started?: boolean;
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;

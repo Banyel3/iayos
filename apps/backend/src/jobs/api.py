@@ -5639,9 +5639,17 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                         print(f"⚠️ Failed to upload image {idx}: {upload_error}")
             
             # Notify admins about new backjob request
-            # In a real system, you might have an admin notification channel
-            # For now, just log it
-            print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
+            from accounts.models import Accounts as AccountsModel, Notification
+            admin_accounts = AccountsModel.objects.filter(is_staff=True)
+            for admin_acct in admin_accounts:
+                Notification.objects.create(
+                    accountFK=admin_acct,
+                    notificationType="BACKJOB_NEW_REQUEST",
+                    title="New Backjob Request",
+                    message=f"📢 New backjob request: Dispute #{dispute.disputeID} for job '{job.title}'. Please review.",
+                    relatedJobID=job.jobID
+                )
+            print(f"📢 Notified {admin_accounts.count()} admin(s) about new backjob request for Job #{job.jobID}")
             
             # ============================================================
             # NOTIFY WORKER/AGENCY: Alert them about backjob request
@@ -6022,6 +6030,16 @@ def approve_backjob_completion(request, job_id: int):
             dispute.resolution = "Backjob completed and confirmed by client"
             dispute.resolvedDate = timezone.now()
             dispute.save()
+
+            # Give client 7-day window to edit their review after backjob resolves
+            from accounts.models import JobReview
+            from datetime import timedelta
+            review_deadline = timezone.now() + timedelta(days=7)
+            updated_count = JobReview.objects.filter(
+                jobID=job,
+                reviewerType='CLIENT'
+            ).update(backjob_edit_deadline=review_deadline)
+            print(f"📝 Set backjob_edit_deadline on {updated_count} client review(s) for job #{job.jobID}")
             
             # Close the conversation
             from profiles.models import Conversation, Message

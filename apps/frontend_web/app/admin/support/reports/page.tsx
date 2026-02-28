@@ -17,6 +17,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  ChevronRight,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { toast } from "sonner";
@@ -479,7 +480,7 @@ export default function UserReportsPage() {
                   <div className="p-12 text-center">
                     <AlertTriangle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                     <p className="text-base font-bold text-gray-900 mb-1">No reports found</p>
-                    <p className="text-xs text-gray-500 font-medium font-bold">Try different filter settings</p>
+                    <p className="text-xs text-gray-500 font-bold">Try different filter settings</p>
                   </div>
                 ) : (
                   filteredReports.map((report) => (

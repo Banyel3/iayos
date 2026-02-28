@@ -1198,6 +1198,7 @@ class Notification(models.Model):
         BACKJOB_APPROVED = "BACKJOB_APPROVED", "Backjob Approved"
         BACKJOB_REJECTED = "BACKJOB_REJECTED", "Backjob Rejected"
         BACKJOB_COMPLETED = "BACKJOB_COMPLETED", "Backjob Completed"
+        BACKJOB_NEGOTIATION = "BACKJOB_NEGOTIATION", "Backjob In Negotiation"
 
         # Certification Notifications
         CERTIFICATION_APPROVED = "CERTIFICATION_APPROVED", "Certification Approved"
@@ -2158,6 +2159,7 @@ class JobDispute(models.Model):
     # Status
     class DisputeStatus(models.TextChoices):
         OPEN = "OPEN", "Open"
+        IN_NEGOTIATION = "IN_NEGOTIATION", "In Negotiation"
         UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
         RESOLVED = "RESOLVED", "Resolved"
         CLOSED = "CLOSED", "Closed"
@@ -2216,6 +2218,13 @@ class JobDispute(models.Model):
         blank=True, 
         null=True,
         help_text="Reason for admin rejection"
+    )
+    
+    # Negotiation tracking
+    in_negotiation_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When admin accepted this dispute into negotiation"
     )
     
     # Timestamps
@@ -2402,6 +2411,13 @@ class JobReview(models.Model):
         null=True,
         blank=True,
         help_text="Timestamp when the response was submitted"
+    )
+
+    # Backjob review edit window (7 days after backjob resolved)
+    backjob_edit_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Deadline for client to edit review after backjob resolution"
     )
 
     # Timestamps

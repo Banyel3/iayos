@@ -2614,13 +2614,14 @@ def get_disputes_dashboard_stats():
         
         # By status
         open_disputes = JobDispute.objects.filter(status='OPEN').count()
+        in_negotiation_disputes = JobDispute.objects.filter(status='IN_NEGOTIATION').count()
         under_review = JobDispute.objects.filter(status='UNDER_REVIEW').count()
         resolved_disputes = JobDispute.objects.filter(status='RESOLVED').count()
         closed_disputes = JobDispute.objects.filter(status='CLOSED').count()
         
         # By priority
-        critical_disputes = JobDispute.objects.filter(priority='CRITICAL', status__in=['OPEN', 'UNDER_REVIEW']).count()
-        high_priority = JobDispute.objects.filter(priority='HIGH', status__in=['OPEN', 'UNDER_REVIEW']).count()
+        critical_disputes = JobDispute.objects.filter(priority='CRITICAL', status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']).count()
+        high_priority = JobDispute.objects.filter(priority='HIGH', status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']).count()
         
         # By disputed party
         client_disputes = JobDispute.objects.filter(disputedBy='CLIENT').count()
@@ -2638,6 +2639,7 @@ def get_disputes_dashboard_stats():
         return {
             'total_disputes': total_disputes,
             'open_disputes': open_disputes,
+            'in_negotiation': in_negotiation_disputes,
             'under_review': under_review,
             'resolved_disputes': resolved_disputes,
             'closed_disputes': closed_disputes,
