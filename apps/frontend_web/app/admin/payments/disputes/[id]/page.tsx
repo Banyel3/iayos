@@ -6,6 +6,7 @@ import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -99,12 +100,12 @@ export default function DisputeDetailPage() {
 
   const handleResolve = async () => {
     if (!resolution.trim()) {
-      alert("Please provide a resolution explanation");
+      toast.error("Please provide a resolution explanation");
       return;
     }
 
     if (decision === "partial_refund" && !refundAmount) {
-      alert("Please specify refund amount");
+      toast.error("Please specify refund amount");
       return;
     }
 
@@ -132,12 +133,12 @@ export default function DisputeDetailPage() {
 
       if (!response.ok) throw new Error("Failed to resolve dispute");
 
-      alert("Dispute resolved successfully");
+      toast.success("Dispute resolved successfully");
       setShowResolutionForm(false);
       fetchDetail();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to resolve dispute");
+      toast.error("Failed to resolve dispute");
     }
   };
 

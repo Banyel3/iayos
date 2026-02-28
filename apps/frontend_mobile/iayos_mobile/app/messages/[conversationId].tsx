@@ -138,6 +138,16 @@ export default function ChatScreen() {
   const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
+
+  // Price input modal - cross-platform replacement for Alert.prompt (iOS-only)
+  const [priceModal, setPriceModal] = useState<{
+    visible: boolean;
+    matId: number;
+    matName: string;
+    imageUri: string;
+    jobId: number;
+  } | null>(null);
+  const [priceInputText, setPriceInputText] = useState("");
   // For team jobs: track current worker being reviewed
   const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
@@ -2543,64 +2553,14 @@ export default function ChatScreen() {
                                       !result.canceled &&
                                       result.assets[0]
                                     ) {
-                                      Alert.prompt(
-                                        "Enter Purchase Price",
-                                        `How much did you pay for ${mat.name}?`,
-                                        [
-                                          {
-                                            text: "Cancel",
-                                            style: "cancel",
-                                          },
-                                          {
-                                            text: "Submit",
-                                            onPress: async (
-                                              priceStr?: string
-                                            ) => {
-                                              const price = parseFloat(
-                                                priceStr || "0"
-                                              );
-                                              if (price <= 0) {
-                                                Alert.alert(
-                                                  "Error",
-                                                  "Please enter a valid price"
-                                                );
-                                                return;
-                                              }
-                                              try {
-                                                // Upload image first
-                                                const uploadResult =
-                                                  await uploadAsync({
-                                                    uri: result.assets[0].uri,
-                                                    endpoint: `/api/jobs/${conversation.job.id}/materials/${mat.id}/purchase-proof`,
-                                                    fieldName: "receipt_image",
-                                                    additionalData: {
-                                                      purchase_price:
-                                                        price.toString(),
-                                                    },
-                                                    compress: true,
-                                                  });
-                                                if (
-                                                  uploadResult?.success
-                                                ) {
-                                                  // Refetch materials
-                                                  Alert.alert(
-                                                    "Success",
-                                                    "Receipt uploaded successfully"
-                                                  );
-                                                }
-                                              } catch (e) {
-                                                Alert.alert(
-                                                  "Error",
-                                                  "Failed to upload receipt"
-                                                );
-                                              }
-                                            },
-                                          },
-                                        ],
-                                        "plain-text",
-                                        "",
-                                        "numeric"
-                                      );
+                                      setPriceModal({
+                                        visible: true,
+                                        matId: mat.id,
+                                        matName: mat.name,
+                                        imageUri: result.assets[0].uri,
+                                        jobId: conversation.job.id,
+                                      });
+                                      setPriceInputText("");
                                     }
                                   }}
                                 >
@@ -4686,6 +4646,81 @@ export default function ChatScreen() {
           iconColor={countdownConfig.iconColor}
         />
       )}
+
+      {/* Price Input Modal - cross-platform replacement for Alert.prompt (iOS-only) */}
+      <Modal
+        visible={!!priceModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setPriceModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { padding: 24 }]}>
+            <Text style={styles.modalTitle}>Enter Purchase Price</Text>
+            <Text style={[styles.modalSubtitle, { marginBottom: 16 }]}>
+              {`How much did you pay for ${priceModal?.matName ?? "this item"}?`}
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: Colors.border,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 16,
+                color: Colors.textPrimary,
+                marginBottom: 20,
+              }}
+              placeholder="0.00"
+              placeholderTextColor={Colors.textSecondary}
+              keyboardType="numeric"
+              value={priceInputText}
+              onChangeText={setPriceInputText}
+              autoFocus
+            />
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                style={[styles.modalCancelButton, { flex: 1 }]}
+                onPress={() => {
+                  setPriceModal(null);
+                  setPriceInputText("");
+                }}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cashModalSubmitButton, { flex: 1 }]}
+                onPress={async () => {
+                  const price = parseFloat(priceInputText || "0");
+                  if (price <= 0) {
+                    Alert.alert("Error", "Please enter a valid price");
+                    return;
+                  }
+                  const modal = priceModal;
+                  setPriceModal(null);
+                  setPriceInputText("");
+                  try {
+                    const uploadResult = await uploadAsync({
+                      uri: modal!.imageUri,
+                      endpoint: `/api/jobs/${modal!.jobId}/materials/${modal!.matId}/purchase-proof`,
+                      fieldName: "receipt_image",
+                      additionalData: { purchase_price: price.toString() },
+                      compress: true,
+                    });
+                    if (uploadResult?.success) {
+                      Alert.alert("Success", "Receipt uploaded successfully");
+                    }
+                  } catch (e) {
+                    Alert.alert("Error", "Failed to upload receipt");
+                  }
+                }}
+              >
+                <Text style={styles.cashModalSubmitButtonText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

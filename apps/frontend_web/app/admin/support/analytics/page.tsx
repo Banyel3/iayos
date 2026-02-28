@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface Statistics {
   total_tickets: number;
@@ -118,11 +119,11 @@ export default function SupportAnalyticsPage() {
   };
 
   const handleExportReport = () => {
-    alert("Exporting report as PDF...");
+    toast.info("Exporting report as PDF", { description: "Coming soon" });
   };
 
   const handleExportData = () => {
-    alert("Exporting data as CSV...");
+    toast.info("Exporting data as CSV", { description: "Coming soon" });
   };
 
   if (loading || !stats) {
