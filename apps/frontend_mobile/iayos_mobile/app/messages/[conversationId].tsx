@@ -3151,18 +3151,26 @@ export default function ChatScreen() {
                         {/* Workers on site, working */}
                         {onSiteWorking.length > 0 && (
                           <View
-                            style={[styles.actionButton, styles.waitingButton]}
+                            style={[styles.actionButton, styles.waitingButton, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
                           >
-                            <Ionicons
-                              name="time-outline"
-                              size={20}
-                              color={Colors.textSecondary}
-                            />
-                            <Text style={styles.waitingButtonText}>
-                              {onSiteWorking.length} employee
-                              {onSiteWorking.length > 1 ? "s" : ""} working on
-                              site...
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                              <Ionicons
+                                name="time-outline"
+                                size={20}
+                                color={Colors.textSecondary}
+                              />
+                              <Text style={[styles.waitingButtonText, { marginLeft: 8 }]}>
+                                {onSiteWorking.length} employee
+                                {onSiteWorking.length > 1 ? "s" : ""} working on
+                                site...
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => refetch()}
+                              style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.primary + '20' }}
+                            >
+                              <Ionicons name="refresh" size={18} color={Colors.primary} />
+                            </TouchableOpacity>
                           </View>
                         )}
 
