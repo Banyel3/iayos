@@ -8,6 +8,14 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertTriangle,
   Banknote,
   Star,
   Trophy,
@@ -115,6 +123,11 @@ export default function EmployeesPage() {
   // EOTM modal state
   const [settingEOTM, setSettingEOTM] = useState(false);
   const [eotmReason, setEotmReason] = useState("");
+
+  // Remove employee modal state
+  const [removeTarget, setRemoveTarget] = useState<{ id: string | number; name: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removeResult, setRemoveResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Active tab
   const [activeTab, setActiveTab] = useState<
@@ -394,28 +407,31 @@ export default function EmployeesPage() {
     }
   };
 
-  const removeEmployee = async (id: string | number, name?: string) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to remove ${name || 'this employee'}? This action cannot be undone.`
-    );
-    if (!confirmed) return;
+  const confirmRemoveEmployee = async () => {
+    if (!removeTarget) return;
+    setIsRemoving(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/agency/employees/${id}`, {
+      const res = await fetch(`${API_BASE}/api/agency/employees/${removeTarget.id}`, {
         method: "DELETE",
         credentials: "include",
       });
 
       if (res.ok) {
-        toast.success("Employee removed successfully");
+        setRemoveTarget(null);
+        setRemoveResult({ type: "success", message: `${removeTarget.name} has been removed from your team.` });
         fetchEmployees();
       } else {
         const err = await res.json();
-        toast.error(err.error || "Failed to remove employee");
+        setRemoveTarget(null);
+        setRemoveResult({ type: "error", message: err.error || "Failed to remove employee" });
       }
     } catch (error) {
       console.error("Error removing employee:", error);
-      toast.error("Error removing employee");
+      setRemoveTarget(null);
+      setRemoveResult({ type: "error", message: "A network error occurred. Please try again." });
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -830,7 +846,7 @@ export default function EmployeesPage() {
                             <span className="hidden sm:inline sm:ml-1">Stats</span>
                           </Button>
                           <Button
-                            onClick={() => removeEmployee(emp.id, emp.name)}
+                            onClick={() => setRemoveTarget({ id: emp.id, name: emp.name })}
                             className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto justify-center"
                             size="sm"
                           >
@@ -1153,6 +1169,91 @@ export default function EmployeesPage() {
                     Cancel
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Remove Employee Confirmation Modal */}
+        {removeTarget && !removeResult && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-red-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    Remove Employee
+                  </CardTitle>
+                  <button
+                    onClick={() => setRemoveTarget(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                    disabled={isRemoving}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700">
+                  Are you sure you want to remove <strong>{removeTarget.name}</strong> from your team? This action cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={confirmRemoveEmployee}
+                    disabled={isRemoving}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isRemoving ? "Removing..." : "Yes, Remove"}
+                  </Button>
+                  <Button
+                    onClick={() => setRemoveTarget(null)}
+                    disabled={isRemoving}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Remove Result Modal (Success / Error) */}
+        {removeResult && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className={`flex items-center gap-2 ${
+                    removeResult.type === "success" ? "text-green-600" : "text-red-600"
+                  }`}>
+                    {removeResult.type === "success" ? (
+                      <CheckCircle className="h-5 w-5" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5" />
+                    )}
+                    {removeResult.type === "success" ? "Employee Removed" : "Cannot Remove Employee"}
+                  </CardTitle>
+                  <button
+                    onClick={() => setRemoveResult(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700">{removeResult.message}</p>
+                <Button
+                  onClick={() => setRemoveResult(null)}
+                  className={`w-full ${
+                    removeResult.type === "success"
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  }`}
+                >
+                  Close
+                </Button>
               </CardContent>
             </Card>
           </div>
