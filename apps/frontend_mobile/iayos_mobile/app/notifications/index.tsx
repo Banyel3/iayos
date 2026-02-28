@@ -76,7 +76,7 @@ export default function NotificationsScreen() {
         router.push(`/jobs/${notification.relatedJobID}` as any);
       } else if (notification.relatedApplicationID) {
         router.push(
-          `/applications/${notification.relatedApplicationID}` as any
+          `/applications/${notification.relatedApplicationID}` as any,
         );
       } else if (notification.notificationType === "MESSAGE") {
         // Deep-link to specific conversation when ID is available, else open inbox
@@ -96,7 +96,7 @@ export default function NotificationsScreen() {
         router.push("/reviews/my-reviews" as any);
       }
     },
-    [markReadMutation]
+    [markReadMutation],
   );
 
   // Mark single notification as read
@@ -112,7 +112,7 @@ export default function NotificationsScreen() {
         },
       });
     },
-    [markReadMutation]
+    [markReadMutation],
   );
 
   // Delete single notification
@@ -128,7 +128,7 @@ export default function NotificationsScreen() {
         },
       });
     },
-    [deleteNotificationMutation]
+    [deleteNotificationMutation],
   );
 
   // Mark all as read
@@ -175,7 +175,7 @@ export default function NotificationsScreen() {
         </Swipeable>
       );
     },
-    [handleNotificationPress, handleMarkRead, handleDelete]
+    [handleNotificationPress, handleMarkRead, handleDelete],
   );
 
   // Empty state

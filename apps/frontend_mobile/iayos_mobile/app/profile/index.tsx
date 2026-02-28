@@ -153,7 +153,7 @@ export default function ProfileScreen() {
             text: "OK",
             onPress: () => safeGoBack(router, "/(tabs)/profile"),
           },
-        ]
+        ],
       );
     }
   }, [isWorker, user, router]);
@@ -258,9 +258,14 @@ export default function ProfileScreen() {
       {/* Profile Completeness Banner */}
       {!completionDismissed && completionPercentage < 80 && (
         <View style={styles.completionBanner}>
-          <Ionicons name="information-circle-outline" size={18} color={Colors.white} />
+          <Ionicons
+            name="information-circle-outline"
+            size={18}
+            color={Colors.white}
+          />
           <Text style={styles.completionBannerText}>
-            Complete your profile to get more jobs — {completionPercentage}% done
+            Complete your profile to get more jobs — {completionPercentage}%
+            done
           </Text>
           <Pressable
             style={styles.completionBannerAction}
@@ -268,7 +273,10 @@ export default function ProfileScreen() {
           >
             <Text style={styles.completionBannerActionText}>Complete</Text>
           </Pressable>
-          <Pressable onPress={() => setCompletionDismissed(true)} style={styles.completionBannerDismiss}>
+          <Pressable
+            onPress={() => setCompletionDismissed(true)}
+            style={styles.completionBannerDismiss}
+          >
             <Ionicons name="close" size={16} color={Colors.white} />
           </Pressable>
         </View>
@@ -360,7 +368,7 @@ export default function ProfileScreen() {
                   `${profile.serviceAreas.length >= 1 ? "✓" : "○"} Service Areas\n` +
                   `${profile.hasCertifications ? "✓" : "○"} Certifications\n` +
                   `${profile.hasPortfolio ? "✓" : "○"} Portfolio`,
-                [{ text: "OK" }]
+                [{ text: "OK" }],
               );
             }}
           >
@@ -552,18 +560,23 @@ export default function ProfileScreen() {
             Tap a skill to view certifications
           </Text>
 
-          {(freshSkills.length > 0 ? freshSkills.map(s => ({
-            id: s.id,
-            specializationId: s.specializationId,
-            name: s.name,
-            experienceYears: s.experienceYears,
-            certificationCount: certifications.filter(c => c.specializationId === s.id).length,
-          })) : profile.skills).map((skill) => {
+          {(freshSkills.length > 0
+            ? freshSkills.map((s) => ({
+                id: s.id,
+                specializationId: s.specializationId,
+                name: s.name,
+                experienceYears: s.experienceYears,
+                certificationCount: certifications.filter(
+                  (c) => c.specializationId === s.id,
+                ).length,
+              }))
+            : profile.skills
+          ).map((skill) => {
             const isExpanded = expandedSkills.has(skill.id);
             const skillCertifications = certifications.filter(
               (cert) =>
                 cert.specializationId !== null &&
-                cert.specializationId === skill.id
+                cert.specializationId === skill.id,
             );
 
             return (
@@ -638,7 +651,7 @@ export default function ProfileScreen() {
                             showActions={false}
                             onPress={() =>
                               router.push(
-                                `/profile/skills/${skill.id}/certifications` as any
+                                `/profile/skills/${skill.id}/certifications` as any,
                               )
                             }
                           />
@@ -658,7 +671,7 @@ export default function ProfileScreen() {
                           style={styles.addCertButton}
                           onPress={() =>
                             router.push(
-                              `/profile/skills/${skill.id}/certifications` as any
+                              `/profile/skills/${skill.id}/certifications` as any,
                             )
                           }
                         >

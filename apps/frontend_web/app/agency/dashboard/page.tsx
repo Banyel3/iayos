@@ -33,7 +33,7 @@ interface RecentJob {
   status: string;
   inviteStatus: string;
   budget: number;
-  payment_model?: 'PROJECT' | 'DAILY';
+  payment_model?: "PROJECT" | "DAILY";
   daily_rate_agreed?: number;
   duration_days?: number;
   updatedAt: string;
@@ -87,7 +87,9 @@ export default function AgencyDashboardPage() {
           jobs.map((job: any) => {
             // Use M2M assigned_employees array (new model) with legacy fallback
             const employees = job.assigned_employees || [];
-            const employeeNames = employees.map((e: any) => e.name).filter(Boolean);
+            const employeeNames = employees
+              .map((e: any) => e.name)
+              .filter(Boolean);
             return {
               id: job.jobID,
               title: job.title,
@@ -95,8 +97,14 @@ export default function AgencyDashboardPage() {
               inviteStatus: job.inviteStatus,
               budget: job.budget,
               updatedAt: job.updatedAt,
-              assignedEmployeeId: employees.length > 0 ? employees[0].employeeId : job.assignedEmployee?.employeeId,
-              assignedEmployeeName: employeeNames.length > 0 ? employeeNames.join(', ') : job.assignedEmployee?.name,
+              assignedEmployeeId:
+                employees.length > 0
+                  ? employees[0].employeeId
+                  : job.assignedEmployee?.employeeId,
+              assignedEmployeeName:
+                employeeNames.length > 0
+                  ? employeeNames.join(", ")
+                  : job.assignedEmployee?.name,
             };
           }),
         );
@@ -125,7 +133,8 @@ export default function AgencyDashboardPage() {
         // Check M2M assigned_employees array (new model) with legacy fallback
         const unassigned = jobs.filter((job: any) => {
           const employees = job.assigned_employees || [];
-          const hasLegacyAssignment = job.assignedEmployee || job.assignedEmployeeID;
+          const hasLegacyAssignment =
+            job.assignedEmployee || job.assignedEmployeeID;
           return employees.length === 0 && !hasLegacyAssignment;
         });
         setPendingAssignments(
@@ -286,10 +295,16 @@ export default function AgencyDashboardPage() {
               <p className="text-sm text-gray-600">Quick actions and status</p>
             </div>
             <div className="flex gap-2">
-              <Button className="flex-1 sm:flex-none" onClick={() => router.push("/agency/employees")}>
+              <Button
+                className="flex-1 sm:flex-none"
+                onClick={() => router.push("/agency/employees")}
+              >
                 Manage Employees
               </Button>
-              <Button className="flex-1 sm:flex-none" onClick={() => router.push("/agency/jobs")}>
+              <Button
+                className="flex-1 sm:flex-none"
+                onClick={() => router.push("/agency/jobs")}
+              >
                 Jobs & Assignments
               </Button>
             </div>
@@ -337,7 +352,9 @@ export default function AgencyDashboardPage() {
                             <span className="text-xs text-gray-400">•</span>
                             <span className="text-xs text-gray-500">
                               {job.updatedAt
-                                ? formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true })
+                                ? formatDistanceToNow(new Date(job.updatedAt), {
+                                    addSuffix: true,
+                                  })
                                 : "—"}
                             </span>
                           </div>

@@ -45,7 +45,7 @@ export default function MyBackjobsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "UNDER_REVIEW" | "RESOLVED">(
-    "all"
+    "all",
   );
 
   const fetchBackjobs = async (showLoading = true) => {
@@ -100,7 +100,7 @@ export default function MyBackjobsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchBackjobs();
-    }, [filter])
+    }, [filter]),
   );
 
   const handleRefresh = () => {

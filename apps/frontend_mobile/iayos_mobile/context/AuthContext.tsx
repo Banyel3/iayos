@@ -603,7 +603,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Store new access token securely
       await setAccessToken(newAccessToken);
-      if (__DEV__) console.log(`✅ Switched to ${profileType} profile, new token stored`);
+      if (__DEV__)
+        console.log(`✅ Switched to ${profileType} profile, new token stored`);
 
       // Fetch updated user data with new profile
       const userDataResponse = await apiRequest(ENDPOINTS.ME);

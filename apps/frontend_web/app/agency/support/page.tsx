@@ -170,7 +170,9 @@ export default function AgencySupportPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(errorData, "Failed to submit support ticket"));
+        throw new Error(
+          getErrorMessage(errorData, "Failed to submit support ticket"),
+        );
       }
 
       const data = await response.json();
@@ -179,7 +181,11 @@ export default function AgencySupportPage() {
       toast.success("Support ticket submitted successfully!");
     } catch (error) {
       console.error("Error submitting ticket:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to submit support ticket. Please try again.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to submit support ticket. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }

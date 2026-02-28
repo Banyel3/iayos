@@ -49,7 +49,7 @@ export default function ProfileScreen() {
 
   // Get unread notifications count (scoped to current profile type so cache is separate per profile)
   const { data: unreadCount = 0 } = useUnreadNotificationsCount(
-    user?.profile_data?.profileType ?? undefined
+    user?.profile_data?.profileType ?? undefined,
   );
   const {
     data: walletData,
@@ -82,8 +82,9 @@ export default function ProfileScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const fullName =
-    `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""
-      }`.trim() || "User";
+    `${user?.profile_data?.firstName || ""} ${
+      user?.profile_data?.lastName || ""
+    }`.trim() || "User";
   const initial = (
     user?.profile_data?.firstName?.[0] ||
     user?.email?.[0] ||
@@ -138,8 +139,8 @@ export default function ProfileScreen() {
     const paymentHelper = paymentVerified
       ? profileMetrics.payment_method_verified_at
         ? `Verified ${new Date(
-          profileMetrics.payment_method_verified_at,
-        ).toLocaleDateString()}`
+            profileMetrics.payment_method_verified_at,
+          ).toLocaleDateString()}`
         : "Wallet ready"
       : "Add funds to verify";
 
@@ -173,7 +174,9 @@ export default function ProfileScreen() {
               ? `${responseRateValue.toFixed(1)}%`
               : "No data yet"
           }
-          valueColor={responseRateValue !== null ? Colors.success : Colors.textSecondary}
+          valueColor={
+            responseRateValue !== null ? Colors.success : Colors.textSecondary
+          }
         />
         <InfoRow
           icon="star-outline"
@@ -187,7 +190,11 @@ export default function ProfileScreen() {
                 }`
               : "No reviews yet"
           }
-          valueColor={ratingValue && ratingValue > 0 ? Colors.textPrimary : Colors.textSecondary}
+          valueColor={
+            ratingValue && ratingValue > 0
+              ? Colors.textPrimary
+              : Colors.textSecondary
+          }
         />
       </View>
     );
@@ -288,7 +295,9 @@ export default function ProfileScreen() {
                   if (__DEV__) {
                     console.log("📱 View Public Profile pressed");
                     console.log("   Worker Profile ID:", workerProfileId);
-                    console.log("   Navigating to: /workers/" + workerProfileId);
+                    console.log(
+                      "   Navigating to: /workers/" + workerProfileId,
+                    );
                   }
 
                   if (workerProfileId) {
@@ -435,111 +444,111 @@ export default function ProfileScreen() {
                 </View>
               )
             ) : // Client account - show worker profile option
-              dualStatus.has_worker_profile ? (
-                // Has worker profile - show switch button
+            dualStatus.has_worker_profile ? (
+              // Has worker profile - show switch button
+              <TouchableOpacity
+                style={styles.switchProfileCard}
+                activeOpacity={0.8}
+                onPress={() => {
+                  Alert.alert(
+                    "Switch to Worker Profile",
+                    "Switch to your worker profile to find jobs and offer services. You can switch back anytime.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Switch",
+                        style: "default",
+                        onPress: () => switchProfile.mutate("WORKER"),
+                      },
+                    ],
+                  );
+                }}
+                disabled={switchProfile.isPending}
+              >
+                <View style={styles.switchProfileContent}>
+                  <View style={styles.switchIconContainer}>
+                    {switchProfile.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <Ionicons
+                        name="hammer"
+                        size={24}
+                        color={Colors.primary}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.switchTextContainer}>
+                    <Text style={styles.switchProfileTitle}>
+                      {switchProfile.isPending
+                        ? "Switching..."
+                        : "Switch to Worker Profile"}
+                    </Text>
+                    <Text style={styles.switchProfileDescription}>
+                      Find jobs and offer your services
+                    </Text>
+                  </View>
+                  {!switchProfile.isPending && (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                  )}
+                </View>
+              </TouchableOpacity>
+            ) : (
+              // No worker profile - show create option
+              <View style={styles.createProfileCard}>
+                <View style={styles.createProfileHeader}>
+                  <Ionicons
+                    name="hammer-outline"
+                    size={28}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.createProfileTitle}>
+                    Want to work on jobs too?
+                  </Text>
+                </View>
+                <Text style={styles.createProfileDescription}>
+                  Create a worker profile to apply for jobs and offer your
+                  services to clients.
+                </Text>
                 <TouchableOpacity
-                  style={styles.switchProfileCard}
+                  style={styles.createProfileButton}
                   activeOpacity={0.8}
                   onPress={() => {
                     Alert.alert(
-                      "Switch to Worker Profile",
-                      "Switch to your worker profile to find jobs and offer services. You can switch back anytime.",
+                      "Create Worker Profile",
+                      "This will create a separate worker profile for applying to jobs. You can switch between client and worker profiles anytime. Continue?",
                       [
                         { text: "Cancel", style: "cancel" },
                         {
-                          text: "Switch",
+                          text: "Create",
                           style: "default",
-                          onPress: () => switchProfile.mutate("WORKER"),
+                          onPress: () => createWorker.mutate(),
                         },
                       ],
                     );
                   }}
-                  disabled={switchProfile.isPending}
+                  disabled={createWorker.isPending}
                 >
-                  <View style={styles.switchProfileContent}>
-                    <View style={styles.switchIconContainer}>
-                      {switchProfile.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
-                      ) : (
-                        <Ionicons
-                          name="hammer"
-                          size={24}
-                          color={Colors.primary}
-                        />
-                      )}
-                    </View>
-                    <View style={styles.switchTextContainer}>
-                      <Text style={styles.switchProfileTitle}>
-                        {switchProfile.isPending
-                          ? "Switching..."
-                          : "Switch to Worker Profile"}
-                      </Text>
-                      <Text style={styles.switchProfileDescription}>
-                        Find jobs and offer your services
-                      </Text>
-                    </View>
-                    {!switchProfile.isPending && (
+                  {createWorker.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <>
                       <Ionicons
-                        name="chevron-forward"
-                        size={24}
-                        color={Colors.textSecondary}
+                        name="add-circle-outline"
+                        size={20}
+                        color={Colors.white}
                       />
-                    )}
-                  </View>
+                      <Text style={styles.createProfileButtonText}>
+                        Create Worker Profile
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
-              ) : (
-                // No worker profile - show create option
-                <View style={styles.createProfileCard}>
-                  <View style={styles.createProfileHeader}>
-                    <Ionicons
-                      name="hammer-outline"
-                      size={28}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.createProfileTitle}>
-                      Want to work on jobs too?
-                    </Text>
-                  </View>
-                  <Text style={styles.createProfileDescription}>
-                    Create a worker profile to apply for jobs and offer your
-                    services to clients.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.createProfileButton}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      Alert.alert(
-                        "Create Worker Profile",
-                        "This will create a separate worker profile for applying to jobs. You can switch between client and worker profiles anytime. Continue?",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Create",
-                            style: "default",
-                            onPress: () => createWorker.mutate(),
-                          },
-                        ],
-                      );
-                    }}
-                    disabled={createWorker.isPending}
-                  >
-                    {createWorker.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="add-circle-outline"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.createProfileButtonText}>
-                          Create Worker Profile
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
+              </View>
+            )}
           </View>
         )}
 
@@ -740,7 +749,7 @@ export default function ProfileScreen() {
             <MenuItem
               icon="notifications-outline"
               label="Notifications"
-              onPress={() => { }}
+              onPress={() => {}}
             />
             <MenuItem
               icon="shield-checkmark-outline"

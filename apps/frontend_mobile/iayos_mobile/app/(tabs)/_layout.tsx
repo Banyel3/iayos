@@ -85,11 +85,15 @@ export default function TabLayout() {
     if (!isLoading) {
       if (!isAuthenticated) {
         // Not logged in - redirect to login
-        if (__DEV__) console.log("🔀 [TABS] Redirecting to login (not authenticated)");
+        if (__DEV__)
+          console.log("🔀 [TABS] Redirecting to login (not authenticated)");
         router.replace("/auth/login");
       } else if (!user?.profile_data?.profileType) {
         // Logged in but no role selected - redirect to role selection
-        if (__DEV__) console.log("🔀 [TABS] Redirecting to role selection (no profile type)");
+        if (__DEV__)
+          console.log(
+            "🔀 [TABS] Redirecting to role selection (no profile type)",
+          );
         router.replace("/auth/select-role");
       } else {
         if (__DEV__) console.log("✅ [TABS] User authenticated, showing tabs");
@@ -102,21 +106,23 @@ export default function TabLayout() {
   // Wait for auth state to be determined before rendering anything
   if (isLoading) {
     if (__DEV__) console.log("⏳ [TABS] Still loading, showing blank screen");
-    return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;
+    return <View style={{ flex: 1, backgroundColor: "#ffffff" }} />;
   }
 
   // After loading is complete, check auth state
   if (!isAuthenticated) {
-    if (__DEV__) console.log(
-      "🔀 [TABS] Not authenticated after loading, redirecting to login",
-    );
+    if (__DEV__)
+      console.log(
+        "🔀 [TABS] Not authenticated after loading, redirecting to login",
+      );
     return <Redirect href="/auth/login" />;
   }
 
   if (!user?.profile_data?.profileType) {
-    if (__DEV__) console.log(
-      "🔀 [TABS] No profile type after loading, redirecting to role selection",
-    );
+    if (__DEV__)
+      console.log(
+        "🔀 [TABS] No profile type after loading, redirecting to role selection",
+      );
     return <Redirect href="/auth/select-role" />;
   }
 
@@ -205,7 +211,8 @@ export default function TabLayout() {
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="person.fill" color={color} />
             ),
-            tabBarBadge: unreadNotifications > 0 ? unreadNotifications : undefined,
+            tabBarBadge:
+              unreadNotifications > 0 ? unreadNotifications : undefined,
           }}
         />
       </Tabs>

@@ -14,8 +14,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: '/dashboard/:path*',
-        destination: '/mobile-only',
+        source: "/dashboard/:path*",
+        destination: "/mobile-only",
         permanent: true, // 301 redirect
       },
     ];

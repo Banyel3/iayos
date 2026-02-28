@@ -109,7 +109,9 @@ export default function AgencyProfilePage() {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
     number | null
   >(null);
-  const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<number | null>(null);
+  const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<
+    number | null
+  >(null);
 
   // Edit form states
   const [editBusinessDesc, setEditBusinessDesc] = useState("");

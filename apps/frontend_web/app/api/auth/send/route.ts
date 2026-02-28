@@ -12,11 +12,13 @@ const verifySchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("📧 Email request body:", body);
+    if (process.env.NODE_ENV === "development")
+      console.log("📧 Email request body:", body);
 
     const parsed = verifySchema.parse(body);
 
-    console.log("📧 Proxying email request to backend for:", parsed.email);
+    if (process.env.NODE_ENV === "development")
+      console.log("📧 Proxying email request to backend for:", parsed.email);
 
     // Proxy the request to the backend's send-verification-email endpoint
     const backendResponse = await fetch(
@@ -35,21 +37,26 @@ export async function POST(req: Request) {
     );
 
     const backendData = await backendResponse.json();
-    console.log("📧 Backend response:", backendData);
+    if (process.env.NODE_ENV === "development")
+      console.log("📧 Backend response:", backendData);
 
     if (!backendResponse.ok) {
       console.error("📧 Backend email sending failed:", backendData);
       return NextResponse.json(
         {
           success: false,
-          error: getErrorMessage(backendData, "Failed to send verification email"),
+          error: getErrorMessage(
+            backendData,
+            "Failed to send verification email",
+          ),
           details: backendData.details,
         },
         { status: backendResponse.status },
       );
     }
 
-    console.log("📧 Email sent successfully via backend:", backendData);
+    if (process.env.NODE_ENV === "development")
+      console.log("📧 Email sent successfully via backend:", backendData);
     return NextResponse.json({
       success: true,
       messageId: backendData.messageId,

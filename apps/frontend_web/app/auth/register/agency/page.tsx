@@ -44,9 +44,7 @@ const agencyFormSchema = z
       .string()
       .min(5, "Street address must be at least 5 characters")
       .max(255, "Street address must be less than 255 characters"),
-    barangay: z
-      .string()
-      .min(1, "Barangay is required"),
+    barangay: z.string().min(1, "Barangay is required"),
     city: z
       .string()
       .min(2, "City must be at least 2 characters")
@@ -92,10 +90,10 @@ const AgencyRegister = () => {
   const [rateLimitTime, setRateLimitTime] = useState(0);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
-  
+
   // Fetch barangays for Zamboanga City (cityID = 1)
   const { data: barangays, isLoading: barangaysLoading } = useBarangays(1);
-  
+
   // State for resend verification email functionality
   const [verificationData, setVerificationData] = useState<{
     email: string;
@@ -109,30 +107,37 @@ const AgencyRegister = () => {
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
     try {
-      console.log("Checking rate limit status...");
+      if (process.env.NODE_ENV === "development")
+        console.log("Checking rate limit status...");
       const response = await fetch("/api/auth/check-rate-limit");
 
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers));
+      if (process.env.NODE_ENV === "development")
+        console.log("Response status:", response.status);
+      if (process.env.NODE_ENV === "development")
+        console.log("Response headers:", Object.fromEntries(response.headers));
 
       // Check if response is ok and content-type is JSON
       if (!response.ok) {
         const text = await response.text();
-        console.log("Error response body:", text);
+        if (process.env.NODE_ENV === "development")
+          console.log("Error response body:", text);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const contentType = response.headers.get("content-type");
-      console.log("Content-Type:", contentType);
+      if (process.env.NODE_ENV === "development")
+        console.log("Content-Type:", contentType);
 
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text();
-        console.log("Non-JSON response body:", text);
+        if (process.env.NODE_ENV === "development")
+          console.log("Non-JSON response body:", text);
         throw new Error("Response is not JSON");
       }
 
       const data = await response.json();
-      console.log("Rate limit data:", data);
+      if (process.env.NODE_ENV === "development")
+        console.log("Rate limit data:", data);
 
       if (data.isRateLimited) {
         setIsRateLimited(true);
@@ -266,7 +271,8 @@ const AgencyRegister = () => {
       postal_code: values.postal_code || "7000",
     };
 
-    console.log("Form submission data:", submissionData); // Debug log
+    if (process.env.NODE_ENV === "development")
+      console.log("Form submission data:", submissionData);
 
     // Validate that all required fields are present
     if (
@@ -291,16 +297,19 @@ const AgencyRegister = () => {
         },
       );
 
-      console.log("API Response status:", agencyReg.status);
-      console.log(
-        "API Response headers:",
-        Object.fromEntries(agencyReg.headers),
-      );
+      if (process.env.NODE_ENV === "development")
+        console.log("API Response status:", agencyReg.status);
+      if (process.env.NODE_ENV === "development")
+        console.log(
+          "API Response headers:",
+          Object.fromEntries(agencyReg.headers),
+        );
 
       let data;
       try {
         data = await agencyReg.json();
-        console.log("API Response data:", data);
+        if (process.env.NODE_ENV === "development")
+          console.log("API Response data:", data);
       } catch (parseError) {
         console.error("Failed to parse API response as JSON:", parseError);
         setAgencyError("Server returned invalid response format");
@@ -508,7 +517,10 @@ const AgencyRegister = () => {
                 className="h-50 w-auto mx-auto mb-6"
               />
               <h1 className="text-3xl font-bold mb-4 text-slate-900">
-                May Sira? May <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">iAyos</span>
+                May Sira? May{" "}
+                <span className="bg-gradient-to-r from-[#2E9AD5] to-[#B2AF57] bg-clip-text text-transparent">
+                  iAyos
+                </span>
               </h1>
               <div className="space-y-4 text-gray-800">
                 <div className="flex items-center space-x-3">
@@ -535,7 +547,8 @@ const AgencyRegister = () => {
                 <div>
                   <p className="text-sm text-slate-900 mb-2">
                     <strong>
-                      Looking to get something done or work as a freelance worker?
+                      Looking to get something done or work as a freelance
+                      worker?
                     </strong>
                   </p>
                   <Link href="/auth/download-app">
@@ -850,10 +863,15 @@ const AgencyRegister = () => {
                                   disabled={barangaysLoading}
                                 >
                                   <option value="">
-                                    {barangaysLoading ? "Loading barangays..." : "Select a barangay"}
+                                    {barangaysLoading
+                                      ? "Loading barangays..."
+                                      : "Select a barangay"}
                                   </option>
                                   {barangays?.map((barangay) => (
-                                    <option key={barangay.barangayID} value={barangay.name}>
+                                    <option
+                                      key={barangay.barangayID}
+                                      value={barangay.name}
+                                    >
                                       {barangay.name}
                                     </option>
                                   ))}

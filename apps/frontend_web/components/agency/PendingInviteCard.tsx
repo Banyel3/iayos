@@ -1,7 +1,6 @@
 "use client";
 
-import {
-  useState } from "react";
+import { useState } from "react";
 import {
   Banknote,
   Calendar,
@@ -194,7 +193,7 @@ export default function PendingInviteCard({
                       month: "long",
                       day: "numeric",
                       year: "numeric",
-                    }
+                    },
                   )}
                 </p>
               </div>
@@ -291,7 +290,8 @@ export default function PendingInviteCard({
               ))}
             </div>
             <p className="mt-3 text-xs text-purple-700">
-              💡 You&apos;ll need to assign employees to each skill slot after accepting.
+              💡 You&apos;ll need to assign employees to each skill slot after
+              accepting.
             </p>
           </div>
         )}
