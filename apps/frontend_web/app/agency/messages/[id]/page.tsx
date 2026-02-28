@@ -57,6 +57,7 @@ import {
   Send,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
+import { toast } from "sonner";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
 
 export default function AgencyChatScreen() {
@@ -165,14 +166,14 @@ export default function AgencyChatScreen() {
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size must be less than 5MB");
+      toast.error("Image size must be less than 5MB");
       return;
     }
 
     // Validate file type
     const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      alert("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP");
+      toast.error("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP");
       return;
     }
 
@@ -210,7 +211,7 @@ export default function AgencyChatScreen() {
       }, 100);
     } catch (error) {
       console.error("Image upload error:", error);
-      alert(error instanceof Error ? error.message : "Failed to upload image");
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
     } finally {
       setIsUploading(false);
     }
@@ -295,7 +296,7 @@ export default function AgencyChatScreen() {
       setUploadProgress(0);
       refetch();
     } catch (error) {
-      alert(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Failed to mark job as complete",
@@ -336,7 +337,7 @@ export default function AgencyChatScreen() {
           refetch();
         },
         onError: (error) => {
-          alert(error.message || "Failed to submit review");
+          toast.error(error.message || "Failed to submit review");
         },
       },
     );
@@ -352,7 +353,7 @@ export default function AgencyChatScreen() {
         refetch();
       },
       onError: (error) => {
-        alert(error.message || "Failed to confirm backjob started");
+        toast.error(error.message || "Failed to confirm backjob started");
       },
     });
   };
@@ -370,7 +371,7 @@ export default function AgencyChatScreen() {
           refetch();
         },
         onError: (error) => {
-          alert(error.message || "Failed to mark backjob complete");
+          toast.error(error.message || "Failed to mark backjob complete");
         },
       },
     );
@@ -389,7 +390,7 @@ export default function AgencyChatScreen() {
           refetch();
         },
         onError: (error) => {
-          alert(error.message || "Failed to approve backjob completion");
+          toast.error(error.message || "Failed to approve backjob completion");
         },
       },
     );
