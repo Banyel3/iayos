@@ -754,95 +754,14 @@ export default function EmployeesPage() {
                         </button>
                       ))}
                     </div>
-                  ) : (
-                    employees.map((emp) => (
-                      <div
-                        key={emp.id}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="relative">
-                            <img
-                              src={
-                                emp.avatar ||
-                                `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                  emp.name,
-                                )}`
-                              }
-                              alt={emp.name}
-                              className="w-14 h-14 rounded-full object-cover"
-                            />
-                            {emp.employeeOfTheMonth && (
-                              <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-1">
-                                <Trophy className="h-4 w-4 text-yellow-900" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="font-semibold text-gray-900">
-                                {emp.name}
-                              </div>
-                              {!emp.isActive && (
-                                <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
-                                  Inactive
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-600 line-clamp-1">
-                              {(emp.specializations && emp.specializations.length > 0)
-                                ? emp.specializations.slice(0, 3).join(", ") + (emp.specializations.length > 3 ? ` +${emp.specializations.length - 3}` : "")
-                                : emp.role}
-                            </div>
-                            <div className="text-xs text-gray-500 truncate">{emp.email}</div>
-                            <div className="flex items-center gap-4 mt-1">
-                              <Rating value={emp.rating} />
-                              {emp.totalJobsCompleted !== undefined && (
-                                <span className="text-xs text-gray-500">
-                                  {emp.totalJobsCompleted} jobs completed
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Action buttons: 2x2 grid on mobile, flex row on desktop */}
-                        <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto">
-                          <Button
-                            onClick={() => handleEditEmployee(emp)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto justify-center"
-                            size="sm"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                            <span className="hidden sm:inline sm:ml-1">Edit</span>
-                          </Button>
-                          <Button
-                            onClick={() => handleSetEOTM(emp)}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto justify-center"
-                            size="sm"
-                          >
-                            <Award className="h-4 w-4" />
-                            <span className="hidden sm:inline sm:ml-1">EOTM</span>
-                          </Button>
-                          <Button
-                            onClick={() => handleViewPerformance(emp)}
-                            className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto justify-center"
-                            size="sm"
-                          >
-                            <TrendingUp className="h-4 w-4" />
-                            <span className="hidden sm:inline sm:ml-1">Stats</span>
-                          </Button>
-                          <Button
-                            onClick={() => setRemoveTarget({ id: emp.id, name: emp.name })}
-                            className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto justify-center"
-                            size="sm"
-                          >
-                            <X className="h-4 w-4" />
-                            <span className="hidden sm:inline sm:ml-1">Remove</span>
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  </div>
+                  <Button
+                    onClick={addEmployee}
+                    disabled={isAddingEmployee}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isAddingEmployee ? "Adding..." : "Add Employee"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
