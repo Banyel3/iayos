@@ -196,8 +196,56 @@ export default function BrowseJobsScreen() {
     }
   }, [isWorker, viewTab, jobs, workers, agencies, searchQuery]);
 
+  const PAGE_SIZE = 15;
+
+  // Pagination state
+  const [currentDisplayPage, setCurrentDisplayPage] = useState(1);
+
+  // Reset to page 1 whenever filters / tab / search changes
+  useEffect(() => {
+    setCurrentDisplayPage(1);
+  }, [selectedCategory, searchQuery, viewTab, isWorker, maxDistance, sortBy, minRating]);
+
+  // Total items count from backend (first page carries the grand total)
+  const backendTotal = data?.pages?.[0]?.total || 0;
+
+  // When search is active, total is just the filtered set; otherwise use backend total
+  const totalDisplayItems = searchQuery.trim()
+    ? filteredItems.length
+    : backendTotal || filteredItems.length;
+
+  const totalDisplayPages = Math.max(1, Math.ceil(totalDisplayItems / PAGE_SIZE));
+
+  // Slice filteredItems to current display page only
+  const displayedItems = useMemo(() => {
+    const start = (currentDisplayPage - 1) * PAGE_SIZE;
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [filteredItems, currentDisplayPage]);
+
+  // Auto-fetch next backend pages when the user navigates forward
+  useEffect(() => {
+    const requiredItems = currentDisplayPage * PAGE_SIZE;
+    if (
+      !searchQuery.trim() &&
+      filteredItems.length < requiredItems &&
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
+      fetchNextPage();
+    }
+  }, [currentDisplayPage, filteredItems.length, hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
+
   const items = filteredItems;
-  const itemCount = items.length;
+  // Show backend total in the hero subtitle; fall back to loaded count
+  const itemCount = backendTotal || items.length;
+
+  // Build the window of page numbers to display (max 5)
+  const getPageNumbers = (current: number, total: number): number[] => {
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 3) return [1, 2, 3, 4, 5];
+    if (current >= total - 2) return [total - 4, total - 3, total - 2, total - 1, total];
+    return [current - 2, current - 1, current, current + 1, current + 2];
+  };
 
   // Handlers
   const handleSearchChange = useCallback((text: string) => {
@@ -243,6 +291,10 @@ export default function BrowseJobsScreen() {
       console.error("[Navigation] Failed to navigate:", error);
     }
   };
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentDisplayPage(page);
+  }, []);
 
   const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -532,11 +584,101 @@ export default function BrowseJobsScreen() {
       : renderAgencyItem;
 
   const renderFooter = () => {
-    if (!isFetchingNextPage) return null;
+    const label = isWorker
+      ? "jobs"
+      : viewTab === "workers"
+        ? "workers"
+        : "agencies";
+
+    const showingCount = Math.min(
+      currentDisplayPage * PAGE_SIZE,
+      totalDisplayItems
+    );
+
+    if (isLoading || totalDisplayItems === 0) return null;
+
+    const pageNums = getPageNumbers(currentDisplayPage, totalDisplayPages);
+
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={Colors.primary} />
-        <Text style={styles.footerLoaderText}>Loading more...</Text>
+      <View style={styles.paginationFooter}>
+        {/* Showing X of Y label */}
+        <Text style={styles.paginationInfo}>
+          Showing{" "}
+          <Text style={styles.paginationInfoBold}>{showingCount}</Text>
+          {" "}of{" "}
+          <Text style={styles.paginationInfoBold}>{totalDisplayItems}</Text>
+          {" "}{label}
+        </Text>
+
+        {/* Page dots row */}
+        {totalDisplayPages > 1 && (
+          <View style={styles.pageRow}>
+            {/* Prev arrow */}
+            <TouchableOpacity
+              style={[
+                styles.pageCircle,
+                currentDisplayPage === 1 && styles.pageCircleDisabled,
+              ]}
+              onPress={() => currentDisplayPage > 1 && handlePageChange(currentDisplayPage - 1)}
+              activeOpacity={currentDisplayPage === 1 ? 1 : 0.7}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={16}
+                color={currentDisplayPage === 1 ? Colors.textHint : Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {/* Page numbers */}
+            {pageNums.map((num) => (
+              <TouchableOpacity
+                key={num}
+                style={[
+                  styles.pageCircle,
+                  num === currentDisplayPage && styles.pageCircleActive,
+                ]}
+                onPress={() => handlePageChange(num)}
+                activeOpacity={0.7}
+              >
+                {isFetchingNextPage && num === currentDisplayPage + 1 ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.pageNumber,
+                      num === currentDisplayPage && styles.pageNumberActive,
+                    ]}
+                  >
+                    {num}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Next arrow */}
+            <TouchableOpacity
+              style={[
+                styles.pageCircle,
+                currentDisplayPage === totalDisplayPages && styles.pageCircleDisabled,
+              ]}
+              onPress={() =>
+                currentDisplayPage < totalDisplayPages &&
+                handlePageChange(currentDisplayPage + 1)
+              }
+              activeOpacity={currentDisplayPage === totalDisplayPages ? 1 : 0.7}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={
+                  currentDisplayPage === totalDisplayPages
+                    ? Colors.textHint
+                    : Colors.textSecondary
+                }
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -592,14 +734,12 @@ export default function BrowseJobsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <FlatList
-        data={items as any}
+        data={displayedItems as any}
         renderItem={renderItem as any}
         keyExtractor={(item: any) => item.id.toString()}
         ListHeaderComponent={renderHeader()}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -1072,6 +1212,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     fontWeight: "500",
+  },
+  paginationFooter: {
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingBottom: 36,
+    gap: 14,
+  },
+  paginationInfo: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  paginationInfoBold: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontWeight: "700",
+  },
+  pageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  pageCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageCircleActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  pageCircleDisabled: {
+    opacity: 0.35,
+  },
+  pageNumber: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  pageNumberActive: {
+    color: Colors.white,
   },
   // Filter Modal Styles
   modalOverlay: {

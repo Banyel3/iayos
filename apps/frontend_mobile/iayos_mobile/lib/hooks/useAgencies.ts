@@ -130,8 +130,11 @@ export function useAgencies(
   });
 }
 
+/** Number of items fetched per page on the homepage */
+export const HOMEPAGE_PAGE_SIZE = 15;
+
 /**
- * Hook to fetch agencies with infinite scroll pagination
+ * Hook to fetch agencies with infinite scroll pagination (15 items per page)
  */
 export function useInfiniteAgencies(filters: Omit<AgencyFilters, "page"> = {}) {
   return useInfiniteQuery<
@@ -149,7 +152,7 @@ export function useInfiniteAgencies(filters: Omit<AgencyFilters, "page"> = {}) {
         params.append("min_rating", String(filters.minRating));
       if (filters.sortBy) params.append("sort_by", filters.sortBy);
       params.append("page", String(pageParam));
-      params.append("limit", String(filters.limit || 20));
+      params.append("limit", String(filters.limit || HOMEPAGE_PAGE_SIZE));
 
       const url = `${ENDPOINTS.AGENCIES_LIST}?${params.toString()}`;
       const backendResponse = await fetchJson<BackendAgenciesResponse>(url, {
@@ -180,7 +183,7 @@ export function useInfiniteAgencies(filters: Omit<AgencyFilters, "page"> = {}) {
         agencies: transformedAgencies,
         total: backendResponse.total,
         page: backendResponse.page,
-        limit: filters.limit || 20,
+        limit: filters.limit || HOMEPAGE_PAGE_SIZE,
         totalPages: backendResponse.pages,
       };
     },

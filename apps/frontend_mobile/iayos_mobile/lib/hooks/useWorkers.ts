@@ -187,8 +187,11 @@ export function useWorkers(
   });
 }
 
+/** Number of items fetched per page on the homepage */
+export const HOMEPAGE_PAGE_SIZE = 15;
+
 /**
- * Hook to fetch workers with infinite scroll pagination
+ * Hook to fetch workers with infinite scroll pagination (15 items per page)
  */
 export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
   return useInfiniteQuery<
@@ -209,7 +212,7 @@ export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
       if (filters.longitude)
         params.append("longitude", String(filters.longitude));
       params.append("page", String(pageParam));
-      params.append("limit", String(filters.limit || 20));
+      params.append("limit", String(filters.limit || HOMEPAGE_PAGE_SIZE));
 
       const url = `${ENDPOINTS.NEARBY_WORKERS}?${params.toString()}`;
       const backendResponse = await fetchJson<BackendWorkersResponse>(url, {
@@ -275,7 +278,7 @@ export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
         workers: transformedWorkers,
         total: backendResponse.total_count,
         page: backendResponse.page,
-        limit: filters.limit || 20,
+        limit: filters.limit || HOMEPAGE_PAGE_SIZE,
         totalPages: backendResponse.pages,
       };
     },
