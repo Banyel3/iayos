@@ -37,6 +37,11 @@ on:
         required: false
         default: false
         type: boolean
+      use_eas_cloud:
+        description: "Use EAS cloud build (Expo servers) instead of local GitHub Actions Gradle build"
+        required: false
+        default: false
+        type: boolean
       include_x86:
         description: "Include x86_64 architecture (for emulator/BlueStacks testing)"
         required: false
@@ -295,8 +300,49 @@ jobs:
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
+      # ============================================
+      # EAS CLOUD BUILD (when use_eas_cloud == true)
+      # ============================================
+
+      - name: Build via EAS Cloud
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.use_eas_cloud == 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          echo "☁️ Building via EAS Cloud (Expo servers)"
+          echo "📦 Installing EAS CLI..."
+          npm install -g eas-cli
+
+          echo "🔐 Logging in to Expo..."
+          npx eas-cli whoami
+
+          echo "🏗️ Submitting EAS build (Android, production profile)..."
+          npx eas-cli build \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --output ./eas-output.apk
+
+          # Rename to expected filename for the release step
+          if [ -f "eas-output.apk" ]; then
+            mv eas-output.apk "iayos-${{ steps.version.outputs.new_version }}.apk"
+            echo "✅ EAS build complete!"
+            ls -lh "iayos-${{ steps.version.outputs.new_version }}.apk"
+          else
+            # EAS may not download automatically — find and pick up the artifact
+            APK=$(find . -name '*.apk' -not -path '*/node_modules/*' | head -1)
+            if [ -n "$APK" ]; then
+              cp "$APK" "iayos-${{ steps.version.outputs.new_version }}.apk"
+              echo "✅ EAS APK found at: $APK"
+            else
+              echo "❌ No APK produced by EAS build. Check build logs at https://expo.dev"
+              exit 1
+            fi
+          fi
+
       - name: Build Android APK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.use_eas_cloud != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         env:
           EXPO_PUBLIC_API_URL: "https://api.iayos.online"
@@ -314,15 +360,14 @@ jobs:
           echo "📱 Running expo prebuild..."
           npx expo prebuild --clean --platform android
 
-          # Pin Gradle to a known stable version.
-          # expo prebuild can generate a gradle-wrapper.properties pointing to a
-          # non-existent / unreleased Gradle version (e.g. 8.14.3 → 502 error).
+          # Pin Gradle to 8.13 — minimum required by current Android Gradle Plugin.
+          # expo prebuild may generate a gradle-wrapper.properties with an older version.
           GRADLE_WRAPPER="android/gradle/wrapper/gradle-wrapper.properties"
           if [ -f "$GRADLE_WRAPPER" ]; then
             CURRENT_GRADLE_URL=$(grep distributionUrl "$GRADLE_WRAPPER" | cut -d= -f2-)
-            echo "🔧 Patching Gradle wrapper: $CURRENT_GRADLE_URL → 8.10.2"
-            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.10.2-bin.zip|' "$GRADLE_WRAPPER"
-            echo "  ✅ Gradle wrapper pinned to 8.10.2"
+            echo "🔧 Patching Gradle wrapper: $CURRENT_GRADLE_URL → 8.13"
+            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-bin.zip|' "$GRADLE_WRAPPER"
+            echo "  ✅ Gradle wrapper pinned to 8.13"
           fi
 
           # Configure release signing with persistent keystore
@@ -557,7 +602,7 @@ jobs:
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
             **Build Profile:** production
-            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'GitHub Actions Build' }}
+            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || github.event.inputs.use_eas_cloud == 'true' && '☁️ EAS Cloud Build (Expo)' || '🏗️ GitHub Actions Local Build' }}
             **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
             **Architectures:** ${{ github.event.inputs.include_x86 == 'true' && 'arm64-v8a, armeabi-v7a, x86_64 (emulator compatible)' || 'arm64-v8a, armeabi-v7a (ARM only)' }}
             **New Architecture (Requested):** ${{ github.event.inputs.new_arch_enabled == 'true' && 'Enabled' || 'Disabled' }}
@@ -657,8 +702,11 @@ jobs:
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
               echo "♻️ **Build:** Using latest existing build from GitHub Releases" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ github.event.inputs.use_eas_cloud }}" == "true" ]; then
+              echo "☁️ **Build:** EAS Cloud Build (Expo servers)" >> $GITHUB_STEP_SUMMARY
+              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             else
-              echo "🏗️ **Build:** GitHub Actions build (optimized)" >> $GITHUB_STEP_SUMMARY
+              echo "🏗️ **Build:** GitHub Actions local build (Gradle 8.13)" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             fi
           else
