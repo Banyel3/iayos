@@ -3278,6 +3278,7 @@ def submit_review_mobile(
             reviewerID=user,
             revieweeID=reviewee,
             revieweeProfileID=reviewee_profile,  # Profile-specific for proper separation
+            revieweeAgencyID=reviewee_agency,    # Agency reviews: set the agency FK
             reviewerType=reviewer_type,
             rating=overall_rating,
             rating_quality=Decimal(str(rating_quality)),
@@ -3300,7 +3301,7 @@ def submit_review_mobile(
                 'reviewer_id': user.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': reviewee.accountID,
+                'reviewee_id': reviewee.accountID if reviewee else None,
                 'reviewer_type': reviewer_type,
                 'rating': float(review.rating),
                 'comment': review.comment,

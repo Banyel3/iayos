@@ -188,6 +188,7 @@ class AgencyReviewSchema(Schema):
     review_type: str  # "AGENCY" or "EMPLOYEE"
     employee_name: Optional[str]  # Only for employee reviews
     employee_id: Optional[int]  # Only for employee reviews
+    agency_response: Optional[str] = None  # Agency's response to this review
 
 
 class AgencyReviewsStatsSchema(Schema):

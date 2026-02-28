@@ -2391,7 +2391,19 @@ class JobReview(models.Model):
     
     # Helpful votes (optional feature)
     helpfulCount = models.IntegerField(default=0)
-    
+
+    # Agency/reviewee response to the review
+    agency_response = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Response from the agency or reviewee to this review"
+    )
+    agency_response_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the response was submitted"
+    )
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
