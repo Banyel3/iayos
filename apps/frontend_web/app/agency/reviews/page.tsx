@@ -10,7 +10,6 @@ import { API_BASE } from "@/lib/api/config";
 import {
   useAgencyReviews,
   formatRelativeTime,
-  getRatingColorClass,
   AgencyReview,
   ReviewTypeFilter,
 } from "@/lib/hooks/useAgencyReviews";
