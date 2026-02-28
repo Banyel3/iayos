@@ -813,14 +813,16 @@ export default function JobsScreen() {
                 color={Colors.primary}
               />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => router.push("/jobs/saved" as any)}
-              activeOpacity={0.7}
-              testID="jobs-saved-button"
-            >
-              <Ionicons name="heart-outline" size={22} color={Colors.error} />
-            </TouchableOpacity>
+            {isWorker && (
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push("/jobs/saved" as any)}
+                activeOpacity={0.7}
+                testID="jobs-saved-button"
+              >
+                <Ionicons name="heart-outline" size={22} color={Colors.error} />
+              </TouchableOpacity>
+            )}
             {/* Post Job Button - Always visible for clients */}
             {isClient && (
               <TouchableOpacity
