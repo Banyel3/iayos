@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
-import { API_BASE } from "@/lib/api/config";
-
-const API_BASE_URL = API_BASE;
+import { API_BASE_URL } from "@/lib/api/config";
 
 // Types
 export interface AgencyReview {

@@ -9,9 +9,7 @@ import websocketService, {
   ChatMessage,
   ConnectionState,
 } from "../services/websocket";
-import { API_BASE } from "@/lib/api/config";
-
-const API_BASE_URL = API_BASE;
+import { API_BASE_URL } from "@/lib/api/config";
 
 /**
  * Hook to manage WebSocket connection state

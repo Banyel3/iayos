@@ -4,9 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
-import { API_BASE } from "@/lib/api/config";
-
-const API_BASE_URL = API_BASE;
+import { API_BASE_URL } from "@/lib/api/config";
 
 export type Conversation = {
   id: number;
