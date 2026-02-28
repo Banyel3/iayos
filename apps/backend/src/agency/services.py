@@ -2235,14 +2235,22 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
         
         total = reviews_query.count()
         
-        # FIX #1: Stats ALWAYS from base_query (unfiltered) so all tab badges stay
+        # Stats ALWAYS from base_query (unfiltered) so all tab badges stay
         # correct regardless of which review_type filter is currently active.
-        base_total = base_query.count()
-        all_ratings = list(base_query.values_list('rating', flat=True))
-        avg_rating = sum(float(r) for r in all_ratings) / len(all_ratings) if all_ratings else 0.0
-        positive_count = sum(1 for r in all_ratings if float(r) >= 4.0)
-        neutral_count = sum(1 for r in all_ratings if 3.0 <= float(r) < 4.0)
-        negative_count = sum(1 for r in all_ratings if float(r) < 3.0)
+        # Use DB aggregates instead of loading all rows into Python memory.
+        from django.db.models import Avg, Count, Q as DQ
+        agg = base_query.aggregate(
+            base_total=Count('reviewID'),
+            avg=Avg('rating'),
+            positive=Count('reviewID', filter=DQ(rating__gte=4.0)),
+            neutral=Count('reviewID', filter=DQ(rating__gte=3.0, rating__lt=4.0)),
+            negative=Count('reviewID', filter=DQ(rating__lt=3.0)),
+        )
+        base_total = agg['base_total'] or 0
+        avg_rating = float(agg['avg'] or 0.0)
+        positive_count = agg['positive'] or 0
+        neutral_count = agg['neutral'] or 0
+        negative_count = agg['negative'] or 0
         
         agency_reviews_count = base_query.filter(revieweeAgencyID=agency).count()
         employee_reviews_count = base_query.filter(revieweeEmployeeID__in=employee_ids).count()

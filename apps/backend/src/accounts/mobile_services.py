@@ -3277,8 +3277,9 @@ def submit_review_mobile(
             jobID=job,
             reviewerID=user,
             revieweeID=reviewee,
-            revieweeProfileID=reviewee_profile,  # Profile-specific for proper separation
-            revieweeAgencyID=reviewee_agency,    # Agency reviews: set the agency FK
+            revieweeProfileID=reviewee_profile,   # Profile-specific for proper separation
+            revieweeAgencyID=reviewee_agency,     # Agency-level reviews
+            revieweeEmployeeID=reviewee_employee, # Employee-specific reviews (was missing)
             reviewerType=reviewer_type,
             rating=overall_rating,
             rating_quality=Decimal(str(rating_quality)),
