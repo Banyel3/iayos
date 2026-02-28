@@ -3326,7 +3326,8 @@ export default function ChatScreen() {
 
           {/* Request Backjob Banner - Only after both parties reviewed and conversation closed */}
           {conversation.my_role === "CLIENT" &&
-            conversation.job.status === "COMPLETED" &&
+            (conversation.job.status === "COMPLETED" ||
+              !!conversation.job.clientMarkedComplete) &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed && (
               <TouchableOpacity
@@ -3545,24 +3546,24 @@ export default function ChatScreen() {
                             conversation.my_role === "CLIENT"
                               ? [
                                   {
-                                    key: "rating_communication",
-                                    label: "Communication",
-                                    icon: "💬",
-                                  },
-                                  {
                                     key: "rating_punctuality",
                                     label: "Punctuality",
                                     icon: "⏰",
                                   },
                                   {
-                                    key: "rating_quality",
-                                    label: "Quality",
-                                    icon: "⭐",
+                                    key: "rating_professionalism",
+                                    label: "Reliability",
+                                    icon: "✅",
                                   },
                                   {
-                                    key: "rating_professionalism",
-                                    label: "Professionalism",
-                                    icon: "👔",
+                                    key: "rating_quality",
+                                    label: "Skill",
+                                    icon: "🔧",
+                                  },
+                                  {
+                                    key: "rating_communication",
+                                    label: "Workmanship",
+                                    icon: "🛠️",
                                   },
                                 ]
                               : [
@@ -3797,24 +3798,24 @@ export default function ChatScreen() {
                                 ]
                               : [
                                   {
-                                    key: "rating_communication",
-                                    label: "Communication",
-                                    icon: "💬",
-                                  },
-                                  {
                                     key: "rating_punctuality",
                                     label: "Punctuality",
                                     icon: "⏰",
                                   },
                                   {
-                                    key: "rating_quality",
-                                    label: "Quality",
-                                    icon: "⭐",
+                                    key: "rating_professionalism",
+                                    label: "Reliability",
+                                    icon: "✅",
                                   },
                                   {
-                                    key: "rating_professionalism",
-                                    label: "Professionalism",
-                                    icon: "👔",
+                                    key: "rating_quality",
+                                    label: "Skill",
+                                    icon: "🔧",
+                                  },
+                                  {
+                                    key: "rating_communication",
+                                    label: "Workmanship",
+                                    icon: "🛠️",
                                   },
                                 ];
 
