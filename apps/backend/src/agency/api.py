@@ -880,8 +880,10 @@ def remove_employee(request, employee_id: int):
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error removing employee: {str(e)}")
-        return Response({"error": "Internal server error"}, status=500)
+        return Response({"error": f"Internal server error: {str(e)}"}, status=500)
 
 
 @router.get("/profile", auth=cookie_auth)

@@ -1,6 +1,7 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
-from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview
+from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview, JobEmployeeAssignment
 from iayos_project.utils import upload_agency_doc
+from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
@@ -737,25 +738,42 @@ def update_agency_employee(account_id, employee_id, firstName=None, lastName=Non
 
 def remove_agency_employee(account_id, employee_id):
     """Remove an employee from an agency."""
+    import traceback
     try:
         user = Accounts.objects.get(accountID=account_id)
         employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
-        
-        # Check if employee is currently working on an active job
+
+        # Block deletion if employee is currently assigned to an active job.
         active_job_title = validate_employee_not_working(employee)
         if active_job_title:
             raise ValueError(
-                f"Cannot remove {employee.workerID.profileID.accountFK.first_name or 'this employee'} — "
+                f"Cannot remove '{employee.name}' — "
                 f"currently assigned to '{active_job_title}'. Unassign them from the job first."
             )
-        
-        employee.delete()
-        
+
+        with transaction.atomic():
+            # Explicitly clear assignedEmployeeID (SET_NULL) to avoid any DB-level
+            # conflicts when the cascade collector processes related rows.
+            Job.objects.filter(assignedEmployeeID=employee).update(assignedEmployeeID=None)
+
+            # Explicitly delete through-table rows for the Job.assignedEmployees M2M
+            # before employee.delete() runs its own cascade, preventing duplicate
+            # delete attempts that can cause IntegrityError on some PostgreSQL versions.
+            JobEmployeeAssignment.objects.filter(employee=employee).delete()
+
+            employee.delete()
+
+
         return {"message": "Employee removed successfully"}
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
     except AgencyEmployee.DoesNotExist:
         raise ValueError("Employee not found")
+    except ValueError:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise ValueError(f"Failed to remove employee: {str(e)}")
 
 
 def get_agency_profile(account_id):
