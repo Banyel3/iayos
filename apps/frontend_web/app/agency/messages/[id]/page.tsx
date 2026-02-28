@@ -65,6 +65,7 @@ export default function AgencyChatScreen() {
   const conversationId = parseInt(params.id as string);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -132,12 +133,21 @@ export default function AgencyChatScreen() {
   const { isTyping, sendTyping } = useTypingIndicator(conversationId);
 
   // Auto-scroll to bottom when new messages arrive
+  const isNearBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+  };
+
   useEffect(() => {
     if (conversation?.messages.length) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      if (isNearBottom()) {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.messages.length]);
 
   // Handle send message
@@ -187,7 +197,9 @@ export default function AgencyChatScreen() {
       }
 
       const result = await response.json();
-      console.log("Image uploaded:", result);
+      if (process.env.NODE_ENV === "development") {
+        console.log("Image uploaded:", result);
+      }
 
       // Refetch conversation to show the new image
       refetch();
@@ -1102,7 +1114,7 @@ export default function AgencyChatScreen() {
       </Card>
 
       {/* Messages list */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4">
         {messages.map((message: AgencyMessage, index: number) => {
           const currentDate = new Date(message.created_at);
           const previousDate =
