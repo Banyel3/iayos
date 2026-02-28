@@ -2697,18 +2697,6 @@ export default function JobDetailScreen() {
               />
             </View>
 
-            {/* Estimated Duration */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Estimated Duration (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 2 days, 1 week"
-                placeholderTextColor={Colors.textHint}
-                value={estimatedDuration}
-                onChangeText={setEstimatedDuration}
-              />
-            </View>
-
             {/* Submit Button */}
             <TouchableOpacity
               style={[
@@ -2944,18 +2932,6 @@ export default function JobDetailScreen() {
                 multiline
                 numberOfLines={5}
                 textAlignVertical="top"
-              />
-            </View>
-
-            {/* Estimated Duration */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Estimated Duration (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 2 days, 1 week"
-                placeholderTextColor={Colors.textHint}
-                value={estimatedDuration}
-                onChangeText={setEstimatedDuration}
               />
             </View>
 
