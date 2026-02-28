@@ -130,8 +130,11 @@ export function useJobs(
   });
 }
 
+/** Number of items fetched per page on the homepage */
+export const HOMEPAGE_PAGE_SIZE = 15;
+
 /**
- * Hook to fetch jobs with infinite scroll pagination
+ * Hook to fetch jobs with infinite scroll pagination (15 items per page)
  */
 export function useInfiniteJobs(filters: Omit<JobFilters, "page"> = {}) {
   return useInfiniteQuery<JobsResponse, Error, InfiniteData<JobsResponse>>({
@@ -140,6 +143,7 @@ export function useInfiniteJobs(filters: Omit<JobFilters, "page"> = {}) {
       const url = ENDPOINTS.JOB_LIST_FILTERED({
         ...filters,
         page: pageParam as number,
+        limit: filters.limit ?? HOMEPAGE_PAGE_SIZE,
       });
       return fetchJson<JobsResponse>(url, { method: "GET" });
     },

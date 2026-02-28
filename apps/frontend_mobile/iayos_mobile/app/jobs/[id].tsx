@@ -1174,12 +1174,14 @@ export default function JobDetailScreen() {
                 )}
               </TouchableOpacity>
             )}
-          <SaveButton
-            jobId={parseInt(id)}
-            isSaved={isSaved}
-            size={24}
-            onToggle={setIsSaved}
-          />
+          {isWorker && (
+            <SaveButton
+              jobId={parseInt(id)}
+              isSaved={isSaved}
+              size={24}
+              onToggle={setIsSaved}
+            />
+          )}
         </View>
       </View>
 
