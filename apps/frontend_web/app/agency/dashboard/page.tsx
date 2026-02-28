@@ -16,7 +16,6 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 
@@ -337,9 +336,9 @@ export default function AgencyDashboardPage() {
                             )}
                             <span className="text-xs text-gray-400">•</span>
                             <span className="text-xs text-gray-500">
-                              {formatDistanceToNow(new Date(job.updatedAt), {
-                                addSuffix: true,
-                              })}
+                              {job.updatedAt
+                                ? formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true })
+                                : "—"}
                             </span>
                           </div>
                         </div>
