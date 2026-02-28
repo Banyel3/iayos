@@ -74,7 +74,6 @@ export default function RejectedKYCPage() {
       }
 
       const data = await response.json();
-      console.log("✅ Fetched rejected KYC response:", data);
 
       // Handle different response formats
       let logs = data;
@@ -98,8 +97,6 @@ export default function RejectedKYCPage() {
           logs = [];
         }
       }
-
-      console.log("✅ Extracted logs array:", logs);
 
       // Transform backend data to match frontend interface
       const transformedData: RejectedKYC[] = logs.map((log: any) => {
@@ -125,7 +122,6 @@ export default function RejectedKYCPage() {
       });
 
       setRejectedKYC(transformedData);
-      console.log("✅ Transformed rejected KYC data:", transformedData);
     } catch (error) {
       console.error("Error fetching rejected KYC:", error);
       showToast({
