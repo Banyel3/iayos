@@ -432,8 +432,8 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     backgroundColor: Colors.white,
-    paddingTop: Spacing["6xl"],
-    paddingBottom: Spacing["4xl"],
+    paddingTop: Spacing["3xl"],
+    paddingBottom: Spacing["2xl"],
     alignItems: "center",
   },
   // logoCircle removed
@@ -525,6 +525,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.primary,
     borderRadius: BorderRadius.lg,
+    marginTop: Spacing.lg,
     marginBottom: Spacing.lg,
     height: 52,
   },

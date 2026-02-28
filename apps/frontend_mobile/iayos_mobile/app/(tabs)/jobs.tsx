@@ -145,37 +145,76 @@ export default function JobsScreen() {
 
   const pendingBackjobsCount = backjobsData?.backjobs?.length || 0;
 
-  // Fetch jobs for active tab
+  // Fetch ACTIVE jobs (open, pending, requests tabs)
   const {
-    data: jobsData,
-    isLoading,
-    error,
-    refetch,
+    data: activeJobsData,
+    isLoading: activeJobsLoading,
+    error: activeJobsError,
+    refetch: refetchActiveJobs,
   } = useQuery<MyJobsResponse>({
-    queryKey: ["jobs", "my-jobs", activeTab],
+    queryKey: ["jobs", "my-jobs", "ACTIVE"],
     queryFn: async (): Promise<MyJobsResponse> => {
-      const status = getStatusForTab(activeTab);
-
-      // Build query params
-      const params = new URLSearchParams();
-      params.append("page", "1");
-      params.append("limit", "20");
-
-      if (status) {
-        params.append("status", status);
-      }
-
-      const url = `${ENDPOINTS.MY_JOBS}?${params.toString()}`;
-      const response = await fetchJson<MyJobsResponse>(url, {
-        method: "GET",
-      });
-
-      return response;
+      const url = `${ENDPOINTS.MY_JOBS}?page=1&limit=50&status=ACTIVE`;
+      return fetchJson<MyJobsResponse>(url, { method: "GET" });
     },
-    refetchInterval: 10000, // Poll every 10 seconds for real-time updates
+    refetchInterval: 10000,
   });
 
-  const jobs = jobsData?.jobs || [];
+  // Always fetch IN_PROGRESS jobs so the count badge is always visible
+  const {
+    data: inProgressJobsData,
+    isLoading: inProgressLoading,
+    error: inProgressError,
+    refetch: refetchInProgress,
+  } = useQuery<MyJobsResponse>({
+    queryKey: ["jobs", "my-jobs", "IN_PROGRESS"],
+    queryFn: async (): Promise<MyJobsResponse> => {
+      const url = `${ENDPOINTS.MY_JOBS}?page=1&limit=50&status=IN_PROGRESS`;
+      return fetchJson<MyJobsResponse>(url, { method: "GET" });
+    },
+    refetchInterval: 10000,
+  });
+
+  // Always fetch PAST jobs so the count badge is always visible
+  const {
+    data: pastJobsData,
+    isLoading: pastLoading,
+    error: pastError,
+    refetch: refetchPast,
+  } = useQuery<MyJobsResponse>({
+    queryKey: ["jobs", "my-jobs", "PAST"],
+    queryFn: async (): Promise<MyJobsResponse> => {
+      const url = `${ENDPOINTS.MY_JOBS}?page=1&limit=50&status=COMPLETED,CANCELLED`;
+      return fetchJson<MyJobsResponse>(url, { method: "GET" });
+    },
+    refetchInterval: 10000,
+  });
+
+  // Derive active-tab-scoped data from the three parallel queries
+  const activeJobs = activeJobsData?.jobs || [];
+  const inProgressJobsList = inProgressJobsData?.jobs || [];
+  const pastJobsList = pastJobsData?.jobs || [];
+
+  const jobs =
+    activeTab === "inProgress" ? inProgressJobsList
+    : activeTab === "past" ? pastJobsList
+    : activeJobs;
+
+  const isLoading =
+    activeTab === "inProgress" ? inProgressLoading
+    : activeTab === "past" ? pastLoading
+    : activeJobsLoading;
+
+  const error =
+    activeTab === "inProgress" ? inProgressError
+    : activeTab === "past" ? pastError
+    : activeJobsError;
+
+  const refetch = async () => {
+    if (activeTab === "inProgress") await refetchInProgress();
+    else if (activeTab === "past") await refetchPast();
+    else await refetchActiveJobs();
+  };
 
   // Fetch worker applications
   const {
@@ -192,7 +231,7 @@ export default function JobsScreen() {
       }>(ENDPOINTS.MY_APPLICATIONS, { method: "GET" });
       return response;
     },
-    enabled: isWorker && activeTab === "applications",
+    enabled: isWorker, // always fetch so we always have the count
   });
 
   const applications = applicationsData?.applications || [];
@@ -325,6 +364,56 @@ export default function JobsScreen() {
     });
   }
 
+  // ── Tab count helpers ──────────────────────────────────────────────────────
+  const countForTab = (tabName: TabType, sourceJobs: MyJob[]): number =>
+    sourceJobs.filter((job) => {
+      if (tabName === "open") {
+        if (isClient) {
+          if (job.is_team_job) {
+            const full = job.total_workers_needed && job.total_workers_assigned
+              && job.total_workers_assigned >= job.total_workers_needed;
+            if (full) return false;
+          }
+          return job.job_type === "LISTING" && !job.assigned_worker_id;
+        }
+        return true;
+      }
+      if (tabName === "pending") {
+        if (!isClient) return false;
+        if (job.is_team_job && job.status === "ACTIVE") {
+          const full = job.total_workers_needed && job.total_workers_assigned
+            && job.total_workers_assigned >= job.total_workers_needed;
+          if (full) return true;
+        }
+        const hasAssignee = Boolean(job.assigned_worker_id || job.assigned_agency_id);
+        if (!(job.job_type === "INVITE" && hasAssignee)) return false;
+        if (job.invite_status) return job.invite_status === "PENDING";
+        return job.status === "ACTIVE";
+      }
+      if (tabName === "requests") {
+        if (!isWorker) return false;
+        const isInviteType = job.job_type === "INVITE";
+        const isAssignedToMe = job.assigned_worker_id === user?.profile_data?.id;
+        const isPendingInvite = job.invite_status === "PENDING"
+          || (job.invite_status === null && job.status === "ACTIVE");
+        return isInviteType && isAssignedToMe && isPendingInvite;
+      }
+      return true;
+    }).length;
+
+  const openCount       = countForTab("open",       activeJobs);
+  const pendingCount    = countForTab("pending",    activeJobs);
+  const requestsCount   = countForTab("requests",  activeJobs);
+  const applicationsCount = filteredApplications.length;
+  const inProgressCount = inProgressJobsList.length;
+  const pastCount       = pastJobsList.length;
+
+  // Returns display pieces for a tab: count number string + label
+  const tabParts = (count: number, loading: boolean, label: string) => ({
+    count: loading ? "—" : String(count),
+    label,
+  });
+
   // Delete job mutation
   const deleteJobMutation = useMutation({
     mutationFn: async (jobId: number) => {
@@ -384,11 +473,12 @@ export default function JobsScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    if (activeTab === "applications" && isWorker) {
-      await refetchApplications();
-    } else {
-      await refetch();
-    }
+    await Promise.all([
+      refetchActiveJobs(),
+      refetchInProgress(),
+      refetchPast(),
+      ...(isWorker ? [refetchApplications()] : []),
+    ]);
     setRefreshing(false);
   };
 
@@ -755,14 +845,10 @@ export default function JobsScreen() {
               activeOpacity={0.7}
               testID="jobs-tab-open"
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "open" && styles.tabTextActive,
-                ]}
-              >
-                Open Jobs
-              </Text>
+              <View style={styles.tabInner}>
+                {!activeJobsLoading && openCount > 0 && <Text style={[styles.tabCount, activeTab === "open" && styles.tabTextActive]}>{openCount}</Text>}
+                <Text style={[styles.tabText, activeTab === "open" && styles.tabTextActive]}>Open</Text>
+              </View>
             </TouchableOpacity>
           )}
 
@@ -773,14 +859,10 @@ export default function JobsScreen() {
               activeOpacity={0.7}
               testID="jobs-tab-pending"
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "pending" && styles.tabTextActive,
-                ]}
-              >
-                Pending
-              </Text>
+              <View style={styles.tabInner}>
+                {!activeJobsLoading && pendingCount > 0 && <Text style={[styles.tabCount, activeTab === "pending" && styles.tabTextActive]}>{pendingCount}</Text>}
+                <Text style={[styles.tabText, activeTab === "pending" && styles.tabTextActive]}>Pending</Text>
+              </View>
             </TouchableOpacity>
           )}
 
@@ -791,35 +873,24 @@ export default function JobsScreen() {
               activeOpacity={0.7}
               testID="jobs-tab-requests"
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "requests" && styles.tabTextActive,
-                ]}
-              >
-                Requests
-              </Text>
+              <View style={styles.tabInner}>
+                {!activeJobsLoading && requestsCount > 0 && <Text style={[styles.tabCount, activeTab === "requests" && styles.tabTextActive]}>{requestsCount}</Text>}
+                <Text style={[styles.tabText, activeTab === "requests" && styles.tabTextActive]}>Requests</Text>
+              </View>
             </TouchableOpacity>
           )}
 
           {isWorker && (
             <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === "applications" && styles.tabActive,
-              ]}
+              style={[styles.tab, activeTab === "applications" && styles.tabActive]}
               onPress={() => setActiveTab("applications")}
               activeOpacity={0.7}
               testID="jobs-tab-applications"
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "applications" && styles.tabTextActive,
-                ]}
-              >
-                Applications
-              </Text>
+              <View style={styles.tabInner}>
+                {!applicationsLoading && applicationsCount > 0 && <Text style={[styles.tabCount, activeTab === "applications" && styles.tabTextActive]}>{applicationsCount}</Text>}
+                <Text style={[styles.tabText, activeTab === "applications" && styles.tabTextActive]}>Applied</Text>
+              </View>
             </TouchableOpacity>
           )}
 
@@ -829,14 +900,10 @@ export default function JobsScreen() {
             activeOpacity={0.7}
             testID="jobs-tab-in-progress"
           >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "inProgress" && styles.tabTextActive,
-              ]}
-            >
-              In Progress
-            </Text>
+            <View style={styles.tabInner}>
+              {!inProgressLoading && inProgressCount > 0 && <Text style={[styles.tabCount, activeTab === "inProgress" && styles.tabTextActive]}>{inProgressCount}</Text>}
+              <Text style={[styles.tabText, activeTab === "inProgress" && styles.tabTextActive]}>In Progress</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -845,14 +912,9 @@ export default function JobsScreen() {
             activeOpacity={0.7}
             testID="jobs-tab-past"
           >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "past" && styles.tabTextActive,
-              ]}
-            >
-              Past
-            </Text>
+            <View style={styles.tabInner}>
+              <Text style={[styles.tabText, activeTab === "past" && styles.tabTextActive]}>Past</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -1268,21 +1330,36 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     padding: 4,
+    gap: 4,
     ...Shadows.sm,
   },
   tab: {
     flex: 1,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
     alignItems: "center",
+    justifyContent: "center",
     borderRadius: BorderRadius.md,
+  },
+  tabInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 1,
   },
   tabActive: {
     backgroundColor: Colors.primary,
   },
+  tabCount: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
   tabText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "500",
     color: Colors.textSecondary,
+    textAlign: "center",
   },
   tabTextActive: {
     color: Colors.white,
