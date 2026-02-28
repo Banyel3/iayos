@@ -20,6 +20,7 @@ import type {
   EmployeeWorkload,
   SkillLevel,
 } from "@/types/agency-team-jobs";
+import { toast } from "sonner";
 
 interface Employee {
   employeeId: number;
@@ -182,7 +183,7 @@ export default function SkillSlotAssignmentModal({
       } else {
         // Check if slot is full
         if (currentSet.size >= slot.workers_needed) {
-          alert(
+          toast.error(
             `This slot only needs ${slot.workers_needed} worker(s). Remove one first.`
           );
           return prev;
@@ -240,7 +241,7 @@ export default function SkillSlotAssignmentModal({
   const handleAssign = async () => {
     const validation = getValidationStatus();
     if (!validation.isValid) {
-      alert(`Please complete all slot assignments:\n${validation.issues.join("\n")}`);
+      toast.error(`Please complete all slot assignments:\n${validation.issues.join("\n")}`);
       return;
     }
 
@@ -256,7 +257,7 @@ export default function SkillSlotAssignmentModal({
     }
 
     if (assignments.length === 0) {
-      alert("Please select at least one employee");
+      toast.error("Please select at least one employee");
       return;
     }
 
@@ -266,7 +267,7 @@ export default function SkillSlotAssignmentModal({
       onClose();
     } catch (error) {
       console.error("Assignment failed:", error);
-      alert(error instanceof Error ? error.message : "Assignment failed");
+      toast.error(error instanceof Error ? error.message : "Assignment failed");
     } finally {
       setIsSubmitting(false);
     }

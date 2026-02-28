@@ -112,8 +112,6 @@ export default function PendingKYCPage() {
     // If URL is relative (starts with /), prepend backend URL
     const fullUrl = url.startsWith("/") ? `${API_BASE}${url}` : url;
 
-    console.log(`KYCDocumentImage ${label} for record ${recordId}:`, fullUrl);
-
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -235,8 +233,6 @@ export default function PendingKYCPage() {
 
       const backendData = await response.json();
 
-      console.log("📦 Backend data received:", backendData);
-
       // Store backend data for file access
       setBackendData(backendData);
 
@@ -324,7 +320,6 @@ export default function PendingKYCPage() {
         });
 
       setPendingKYC([...transformedData, ...agencyTransformed]);
-      console.log("✅ Fetched and transformed KYC requests:", transformedData);
     } catch (error) {
       console.error("❌ Error fetching pending KYC:", error);
 
@@ -423,11 +418,6 @@ export default function PendingKYCPage() {
         );
       }
 
-      console.log(
-        `📂 Found ${kycFiles.length} files for KYC ${kycId}:`,
-        kycFiles,
-      );
-
       // For agency, map fileType to keys; for user, use fileName patterns
       let frontID, backID, clearance, selfie;
       let addressProof;
@@ -465,8 +455,6 @@ export default function PendingKYCPage() {
         addressProofLink: addressProof?.fileURL || "",
       };
 
-      console.log("📤 Sending file URLs to backend:", requestBody);
-
       // Call backend API to get signed URLs
       const response = await fetch(`${API_BASE}/api/adminpanel/kyc/review`, {
         method: "POST",
@@ -476,10 +464,6 @@ export default function PendingKYCPage() {
         },
         body: JSON.stringify(requestBody),
       });
-
-      console.log(
-        `📡 Response status: ${response.status} ${response.statusText}`,
-      );
 
       if (!response.ok) {
         const errorData = await response
@@ -512,10 +496,6 @@ export default function PendingKYCPage() {
       };
 
       setKycFilesMap((prev) => ({ ...prev, [kycId]: filesWithMetadata }));
-      console.log(
-        `✅ Received signed URLs for KYC ${kycId}:`,
-        filesWithMetadata,
-      );
     } catch (error) {
       console.error(`❌ Error fetching KYC files for ${kycId}:`, error);
 
@@ -541,8 +521,6 @@ export default function PendingKYCPage() {
   // Handle KYC Approval
   const handleApproveKYC = async (kycId: string, userType?: string) => {
     try {
-      console.log(`🔍 Approving KYC ID: ${kycId}`);
-
       const isAgency = userType === "agency";
       const endpoint = isAgency
         ? `${API_BASE}/api/adminpanel/kyc/approve-agency`
@@ -566,8 +544,6 @@ export default function PendingKYCPage() {
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Failed to approve KYC");
       }
-
-      console.log("✅ KYC approved successfully:", result);
 
       showToast({
         type: "success",
@@ -622,8 +598,6 @@ export default function PendingKYCPage() {
     reason?: string,
   ) => {
     try {
-      console.log(`🔍 Rejecting KYC ID: ${kycId}`);
-
       const isAgency = userType === "agency";
       const endpoint = isAgency
         ? `${API_BASE}/api/adminpanel/kyc/reject-agency`
@@ -655,8 +629,6 @@ export default function PendingKYCPage() {
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Failed to reject KYC");
       }
-
-      console.log("✅ KYC rejected successfully:", result);
 
       showToast({
         type: "warning",

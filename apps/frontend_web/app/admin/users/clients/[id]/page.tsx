@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { Sidebar, useMainContentClass } from "../../../components";
+import { toast } from "sonner";
 
 interface Address {
   street: string;
@@ -144,7 +145,7 @@ export default function ClientDetailPage() {
   // Account action handlers
   const handleSuspend = async () => {
     if (!actionReason.trim()) {
-      alert("Please provide a reason for suspension");
+      toast.error("Please provide a reason for suspension");
       return;
     }
     setActionLoading(true);
@@ -160,16 +161,16 @@ export default function ClientDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Client suspended successfully");
+        toast.success("Client suspended successfully");
         setShowSuspendModal(false);
         setActionReason("");
         fetchClient();
       } else {
-        alert(data.error || "Failed to suspend client");
+        toast.error(data.error || "Failed to suspend client");
       }
     } catch (error) {
       console.error("Suspend error:", error);
-      alert(getErrorMessage(error, "Failed to suspend client"));
+        toast.error(getErrorMessage(error, "Failed to suspend client"));
     } finally {
       setActionLoading(false);
     }
@@ -177,7 +178,7 @@ export default function ClientDetailPage() {
 
   const handleBan = async () => {
     if (!actionReason.trim()) {
-      alert("Please provide a reason for banning");
+      toast.error("Please provide a reason for banning");
       return;
     }
     setActionLoading(true);
@@ -193,16 +194,16 @@ export default function ClientDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Client banned successfully");
+        toast.success("Client banned successfully");
         setShowBanModal(false);
         setActionReason("");
         fetchClient();
       } else {
-        alert(data.error || "Failed to ban client");
+        toast.error(data.error || "Failed to ban client");
       }
     } catch (error) {
       console.error("Ban error:", error);
-      alert(getErrorMessage(error, "Failed to ban client"));
+        toast.error(getErrorMessage(error, "Failed to ban client"));
     } finally {
       setActionLoading(false);
     }
@@ -221,15 +222,15 @@ export default function ClientDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Client activated successfully");
+        toast.success("Client activated successfully");
         setShowActivateModal(false);
         fetchClient();
       } else {
-        alert(data.error || "Failed to activate client");
+        toast.error(data.error || "Failed to activate client");
       }
     } catch (error) {
       console.error("Activate error:", error);
-      alert(getErrorMessage(error, "Failed to activate client"));
+        toast.error(getErrorMessage(error, "Failed to activate client"));
     } finally {
       setActionLoading(false);
     }
@@ -237,7 +238,7 @@ export default function ClientDetailPage() {
 
   const handleDelete = async () => {
     if (deleteConfirmText !== "DELETE") {
-      alert('Please type "DELETE" to confirm');
+      toast.error('Please type "DELETE" to confirm');
       return;
     }
     setActionLoading(true);
@@ -251,14 +252,14 @@ export default function ClientDetailPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert("Client deleted successfully");
+        toast.success("Client deleted successfully");
         router.push("/admin/users/clients");
       } else {
-        alert(data.error || "Failed to delete client");
+        toast.error(data.error || "Failed to delete client");
       }
     } catch (error) {
       console.error("Delete error:", error);
-      alert(getErrorMessage(error, "Failed to delete client"));
+        toast.error(getErrorMessage(error, "Failed to delete client"));
     } finally {
       setActionLoading(false);
     }

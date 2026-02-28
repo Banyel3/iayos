@@ -109,7 +109,7 @@ export default function KYCUploadScreen() {
           setIsTestingMode(config.testing === true);
         }
       } catch (error) {
-        console.log("Failed to fetch mobile config:", error);
+        if (__DEV__) console.log("Failed to fetch mobile config:", error);
       }
     };
     fetchConfig();
@@ -212,19 +212,19 @@ export default function KYCUploadScreen() {
   // When the camera screen captures a photo, it emits the URI back to us
   useEffect(() => {
     const unsubscribeFront = cameraEvents.on("front", (uri: string) => {
-      console.log("[KYC] Received front ID photo from camera");
+      if (__DEV__) console.log("[KYC] Received front ID photo from camera");
       handleCameraPhotoReceived("front", uri);
     });
     const unsubscribeBack = cameraEvents.on("back", (uri: string) => {
-      console.log("[KYC] Received back ID photo from camera");
+      if (__DEV__) console.log("[KYC] Received back ID photo from camera");
       handleCameraPhotoReceived("back", uri);
     });
     const unsubscribeClearance = cameraEvents.on("clearance", (uri: string) => {
-      console.log("[KYC] Received clearance photo from camera");
+      if (__DEV__) console.log("[KYC] Received clearance photo from camera");
       handleCameraPhotoReceived("clearance", uri);
     });
     const unsubscribeSelfie = cameraEvents.on("selfie", (uri: string) => {
-      console.log("[KYC] Received selfie photo from camera");
+      if (__DEV__) console.log("[KYC] Received selfie photo from camera");
       handleCameraPhotoReceived("selfie", uri);
     });
 
@@ -325,7 +325,7 @@ export default function KYCUploadScreen() {
     // Target: ~1-2MB, 1600px max dimension, 0.85 quality (higher to preserve small face details on IDs)
     let finalUri = asset.uri;
     try {
-      console.log(`[KYC] Compressing ${type} image...`);
+      if (__DEV__) console.log(`[KYC] Compressing ${type} image...`);
       const compressed = await compressImage(asset.uri, {
         maxWidth: 1600,
         maxHeight: 1600,
@@ -333,9 +333,7 @@ export default function KYCUploadScreen() {
         format: "jpeg",
       });
       finalUri = compressed.uri;
-      console.log(
-        `[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`,
-      );
+      if (__DEV__) console.log(`[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
     } catch (compressError) {
       console.warn(
         `[KYC] Compression failed for ${type}, using original:`,
@@ -448,9 +446,7 @@ export default function KYCUploadScreen() {
 
       // Log the endpoint URL for debugging
       const endpointUrl = ENDPOINTS.KYC_VALIDATE_DOCUMENT;
-      console.log(
-        `[KYC Validate] Validating ${documentType} at: ${endpointUrl}`,
-      );
+      if (__DEV__) console.log(`[KYC Validate] Validating ${documentType} at: ${endpointUrl}`);
 
       // Use apiRequest instead of raw fetch for better error handling and auto-auth
       // Use VALIDATION_TIMEOUT (60s) for quality checks (no OCR)
@@ -460,7 +456,7 @@ export default function KYCUploadScreen() {
         timeout: VALIDATION_TIMEOUT, // 60s for quality checks (no OCR)
       });
 
-      console.log(`[KYC Validate] Response status: ${response.status}`);
+      if (__DEV__) console.log(`[KYC Validate] Response status: ${response.status}`);
 
       // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
       const contentType = response.headers.get("content-type") || "";

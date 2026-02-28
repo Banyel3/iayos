@@ -147,14 +147,10 @@ export default function AgencyJobsPage() {
   const [loadingSkillSlots, setLoadingSkillSlots] = useState(false);
   // Pending invite acceptance flow - true when accepting pending invite (not just assigning to accepted job)
   const [isPendingInviteFlow, setIsPendingInviteFlow] = useState(false);
-  const hasFetched = React.useRef(false);
+  const isInitialMount = React.useRef(true);
 
   // Fetch jobs based on active tab
   useEffect(() => {
-    // Prevent duplicate fetches in React Strict Mode (dev only)
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-
     const loadAll = async () => {
       setLoading(true);
       await Promise.all([
@@ -170,9 +166,12 @@ export default function AgencyJobsPage() {
     loadAll();
   }, []);
 
-  // Refetch when tab changes
+  // Refetch when tab changes (skip on initial mount to avoid double-fetch)
   useEffect(() => {
-    if (!hasFetched.current) return; // Don't fetch on initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
 
     if (activeTab === "invites") {
       fetchPendingInvites(true);
@@ -277,6 +276,7 @@ export default function AgencyJobsPage() {
       setInProgressJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
+      setError(err instanceof Error ? err.message : "Failed to load in-progress jobs");
     } finally {
       if (showTabLoading) setTabLoading(false);
     }
@@ -305,6 +305,7 @@ export default function AgencyJobsPage() {
       setCompletedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching completed jobs:", err);
+      setError(err instanceof Error ? err.message : "Failed to load completed jobs");
     } finally {
       if (showTabLoading) setTabLoading(false);
     }
@@ -333,6 +334,7 @@ export default function AgencyJobsPage() {
       setCancelledJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching cancelled jobs:", err);
+      setError(err instanceof Error ? err.message : "Failed to load cancelled jobs");
     } finally {
       if (showTabLoading) setTabLoading(false);
     }
@@ -493,17 +495,12 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await fetch(
-        `${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ rejection_reason: reason }),
-        },
-      );
+      const rejectUrl = new URL(`${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`);
+      if (reason) rejectUrl.searchParams.set("reason", reason);
+      const response = await fetch(rejectUrl.toString(), {
+        method: "POST",
+        credentials: "include",
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

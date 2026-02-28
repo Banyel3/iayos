@@ -47,17 +47,17 @@ export default function ConversationsScreen() {
     const unsubscribe = setupNetworkListener(
       // On online
       async () => {
-        console.log("[Conversations] Device back online, processing queue...");
+        if (__DEV__) console.log("[Conversations] Device back online, processing queue...");
         await processOfflineQueue(async (message) => {
           // TODO: Send queued message via API
-          console.log("[Conversations] Sending queued message:", message.id);
+          if (__DEV__) console.log("[Conversations] Sending queued message:", message.id);
           return true; // Return true if sent successfully
         });
         refetch(); // Refresh conversations after queue processed
       },
       // On offline
       () => {
-        console.log("[Conversations] Device offline");
+        if (__DEV__) console.log("[Conversations] Device offline");
       }
     );
 

@@ -185,17 +185,14 @@ export default function PendingVerificationPage() {
   });
 
   const handleApprove = (userId: string) => {
-    console.log("Approving user:", userId);
     // Add approval logic here
   };
 
   const handleReject = (userId: string) => {
-    console.log("Rejecting user:", userId);
     // Add rejection logic here
   };
 
   const handleRequestMoreInfo = (userId: string) => {
-    console.log("Requesting more info for user:", userId);
     // Add request more info logic here
   };
 

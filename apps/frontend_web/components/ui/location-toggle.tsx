@@ -144,19 +144,19 @@ export const LocationToggle: React.FC<LocationToggleProps> = ({
     try {
       if (!locationEnabled) {
         // Enabling location - get GPS coordinates first
-        console.log("📍 Getting current location...");
+        if (process.env.NODE_ENV === "development") console.log("📍 Getting current location...");
         const { latitude, longitude } = await getCurrentLocation();
-        console.log(`✅ Location obtained: ${latitude}, ${longitude}`);
+        if (process.env.NODE_ENV === "development") console.log(`✅ Location obtained: ${latitude}, ${longitude}`);
 
         // Update location in backend
-        console.log("📤 Updating location in backend...");
+        if (process.env.NODE_ENV === "development") console.log("📤 Updating location in backend...");
         const updateResult = await updateLocationInBackend(latitude, longitude);
-        console.log("✅ Location updated:", updateResult);
+        if (process.env.NODE_ENV === "development") console.log("✅ Location updated:", updateResult);
 
         // Enable location sharing
-        console.log("🔓 Enabling location sharing...");
+        if (process.env.NODE_ENV === "development") console.log("🔓 Enabling location sharing...");
         await toggleLocationSharing(true);
-        console.log("✅ Location sharing enabled");
+        if (process.env.NODE_ENV === "development") console.log("✅ Location sharing enabled");
 
         setLocationEnabled(true);
         setLastUpdate(new Date().toLocaleString());
@@ -169,9 +169,9 @@ export const LocationToggle: React.FC<LocationToggleProps> = ({
         setError(null);
       } else {
         // Disabling location
-        console.log("🔒 Disabling location sharing...");
+        if (process.env.NODE_ENV === "development") console.log("🔒 Disabling location sharing...");
         await toggleLocationSharing(false);
-        console.log("✅ Location sharing disabled");
+        if (process.env.NODE_ENV === "development") console.log("✅ Location sharing disabled");
 
         setLocationEnabled(false);
       }
@@ -193,12 +193,12 @@ export const LocationToggle: React.FC<LocationToggleProps> = ({
     setError(null);
 
     try {
-      console.log("🔄 Refreshing location...");
+      if (process.env.NODE_ENV === "development") console.log("🔄 Refreshing location...");
       const { latitude, longitude } = await getCurrentLocation();
-      console.log(`✅ New location: ${latitude}, ${longitude}`);
+      if (process.env.NODE_ENV === "development") console.log(`✅ New location: ${latitude}, ${longitude}`);
 
       const result = await updateLocationInBackend(latitude, longitude);
-      console.log("✅ Location refreshed:", result);
+      if (process.env.NODE_ENV === "development") console.log("✅ Location refreshed:", result);
 
       setLastUpdate(new Date().toLocaleString());
 

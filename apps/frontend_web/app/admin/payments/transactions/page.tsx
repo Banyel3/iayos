@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -249,7 +250,7 @@ export default function TransactionsPage() {
 
   const handleReleasePayment = async (transaction: Transaction) => {
     if (!transaction.job_id) {
-      alert("Cannot release: No job associated with this transaction");
+      toast.error("Cannot release: No job associated with this transaction");
       return;
     }
     if (
@@ -271,16 +272,14 @@ export default function TransactionsPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert(
-          `✅ Payment released successfully!\nAmount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`,
-        );
+        toast.success(`Payment released successfully! Amount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`);
         fetchTransactions();
       } else {
-        alert(`❌ Failed to release payment: ${data.error || "Unknown error"}`);
+        toast.error(`Failed to release payment: ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Error releasing payment:", error);
-      alert("Error releasing payment. Please try again.");
+      toast.error("Error releasing payment. Please try again.");
     } finally {
       setReleasingId(null);
     }
@@ -319,7 +318,7 @@ export default function TransactionsPage() {
   };
 
   const exportToCSV = () => {
-    alert("Export to CSV functionality - Coming soon");
+    toast.info("Export to CSV functionality - Coming soon");
   };
 
   if (loading && transactions.length === 0) {

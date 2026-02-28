@@ -16,7 +16,6 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 
@@ -49,10 +48,11 @@ export default function AgencyDashboardPage() {
   const [pendingAssignments, setPendingAssignments] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = async () => {
+  const fetchStats = async (signal?: AbortSignal) => {
     try {
       const res = await fetch(`${API_BASE}/api/agency/profile`, {
         credentials: "include",
+        signal,
       });
 
       if (res.ok) {
@@ -69,13 +69,14 @@ export default function AgencyDashboardPage() {
     }
   };
 
-  const fetchRecentActivity = async () => {
+  const fetchRecentActivity = async (signal?: AbortSignal) => {
     try {
       // Fetch recent jobs (IN_PROGRESS or recently updated)
       const res = await fetch(
         `${API_BASE}/api/agency/jobs?status=IN_PROGRESS&limit=5`,
         {
           credentials: "include",
+          signal,
         },
       );
 
@@ -105,7 +106,7 @@ export default function AgencyDashboardPage() {
     }
   };
 
-  const fetchPendingAssignments = async () => {
+  const fetchPendingAssignments = async (signal?: AbortSignal) => {
     try {
       // Fetch accepted jobs that need employee assignment
       // Filter by status=ACTIVE to exclude COMPLETED/CANCELLED jobs
@@ -113,6 +114,7 @@ export default function AgencyDashboardPage() {
         `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE&limit=10`,
         {
           credentials: "include",
+          signal,
         },
       );
 
@@ -148,9 +150,10 @@ export default function AgencyDashboardPage() {
   // Fetch stats on mount - auth is handled by layout
   useEffect(() => {
     const controller = new AbortController();
-    fetchStats();
-    fetchRecentActivity();
-    fetchPendingAssignments();
+    const { signal } = controller;
+    fetchStats(signal);
+    fetchRecentActivity(signal);
+    fetchPendingAssignments(signal);
     return () => controller.abort();
   }, []);
 
@@ -333,9 +336,9 @@ export default function AgencyDashboardPage() {
                             )}
                             <span className="text-xs text-gray-400">•</span>
                             <span className="text-xs text-gray-500">
-                              {formatDistanceToNow(new Date(job.updatedAt), {
-                                addSuffix: true,
-                              })}
+                              {job.updatedAt
+                                ? formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true })
+                                : "—"}
                             </span>
                           </div>
                         </div>

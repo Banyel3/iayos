@@ -222,7 +222,7 @@ export default function BrowseJobsScreen() {
   };
 
   const handleWorkerPress = (workerId: number) => {
-    console.log("[Navigation] Attempting to navigate to worker:", workerId);
+    if (__DEV__) console.log("[Navigation] Attempting to navigate to worker:", workerId);
     try {
       router.push({
         pathname: "/workers/[id]",
@@ -234,7 +234,7 @@ export default function BrowseJobsScreen() {
   };
 
   const handleAgencyPress = (agencyId: number) => {
-    console.log("[Navigation] Attempting to navigate to agency:", agencyId);
+    if (__DEV__) console.log("[Navigation] Attempting to navigate to agency:", agencyId);
     try {
       router.push({
         pathname: "/agencies/[id]",

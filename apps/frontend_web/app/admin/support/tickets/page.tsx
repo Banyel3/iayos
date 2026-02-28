@@ -26,6 +26,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface TicketData {
   id: string;
@@ -191,11 +192,30 @@ export default function SupportTicketsPage() {
           (t) => t.status === "resolved" && isToday(t.last_reply_at),
         ).length;
 
+        const resolvedWithTimes = ticketsArray.filter(
+          (t) =>
+            t.status === "resolved" &&
+            t.last_reply_at &&
+            t.created_at,
+        );
+        const avgResponseTime =
+          resolvedWithTimes.length > 0
+            ? Math.round(
+                (resolvedWithTimes.reduce((sum, t) => {
+                  const created = new Date(t.created_at).getTime();
+                  const replied = new Date(t.last_reply_at).getTime();
+                  return sum + Math.max(0, (replied - created) / 3600000);
+                }, 0) /
+                  resolvedWithTimes.length) *
+                  10,
+              ) / 10
+            : 0;
+
         setStats({
           open: openCount,
           in_progress: inProgressCount,
           resolved_today: resolvedToday,
-          avg_response_time: 3.5, // Mock value
+          avg_response_time: avgResponseTime,
         });
       }
     } catch (error) {
@@ -234,12 +254,16 @@ export default function SupportTicketsPage() {
 
   const handleBulkAssign = () => {
     // TODO: Implement bulk assign modal
-    alert(`Bulk assign ${selectedTickets.length} tickets`);
+    toast.info(`Bulk assign: ${selectedTickets.length} ticket(s) selected`, {
+      description: "Bulk assignment UI coming soon.",
+    });
   };
 
   const handleBulkClose = () => {
     // TODO: Implement bulk close modal
-    alert(`Bulk close ${selectedTickets.length} tickets`);
+    toast.info(`Bulk close: ${selectedTickets.length} ticket(s) selected`, {
+      description: "Bulk close UI coming soon.",
+    });
   };
 
   const handleSearch = (e: React.FormEvent) => {

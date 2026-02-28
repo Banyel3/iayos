@@ -285,9 +285,11 @@ export default function ProfileScreen() {
                   // Navigate to public worker profile view (what clients see)
                   // Use the workerProfileId (WorkerProfile.id) for the endpoint
                   const workerProfileId = user?.profile_data?.workerProfileId;
-                  console.log("📱 View Public Profile pressed");
-                  console.log("   Worker Profile ID:", workerProfileId);
-                  console.log("   Navigating to: /workers/" + workerProfileId);
+                  if (__DEV__) {
+                    console.log("📱 View Public Profile pressed");
+                    console.log("   Worker Profile ID:", workerProfileId);
+                    console.log("   Navigating to: /workers/" + workerProfileId);
+                  }
 
                   if (workerProfileId) {
                     router.push(`/workers/${workerProfileId}` as any);

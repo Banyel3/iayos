@@ -159,7 +159,6 @@ export default function ApprovedKYCPage() {
       }
 
       const data = await response.json();
-      console.log("✅ Fetched KYC data:", data);
 
       // Store backend data for file access
       setBackendData(data);
@@ -241,7 +240,6 @@ export default function ApprovedKYCPage() {
         });
 
       setApprovedKYC([...userKYC, ...agencyKYC]);
-      console.log("✅ Transformed approved KYC data:", [...userKYC, ...agencyKYC]);
     } catch (error) {
       console.error("Error fetching approved KYC:", error);
       showToast({
@@ -281,8 +279,6 @@ export default function ApprovedKYCPage() {
         );
       }
 
-      console.log(`📄 Found ${kycFiles.length} files for record ${record.id}:`, kycFiles);
-
       // For agency, map fileType to keys; for user, use fileName patterns
       let frontID, backID, clearance, selfie, addressProof;
 
@@ -317,8 +313,6 @@ export default function ApprovedKYCPage() {
         addressProofLink: addressProof?.fileURL || "",
       };
 
-      console.log("📤 Sending file URLs to backend for signed URLs:", requestBody);
-
       // Call backend API to get signed URLs
       const response = await fetch(`${API_BASE}/api/adminpanel/kyc/review`, {
         method: "POST",
@@ -336,7 +330,6 @@ export default function ApprovedKYCPage() {
       }
 
       const signedUrls = await response.json();
-      console.log("✅ Received signed URLs:", signedUrls);
 
       const files: KYCFiles = {
         frontId: signedUrls.frontIDLink || null,

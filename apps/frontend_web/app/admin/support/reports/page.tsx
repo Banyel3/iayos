@@ -19,6 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface UserReport {
   id: string;
@@ -175,7 +176,7 @@ export default function UserReportsPage() {
       setShowWarningModal(false);
       setShowDetailModal(false);
       fetchReports();
-      alert("Warning sent successfully");
+      toast.success("Warning sent successfully");
     } catch (error) {
       console.error("Error sending warning:", error);
     }
@@ -202,7 +203,7 @@ export default function UserReportsPage() {
       setShowSuspendModal(false);
       setShowDetailModal(false);
       fetchReports();
-      alert("User suspended successfully");
+      toast.success("User suspended successfully");
     } catch (error) {
       console.error("Error suspending user:", error);
     }
@@ -228,7 +229,7 @@ export default function UserReportsPage() {
       setShowBanModal(false);
       setShowDetailModal(false);
       fetchReports();
-      alert("User banned successfully");
+      toast.success("User banned successfully");
     } catch (error) {
       console.error("Error banning user:", error);
     }
@@ -253,7 +254,7 @@ export default function UserReportsPage() {
 
       setShowDetailModal(false);
       fetchReports();
-      alert("Report dismissed");
+      toast.success("Report dismissed");
     } catch (error) {
       console.error("Error dismissing report:", error);
     }

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
-import { useToast } from "@/components/ui/toast";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import {
@@ -28,7 +28,6 @@ const AgencyKYCPage = () => {
   const { user: authUser, isAuthenticated, isLoading } = useAuth();
   const user = authUser as KYCUser;
   const router = useRouter();
-  const { showToast } = useToast();
 
   // Hydration fix
   const [isMounted, setIsMounted] = useState(false);
@@ -241,7 +240,7 @@ const AgencyKYCPage = () => {
     if (!f) return;
     const err = validateFile(f);
     if (err)
-      return showToast({ type: "error", title: "Invalid file", message: err });
+      return toast.error(err);
 
     // Show preview immediately
     handleFilePreview(f, setPermitPreview);
@@ -262,11 +261,7 @@ const AgencyKYCPage = () => {
           ? 'Image is too blurry. Please upload a clearer photo.'
           : 'Document validation failed. Please try again with a clearer image.');
       setPermitValidationError(errorMessage);
-      showToast({
-        type: "error",
-        title: "Document Validation Failed",
-        message: errorMessage,
-      });
+      toast.error("Document Validation Failed", { description: errorMessage });
       setPermitPreview("");
       return;
     }
@@ -280,11 +275,7 @@ const AgencyKYCPage = () => {
       }));
     }
 
-    showToast({
-      type: "success",
-      title: "Document Validated",
-      message: "Business permit validated successfully",
-    });
+    toast.success("Document Validated", { description: "Business permit validated successfully" });
   };
 
   const handleRepFrontChange = async (
@@ -294,7 +285,7 @@ const AgencyKYCPage = () => {
     if (!f) return;
     const err = validateFile(f);
     if (err)
-      return showToast({ type: "error", title: "Invalid file", message: err });
+      return toast.error(err);
 
     // Show preview immediately
     handleFilePreview(f, setRepFrontPreview);
@@ -323,11 +314,7 @@ const AgencyKYCPage = () => {
           ? 'Image is too blurry. Please upload a clearer photo.'
           : 'Validation failed. Please try again with a clearer image.');
       setRepFrontValidationError(errorMessage);
-      showToast({
-        type: "error",
-        title: "ID Validation Failed",
-        message: errorMessage,
-      });
+      toast.error("ID Validation Failed", { description: errorMessage });
       // Clear preview on failure
       setRepFrontPreview("");
       return;
@@ -341,19 +328,9 @@ const AgencyKYCPage = () => {
 
     // Check if face detection was skipped (CompreFace unavailable) - show warning
     if (result.details?.face_detection_skipped) {
-      showToast({
-        type: "warning",
-        title: "Manual Review Required",
-        message:
-          result.warning ||
-          "Face verification unavailable. Your document will be reviewed manually.",
-      });
+      toast.warning("Manual Review Required", { description: result.warning || "Face verification unavailable. Your document will be reviewed manually." });
     } else {
-      showToast({
-        type: "success",
-        title: "ID Validated",
-        message: "Face detected successfully",
-      });
+      toast.success("ID Validated", { description: "Face detected successfully" });
     }
   };
 
@@ -364,7 +341,7 @@ const AgencyKYCPage = () => {
     if (!f) return;
     const err = validateFile(f);
     if (err)
-      return showToast({ type: "error", title: "Invalid file", message: err });
+      return toast.error(err);
 
     // Show preview immediately
     handleFilePreview(f, setRepBackPreview);
@@ -391,11 +368,7 @@ const AgencyKYCPage = () => {
           ? 'Image resolution is too low. Please upload a higher quality image.'
           : 'ID back validation failed. Please try again with a clearer image.');
       setRepBackValidationError(errorMessage);
-      showToast({
-        type: "error",
-        title: "ID Validation Failed",
-        message: errorMessage,
-      });
+      toast.error("ID Validation Failed", { description: errorMessage });
       // Clear preview on failure
       setRepBackPreview("");
       return;
@@ -405,19 +378,9 @@ const AgencyKYCPage = () => {
 
     // Check if face detection was skipped (CompreFace unavailable) - show warning
     if (result.details?.face_detection_skipped) {
-      showToast({
-        type: "warning",
-        title: "Manual Review Required",
-        message:
-          result.warning ||
-          "Face verification unavailable. Your document will be reviewed manually.",
-      });
+      toast.warning("Manual Review Required", { description: result.warning || "Face verification unavailable. Your document will be reviewed manually." });
     } else {
-      showToast({
-        type: "success",
-        title: "ID Back Validated",
-        message: "Document accepted",
-      });
+      toast.success("ID Back Validated", { description: "Document accepted" });
     }
   };
 
@@ -429,7 +392,7 @@ const AgencyKYCPage = () => {
     if (!file) return;
     const err = validateFile(file);
     if (err)
-      return showToast({ type: "error", title: "Invalid file", message: err });
+      return toast.error(err);
 
     if (type === "permit") {
       setBusinessPermit(file);
@@ -456,12 +419,7 @@ const AgencyKYCPage = () => {
   // Extract OCR data for autofill (triggered by "Next" button in Step 2)
   const handleExtractOCR = async () => {
     if (!businessPermit || !repIDFront) {
-      showToast({
-        type: "warning",
-        title: "Missing Documents",
-        message:
-          "Please upload Business Permit and Representative ID Front for OCR extraction",
-      });
+      toast.warning("Missing Documents", { description: "Please upload Business Permit and Representative ID Front for OCR extraction" });
       return;
     }
 
@@ -473,7 +431,9 @@ const AgencyKYCPage = () => {
       formData.append("rep_id_front", repIDFront);
       formData.append("business_type", businessType);
 
-      console.log("📝 Extracting OCR data for autofill...");
+      if (process.env.NODE_ENV === "development") {
+        console.log("📝 Extracting OCR data for autofill...");
+      }
 
       const response = await fetch(`${API_BASE}/api/agency/kyc/extract-ocr`, {
         method: "POST",
@@ -486,7 +446,9 @@ const AgencyKYCPage = () => {
       }
 
       const result = await response.json();
-      console.log("✅ OCR extraction result:", result);
+      if (process.env.NODE_ENV === "development") {
+        console.log("✅ OCR extraction result:", result);
+      }
 
       if (result.success && result.extracted_data) {
         const data = result.extracted_data;
@@ -496,31 +458,17 @@ const AgencyKYCPage = () => {
         if (data.business_address) setBusinessDesc(data.business_address);
         if (data.permit_number) setRegistrationNumber(data.permit_number);
 
-        showToast({
-          type: "success",
-          title: "OCR Extracted",
-          message:
-            "Business data autofilled successfully! Please review and edit if needed.",
-        });
+        toast.success("OCR Extracted", { description: "Business data autofilled successfully! Please review and edit if needed." });
         setOcrExtracted(true);
         setCurrentStep(3); // Move to form step
       } else {
-        showToast({
-          type: "warning",
-          title: "Low Confidence",
-          message:
-            "OCR extraction completed with low confidence. Please fill the form manually.",
-        });
+        toast.warning("Low Confidence", { description: "OCR extraction completed with low confidence. Please fill the form manually." });
         setOcrExtracted(true);
         setCurrentStep(3); // Still move to form
       }
     } catch (error) {
       console.error("OCR extraction error:", error);
-      showToast({
-        type: "error",
-        title: "OCR Failed",
-        message: "OCR extraction failed. Please fill the form manually.",
-      });
+      toast.error("OCR Failed", { description: "OCR extraction failed. Please fill the form manually." });
       setOcrExtracted(true);
       setCurrentStep(3); // Still allow proceeding to form
     } finally {
@@ -536,11 +484,7 @@ const AgencyKYCPage = () => {
       !repIDFront ||
       !repIDBack
     ) {
-      showToast({
-        type: "warning",
-        title: "Incomplete",
-        message: "Please complete all required fields and uploads",
-      });
+      toast.warning("Incomplete", { description: "Please complete all required fields and uploads" });
       return;
     }
 
@@ -564,7 +508,9 @@ const AgencyKYCPage = () => {
       // Add file hashes for optimized upload (skips AI re-validation)
       if (Object.keys(fileHashes).length > 0) {
         formData.append("file_hashes_json", JSON.stringify(fileHashes));
-        console.log("📎 Sending file hashes for fast upload:", fileHashes);
+        if (process.env.NODE_ENV === "development") {
+          console.log("📎 Sending file hashes for fast upload:", fileHashes);
+        }
       }
 
       const upload = await fetch(`${API_BASE}/api/agency/upload`, {
@@ -580,7 +526,7 @@ const AgencyKYCPage = () => {
         let msg =
           responseData?.message || responseData?.error || "Upload failed";
         if (upload.status === 413) msg = "One or more files are too large";
-        showToast({ type: "error", title: "Upload failed", message: msg });
+        toast.error("Upload failed", { description: msg });
         setIsSubmitting(false);
         return;
       }
@@ -588,13 +534,7 @@ const AgencyKYCPage = () => {
       // Check if upload succeeded but documents were auto-rejected by AI
       if (responseData?.status === "REJECTED") {
         const rejectionReasons = responseData?.rejection_reasons || [];
-        showToast({
-          type: "error",
-          title: "Documents Rejected",
-          message:
-            rejectionReasons[0] ||
-            "Your documents failed AI verification. Please upload clearer images.",
-        });
+        toast.error("Documents Rejected", { description: rejectionReasons[0] || "Your documents failed AI verification. Please upload clearer images." });
         // Update local state to show rejection
         setAgencyKycStatus("REJECTED");
         setAgencyKycNotes(rejectionReasons.join("\n"));
@@ -608,15 +548,18 @@ const AgencyKYCPage = () => {
       // Check if auto-approved
       const wasAutoApproved = responseData?.auto_approved === true;
       
-      showToast({
-        type: wasAutoApproved ? "success" : "success",
-        title: wasAutoApproved 
-          ? "Agency Verified! ✅" 
-          : (agencyKycStatus?.toUpperCase() === "REJECTED" ? "Resubmitted" : "Submitted"),
-        message: wasAutoApproved
-          ? "Your agency has been automatically verified!"
-          : "Documents uploaded successfully. Verification in progress.",
-      });
+      toast.success(
+        wasAutoApproved
+          ? "Agency Verified! ✅"
+          : agencyKycStatus?.toUpperCase() === "REJECTED"
+          ? "Resubmitted"
+          : "Submitted",
+        {
+          description: wasAutoApproved
+            ? "Your agency has been automatically verified!"
+            : "Documents uploaded successfully. Verification in progress.",
+        },
+      );
 
       // Update status and navigate to Step 5 (status page)
       setAgencyKycStatus(responseData?.status || "PENDING");
@@ -626,11 +569,7 @@ const AgencyKYCPage = () => {
       router.refresh(); // Invalidate Next.js server cache so layout refetches status
     } catch (err) {
       console.error(err);
-      showToast({
-        type: "error",
-        title: "Error",
-        message: "Failed to submit KYC",
-      });
+      toast.error("Error", { description: "Failed to submit KYC" });
     } finally {
       setIsSubmitting(false);
     }
@@ -670,20 +609,12 @@ const AgencyKYCPage = () => {
       await new Promise<void>((resolve, reject) => {
         confirmData(payload, {
           onSuccess: () => {
-            showToast({
-              type: "success",
-              title: "Data Confirmed",
-              message: "Your business information has been saved.",
-            });
+            toast.success("Data Confirmed", { description: "Your business information has been saved." });
             fetchStatusAndGoToStep6();
             resolve();
           },
           onError: (error: Error) => {
-            showToast({
-              type: "error",
-              title: "Confirmation Failed",
-              message: error?.message || "Failed to confirm data",
-            });
+            toast.error("Confirmation Failed", { description: error?.message || "Failed to confirm data" });
             reject(error);
           },
         });
@@ -710,7 +641,7 @@ const AgencyKYCPage = () => {
         if (data?.notes) setAgencyKycNotes(data.notes || null);
       }
     } catch {
-      // Ignore errors
+      toast.error("Could not retrieve KYC status. Please refresh.");
     }
     setCurrentStep(6);
   };
@@ -751,14 +682,12 @@ const AgencyKYCPage = () => {
     // Go back to step 1
     setCurrentStep(1);
 
-    showToast({
-      type: "info",
-      title: "Resubmission Started",
-      message: "Please upload corrected documents",
-    });
+    toast.warning("Resubmission Started", { description: "Please upload corrected documents" });
   };
 
   const renderProgressBar = () => {
+    // Hide progress bar on the status/completion step
+    if (currentStep >= 5) return null;
     const steps = 5; // 1: Start, 2: Uploads, 3: Business Info, 4: Rep ID Info, 5: Status
     return (
       <div className="flex items-center justify-center space-x-2 mb-8">

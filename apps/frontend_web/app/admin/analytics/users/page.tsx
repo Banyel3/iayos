@@ -153,7 +153,7 @@ export default function UserAnalytics() {
                   {formatNumber(dau)}
                 </h3>
                 <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none mb-4">Daily Active Users</p>
-                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-tight bg-gray-50 p-2 rounded-lg inline-flex">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-tight bg-gray-50 p-2 rounded-lg">
                   {dauGrowth >= 0 ? (
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
                   ) : (
@@ -185,7 +185,7 @@ export default function UserAnalytics() {
                   {formatNumber(wau)}
                 </h3>
                 <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none mb-4">Weekly Active Users</p>
-                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-tight bg-gray-50 p-2 rounded-lg inline-flex">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-tight bg-gray-50 p-2 rounded-lg">
                   {wauGrowth >= 0 ? (
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
                   ) : (
@@ -217,7 +217,7 @@ export default function UserAnalytics() {
                   {formatNumber(mau)}
                 </h3>
                 <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest leading-none mb-4">Monthly Active Users</p>
-                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-tight bg-gray-50 p-2 rounded-lg inline-flex">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-black uppercase tracking-tight bg-gray-50 p-2 rounded-lg">
                   {mauGrowth >= 0 ? (
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
                   ) : (

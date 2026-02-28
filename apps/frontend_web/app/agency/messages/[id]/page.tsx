@@ -57,6 +57,7 @@ import {
   Send,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
+import { toast } from "sonner";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
 
 export default function AgencyChatScreen() {
@@ -65,6 +66,7 @@ export default function AgencyChatScreen() {
   const conversationId = parseInt(params.id as string);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -132,12 +134,21 @@ export default function AgencyChatScreen() {
   const { isTyping, sendTyping } = useTypingIndicator(conversationId);
 
   // Auto-scroll to bottom when new messages arrive
+  const isNearBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+  };
+
   useEffect(() => {
     if (conversation?.messages.length) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      if (isNearBottom()) {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.messages.length]);
 
   // Handle send message
@@ -155,14 +166,14 @@ export default function AgencyChatScreen() {
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size must be less than 5MB");
+      toast.error("Image size must be less than 5MB");
       return;
     }
 
     // Validate file type
     const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      alert("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP");
+      toast.error("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP");
       return;
     }
 
@@ -187,7 +198,9 @@ export default function AgencyChatScreen() {
       }
 
       const result = await response.json();
-      console.log("Image uploaded:", result);
+      if (process.env.NODE_ENV === "development") {
+        console.log("Image uploaded:", result);
+      }
 
       // Refetch conversation to show the new image
       refetch();
@@ -198,7 +211,7 @@ export default function AgencyChatScreen() {
       }, 100);
     } catch (error) {
       console.error("Image upload error:", error);
-      alert(error instanceof Error ? error.message : "Failed to upload image");
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
     } finally {
       setIsUploading(false);
     }
@@ -283,7 +296,7 @@ export default function AgencyChatScreen() {
       setUploadProgress(0);
       refetch();
     } catch (error) {
-      alert(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Failed to mark job as complete",
@@ -324,7 +337,7 @@ export default function AgencyChatScreen() {
           refetch();
         },
         onError: (error) => {
-          alert(error.message || "Failed to submit review");
+          toast.error(error.message || "Failed to submit review");
         },
       },
     );
@@ -340,7 +353,7 @@ export default function AgencyChatScreen() {
         refetch();
       },
       onError: (error) => {
-        alert(error.message || "Failed to confirm backjob started");
+        toast.error(error.message || "Failed to confirm backjob started");
       },
     });
   };
@@ -358,7 +371,7 @@ export default function AgencyChatScreen() {
           refetch();
         },
         onError: (error) => {
-          alert(error.message || "Failed to mark backjob complete");
+          toast.error(error.message || "Failed to mark backjob complete");
         },
       },
     );
@@ -377,7 +390,7 @@ export default function AgencyChatScreen() {
           refetch();
         },
         onError: (error) => {
-          alert(error.message || "Failed to approve backjob completion");
+          toast.error(error.message || "Failed to approve backjob completion");
         },
       },
     );
@@ -1102,7 +1115,7 @@ export default function AgencyChatScreen() {
       </Card>
 
       {/* Messages list */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4">
         {messages.map((message: AgencyMessage, index: number) => {
           const currentDate = new Date(message.created_at);
           const previousDate =

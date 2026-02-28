@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface Category {
   id: string;
@@ -184,7 +185,7 @@ export default function CategoryManagementPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert(
+        toast.success(
           modalMode === "add"
             ? "Category created successfully!"
             : "Category updated successfully!",
@@ -192,11 +193,11 @@ export default function CategoryManagementPage() {
         setShowModal(false);
         fetchCategories();
       } else {
-        alert(data.error || "Failed to save category");
+        toast.error(data.error || "Failed to save category");
       }
     } catch (error) {
       console.error("Error saving category:", error);
-      alert("Failed to save category");
+      toast.error("Failed to save category");
     }
   };
 
@@ -232,7 +233,7 @@ export default function CategoryManagementPage() {
     if (!categoryToDelete) return;
 
     if (categoryToDelete.job_count > 0 && !reassignCategoryId) {
-      alert("Please select a category to reassign existing jobs to");
+      toast.error("Please select a category to reassign existing jobs to");
       return;
     }
 
@@ -250,15 +251,15 @@ export default function CategoryManagementPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Category deleted successfully!");
+        toast.success("Category deleted successfully!");
         setShowDeleteModal(false);
         fetchCategories();
       } else {
-        alert(data.error || "Failed to delete category");
+        toast.error(data.error || "Failed to delete category");
       }
     } catch (error) {
       console.error("Error deleting category:", error);
-      alert("Failed to delete category");
+      toast.error("Failed to delete category");
     }
   };
 

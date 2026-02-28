@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -101,12 +102,12 @@ export default function ReviewDetailPage() {
 
       if (!response.ok) throw new Error("Failed to flag review");
 
-      alert("Review flagged successfully");
+      toast.success("Review flagged successfully");
       fetchDetail();
       setShowFlagModal(false);
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to flag review");
+      toast.error("Failed to flag review");
     }
   };
 
@@ -124,12 +125,12 @@ export default function ReviewDetailPage() {
 
       if (!response.ok) throw new Error("Failed to hide review");
 
-      alert("Review hidden successfully");
+      toast.success("Review hidden successfully");
       fetchDetail();
       setShowHideModal(false);
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to hide review");
+      toast.error("Failed to hide review");
     }
   };
 
@@ -147,11 +148,11 @@ export default function ReviewDetailPage() {
 
       if (!response.ok) throw new Error("Failed to delete review");
 
-      alert("Review deleted successfully");
+      toast.success("Review deleted successfully");
       router.push("/admin/reviews");
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to delete review");
+      toast.error("Failed to delete review");
     }
   };
 
@@ -167,11 +168,11 @@ export default function ReviewDetailPage() {
 
       if (!response.ok) throw new Error("Failed to restore review");
 
-      alert("Review restored successfully");
+      toast.success("Review restored successfully");
       fetchDetail();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to restore review");
+      toast.error("Failed to restore review");
     }
   };
 

@@ -146,7 +146,7 @@ const cropToGuideRegion = async (
     return photoUri;
   }
 
-  console.log(
+  if (__DEV__) console.log(
     `[KYC Camera] Cropping: photo ${photoWidth}x${photoHeight} → crop(${cropOriginX}, ${cropOriginY}, ${cropWidth}x${cropHeight})`,
   );
 
@@ -168,7 +168,7 @@ const cropToGuideRegion = async (
     },
   );
 
-  console.log(
+  if (__DEV__) console.log(
     `[KYC Camera] Cropped result: ${result.width}x${result.height}`,
   );
 
@@ -301,7 +301,7 @@ export default function KYCCameraScreen() {
         // Selfie uses an oval guide which doesn't map to a useful rectangular crop
         if (documentType !== "selfie" && photo.width && photo.height) {
           try {
-            console.log(
+            if (__DEV__) console.log(
               `[KYC Camera] Photo captured: ${photo.width}x${photo.height}, cropping to guide...`,
             );
             finalUri = await cropToGuideRegion(
