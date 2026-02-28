@@ -2279,7 +2279,8 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
                 "created_at": review.createdAt,
                 "review_type": review_type,
                 "employee_name": employee_name,
-                "employee_id": employee_id
+                "employee_id": employee_id,
+                "agency_response": review.agency_response,
             })
         
         total_pages = math.ceil(total / limit) if total > 0 else 1
