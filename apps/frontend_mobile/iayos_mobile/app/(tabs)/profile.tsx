@@ -34,6 +34,7 @@ import {
   useSwitchProfile,
 } from "@/lib/hooks/useDualProfile";
 import { getAbsoluteMediaUrl } from "@/lib/api/config";
+import CalendarFAB from "@/components/CalendarFAB";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -797,6 +798,7 @@ export default function ProfileScreen() {
           <Text style={styles.footerSubtext}>May sira? May iAyos.</Text>
         </View>
       </ScrollView>
+      <CalendarFAB />
     </SafeAreaView>
   );
 }

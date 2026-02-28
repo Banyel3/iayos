@@ -25,6 +25,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, fetchJson, apiRequest } from "@/lib/api/config";
 import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
+import CalendarFAB from "@/components/CalendarFAB";
 
 interface MyJob {
   job_id: number;
@@ -1193,6 +1194,7 @@ export default function JobsScreen() {
           </View>
         </View>
       </Modal>
+      <CalendarFAB />
     </SafeAreaView>
   );
 }

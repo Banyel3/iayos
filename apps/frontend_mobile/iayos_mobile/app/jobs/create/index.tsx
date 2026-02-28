@@ -79,6 +79,7 @@ interface CreateJobRequest {
   expected_duration?: string;
   urgency_level: "LOW" | "MEDIUM" | "HIGH" | null;
   preferred_start_date?: string;
+  scheduled_end_date?: string;
   downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
@@ -201,6 +202,8 @@ export default function CreateJobScreen() {
   const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
   // New universal job fields for ML accuracy
   const [skillLevel, setSkillLevel] = useState<
@@ -814,6 +817,19 @@ export default function CreateJobScreen() {
       return;
     }
 
+    if (!startDate) {
+      Alert.alert("Error", "Please select a start date for the job");
+      return;
+    }
+    if (!scheduledEndDate) {
+      Alert.alert("Error", "Please select an end date for the job");
+      return;
+    }
+    if (scheduledEndDate < startDate) {
+      Alert.alert("Error", "End date cannot be before start date");
+      return;
+    }
+
     // Skill slot validation for agency jobs (unified model - always require at least 1 slot)
     if (agencyId) {
       if (skillSlots.length === 0) {
@@ -868,6 +884,9 @@ export default function CreateJobScreen() {
       urgency_level: urgency ?? null,
       preferred_start_date: startDate
         ? startDate.toISOString().split("T")[0]
+        : undefined,
+      scheduled_end_date: scheduledEndDate
+        ? scheduledEndDate.toISOString().split("T")[0]
         : undefined,
       downpayment_method: "WALLET", // Jobs only use Wallet payment
       // Universal job fields for ML accuracy - explicitly passed
@@ -1721,24 +1740,24 @@ export default function CreateJobScreen() {
                 />
               </View>
 
-              {/* Preferred Start Date */}
+              {/* Job Dates - Required */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Preferred Start Date
+                  Start Date <Text style={{ color: Colors.error }}>*</Text>
                 </Text>
                 <TouchableOpacity
-                  style={styles.dateButton}
+                  style={[styles.dateButton, !startDate && { borderColor: Colors.error }]}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Ionicons
                     name="calendar"
                     size={20}
-                    color={Colors.textSecondary}
+                    color={startDate ? Colors.textSecondary : Colors.error}
                   />
-                  <Text style={styles.dateButtonText}>
+                  <Text style={[styles.dateButtonText, !startDate && { color: Colors.error }]}>
                     {startDate
                       ? startDate.toLocaleDateString()
-                      : "Select a date"}
+                      : "Select start date (required)"}
                   </Text>
                 </TouchableOpacity>
                 {showDatePicker && (
@@ -1751,6 +1770,46 @@ export default function CreateJobScreen() {
                       setShowDatePicker(Platform.OS === "ios");
                       if (selectedDate) {
                         setStartDate(selectedDate);
+                        // Reset end date if it's before new start date
+                        if (scheduledEndDate && scheduledEndDate < selectedDate) {
+                          setScheduledEndDate(null);
+                        }
+                      }
+                    }}
+                  />
+                )}
+              </View>
+
+              {/* Scheduled End Date - Required */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  End Date <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={[styles.dateButton, !scheduledEndDate && { borderColor: Colors.error }]}
+                  onPress={() => setShowEndDatePicker(true)}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={scheduledEndDate ? Colors.textSecondary : Colors.error}
+                  />
+                  <Text style={[styles.dateButtonText, !scheduledEndDate && { color: Colors.error }]}>
+                    {scheduledEndDate
+                      ? scheduledEndDate.toLocaleDateString()
+                      : "Select end date (required)"}
+                  </Text>
+                </TouchableOpacity>
+                {showEndDatePicker && (
+                  <DateTimePicker
+                    value={scheduledEndDate || startDate || new Date()}
+                    mode="date"
+                    display="default"
+                    minimumDate={startDate || new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowEndDatePicker(Platform.OS === "ios");
+                      if (selectedDate) {
+                        setScheduledEndDate(selectedDate);
                       }
                     }}
                   />

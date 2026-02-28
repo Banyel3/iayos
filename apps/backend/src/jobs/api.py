@@ -1534,6 +1534,50 @@ def get_completed_jobs(request):
         )
 
 
+@router.get("/worker-schedule", auth=cookie_auth)
+def get_worker_schedule(request):
+    """Get current worker's scheduled/active jobs for calendar display.
+    Returns jobs that have both preferredStartDate and scheduled_end_date set.
+    """
+    try:
+        from accounts.models import WorkerProfile
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=403)
+
+        jobs = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+            preferredStartDate__isnull=False,
+            scheduled_end_date__isnull=False,
+        ).select_related('clientID__profileID')
+
+        return {
+            "success": True,
+            "jobs": [
+                {
+                    "id": j.jobID,
+                    "title": j.title,
+                    "preferred_start_date": str(j.preferredStartDate),
+                    "scheduled_end_date": str(j.scheduled_end_date),
+                    "status": j.status,
+                    "client_name": (
+                        f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
+                    ),
+                    "budget": float(j.budget),
+                }
+                for j in jobs
+            ],
+        }
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
 @router.get("/my-applications", auth=cookie_auth)
 def get_my_applications(request):
     """
@@ -2078,43 +2122,7 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=403
             )
         
-        # CRITICAL: Prevent workers from applying if they have an active job
-        # Check both regular jobs (assignedWorkerID) and team jobs (JobWorkerAssignment)
-        from accounts.models import JobWorkerAssignment
-        
-        # Check for active regular job
-        active_regular_job = JobPosting.objects.filter(
-            assignedWorkerID=worker_profile,
-            status=JobPosting.JobStatus.IN_PROGRESS
-        ).first()
-        
-        if active_regular_job:
-            return Response(
-                {
-                    "error": f"You already have an active job: '{active_regular_job.title}'. Complete it before applying to new jobs.",
-                    "active_job_id": active_regular_job.jobID,
-                    "active_job_title": active_regular_job.title
-                },
-                status=400
-            )
-        
-        # Check for active team job assignment
-        active_team_assignment = JobWorkerAssignment.objects.filter(
-            workerID=worker_profile,
-            assignment_status='ACTIVE'
-        ).select_related('jobID').first()
-        
-        if active_team_assignment:
-            return Response(
-                {
-                    "error": f"You are currently assigned to a team job: '{active_team_assignment.jobID.title}'. Complete it before applying to new jobs.",
-                    "active_job_id": active_team_assignment.jobID.jobID,
-                    "active_job_title": active_team_assignment.jobID.title
-                },
-                status=400
-            )
-        
-        # Get the job posting
+        # Get the job posting first (needed for date-overlap check)
         try:
             job = JobPosting.objects.get(jobID=job_id)
         except JobPosting.DoesNotExist:
@@ -2122,6 +2130,28 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "Job posting not found"},
                 status=404
             )
+
+        # DATE OVERLAP CHECK: Workers can apply to multiple jobs as long as dates don't conflict
+        if job.preferredStartDate and job.scheduled_end_date:
+            overlapping_job = JobPosting.objects.filter(
+                assignedWorkerID=worker_profile,
+                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                preferredStartDate__lte=job.scheduled_end_date,
+                scheduled_end_date__gte=job.preferredStartDate,
+            ).exclude(jobID=job.jobID).first()
+            if overlapping_job:
+                return Response(
+                    {
+                        "error": (
+                            f"Schedule conflict: you already have '{overlapping_job.title}' "
+                            f"scheduled on overlapping dates "
+                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
+                        ),
+                        "conflicting_job_id": overlapping_job.jobID,
+                        "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
         
         # CRITICAL: Prevent users from applying to their own jobs (self-hiring)
         if job.clientID.profileID.accountFK == request.auth:
@@ -2272,45 +2302,28 @@ def accept_application(request, job_id: int, application_id: int):
                 status=400
             )
         
-        # CRITICAL: Prevent accepting application if worker already has an active job
-        # This prevents race condition where worker applies to multiple jobs
-        from accounts.models import JobWorkerAssignment
-        
+        # DATE OVERLAP CHECK (race-condition guard): Worker cannot be assigned if dates conflict
         worker = application.workerID
-        
-        # Check for active regular job
-        active_regular_job = JobPosting.objects.filter(
-            assignedWorkerID=worker,
-            status=JobPosting.JobStatus.IN_PROGRESS
-        ).first()
-        
-        if active_regular_job:
-            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
-            return Response(
-                {
-                    "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
-                    "worker_active_job_id": active_regular_job.jobID,
-                    "worker_active_job_title": active_regular_job.title
-                },
-                status=400
-            )
-        
-        # Check for active team job assignment
-        active_team_assignment = JobWorkerAssignment.objects.filter(
-            workerID=worker,
-            assignment_status='ACTIVE'
-        ).select_related('jobID').first()
-        
-        if active_team_assignment:
-            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
-            return Response(
-                {
-                    "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
-                    "worker_active_job_id": active_team_assignment.jobID.jobID,
-                    "worker_active_job_title": active_team_assignment.jobID.title
-                },
-                status=400
-            )
+        if job.preferredStartDate and job.scheduled_end_date:
+            overlapping_job = JobPosting.objects.filter(
+                assignedWorkerID=worker,
+                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                preferredStartDate__lte=job.scheduled_end_date,
+                scheduled_end_date__gte=job.preferredStartDate,
+            ).exclude(jobID=job.jobID).first()
+            if overlapping_job:
+                worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+                return Response(
+                    {
+                        "error": (
+                            f"{worker_name} has a scheduling conflict with '{overlapping_job.title}' "
+                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
+                        ),
+                        "conflicting_job_id": overlapping_job.jobID,
+                        "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
         
         # Use database transaction for atomicity
         with db_transaction.atomic():

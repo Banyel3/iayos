@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMyJobs, JobStatus } from "@/lib/hooks/useMyJobs";
 import { useUserType } from "@/lib/hooks/useUserProfile";
 import * as Haptics from "expo-haptics";
+import CalendarFAB from "@/components/CalendarFAB";
 
 // Worker Tabs: Active, In Progress, Completed
 // Client Tabs: Active Requests, In Progress, Past Requests, Applications
@@ -246,6 +247,7 @@ export default function MyJobsScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
+      <CalendarFAB />
     </View>
   );
 }

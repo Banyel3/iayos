@@ -304,6 +304,7 @@ export const ENDPOINTS = {
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
   MY_JOBS: `${API_URL}/api/mobile/jobs/my-jobs`,
+  WORKER_SCHEDULE: `${API_URL}/api/jobs/worker-schedule`,
   JOB_DETAILS: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
   DELETE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,
   UPDATE_JOB: (id: number) => `${API_URL}/api/mobile/jobs/${id}`,

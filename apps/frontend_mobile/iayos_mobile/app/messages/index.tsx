@@ -29,7 +29,7 @@ import {
   processOfflineQueue,
 } from "../../lib/services/offline-queue";
 
-type FilterType = "all" | "active" | "unread" | "archived";
+type FilterType = "all" | "active" | "unread" | "archived" | "upcoming";
 
 export default function ConversationsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -264,6 +264,7 @@ export default function ConversationsScreen() {
               .length
           )}
           {renderFilterButton("archived", "Archived")}
+          {renderFilterButton("upcoming", "Upcoming")}
         </View>
       )}
 

@@ -48,6 +48,7 @@ import AgencyCard from "@/components/AgencyCard";
 import InlineLoader from "@/components/ui/InlineLoader";
 import LocationButton from "@/components/LocationButton";
 import { KYCBanner } from "@/components/KYCBanner";
+import CalendarFAB from "@/components/CalendarFAB";
 
 // Hooks
 import { useInfiniteJobs, Job } from "@/lib/hooks/useJobs";
@@ -841,6 +842,7 @@ export default function BrowseJobsScreen() {
           </View>
         </View>
       </Modal>
+      <CalendarFAB />
     </SafeAreaView>
   );
 }

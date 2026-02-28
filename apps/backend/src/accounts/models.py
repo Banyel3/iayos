@@ -1498,7 +1498,10 @@ class Job(models.Model):
     
     # Preferred Start Date
     preferredStartDate = models.DateField(null=True, blank=True)
-    
+
+    # Scheduled End Date (used for multi-job date-overlap scheduling)
+    scheduled_end_date = models.DateField(null=True, blank=True)
+
     # Materials Needed (stored as JSON array)
     materialsNeeded = models.JSONField(default=list, blank=True)
     
