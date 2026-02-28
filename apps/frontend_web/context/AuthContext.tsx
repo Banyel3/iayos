@@ -56,7 +56,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
           if (cacheAge < CACHE_TTL && cachedUser) {
-            console.log("🚀 Using cached user for instant load");
+            if (process.env.NODE_ENV === "development")
+              console.log("🚀 Using cached user for instant load");
             setUser(cachedUser);
             setIsLoading(false);
 
@@ -206,7 +207,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         credentials: "include",
       });
 
-      console.log("✅ Logout successful");
+      if (process.env.NODE_ENV === "development")
+        console.log("✅ Logout successful");
 
       // Force full page reload to clear ALL state including React Query cache
       window.location.href = "/auth/login";

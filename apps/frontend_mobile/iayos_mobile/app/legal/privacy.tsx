@@ -321,7 +321,9 @@ export default function PrivacyPolicyScreen() {
             If you have questions or concerns about this Privacy Policy or our
             data practices, please contact us:
           </Text>
-          <Text style={styles.contactInfo}>Email: devante.software@gmail.com</Text>
+          <Text style={styles.contactInfo}>
+            Email: devante.software@gmail.com
+          </Text>
           <Text style={styles.contactInfo}>Website: devante.online</Text>
         </Section>
 
@@ -329,8 +331,8 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.paragraph}>
             As required by the Philippine Data Privacy Act, we have designated a
             Data Privacy Officer (DPO) to oversee compliance with data
-            protection laws. You can contact our DPO at devante.software@gmail.com
-            for privacy-related inquiries.
+            protection laws. You can contact our DPO at
+            devante.software@gmail.com for privacy-related inquiries.
           </Text>
         </Section>
 

@@ -22,8 +22,7 @@ const PAGES = [
     emoji: "🔧",
     subtitle: "Tools & Services",
     heading: "Find the right people\nfor the job",
-    subheading:
-      "Connect with skilled workers for all your home service needs.",
+    subheading: "Connect with skilled workers for all your home service needs.",
   },
   {
     key: "workers",
@@ -74,11 +73,7 @@ export default function WelcomeScreen() {
   const markSeen = () =>
     AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, "true").catch(() => {});
 
-  const renderPage = ({
-    item,
-  }: {
-    item: (typeof PAGES)[number];
-  }) => (
+  const renderPage = ({ item }: { item: (typeof PAGES)[number] }) => (
     <View style={styles.page}>
       <View style={styles.brandingSection}>
         <Text style={styles.brandTitle}>iAyos</Text>
@@ -110,7 +105,7 @@ export default function WelcomeScreen() {
         scrollEventThrottle={16}
         onMomentumScrollEnd={(e) => {
           const newIndex = Math.round(
-            e.nativeEvent.contentOffset.x / SCREEN_WIDTH
+            e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
           );
           setActivePage(newIndex);
           // Restart auto-advance only when user swipes back before end

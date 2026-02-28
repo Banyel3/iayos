@@ -1,7 +1,6 @@
 "use client";
 
-import {
-  API_BASE } from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -76,8 +75,12 @@ export default function JobDetailPage() {
           <span className="font-medium">Back to Active Jobs</span>
         </button>
         <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <p className="text-xl font-semibold text-gray-700 mb-2">Job not found</p>
-          <p className="text-gray-500">This job may have been removed or you don&apos;t have access.</p>
+          <p className="text-xl font-semibold text-gray-700 mb-2">
+            Job not found
+          </p>
+          <p className="text-gray-500">
+            This job may have been removed or you don&apos;t have access.
+          </p>
         </div>
       </div>
     );

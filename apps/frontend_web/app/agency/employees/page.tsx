@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import {
-  API_BASE
-} from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
@@ -106,7 +104,9 @@ export default function EmployeesPage() {
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [mobile, setMobile] = useState("");
-  const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
+  const [selectedSpecializations, setSelectedSpecializations] = useState<
+    string[]
+  >([]);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
 
@@ -270,24 +270,20 @@ export default function EmployeesPage() {
   };
 
   const toggleSpecialization = (spec: string) => {
-    setSelectedSpecializations(prev =>
-      prev.includes(spec)
-        ? prev.filter(s => s !== spec)
-        : [...prev, spec]
+    setSelectedSpecializations((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec],
     );
   };
 
   const toggleEditSpecialization = (spec: string) => {
-    setEditSpecializations(prev =>
-      prev.includes(spec)
-        ? prev.filter(s => s !== spec)
-        : [...prev, spec]
+    setEditSpecializations((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec],
     );
   };
 
   const saveEditEmployee = async () => {
     if (!editingEmployee) return;
-    
+
     // Clear previous errors
     setEditMobileError(null);
 
@@ -304,20 +300,23 @@ export default function EmployeesPage() {
     setIsSavingEdit(true);
     try {
       const employeeId = editingEmployee.employeeId || editingEmployee.id;
-      const res = await fetch(`${API_BASE}/api/agency/employees/${employeeId}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `${API_BASE}/api/agency/employees/${employeeId}`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            firstName: editFirstName.trim(),
+            middleName: editMiddleName.trim(),
+            lastName: editLastName.trim(),
+            mobile: editMobile,
+            specializations: editSpecializations,
+          }),
         },
-        body: JSON.stringify({
-          firstName: editFirstName.trim(),
-          middleName: editMiddleName.trim(),
-          lastName: editLastName.trim(),
-          mobile: editMobile,
-          specializations: editSpecializations,
-        }),
-      });
+      );
 
       if (res.ok) {
         toast.success("Employee updated successfully");
@@ -327,9 +326,11 @@ export default function EmployeesPage() {
       } else {
         const err = await res.json();
         const errorMessage = err.error || "Failed to update employee";
-        
+
         // Check if it's a mobile number duplicate error
-        if (errorMessage.toLowerCase().includes("mobile number already in use")) {
+        if (
+          errorMessage.toLowerCase().includes("mobile number already in use")
+        ) {
           setEditMobileError(errorMessage);
           toast.error(errorMessage);
         } else {
@@ -347,7 +348,7 @@ export default function EmployeesPage() {
   const addEmployee = async () => {
     // Clear previous errors
     setMobileError(null);
-    
+
     if (!firstName.trim() || !lastName.trim()) {
       toast.error("First name and last name are required");
       return;
@@ -370,7 +371,10 @@ export default function EmployeesPage() {
       formData.append("middleName", middleName.trim());
       formData.append("lastName", lastName.trim());
       formData.append("mobile", mobile);
-      formData.append("specializations", JSON.stringify(selectedSpecializations));
+      formData.append(
+        "specializations",
+        JSON.stringify(selectedSpecializations),
+      );
 
       const res = await fetch(`${API_BASE}/api/agency/employees`, {
         method: "POST",
@@ -390,9 +394,11 @@ export default function EmployeesPage() {
       } else {
         const err = await res.json();
         const errorMessage = err.error || "Failed to add employee";
-        
+
         // Check if it's a mobile number duplicate error
-        if (errorMessage.toLowerCase().includes("mobile number already in use")) {
+        if (
+          errorMessage.toLowerCase().includes("mobile number already in use")
+        ) {
           setMobileError(errorMessage);
           toast.error(errorMessage);
         } else {
@@ -490,283 +496,263 @@ export default function EmployeesPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Employee Management
-          </h1>
-          <p className="text-gray-600">
-            Manage your team, track performance, and recognize top performers
-          </p>
-        </div>
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Employee Management
+        </h1>
+        <p className="text-gray-600">
+          Manage your team, track performance, and recognize top performers
+        </p>
+      </div>
 
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-4 md:space-x-8 overflow-x-auto">
-              <button
-                onClick={() => setActiveTab("employees")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "employees"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+      {/* Tabs */}
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-4 md:space-x-8 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("employees")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "employees"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Briefcase className="h-5 w-5" />
+                <span>All Employees</span>
+                <span
+                  className={`px-2 py-0.5 text-xs rounded-full ${
+                    activeTab === "employees"
+                      ? "bg-blue-100 text-blue-600"
+                      : "bg-gray-100 text-gray-600"
                   }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="h-5 w-5" />
-                  <span>All Employees</span>
-                  <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "employees"
-                        ? "bg-blue-100 text-blue-600"
-                        : "bg-gray-100 text-gray-600"
-                      }`}
-                  >
-                    {employees.length}
+                >
+                  {employees.length}
+                </span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("leaderboard")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "leaderboard"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Trophy className="h-5 w-5" />
+                <span>Leaderboard</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("performance")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "performance"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+              disabled={!selectedEmployee}
+            >
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="h-5 w-5" />
+                <span>Performance</span>
+                {selectedEmployee && (
+                  <span className="text-xs text-gray-500">
+                    ({selectedEmployee.name})
                   </span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("leaderboard")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "leaderboard"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Trophy className="h-5 w-5" />
-                  <span>Leaderboard</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("performance")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "performance"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                disabled={!selectedEmployee}
-              >
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5" />
-                  <span>Performance</span>
-                  {selectedEmployee && (
-                    <span className="text-xs text-gray-500">
-                      ({selectedEmployee.name})
-                    </span>
-                  )}
-                </div>
-              </button>
-            </nav>
-          </div>
+                )}
+              </div>
+            </button>
+          </nav>
         </div>
+      </div>
 
-        {/* Tab Content */}
-        {activeTab === "employees" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Add Employee & Stats */}
-            <div className="space-y-6">
-              {/* Employee of the Month */}
-              {(() => {
-                const eotm = employees.find((e) => e.employeeOfTheMonth);
-                if (eotm) {
-                  return (
-                    <Card className="border-yellow-200 bg-yellow-50">
-                      <CardHeader className="p-4 md:p-6">
-                        <CardTitle className="flex items-center gap-2 text-yellow-800 text-lg">
-                          <Award className="h-5 w-5" />
-                          Employee of the Month
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
-                        <div className="flex items-start gap-4">
-                          <img
-                            src={
-                              eotm.avatar ||
-                              `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                eotm.name,
-                              )}`
-                            }
-                            alt={eotm.name}
-                            className="w-16 h-16 rounded-full object-cover border-2 border-yellow-400"
-                          />
-                          <div className="flex-1">
-                            <div className="font-semibold text-gray-900">
-                              {eotm.name}
+      {/* Tab Content */}
+      {activeTab === "employees" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Add Employee & Stats */}
+          <div className="space-y-6">
+            {/* Employee of the Month */}
+            {(() => {
+              const eotm = employees.find((e) => e.employeeOfTheMonth);
+              if (eotm) {
+                return (
+                  <Card className="border-yellow-200 bg-yellow-50">
+                    <CardHeader className="p-4 md:p-6">
+                      <CardTitle className="flex items-center gap-2 text-yellow-800 text-lg">
+                        <Award className="h-5 w-5" />
+                        Employee of the Month
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
+                      <div className="flex items-start gap-4">
+                        <img
+                          src={
+                            eotm.avatar ||
+                            `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
+                              eotm.name,
+                            )}`
+                          }
+                          alt={eotm.name}
+                          className="w-16 h-16 rounded-full object-cover border-2 border-yellow-400"
+                        />
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">
+                            {eotm.name}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {eotm.role}
+                          </div>
+                          {eotm.employeeOfTheMonthReason && (
+                            <div className="mt-2 text-sm text-gray-700 italic">
+                              "{eotm.employeeOfTheMonthReason}"
                             </div>
-                            <div className="text-sm text-gray-600">
-                              {eotm.role}
-                            </div>
-                            {eotm.employeeOfTheMonthReason && (
-                              <div className="mt-2 text-sm text-gray-700 italic">
-                                "{eotm.employeeOfTheMonthReason}"
-                              </div>
-                            )}
-                            <div className="mt-2">
-                              <Rating value={eotm.rating} />
-                            </div>
+                          )}
+                          <div className="mt-2">
+                            <Rating value={eotm.rating} />
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  );
-                }
-                return null;
-              })()}
-
-              {/* Top Performer */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Star className="h-5 w-5 text-yellow-400" />
-                    Top Performer
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {(() => {
-                    const rated = employees.filter(
-                      (e) => typeof e.rating === "number" && e.rating > 0,
-                    );
-                    if (rated.length === 0) {
-                      return (
-                        <div className="text-sm text-gray-500">
-                          No ratings yet
-                        </div>
-                      );
-                    }
-                    const top = rated.reduce((a, b) =>
-                      a.rating! >= b.rating! ? a : b,
-                    );
-                    return (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={
-                              top.avatar ||
-                              `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                top.name,
-                              )}`
-                            }
-                            alt={top.name}
-                            className="w-16 h-16 rounded-full object-cover"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium">{top.name}</div>
-                            <div className="text-sm text-gray-500">
-                              {top.role}
-                            </div>
-                            <div className="mt-2">
-                              <Rating value={top.rating} />
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => handleViewPerformance(top)}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          View Performance
-                        </Button>
                       </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              return null;
+            })()}
 
-              {/* Add Employee Form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add Employee</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Input
-                        placeholder="First name *"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                      />
-                      <Input
-                        placeholder="Last name *"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                      />
-                    </div>
-                    <Input
-                      placeholder="Middle name (optional)"
-                      value={middleName}
-                      onChange={(e) => setMiddleName(e.target.value)}
-                    />
-                    <div>
-                      <Input
-                        placeholder="Mobile number (e.g. 09171234567) *"
-                        type="tel"
-                        value={mobile}
-                        onChange={(e) => {
-                          setMobile(e.target.value);
-                          if (mobileError) setMobileError(null);
-                        }}
-                        className={mobileError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
-                      />
-                      {mobileError && (
-                        <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
-                          <X className="h-4 w-4" />
-                          {mobileError}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Specializations * (select one or more)
-                      </label>
-                      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                        {specializations.map((spec) => (
-                          <button
-                            key={spec.specializationID}
-                            type="button"
-                            onClick={() => toggleSpecialization(spec.categoryName)}
-                            className={`px-3 py-1 text-sm rounded-full border transition-colors ${selectedSpecializations.includes(spec.categoryName)
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                              }`}
-                          >
-                            {spec.categoryName}
-                            {selectedSpecializations.includes(spec.categoryName) && (
-                              <CheckCircle className="inline-block ml-1 h-3 w-3" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      {selectedSpecializations.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Selected: {selectedSpecializations.join(", ")}
-                        </p>
-                      )}
-                    </div>
-                    <Button 
-                      onClick={addEmployee} 
-                      disabled={isAddingEmployee}
-                      className="w-full"
-                    >
-                      {isAddingEmployee ? "Adding..." : "Add Employee"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Column - Employee List */}
-            <Card className="lg:col-span-2">
+            {/* Top Performer */}
+            <Card>
               <CardHeader>
-                <CardTitle>Active Employees ({employees.length})</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5 text-yellow-400" />
+                  Top Performer
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const rated = employees.filter(
+                    (e) => typeof e.rating === "number" && e.rating > 0,
+                  );
+                  if (rated.length === 0) {
+                    return (
+                      <div className="text-sm text-gray-500">
+                        No ratings yet
+                      </div>
+                    );
+                  }
+                  const top = rated.reduce((a, b) =>
+                    a.rating! >= b.rating! ? a : b,
+                  );
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={
+                            top.avatar ||
+                            `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
+                              top.name,
+                            )}`
+                          }
+                          alt={top.name}
+                          className="w-16 h-16 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">{top.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {top.role}
+                          </div>
+                          <div className="mt-2">
+                            <Rating value={top.rating} />
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => handleViewPerformance(top)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        View Performance
+                      </Button>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Add Employee Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Employee</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {employees.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                      <p>No employees yet</p>
-                      <p className="text-sm mt-1">
-                        Add your first employee to get started
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Input
+                      placeholder="First name *"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Last name *"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </div>
+                  <Input
+                    placeholder="Middle name (optional)"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                  />
+                  <div>
+                    <Input
+                      placeholder="Mobile number (e.g. 09171234567) *"
+                      type="tel"
+                      value={mobile}
+                      onChange={(e) => {
+                        setMobile(e.target.value);
+                        if (mobileError) setMobileError(null);
+                      }}
+                      className={
+                        mobileError
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : ""
+                      }
+                    />
+                    {mobileError && (
+                      <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                        <X className="h-4 w-4" />
+                        {mobileError}
                       </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Specializations * (select one or more)
+                    </label>
+                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                      {specializations.map((spec) => (
+                        <button
+                          key={spec.specializationID}
+                          type="button"
+                          onClick={() =>
+                            toggleSpecialization(spec.categoryName)
+                          }
+                          className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                            selectedSpecializations.includes(spec.categoryName)
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                          }`}
+                        >
+                          {spec.categoryName}
+                          {selectedSpecializations.includes(
+                            spec.categoryName,
+                          ) && (
+                            <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   ) : (
                     employees.map((emp) => (
@@ -861,191 +847,381 @@ export default function EmployeesPage() {
               </CardContent>
             </Card>
           </div>
-        )}
 
-        {/* Leaderboard Tab */}
-        {activeTab === "leaderboard" && (
-          <Card>
+          {/* Right Column - Employee List */}
+          <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-6 w-6 text-yellow-400" />
-                Employee Leaderboard
-              </CardTitle>
+              <CardTitle>Active Employees ({employees.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              {leaderboard.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Trophy className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No leaderboard data available</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {leaderboard.map((entry, index) => (
+              <div className="space-y-3">
+                {employees.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>No employees yet</p>
+                    <p className="text-sm mt-1">
+                      Add your first employee to get started
+                    </p>
+                  </div>
+                ) : (
+                  employees.map((emp) => (
                     <div
-                      key={entry.employeeId}
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${index === 0
-                          ? "border-yellow-400 bg-yellow-50"
-                          : index === 1
-                            ? "border-gray-400 bg-gray-50"
-                            : index === 2
-                              ? "border-orange-400 bg-orange-50"
-                              : "border-gray-200"
-                        }`}
+                      key={emp.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
                     >
                       <div className="flex items-center gap-4 flex-1">
                         <div className="relative">
-                          <div
-                            className={`text-2xl font-bold ${index === 0
-                                ? "text-yellow-600"
-                                : index === 1
-                                  ? "text-gray-600"
-                                  : index === 2
-                                    ? "text-orange-600"
-                                    : "text-gray-400"
-                              }`}
-                          >
-                            #{entry.rank}
-                          </div>
-                          {index < 3 && (
-                            <div className="absolute -top-2 -right-2">
-                              {index === 0 && (
-                                <Trophy className="h-6 w-6 text-yellow-500" />
-                              )}
-                              {index === 1 && (
-                                <Trophy className="h-6 w-6 text-gray-500" />
-                              )}
-                              {index === 2 && (
-                                <Trophy className="h-6 w-6 text-orange-500" />
-                              )}
+                          <img
+                            src={
+                              emp.avatar ||
+                              `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
+                                emp.name,
+                              )}`
+                            }
+                            alt={emp.name}
+                            className="w-14 h-14 rounded-full object-cover"
+                          />
+                          {emp.employeeOfTheMonth && (
+                            <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-1">
+                              <Trophy className="h-4 w-4 text-yellow-900" />
                             </div>
                           )}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-gray-900">
-                            {entry.name}
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {entry.role} • {entry.email}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm">
-                          <div className="text-center">
-                            <div className="flex items-center gap-1">
-                              <Star className="h-4 w-4 text-yellow-400" />
-                              <span className="font-semibold">
-                                {(entry.rating ?? 0).toFixed(1)}
+                          <div className="flex items-center gap-2">
+                            <div className="font-semibold text-gray-900">
+                              {emp.name}
+                            </div>
+                            {!emp.isActive && (
+                              <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
+                                Inactive
                               </span>
-                            </div>
-                            <div className="text-xs text-gray-500">Rating</div>
+                            )}
                           </div>
-                          <div className="text-center">
-                            <div className="flex items-center gap-1">
-                              <Briefcase className="h-4 w-4 text-blue-400" />
-                              <span className="font-semibold">
-                                {entry.totalJobsCompleted}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-500">Jobs</div>
+                          <div className="text-sm text-gray-600 line-clamp-1">
+                            {emp.specializations &&
+                            emp.specializations.length > 0
+                              ? emp.specializations.slice(0, 3).join(", ") +
+                                (emp.specializations.length > 3
+                                  ? ` +${emp.specializations.length - 3}`
+                                  : "")
+                              : emp.role}
                           </div>
-                          <div className="text-center">
-                            <div className="flex items-center gap-1">
-                              <Banknote className="h-4 w-4 text-green-400" />
-                              <span className="font-semibold">
-                                ₱{(entry.totalEarnings ?? 0).toLocaleString()}
+                          <div className="text-xs text-gray-500 truncate">
+                            {emp.email}
+                          </div>
+                          <div className="flex items-center gap-4 mt-1">
+                            <Rating value={emp.rating} />
+                            {emp.totalJobsCompleted !== undefined && (
+                              <span className="text-xs text-gray-500">
+                                {emp.totalJobsCompleted} jobs completed
                               </span>
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Earnings
-                            </div>
+                            )}
                           </div>
                         </div>
                       </div>
+                      {/* Action buttons: 2x2 grid on mobile, flex row on desktop */}
+                      <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto">
+                        <Button
+                          onClick={() => handleEditEmployee(emp)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto justify-center"
+                          size="sm"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                          <span className="hidden sm:inline sm:ml-1">Edit</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleSetEOTM(emp)}
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto justify-center"
+                          size="sm"
+                        >
+                          <Award className="h-4 w-4" />
+                          <span className="hidden sm:inline sm:ml-1">EOTM</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleViewPerformance(emp)}
+                          className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto justify-center"
+                          size="sm"
+                        >
+                          <TrendingUp className="h-4 w-4" />
+                          <span className="hidden sm:inline sm:ml-1">
+                            Stats
+                          </span>
+                        </Button>
+                        <Button
+                          onClick={() => removeEmployee(emp.id, emp.name)}
+                          className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto justify-center"
+                          size="sm"
+                        >
+                          <X className="h-4 w-4" />
+                          <span className="hidden sm:inline sm:ml-1">
+                            Remove
+                          </span>
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
-        )}
+        </div>
+      )}
 
-        {/* Performance Tab */}
-        {activeTab === "performance" && selectedEmployee && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Overall Rating
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <Star className="h-8 w-8 text-yellow-400" />
-                  <span className="text-3xl font-bold">
-                    {performanceStats ? (performanceStats.rating ?? 0).toFixed(1) : "N/A"}
-                  </span>
-                  <span className="text-gray-500">/ 5.0</span>
+      {/* Leaderboard Tab */}
+      {activeTab === "leaderboard" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-6 w-6 text-yellow-400" />
+              Employee Leaderboard
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {leaderboard.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Trophy className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No leaderboard data available</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {leaderboard.map((entry, index) => (
+                  <div
+                    key={entry.employeeId}
+                    className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      index === 0
+                        ? "border-yellow-400 bg-yellow-50"
+                        : index === 1
+                          ? "border-gray-400 bg-gray-50"
+                          : index === 2
+                            ? "border-orange-400 bg-orange-50"
+                            : "border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="relative">
+                        <div
+                          className={`text-2xl font-bold ${
+                            index === 0
+                              ? "text-yellow-600"
+                              : index === 1
+                                ? "text-gray-600"
+                                : index === 2
+                                  ? "text-orange-600"
+                                  : "text-gray-400"
+                          }`}
+                        >
+                          #{entry.rank}
+                        </div>
+                        {index < 3 && (
+                          <div className="absolute -top-2 -right-2">
+                            {index === 0 && (
+                              <Trophy className="h-6 w-6 text-yellow-500" />
+                            )}
+                            {index === 1 && (
+                              <Trophy className="h-6 w-6 text-gray-500" />
+                            )}
+                            {index === 2 && (
+                              <Trophy className="h-6 w-6 text-orange-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">
+                          {entry.name}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {entry.role} • {entry.email}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm">
+                        <div className="text-center">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 text-yellow-400" />
+                            <span className="font-semibold">
+                              {(entry.rating ?? 0).toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">Rating</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="flex items-center gap-1">
+                            <Briefcase className="h-4 w-4 text-blue-400" />
+                            <span className="font-semibold">
+                              {entry.totalJobsCompleted}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">Jobs</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="flex items-center gap-1">
+                            <Banknote className="h-4 w-4 text-green-400" />
+                            <span className="font-semibold">
+                              ₱{(entry.totalEarnings ?? 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">Earnings</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Performance Tab */}
+      {activeTab === "performance" && selectedEmployee && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Overall Rating
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <Star className="h-8 w-8 text-yellow-400" />
+                <span className="text-3xl font-bold">
+                  {performanceStats
+                    ? (performanceStats.rating ?? 0).toFixed(1)
+                    : "N/A"}
+                </span>
+                <span className="text-gray-500">/ 5.0</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Jobs Completed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-8 w-8 text-green-400" />
+                <span className="text-3xl font-bold">
+                  {performanceStats?.totalJobsCompleted || 0}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Total Earnings
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <Banknote className="h-8 w-8 text-green-400" />
+                <span className="text-3xl font-bold">
+                  ₱
+                  {performanceStats
+                    ? (performanceStats.totalEarnings ?? 0).toLocaleString()
+                    : "0"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Completion Rate
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-8 w-8 text-blue-400" />
+                <span className="text-3xl font-bold">0%</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Employee Details */}
+          <Card className="md:col-span-2 lg:col-span-4">
+            <CardHeader>
+              <CardTitle>Employee Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start gap-6">
+                <img
+                  src={
+                    selectedEmployee.avatar ||
+                    `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
+                      selectedEmployee.name,
+                    )}`
+                  }
+                  alt={selectedEmployee.name}
+                  className="w-24 h-24 rounded-full object-cover"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-2xl font-bold">
+                      {selectedEmployee.name}
+                    </h3>
+                    {performanceStats?.employeeOfTheMonth && (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                        <Award className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          Employee of the Month
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-gray-600 mb-1">
+                    <strong>Role:</strong> {performanceStats?.role}
+                  </p>
+                  <p className="text-gray-600 mb-1">
+                    <strong>Email:</strong> {performanceStats?.email}
+                  </p>
+                  <p className="text-gray-600 mb-1">
+                    <strong>Average Rating:</strong>{" "}
+                    {(performanceStats?.rating ?? 0).toFixed(2)} / 5.0
+                  </p>
+                  {performanceStats?.employeeOfTheMonthReason && (
+                    <p className="text-gray-700 mt-3 italic">
+                      <strong>EOTM Reason:</strong> "
+                      {performanceStats.employeeOfTheMonthReason}"
+                    </p>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Jobs Completed
+      {/* EOTM Modal */}
+      {settingEOTM && selectedEmployee && (
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-yellow-500" />
+                  Set Employee of the Month
                 </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-8 w-8 text-green-400" />
-                  <span className="text-3xl font-bold">
-                    {performanceStats?.totalJobsCompleted || 0}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Total Earnings
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <Banknote className="h-8 w-8 text-green-400" />
-                  <span className="text-3xl font-bold">
-                    ₱
-                    {performanceStats
-                      ? (performanceStats.totalEarnings ?? 0).toLocaleString()
-                      : "0"}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Completion Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-8 w-8 text-blue-400" />
-                  <span className="text-3xl font-bold">
-                    0%
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Employee Details */}
-            <Card className="md:col-span-2 lg:col-span-4">
-              <CardHeader>
-                <CardTitle>Employee Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start gap-6">
+                <button
+                  onClick={() => {
+                    setSettingEOTM(false);
+                    setSelectedEmployee(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-3">
                   <img
                     src={
                       selectedEmployee.avatar ||
@@ -1054,88 +1230,158 @@ export default function EmployeesPage() {
                       )}`
                     }
                     alt={selectedEmployee.name}
-                    className="w-24 h-24 rounded-full object-cover"
+                    className="w-12 h-12 rounded-full object-cover"
                   />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-2xl font-bold">
-                        {selectedEmployee.name}
-                      </h3>
-                      {performanceStats?.employeeOfTheMonth && (
-                        <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
-                          <Award className="h-4 w-4" />
-                          <span className="text-sm font-medium">
-                            Employee of the Month
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-gray-600 mb-1">
-                      <strong>Role:</strong> {performanceStats?.role}
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {selectedEmployee.name}
                     </p>
-                    <p className="text-gray-600 mb-1">
-                      <strong>Email:</strong> {performanceStats?.email}
+                    <p className="text-sm text-gray-600">
+                      {selectedEmployee.role}
                     </p>
-                    <p className="text-gray-600 mb-1">
-                      <strong>Average Rating:</strong>{" "}
-                      {(performanceStats?.rating ?? 0).toFixed(2)} / 5.0
-                    </p>
-                    {performanceStats?.employeeOfTheMonthReason && (
-                      <p className="text-gray-700 mt-3 italic">
-                        <strong>EOTM Reason:</strong> "
-                        {performanceStats.employeeOfTheMonthReason}"
-                      </p>
-                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              </div>
 
-        {/* EOTM Modal */}
-        {settingEOTM && selectedEmployee && (
-          <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Award className="h-5 w-5 text-yellow-500" />
-                    Set Employee of the Month
-                  </CardTitle>
-                  <button
-                    onClick={() => {
-                      setSettingEOTM(false);
-                      setSelectedEmployee(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Recognition *
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  rows={4}
+                  value={eotmReason}
+                  onChange={(e) => setEotmReason(e.target.value)}
+                  placeholder="Why is this employee deserving of Employee of the Month?"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={setEmployeeOfMonth}
+                  className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white"
+                >
+                  <Award className="h-4 w-4 mr-2" />
+                  Set as EOTM
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSettingEOTM(false);
+                    setSelectedEmployee(null);
+                  }}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Employee Modal */}
+      {editingEmployee && (
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Edit2 className="h-5 w-5 text-blue-500" />
+                  Edit Employee
+                </CardTitle>
+                <button
+                  onClick={() => {
+                    setEditingEmployee(null);
+                    setEditMobileError(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <Input
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    placeholder="First name"
+                  />
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={
-                        selectedEmployee.avatar ||
-                        `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                          selectedEmployee.name,
-                        )}`
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <Input
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Middle Name (optional)
+                </label>
+                <Input
+                  value={editMiddleName}
+                  onChange={(e) => setEditMiddleName(e.target.value)}
+                  placeholder="Middle name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mobile Number *
+                </label>
+                <Input
+                  type="tel"
+                  value={editMobile}
+                  onChange={(e) => {
+                    setEditMobile(e.target.value);
+                    if (editMobileError) setEditMobileError(null);
+                  }}
+                  placeholder="Mobile number (e.g. 09171234567)"
+                  className={
+                    editMobileError
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }
+                />
+                {editMobileError && (
+                  <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                    <X className="h-4 w-4" />
+                    {editMobileError}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Specializations * (select one or more)
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                  {specializations.map((spec) => (
+                    <button
+                      key={spec.specializationID}
+                      type="button"
+                      onClick={() =>
+                        toggleEditSpecialization(spec.categoryName)
                       }
-                      alt={selectedEmployee.name}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {selectedEmployee.name}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {selectedEmployee.role}
-                      </p>
-                    </div>
-                  </div>
+                      className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                        editSpecializations.includes(spec.categoryName)
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                      }`}
+                    >
+                      {spec.categoryName}
+                      {editSpecializations.includes(spec.categoryName) && (
+                        <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                      )}
+                    </button>
+                  ))}
                 </div>
 
                 <div>

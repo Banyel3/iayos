@@ -43,7 +43,11 @@ export interface NotificationSettings {
  *                    and immediately fetches profile-specific notifications.
  *                    The backend already reads profile type from the JWT.
  */
-export const useNotifications = (limit = 50, unreadOnly = false, profileType?: string) => {
+export const useNotifications = (
+  limit = 50,
+  unreadOnly = false,
+  profileType?: string,
+) => {
   return useQuery({
     queryKey: ["notifications", limit, unreadOnly, profileType ?? "unknown"],
     queryFn: async () => {
@@ -54,7 +58,9 @@ export const useNotifications = (limit = 50, unreadOnly = false, profileType?: s
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(getErrorMessage(errorData, "Failed to fetch notifications"));
+        throw new Error(
+          getErrorMessage(errorData, "Failed to fetch notifications"),
+        );
       }
 
       const data = await response.json();
@@ -79,7 +85,9 @@ export const useUnreadNotificationsCount = (profileType?: string) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(getErrorMessage(errorData, "Failed to fetch unread count"));
+        throw new Error(
+          getErrorMessage(errorData, "Failed to fetch unread count"),
+        );
       }
 
       const data = await response.json();
@@ -102,13 +110,13 @@ export const useMarkNotificationRead = () => {
         ENDPOINTS.MARK_NOTIFICATION_READ(notificationId),
         {
           method: "POST",
-        }
+        },
       );
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          getErrorMessage(errorData, "Failed to mark notification as read")
+          getErrorMessage(errorData, "Failed to mark notification as read"),
         );
       }
 
@@ -137,7 +145,10 @@ export const useMarkAllNotificationsRead = () => {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          getErrorMessage(errorData, "Failed to mark all notifications as read")
+          getErrorMessage(
+            errorData,
+            "Failed to mark all notifications as read",
+          ),
         );
       }
 
@@ -163,7 +174,9 @@ export const useRegisterPushToken = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(getErrorMessage(errorData, "Failed to register push token"));
+        throw new Error(
+          getErrorMessage(errorData, "Failed to register push token"),
+        );
       }
 
       return await response.json();
@@ -185,7 +198,7 @@ export const useNotificationSettings = () => {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          getErrorMessage(errorData, "Failed to fetch notification settings")
+          getErrorMessage(errorData, "Failed to fetch notification settings"),
         );
       }
 
@@ -208,13 +221,13 @@ export const useUpdateNotificationSettings = () => {
         {
           method: "PUT",
           body: JSON.stringify(settings),
-        }
+        },
       );
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          getErrorMessage(errorData, "Failed to update notification settings")
+          getErrorMessage(errorData, "Failed to update notification settings"),
         );
       }
 
@@ -238,12 +251,14 @@ export const useDeleteNotification = () => {
         ENDPOINTS.DELETE_NOTIFICATION(notificationId),
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(getErrorMessage(errorData, "Failed to delete notification"));
+        throw new Error(
+          getErrorMessage(errorData, "Failed to delete notification"),
+        );
       }
 
       return await response.json();

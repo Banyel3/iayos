@@ -1,5 +1,11 @@
 import "react-native-reanimated";
-import React, { useEffect, Component, ErrorInfo, ReactNode, useState } from "react";
+import React, {
+  useEffect,
+  Component,
+  ErrorInfo,
+  ReactNode,
+  useState,
+} from "react";
 import {
   DarkTheme,
   DefaultTheme,
@@ -30,13 +36,12 @@ let UpdateRequiredModalComponent: any = null;
 
 try {
   useAppUpdateHook = require("@/lib/hooks/useAppUpdate").useAppUpdate;
-  UpdateRequiredModalComponent = require("@/components/UpdateRequiredModal").UpdateRequiredModal;
+  UpdateRequiredModalComponent =
+    require("@/components/UpdateRequiredModal").UpdateRequiredModal;
   if (__DEV__) console.log("[RootLayout] update modules loaded");
 } catch (e) {
   if (__DEV__) console.warn("[RootLayout] Failed to load update modules:", e);
 }
-
-
 
 // Prevent splash screen from auto-hiding before app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -63,14 +68,11 @@ if (__DEV__) {
     ) {
       if (type === undefined) {
         // eslint-disable-next-line no-console
-        console.error(
-          "[DEV] React.createElement called with undefined type",
-          {
-            props,
-            childrenCount: children.length,
-            stack: new Error().stack,
-          }
-        );
+        console.error("[DEV] React.createElement called with undefined type", {
+          props,
+          childrenCount: children.length,
+          stack: new Error().stack,
+        });
       }
       return origCreateElement(type, props, ...children);
     } as typeof React.createElement;
@@ -177,10 +179,11 @@ export const unstable_settings = {
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
   const appUpdate = useAppUpdateHook ? useAppUpdateHook() : null;
   const [dismissed, setDismissed] = useState(false);
-  if (__DEV__) console.log("[RootLayout] AppUpdateWrapper render", {
-    hasUpdateHook: !!useAppUpdateHook,
-    hasModal: !!UpdateRequiredModalComponent,
-  });
+  if (__DEV__)
+    console.log("[RootLayout] AppUpdateWrapper render", {
+      hasUpdateHook: !!useAppUpdateHook,
+      hasModal: !!UpdateRequiredModalComponent,
+    });
 
   // If update modules failed to load, just render children
   if (!appUpdate || !UpdateRequiredModalComponent) {
@@ -225,7 +228,10 @@ export default function RootLayout() {
 
     // NOTE: SplashScreen.hideAsync() is called in index.tsx AFTER auth state
     // is resolved, preventing the blank flash between splash and content.
-    if (__DEV__) console.log("[RootLayout] mount effect done (splash hidden by index.tsx)");
+    if (__DEV__)
+      console.log(
+        "[RootLayout] mount effect done (splash hidden by index.tsx)",
+      );
   }, []);
 
   return (
@@ -256,53 +262,50 @@ function InnerLayout() {
     <NotificationProvider>
       <PaperProvider>
         <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
-              <Stack
-                screenOptions={{
-                  headerShown: false, // Hide default headers globally
-                }}
-              >
-                <Stack.Screen
-                  name="auth/login"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/register"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/select-role"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="messages/[conversationId]"
-                  options={{
-                    headerShown: false,
-                    presentation: "card",
-                    animation: "slide_from_right",
-                  }}
-                />
-                <Stack.Screen
-                  name="notifications/index"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="notifications/settings"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="modal"
-                  options={{ presentation: "modal", title: "Modal" }}
-                />
-              </Stack>
-              <StatusBar
-                style={isDarkMode ? "light" : "dark"}
-                backgroundColor="transparent"
-                translucent
-              />
-              <Toast />
-            </ThemeProvider>
-          </PaperProvider>
-        </NotificationProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false, // Hide default headers globally
+            }}
+          >
+            <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="auth/register"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="auth/select-role"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="messages/[conversationId]"
+              options={{
+                headerShown: false,
+                presentation: "card",
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="notifications/index"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="notifications/settings"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="modal"
+              options={{ presentation: "modal", title: "Modal" }}
+            />
+          </Stack>
+          <StatusBar
+            style={isDarkMode ? "light" : "dark"}
+            backgroundColor="transparent"
+            translucent
+          />
+          <Toast />
+        </ThemeProvider>
+      </PaperProvider>
+    </NotificationProvider>
   );
 }

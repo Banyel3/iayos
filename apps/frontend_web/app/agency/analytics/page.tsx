@@ -1,7 +1,6 @@
 "use client";
 
-import {
-  useState } from "react";
+import { useState } from "react";
 import {
   useLeaderboard,
   useAgencyStats,
@@ -40,11 +39,10 @@ export default function AnalyticsPage() {
   const { data: stats, isLoading: statsLoading } = useAgencyStats();
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(
     leaderboardSort,
-    20
+    20,
   );
-  const { data: revenueTrends, isLoading: trendsLoading } = useRevenueTrends(
-    weeksRange
-  );
+  const { data: revenueTrends, isLoading: trendsLoading } =
+    useRevenueTrends(weeksRange);
 
   if (statsLoading || leaderboardLoading || trendsLoading) {
     return (
@@ -187,7 +185,11 @@ export default function AnalyticsPage() {
               <XAxis
                 dataKey="date"
                 tickFormatter={(date) => {
-                  try { return date ? format(new Date(date), "MMM dd") : ""; } catch { return ""; }
+                  try {
+                    return date ? format(new Date(date), "MMM dd") : "";
+                  } catch {
+                    return "";
+                  }
                 }}
                 stroke="#9ca3af"
                 fontSize={12}
@@ -199,7 +201,11 @@ export default function AnalyticsPage() {
                   "Revenue",
                 ]}
                 labelFormatter={(label) => {
-                  try { return label ? format(new Date(label), "MMM dd, yyyy") : ""; } catch { return ""; }
+                  try {
+                    return label ? format(new Date(label), "MMM dd, yyyy") : "";
+                  } catch {
+                    return "";
+                  }
                 }}
                 contentStyle={{
                   backgroundColor: "#fff",
@@ -238,7 +244,11 @@ export default function AnalyticsPage() {
               <XAxis
                 dataKey="date"
                 tickFormatter={(date) => {
-                  try { return date ? format(new Date(date), "MMM dd") : ""; } catch { return ""; }
+                  try {
+                    return date ? format(new Date(date), "MMM dd") : "";
+                  } catch {
+                    return "";
+                  }
                 }}
                 stroke="#9ca3af"
                 fontSize={12}
@@ -246,7 +256,11 @@ export default function AnalyticsPage() {
               <YAxis stroke="#9ca3af" fontSize={12} />
               <Tooltip
                 labelFormatter={(label) => {
-                  try { return label ? format(new Date(label), "MMM dd, yyyy") : ""; } catch { return ""; }
+                  try {
+                    return label ? format(new Date(label), "MMM dd, yyyy") : "";
+                  } catch {
+                    return "";
+                  }
                 }}
                 contentStyle={{
                   backgroundColor: "#fff",
@@ -279,7 +293,7 @@ export default function AnalyticsPage() {
             value={leaderboardSort}
             onChange={(e) =>
               setLeaderboardSort(
-                e.target.value as "rating" | "jobs" | "earnings"
+                e.target.value as "rating" | "jobs" | "earnings",
               )
             }
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -302,32 +316,59 @@ export default function AnalyticsPage() {
               <div
                 key={employee.employeeId}
                 className={`flex items-center gap-3 p-4 rounded-lg border ${
-                  index < 3 ? "border-blue-200 bg-blue-50/50" : "border-gray-100"
+                  index < 3
+                    ? "border-blue-200 bg-blue-50/50"
+                    : "border-gray-100"
                 }`}
               >
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {index === 0 && <Award className="text-yellow-500 fill-yellow-500" size={18} />}
-                  {index === 1 && <Award className="text-gray-400 fill-gray-400" size={18} />}
-                  {index === 2 && <Award className="text-orange-600 fill-orange-600" size={18} />}
-                  <span className="font-bold text-gray-900 text-sm">#{employee.rank}</span>
+                  {index === 0 && (
+                    <Award
+                      className="text-yellow-500 fill-yellow-500"
+                      size={18}
+                    />
+                  )}
+                  {index === 1 && (
+                    <Award className="text-gray-400 fill-gray-400" size={18} />
+                  )}
+                  {index === 2 && (
+                    <Award
+                      className="text-orange-600 fill-orange-600"
+                      size={18}
+                    />
+                  )}
+                  <span className="font-bold text-gray-900 text-sm">
+                    #{employee.rank}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-gray-900 text-sm truncate">{employee.name}</p>
+                    <p className="font-medium text-gray-900 text-sm truncate">
+                      {employee.name}
+                    </p>
                     {employee.isEmployeeOfTheMonth && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                         🏆 EOTM
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{employee.email}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {employee.email}
+                  </p>
                   <div className="flex items-center gap-4 mt-1">
                     <span className="text-xs text-gray-600 flex items-center gap-1">
-                      <Star className="text-yellow-500 fill-yellow-500" size={12} />
+                      <Star
+                        className="text-yellow-500 fill-yellow-500"
+                        size={12}
+                      />
                       {employee.rating.toFixed(1)}
                     </span>
-                    <span className="text-xs text-gray-600">{employee.totalJobsCompleted} jobs</span>
-                    <span className="text-xs font-semibold text-green-600">₱{(employee.totalEarnings ?? 0).toLocaleString()}</span>
+                    <span className="text-xs text-gray-600">
+                      {employee.totalJobsCompleted} jobs
+                    </span>
+                    <span className="text-xs font-semibold text-green-600">
+                      ₱{(employee.totalEarnings ?? 0).toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </div>

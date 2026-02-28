@@ -439,8 +439,7 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/accounts/agencies/${agencyId}/materials`,
 
   // Job Materials Purchasing Workflow
-  JOB_MATERIALS: (jobId: number) =>
-    `${API_URL}/api/jobs/${jobId}/materials`,
+  JOB_MATERIALS: (jobId: number) => `${API_URL}/api/jobs/${jobId}/materials`,
   JOB_MATERIAL_PURCHASE_PROOF: (jobId: number, materialId: number) =>
     `${API_URL}/api/jobs/${jobId}/materials/${materialId}/purchase-proof`,
   JOB_MATERIAL_APPROVE: (jobId: number, materialId: number) =>
@@ -757,11 +756,13 @@ export const apiRequest = async (
   };
 
   try {
-    if (__DEV__) console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
+    if (__DEV__)
+      console.log(`[API] Request: ${(rest as any)?.method || "GET"} ${url}`);
     const resp = await fetch(url, defaultOptions);
-    if (__DEV__) console.log(
-      `[API] Response: ${resp.status} ${resp.statusText} from ${url}`,
-    );
+    if (__DEV__)
+      console.log(
+        `[API] Response: ${resp.status} ${resp.statusText} from ${url}`,
+      );
 
     if (DEBUG_NETWORK) {
       const elapsedMs = Date.now() - startedAt;
@@ -844,12 +845,13 @@ export async function fetchJson<T = any>(
   const text = await resp.text();
 
   // Log response details for debugging (only when DEBUG_NETWORK is enabled)
-  if (DEBUG_NETWORK) console.log(`[API] Response from ${url}:`, {
-    status: resp.status,
-    statusText: resp.statusText,
-    headers: Object.fromEntries(resp.headers.entries()),
-    bodyPreview: text.substring(0, 200),
-  });
+  if (DEBUG_NETWORK)
+    console.log(`[API] Response from ${url}:`, {
+      status: resp.status,
+      statusText: resp.statusText,
+      headers: Object.fromEntries(resp.headers.entries()),
+      bodyPreview: text.substring(0, 200),
+    });
 
   // Try to parse JSON safely; fallback to null on parse error
   let data: unknown = null;

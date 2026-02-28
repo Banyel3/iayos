@@ -60,38 +60,48 @@ export default async function DashboardLayout({
     const role = (user?.role || "").toUpperCase();
     const profileType = (user?.profile_data?.profileType || "").toUpperCase();
 
-    console.log(
-      `[DASHBOARD LAYOUT] User: ${user?.email}, accountType=${accountType}, role=${role}, profileType=${profileType}`,
-    );
+    if (process.env.NODE_ENV === "development")
+      console.log(
+        `[DASHBOARD LAYOUT] User: ${user?.email}, accountType=${accountType}, role=${role}, profileType=${profileType}`,
+      );
 
     // Google OAuth users with incomplete profiles must complete their profile first
     if (user?.needs_profile_completion) {
-      console.log("[DASHBOARD LAYOUT] Redirecting to /auth/complete-profile - profile incomplete");
+      if (process.env.NODE_ENV === "development")
+        console.log(
+          "[DASHBOARD LAYOUT] Redirecting to /auth/complete-profile - profile incomplete",
+        );
       redirect("/auth/complete-profile");
     }
 
     // Admin users should use admin dashboard
     if (role === "ADMIN") {
-      console.log("[DASHBOARD LAYOUT] Redirecting ADMIN to /admin/dashboard");
+      if (process.env.NODE_ENV === "development")
+        console.log("[DASHBOARD LAYOUT] Redirecting ADMIN to /admin/dashboard");
       redirect("/admin/dashboard");
     }
 
     // Agency users should use agency dashboard
     if (accountType === "agency" || role === "AGENCY") {
-      console.log("[DASHBOARD LAYOUT] Redirecting AGENCY to /agency/dashboard");
+      if (process.env.NODE_ENV === "development")
+        console.log(
+          "[DASHBOARD LAYOUT] Redirecting AGENCY to /agency/dashboard",
+        );
       redirect("/agency/dashboard");
     }
 
     // Workers and clients are permanently redirected to mobile-only
     if (profileType === "WORKER" || profileType === "CLIENT") {
-      console.log(
-        `[DASHBOARD LAYOUT] Redirecting ${profileType} to /mobile-only - web access disabled`,
-      );
+      if (process.env.NODE_ENV === "development")
+        console.log(
+          `[DASHBOARD LAYOUT] Redirecting ${profileType} to /mobile-only - web access disabled`,
+        );
       redirect("/mobile-only");
     }
 
     // User is allowed to access dashboard
-    console.log("[DASHBOARD LAYOUT] Access granted");
+    if (process.env.NODE_ENV === "development")
+      console.log("[DASHBOARD LAYOUT] Access granted");
   } catch (err) {
     console.error("[DASHBOARD LAYOUT] Error:", err);
     // On any error, redirect to login

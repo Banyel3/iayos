@@ -90,7 +90,11 @@ export default function AgencySidebar({
     <div
       className={cn(
         "flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300",
-        isMobileDrawer ? "h-full w-full" : collapsed ? "h-screen w-16" : "h-screen w-56",
+        isMobileDrawer
+          ? "h-full w-full"
+          : collapsed
+            ? "h-screen w-16"
+            : "h-screen w-56",
         className,
       )}
     >
@@ -100,9 +104,7 @@ export default function AgencySidebar({
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <h2 className="text-2xl font-bold">
-                <span className="text-blue-600">
-                  iAyos
-                </span>{" "}
+                <span className="text-blue-600">iAyos</span>{" "}
                 <span className="text-gray-500 font-normal">Agency</span>
               </h2>
             </div>
@@ -145,7 +147,8 @@ export default function AgencySidebar({
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Users className="h-5 w-5 shrink-0" /> {!collapsed && <span>Employees</span>}
+          <Users className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Employees</span>}
         </Link>
 
         <Link
@@ -158,7 +161,8 @@ export default function AgencySidebar({
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Briefcase className="h-5 w-5 shrink-0" /> {!collapsed && <span>Jobs</span>}
+          <Briefcase className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Jobs</span>}
         </Link>
 
         <Link
@@ -213,7 +217,8 @@ export default function AgencySidebar({
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Star className="h-5 w-5 shrink-0" /> {!collapsed && <span>Reviews</span>}
+          <Star className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Reviews</span>}
         </Link>
 
         <Link
@@ -254,7 +259,8 @@ export default function AgencySidebar({
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Wallet className="h-5 w-5 shrink-0" /> {!collapsed && <span>Wallet</span>}
+          <Wallet className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Wallet</span>}
         </Link>
 
         <Link
@@ -297,7 +303,8 @@ export default function AgencySidebar({
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <UserCheck className="h-5 w-5 shrink-0" /> {!collapsed && <span>Profile</span>}
+          <UserCheck className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Profile</span>}
         </Link>
 
         <Link
@@ -310,7 +317,8 @@ export default function AgencySidebar({
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Settings className="h-5 w-5 shrink-0" /> {!collapsed && <span>Settings</span>}
+          <Settings className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Settings</span>}
         </Link>
 
         <Link
@@ -330,10 +338,14 @@ export default function AgencySidebar({
 
       <div className="p-4 border-t border-gray-200 shrink-0">
         <button
-          onClick={() => { handleLogout(); handleNavClick(); }}
+          onClick={() => {
+            handleLogout();
+            handleNavClick();
+          }}
           className="flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px] w-full text-gray-700 hover:text-red-600 hover:bg-red-50 transition-colors"
         >
-          <LogOut className="h-5 w-5 shrink-0" /> {!collapsed && <span>Logout</span>}
+          <LogOut className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Logout</span>}
         </button>
       </div>
     </div>

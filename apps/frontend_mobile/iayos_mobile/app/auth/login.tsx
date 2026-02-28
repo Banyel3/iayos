@@ -41,8 +41,7 @@ import {
 WebBrowser.maybeCompleteAuthSession();
 
 // Fallback ensures client_id is never empty even if the env var isn't injected by EAS
-const GOOGLE_WEB_CLIENT_ID =
-  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -51,7 +50,8 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isBiometricReady, setIsBiometricReady] = useState(false);
   const { login, googleSignIn, user } = useAuth();
-  const { checkAvailability, authenticate, biometricLabel } = useBiometricAuth();
+  const { checkAvailability, authenticate, biometricLabel } =
+    useBiometricAuth();
   const router = useRouter();
 
   // Google OAuth - uses authorization code flow (auto-exchanged for tokens)
@@ -116,20 +116,23 @@ export default function LoginScreen() {
 
       if (!token) {
         // No token = definitely not authenticated, stay on login
-        if (__DEV__) console.log("🔀 [LOGIN] No token found, staying on login screen");
+        if (__DEV__)
+          console.log("🔀 [LOGIN] No token found, staying on login screen");
         return;
       }
 
       // Token exists, check user state
       if (user?.profile_data?.profileType) {
-        if (__DEV__) console.log(
-          "🔀 [LOGIN] User already authenticated, redirecting to tabs",
-        );
+        if (__DEV__)
+          console.log(
+            "🔀 [LOGIN] User already authenticated, redirecting to tabs",
+          );
         router.replace("/(tabs)");
       } else if (user && !user.profile_data?.profileType) {
-        if (__DEV__) console.log(
-          "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
-        );
+        if (__DEV__)
+          console.log(
+            "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
+          );
         router.replace("/auth/select-role");
       }
     };
@@ -206,7 +209,7 @@ export default function LoginScreen() {
     if (!credentials) {
       Alert.alert(
         "Not Set Up",
-        "Log in with your email first to enable biometric login."
+        "Log in with your email first to enable biometric login.",
       );
       return;
     }

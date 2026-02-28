@@ -137,7 +137,10 @@ export default function AgencyChatScreen() {
   const isNearBottom = () => {
     const container = messagesContainerRef.current;
     if (!container) return true;
-    return container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    return (
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      100
+    );
   };
 
   useEffect(() => {
@@ -148,7 +151,7 @@ export default function AgencyChatScreen() {
         }, 100);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.messages.length]);
 
   // Handle send message
@@ -211,7 +214,9 @@ export default function AgencyChatScreen() {
       }, 100);
     } catch (error) {
       console.error("Image upload error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to upload image");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload image",
+      );
     } finally {
       setIsUploading(false);
     }

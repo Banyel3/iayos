@@ -1,7 +1,6 @@
 "use client";
 
-import {
-  useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
@@ -381,7 +380,8 @@ export default function DisputeDetailPage() {
                               ✓ Favor Worker — Full payment to worker wallet
                             </option>
                             <option value="partial_refund">
-                              ⚖️ Partial Refund — Split between client &amp; worker
+                              ⚖️ Partial Refund — Split between client &amp;
+                              worker
                             </option>
                           </select>
                         </div>
@@ -394,7 +394,10 @@ export default function DisputeDetailPage() {
                           </p>
                           {decision === "favor_client" && (
                             <p className="text-sm text-blue-900">
-                              <span className="font-semibold">{detail.client.name}</span> will receive{" "}
+                              <span className="font-semibold">
+                                {detail.client.name}
+                              </span>{" "}
+                              will receive{" "}
                               <span className="font-bold">
                                 ₱{detail.dispute.amount.toLocaleString()}
                               </span>{" "}
@@ -403,7 +406,10 @@ export default function DisputeDetailPage() {
                           )}
                           {decision === "favor_worker" && (
                             <p className="text-sm text-blue-900">
-                              <span className="font-semibold">{detail.worker.name}</span> will receive{" "}
+                              <span className="font-semibold">
+                                {detail.worker.name}
+                              </span>{" "}
+                              will receive{" "}
                               <span className="font-bold">
                                 ₱{detail.dispute.amount.toLocaleString()}
                               </span>{" "}
@@ -413,15 +419,22 @@ export default function DisputeDetailPage() {
                           {decision === "partial_refund" && (
                             <div className="space-y-1 text-sm text-blue-900">
                               <p>
-                                <span className="font-semibold">{detail.client.name}:</span>{" "}
+                                <span className="font-semibold">
+                                  {detail.client.name}:
+                                </span>{" "}
                                 receives{" "}
                                 <span className="font-bold">
-                                  ₱{refundAmount ? parseFloat(refundAmount).toLocaleString() : "—"}
+                                  ₱
+                                  {refundAmount
+                                    ? parseFloat(refundAmount).toLocaleString()
+                                    : "—"}
                                 </span>{" "}
                                 back to wallet.
                               </p>
                               <p>
-                                <span className="font-semibold">{detail.worker.name}:</span>{" "}
+                                <span className="font-semibold">
+                                  {detail.worker.name}:
+                                </span>{" "}
                                 receives{" "}
                                 <span className="font-bold">
                                   ₱
@@ -452,7 +465,8 @@ export default function DisputeDetailPage() {
                               placeholder="0.00"
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                              Max: ₱{detail.dispute.amount.toLocaleString()} — remainder goes to worker
+                              Max: ₱{detail.dispute.amount.toLocaleString()} —
+                              remainder goes to worker
                             </p>
                           </div>
                         )}
