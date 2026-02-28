@@ -11,6 +11,7 @@ import {
   Crown,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
 
 interface Employee {
   employeeId: number;
@@ -144,7 +145,7 @@ export default function AssignEmployeesModal({
 
   const handleAssign = async () => {
     if (selectedEmployeeIds.size === 0) {
-      alert("Please select at least one employee");
+      toast.error("Please select at least one employee");
       return;
     }
 
@@ -161,7 +162,7 @@ export default function AssignEmployeesModal({
       onClose();
     } catch (error) {
       console.error("Assignment failed:", error);
-      alert(error instanceof Error ? error.message : "Assignment failed");
+      toast.error(error instanceof Error ? error.message : "Assignment failed");
     } finally {
       setIsSubmitting(false);
     }
