@@ -1318,7 +1318,7 @@ export default function CreateJobScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>
-                      Platform Fee (5% of escrow)
+                      Platform Fee (10% of escrow)
                     </Text>
                     <Text style={styles.summaryValue}>
                       ₱{(parseFloat(budget) * 0.5 * 0.05).toFixed(2)}
@@ -1381,7 +1381,7 @@ export default function CreateJobScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>
-                      Platform Fee (5% of total)
+                      Platform Fee (10% of total)
                     </Text>
                     <Text style={styles.summaryValue}>
                       ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.05).toFixed(2)}
