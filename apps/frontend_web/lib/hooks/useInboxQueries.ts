@@ -7,9 +7,7 @@ import {
   ConversationFilter,
 } from "@/lib/api/chat";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
-import { API_BASE } from "@/lib/api/config";
-
-const API_BASE_URL = API_BASE;
+import { API_BASE_URL } from "@/lib/api/config";
 
 export type { ConversationFilter };
 

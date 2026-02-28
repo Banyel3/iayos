@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,31 +8,31 @@ import {
   Switch,
   Alert,
   Platform,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQueryClient } from '@tanstack/react-query';
-import * as Application from 'expo-application';
-import * as Linking from 'expo-linking';
-import ProfileMenuItem from '@/components/profile/ProfileMenuItem';
-import { useLogout } from '@/lib/hooks/useLogout';
-import { useUserProfile } from '@/lib/hooks/useUserProfile';
+} from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
+import * as Application from "expo-application";
+import * as Linking from "expo-linking";
+import ProfileMenuItem from "@/components/profile/ProfileMenuItem";
+import { useLogout } from "@/lib/hooks/useLogout";
+import { useUserProfile } from "@/lib/hooks/useUserProfile";
+import { useTheme } from "@/context/ThemeContext";
 
-const THEME_STORAGE_KEY = '@iayos_theme';
-const LANGUAGE_STORAGE_KEY = '@iayos_language';
+const LANGUAGE_STORAGE_KEY = "@iayos_language";
 
 export default function SettingsScreen() {
   const queryClient = useQueryClient();
   const { data: userProfile, isLoading } = useUserProfile();
   const logout = useLogout();
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [language, setLanguage] = useState<'en' | 'tl'>('en');
+  const [language, setLanguage] = useState<"en" | "tl">("en");
 
-  const appVersion = Application.nativeApplicationVersion || '1.0.0';
-  const buildNumber = Application.nativeBuildVersion || '1';
+  const appVersion = Application.nativeApplicationVersion || "1.0.0";
+  const buildNumber = Application.nativeBuildVersion || "1";
 
   useEffect(() => {
     loadSettings();
@@ -40,102 +40,90 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const theme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       const lang = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
 
-      if (theme) setIsDarkMode(theme === 'dark');
-      if (lang) setLanguage(lang as 'en' | 'tl');
+      if (lang) setLanguage(lang as "en" | "tl");
     } catch (error) {
-      console.error('Failed to load settings:', error);
+      console.error("Failed to load settings:", error);
     }
-  };
-
-  const toggleTheme = async () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme ? 'dark' : 'light');
-    Alert.alert('Theme Updated', 'The app theme will update on next launch.');
   };
 
   const toggleNotifications = () => {
     setNotificationsEnabled(!notificationsEnabled);
     Alert.alert(
-      'Notifications',
+      "Notifications",
       notificationsEnabled
-        ? 'Notifications have been disabled.'
-        : 'Notifications have been enabled.'
+        ? "Notifications have been disabled."
+        : "Notifications have been enabled.",
     );
   };
 
   const changeLanguage = () => {
-    Alert.alert(
-      'Change Language',
-      'Select your preferred language',
-      [
-        {
-          text: 'English',
-          onPress: async () => {
-            setLanguage('en');
-            await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, 'en');
-          },
+    Alert.alert("Change Language", "Select your preferred language", [
+      {
+        text: "English",
+        onPress: async () => {
+          setLanguage("en");
+          await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, "en");
         },
-        {
-          text: 'Filipino (Tagalog)',
-          onPress: async () => {
-            setLanguage('tl');
-            await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, 'tl');
-          },
+      },
+      {
+        text: "Filipino (Tagalog)",
+        onPress: async () => {
+          setLanguage("tl");
+          await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, "tl");
         },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const clearCache = () => {
     Alert.alert(
-      'Clear Cache',
-      'This will clear all cached data. Are you sure?',
+      "Clear Cache",
+      "This will clear all cached data. Are you sure?",
       [
         {
-          text: 'Clear',
-          style: 'destructive',
+          text: "Clear",
+          style: "destructive",
           onPress: async () => {
             await queryClient.clear();
-            Alert.alert('Success', 'Cache cleared successfully.');
+            Alert.alert("Success", "Cache cleared successfully.");
           },
         },
-        { text: 'Cancel', style: 'cancel' },
-      ]
+        { text: "Cancel", style: "cancel" },
+      ],
     );
   };
 
   const deleteAccount = () => {
     Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all associated data. This action cannot be undone.',
+      "Delete Account",
+      "This will permanently delete your account and all associated data. This action cannot be undone.",
       [
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: () => {
             Alert.alert(
-              'Confirm Deletion',
+              "Confirm Deletion",
               'Type "DELETE" to confirm account deletion',
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: "Cancel", style: "cancel" },
                 {
-                  text: 'Proceed',
+                  text: "Proceed",
                   onPress: () => {
-                    // TODO: Implement account deletion API call
-                    Alert.alert('Account Deletion', 'Please contact support to delete your account.');
+                    Linking.openURL(
+                      "mailto:support@iayos.com?subject=Account%20Deletion%20Request",
+                    );
                   },
                 },
-              ]
+              ],
             );
           },
         },
-        { text: 'Cancel', style: 'cancel' },
-      ]
+        { text: "Cancel", style: "cancel" },
+      ],
     );
   };
 
@@ -148,13 +136,13 @@ export default function SettingsScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    Alert.alert("Logout", "Are you sure you want to logout?", [
       {
-        text: 'Logout',
-        style: 'destructive',
+        text: "Logout",
+        style: "destructive",
         onPress: () => logout.mutate(),
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: "Cancel", style: "cancel" },
     ]);
   };
 
@@ -182,14 +170,14 @@ export default function SettingsScreen() {
         <ProfileMenuItem
           icon="person-outline"
           title="Edit Profile"
-          onPress={() => navigateTo('/profile/edit')}
+          onPress={() => navigateTo("/profile/edit")}
           showChevron
         />
 
         <ProfileMenuItem
           icon="lock-closed-outline"
           title="Change Password"
-          onPress={() => navigateTo('/settings/change-password')}
+          onPress={() => navigateTo("/settings/change-password")}
           showChevron
         />
       </View>
@@ -208,8 +196,8 @@ export default function SettingsScreen() {
             <Switch
               value={isDarkMode}
               onValueChange={toggleTheme}
-              trackColor={{ false: '#D1D5DB', true: '#3B82F6' }}
-              thumbColor={isDarkMode ? '#FFFFFF' : '#FFFFFF'}
+              trackColor={{ false: "#D1D5DB", true: "#3B82F6" }}
+              thumbColor={isDarkMode ? "#FFFFFF" : "#FFFFFF"}
             />
           }
         />
@@ -224,8 +212,8 @@ export default function SettingsScreen() {
             <Switch
               value={notificationsEnabled}
               onValueChange={toggleNotifications}
-              trackColor={{ false: '#D1D5DB', true: '#3B82F6' }}
-              thumbColor={notificationsEnabled ? '#FFFFFF' : '#FFFFFF'}
+              trackColor={{ false: "#D1D5DB", true: "#3B82F6" }}
+              thumbColor={notificationsEnabled ? "#FFFFFF" : "#FFFFFF"}
             />
           }
         />
@@ -233,7 +221,7 @@ export default function SettingsScreen() {
         <ProfileMenuItem
           icon="language-outline"
           title="Language"
-          subtitle={language === 'en' ? 'English' : 'Filipino (Tagalog)'}
+          subtitle={language === "en" ? "English" : "Filipino (Tagalog)"}
           onPress={changeLanguage}
           showChevron
         />
@@ -247,7 +235,7 @@ export default function SettingsScreen() {
           icon="help-circle-outline"
           title="Help Center / FAQ"
           subtitle="Find answers to common questions"
-          onPress={() => navigateTo('/help/faq')}
+          onPress={() => navigateTo("/help/faq")}
           showChevron
         />
 
@@ -255,7 +243,7 @@ export default function SettingsScreen() {
           icon="chatbubble-outline"
           title="Contact Support"
           subtitle="Get help from our team"
-          onPress={() => navigateTo('/help/contact')}
+          onPress={() => navigateTo("/help/contact")}
           showChevron
         />
 
@@ -263,7 +251,7 @@ export default function SettingsScreen() {
           icon="flag-outline"
           title="Report a Bug"
           subtitle="Help us improve the app"
-          onPress={() => navigateTo('/help/contact')}
+          onPress={() => navigateTo("/help/contact")}
           showChevron
         />
       </View>
@@ -275,14 +263,14 @@ export default function SettingsScreen() {
         <ProfileMenuItem
           icon="shield-outline"
           title="Privacy Policy"
-          onPress={() => openURL('https://iayos.com/privacy')}
+          onPress={() => openURL("https://iayos.com/privacy")}
           showChevron
         />
 
         <ProfileMenuItem
           icon="document-text-outline"
           title="Terms of Service"
-          onPress={() => openURL('https://iayos.com/terms')}
+          onPress={() => openURL("https://iayos.com/terms")}
           showChevron
         />
 
@@ -290,7 +278,7 @@ export default function SettingsScreen() {
           icon="lock-closed-outline"
           title="Data & Privacy"
           subtitle="Manage your data and privacy settings"
-          onPress={() => navigateTo('/legal/privacy')}
+          onPress={() => navigateTo("/legal/privacy")}
           showChevron
         />
       </View>
@@ -313,9 +301,10 @@ export default function SettingsScreen() {
           subtitle="Love the app? Give us a rating!"
           onPress={() => {
             // Platform specific app store URL
-            const url = Platform.OS === 'ios'
-              ? 'https://apps.apple.com/app/iayos'
-              : 'https://play.google.com/store/apps/details?id=com.iayos';
+            const url =
+              Platform.OS === "ios"
+                ? "https://apps.apple.com/app/iayos"
+                : "https://play.google.com/store/apps/details?id=com.iayos";
             openURL(url);
           }}
           showChevron
@@ -326,7 +315,7 @@ export default function SettingsScreen() {
           title="Share App"
           subtitle="Invite friends to join iAyos"
           onPress={() => {
-            Alert.alert('Share iAyos', 'Share feature coming soon!');
+            Alert.alert("Share iAyos", "Share feature coming soon!");
           }}
           showChevron
         />
@@ -369,7 +358,9 @@ export default function SettingsScreen() {
       {/* App Info */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>iAyos Mobile</Text>
-        <Text style={styles.footerText}>© 2025 iAyos. All rights reserved.</Text>
+        <Text style={styles.footerText}>
+          © 2025 iAyos. All rights reserved.
+        </Text>
       </View>
     </ScrollView>
   );
@@ -378,23 +369,23 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   profileHeader: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingVertical: 24,
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 24,
   },
   profileAvatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   profileInfo: {
@@ -402,37 +393,37 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   section: {
     marginBottom: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
   },
   footer: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 32,
     paddingHorizontal: 16,
   },
   footerText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginBottom: 4,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

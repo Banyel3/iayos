@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, User, Briefcase, AlertCircle, CheckCircle } from "lucide-react";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
 
 interface Employee {
   employeeId: number;
@@ -84,7 +85,7 @@ export default function AssignEmployeeModal({
 
   const handleAssign = async () => {
     if (selectedEmployeeId === null) {
-      alert("Please select an employee");
+      toast.error("Please select an employee");
       return;
     }
 
@@ -96,7 +97,7 @@ export default function AssignEmployeeModal({
       setAssignmentNotes("");
     } catch (error) {
       console.error("Assignment failed:", error);
-      alert(error instanceof Error ? error.message : "Assignment failed");
+      toast.error(error instanceof Error ? error.message : "Assignment failed");
     } finally {
       setIsSubmitting(false);
     }

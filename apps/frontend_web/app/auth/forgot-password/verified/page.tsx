@@ -28,7 +28,7 @@ const formSchema = z
       .regex(/[0-9]/, "Password must contain at least one number")
       .regex(
         /[^A-Za-z0-9]/,
-        "Password must contain at least one special character"
+        "Password must contain at least one special character",
       ),
     confirmPassword: z.string().min(1, "Please confirm your new password"),
   })
@@ -51,7 +51,7 @@ const ForgotPasswordVerified = () => {
   useEffect(() => {
     if (!verificationToken || !idParam) {
       setAlertMessage(
-        "Invalid verification link. Please request a new password reset."
+        "Invalid verification link. Please request a new password reset.",
       );
       setShowErrorAlert(true);
 
@@ -87,20 +87,21 @@ const ForgotPasswordVerified = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(values),
           credentials: "include",
-        }
+        },
       );
 
       if (!verifyRes.ok) {
         const errorData = await verifyRes.json();
         setAlertMessage(
-          errorData?.error?.[0]?.message || "Failed to update password"
+          errorData?.error?.[0]?.message || "Failed to update password",
         );
         setShowErrorAlert(true);
         return;
       }
 
       const data = await verifyRes.json();
-      console.log("Password updated:", data);
+      if (process.env.NODE_ENV === "development")
+        console.log("Password updated:", data);
 
       // Show success alert
       setShowSuccessAlert(true);

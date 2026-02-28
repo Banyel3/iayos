@@ -19,7 +19,10 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useWalletBalance, useWalletTransactions } from "@/lib/hooks/useHomeData";
+import {
+  useWalletBalance,
+  useWalletTransactions,
+} from "@/lib/hooks/useHomeData";
 
 // Extended Transaction type for agency with balance_after field
 interface AgencyTransaction {
@@ -34,7 +37,15 @@ interface AgencyTransaction {
   balance_after?: number;
 }
 
-type TransactionFilter = "all" | "DEPOSIT" | "WITHDRAWAL" | "PAYMENT" | "EARNING" | "PENDING_EARNING" | "REFUND" | "FEE";
+type TransactionFilter =
+  | "all"
+  | "DEPOSIT"
+  | "WITHDRAWAL"
+  | "PAYMENT"
+  | "EARNING"
+  | "PENDING_EARNING"
+  | "REFUND"
+  | "FEE";
 type StatusFilter = "all" | "COMPLETED" | "PENDING" | "FAILED";
 
 export default function AgencyTransactionsPage() {
@@ -60,19 +71,22 @@ export default function AgencyTransactionsPage() {
   const filteredTransactions = transactions.filter((tx: AgencyTransaction) => {
     // Type filter
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
-    
+
     // Status filter
     if (statusFilter !== "all" && tx.status !== statusFilter) return false;
-    
+
     // Search query (search in description, ID, or payment method)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesDescription = tx.description?.toLowerCase().includes(query);
       const matchesId = tx.id?.toString().includes(query);
-      const matchesPaymentMethod = tx.payment_method?.toLowerCase().includes(query);
-      if (!matchesDescription && !matchesId && !matchesPaymentMethod) return false;
+      const matchesPaymentMethod = tx.payment_method
+        ?.toLowerCase()
+        .includes(query);
+      if (!matchesDescription && !matchesId && !matchesPaymentMethod)
+        return false;
     }
-    
+
     return true;
   });
 
@@ -80,7 +94,7 @@ export default function AgencyTransactionsPage() {
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const paginatedTransactions = filteredTransactions.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   // Reset to page 1 when filters change
@@ -95,7 +109,7 @@ export default function AgencyTransactionsPage() {
   };
 
   // For agencies, incoming money types: EARNING, PENDING_EARNING, DEPOSIT, REFUND
-  const isIncomingType = (type: string) => 
+  const isIncomingType = (type: string) =>
     ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(type);
 
   const getTransactionIcon = (type: string) => {
@@ -201,7 +215,9 @@ export default function AgencyTransactionsPage() {
   // Calculate summary stats
   // For agencies: DEPOSIT, EARNING, PENDING_EARNING, REFUND are incoming
   const totalDeposits = transactions
-    .filter((t: AgencyTransaction) => ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type))
+    .filter((t: AgencyTransaction) =>
+      ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type),
+    )
     .filter((t: AgencyTransaction) => t.status === "COMPLETED")
     .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
@@ -211,7 +227,10 @@ export default function AgencyTransactionsPage() {
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
 
   const pendingWithdrawals = transactions
-    .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL" && t.status === "PENDING")
+    .filter(
+      (t: AgencyTransaction) =>
+        t.type === "WITHDRAWAL" && t.status === "PENDING",
+    )
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
 
   return (
@@ -221,14 +240,18 @@ export default function AgencyTransactionsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-gray-600 mt-1">View and manage your wallet transactions</p>
+            <p className="text-gray-600 mt-1">
+              View and manage your wallet transactions
+            </p>
           </div>
           <Button
             onClick={handleRefresh}
             className="bg-blue-600 hover:bg-blue-700 text-white"
             disabled={isLoadingTransactions}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingTransactions ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isLoadingTransactions ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
@@ -241,7 +264,9 @@ export default function AgencyTransactionsPage() {
                 <div>
                   <p className="text-emerald-100 text-sm">Current Balance</p>
                   <p className="text-2xl font-bold">
-                    {isLoadingWallet ? "..." : `₱${walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
+                    {isLoadingWallet
+                      ? "..."
+                      : `₱${walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
                   </p>
                 </div>
                 <Wallet className="h-8 w-8 text-emerald-200" />
@@ -255,7 +280,10 @@ export default function AgencyTransactionsPage() {
                 <div>
                   <p className="text-gray-600 text-sm">Total Received</p>
                   <p className="text-2xl font-bold text-green-600">
-                    ₱{totalDeposits.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    ₱
+                    {totalDeposits.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
                   </p>
                 </div>
                 <ArrowDownLeft className="h-8 w-8 text-green-200" />
@@ -269,7 +297,10 @@ export default function AgencyTransactionsPage() {
                 <div>
                   <p className="text-gray-600 text-sm">Total Withdrawn</p>
                   <p className="text-2xl font-bold text-red-600">
-                    ₱{totalWithdrawals.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    ₱
+                    {totalWithdrawals.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
                   </p>
                 </div>
                 <ArrowUpRight className="h-8 w-8 text-red-200" />
@@ -283,7 +314,10 @@ export default function AgencyTransactionsPage() {
                 <div>
                   <p className="text-gray-600 text-sm">Pending Withdrawals</p>
                   <p className="text-2xl font-bold text-yellow-600">
-                    ₱{pendingWithdrawals.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    ₱
+                    {pendingWithdrawals.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
                   </p>
                 </div>
                 <Clock className="h-8 w-8 text-yellow-200" />
@@ -313,7 +347,9 @@ export default function AgencyTransactionsPage() {
                 <Filter className="h-4 w-4 text-gray-400" />
                 <select
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as TransactionFilter)}
+                  onChange={(e) =>
+                    setTypeFilter(e.target.value as TransactionFilter)
+                  }
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Types</option>
@@ -330,7 +366,9 @@ export default function AgencyTransactionsPage() {
               {/* Status Filter */}
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as StatusFilter)
+                }
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Status</option>
@@ -348,7 +386,8 @@ export default function AgencyTransactionsPage() {
             <CardTitle className="flex items-center justify-between">
               <span>Transaction History</span>
               <span className="text-sm font-normal text-gray-500">
-                {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? "s" : ""}
+                {filteredTransactions.length} transaction
+                {filteredTransactions.length !== 1 ? "s" : ""}
               </span>
             </CardTitle>
           </CardHeader>
@@ -356,7 +395,10 @@ export default function AgencyTransactionsPage() {
             {isLoadingTransactions ? (
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg animate-pulse">
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg animate-pulse"
+                  >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
                       <div>
@@ -383,19 +425,37 @@ export default function AgencyTransactionsPage() {
                 {/* Mobile card view */}
                 <div className="md:hidden space-y-3 mb-4">
                   {paginatedTransactions.map((tx: AgencyTransaction) => (
-                    <div key={tx.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div
+                      key={tx.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-full flex-shrink-0 ${tx.type === "WITHDRAWAL" ? "bg-red-100" : "bg-green-100"}`}>
+                          <div
+                            className={`p-2 rounded-full flex-shrink-0 ${tx.type === "WITHDRAWAL" ? "bg-red-100" : "bg-green-100"}`}
+                          >
                             {getTransactionIcon(tx.type)}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900 text-sm">{tx.description || tx.type}</p>
-                            <p className="text-xs text-gray-500">ID: {tx.id}{tx.payment_method && ` • ${tx.payment_method}`}</p>
+                            <p className="font-medium text-gray-900 text-sm">
+                              {tx.description || tx.type}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              ID: {tx.id}
+                              {tx.payment_method && ` • ${tx.payment_method}`}
+                            </p>
                           </div>
                         </div>
-                        <p className={`font-semibold text-sm flex-shrink-0 ml-2 ${tx.type === "WITHDRAWAL" ? "text-red-600" : "text-green-600"}`}>
-                          {tx.type === "WITHDRAWAL" ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        <p
+                          className={`font-semibold text-sm flex-shrink-0 ml-2 ${["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type) ? "text-red-600" : "text-green-600"}`}
+                        >
+                          {["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type)
+                            ? "-"
+                            : "+"}
+                          ₱
+                          {Math.abs(tx.amount).toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                          })}
                         </p>
                       </div>
                       <div className="flex items-center justify-between gap-2">
@@ -404,12 +464,19 @@ export default function AgencyTransactionsPage() {
                           {getStatusBadge(tx.status)}
                         </div>
                         <p className="text-xs text-gray-500 whitespace-nowrap">
-                          {new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          {new Date(tx.created_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
                         </p>
                       </div>
                       {tx.balance_after !== undefined && (
                         <p className="text-xs text-gray-500 mt-2 text-right">
-                          Balance after: ₱{(tx.balance_after ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          Balance after: ₱
+                          {(tx.balance_after ?? 0).toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                          })}
                         </p>
                       )}
                     </div>
@@ -421,22 +488,41 @@ export default function AgencyTransactionsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Transaction</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Type</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Date</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Status</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Amount</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Balance After</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                          Transaction
+                        </th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                          Type
+                        </th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                          Date
+                        </th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                          Status
+                        </th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
+                          Amount
+                        </th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
+                          Balance After
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedTransactions.map((tx: AgencyTransaction) => (
-                        <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <tr
+                          key={tx.id}
+                          className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                        >
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-full ${
-                                tx.type === "WITHDRAWAL" ? "bg-red-100" : "bg-green-100"
-                              }`}>
+                              <div
+                                className={`p-2 rounded-full ${
+                                  tx.type === "WITHDRAWAL"
+                                    ? "bg-red-100"
+                                    : "bg-green-100"
+                                }`}
+                              >
                                 {getTransactionIcon(tx.type)}
                               </div>
                               <div>
@@ -444,42 +530,65 @@ export default function AgencyTransactionsPage() {
                                   {tx.description || tx.type}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  ID: {tx.id} {tx.payment_method && `• ${tx.payment_method}`}
+                                  ID: {tx.id}{" "}
+                                  {tx.payment_method &&
+                                    `• ${tx.payment_method}`}
                                 </p>
                               </div>
                             </div>
                           </td>
-                          <td className="py-4 px-4">
-                            {getTypeBadge(tx.type)}
-                          </td>
+                          <td className="py-4 px-4">{getTypeBadge(tx.type)}</td>
                           <td className="py-4 px-4">
                             <p className="text-sm text-gray-900">
-                              {new Date(tx.created_at).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
+                              {new Date(tx.created_at).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {new Date(tx.created_at).toLocaleTimeString("en-US", {
-                                hour: "numeric",
-                                minute: "2-digit",
-                              })}
+                              {new Date(tx.created_at).toLocaleTimeString(
+                                "en-US",
+                                {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                },
+                              )}
                             </p>
                           </td>
                           <td className="py-4 px-4">
                             {getStatusBadge(tx.status)}
                           </td>
                           <td className="py-4 px-4 text-right">
-                            <p className={`font-semibold ${
-                              tx.type === "WITHDRAWAL" ? "text-red-600" : "text-green-600"
-                            }`}>
-                              {tx.type === "WITHDRAWAL" ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                            <p
+                              className={`font-semibold ${
+                                ["WITHDRAWAL", "FEE", "PAYMENT"].includes(
+                                  tx.type,
+                                )
+                                  ? "text-red-600"
+                                  : "text-green-600"
+                              }`}
+                            >
+                              {["WITHDRAWAL", "FEE", "PAYMENT"].includes(
+                                tx.type,
+                              )
+                                ? "-"
+                                : "+"}
+                              ₱
+                              {Math.abs(tx.amount).toLocaleString("en-PH", {
+                                minimumFractionDigits: 2,
+                              })}
                             </p>
                           </td>
                           <td className="py-4 px-4 text-right">
                             <p className="text-sm text-gray-600">
-                              ₱{(tx.balance_after ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              ₱
+                              {(tx.balance_after ?? 0).toLocaleString("en-PH", {
+                                minimumFractionDigits: 2,
+                              })}
                             </p>
                           </td>
                         </tr>
@@ -493,12 +602,17 @@ export default function AgencyTransactionsPage() {
                   <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
                     <p className="text-sm text-gray-600">
                       Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                      {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} of{" "}
-                      {filteredTransactions.length} transactions
+                      {Math.min(
+                        currentPage * itemsPerPage,
+                        filteredTransactions.length,
+                      )}{" "}
+                      of {filteredTransactions.length} transactions
                     </p>
                     <div className="flex items-center gap-2">
                       <Button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                         className="bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
                       >
@@ -508,7 +622,9 @@ export default function AgencyTransactionsPage() {
                         Page {currentPage} of {totalPages}
                       </span>
                       <Button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                         className="bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
                       >

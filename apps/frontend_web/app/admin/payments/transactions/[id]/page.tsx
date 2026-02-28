@@ -6,6 +6,7 @@ import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -135,18 +136,18 @@ export default function TransactionDetailPage() {
 
       if (!response.ok) throw new Error("Failed to release escrow");
 
-      alert("Escrow released successfully");
+      toast.success("Escrow released successfully");
       setShowReleaseModal(false);
       fetchDetail();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to release escrow");
+      toast.error("Failed to release escrow");
     }
   };
 
   const handleRefund = async () => {
     if (!refundAmount || !refundReason) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -169,17 +170,17 @@ export default function TransactionDetailPage() {
 
       if (!response.ok) throw new Error("Failed to process refund");
 
-      alert("Refund processed successfully");
+      toast.success("Refund processed successfully");
       setShowRefundModal(false);
       fetchDetail();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to process refund");
+      toast.error("Failed to process refund");
     }
   };
 
   const downloadReceipt = () => {
-    alert("Download receipt functionality - Coming soon");
+    toast.info("Download receipt", { description: "Coming soon" });
   };
 
   if (loading) {

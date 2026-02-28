@@ -22,6 +22,10 @@ export interface ProfileData {
   latitude?: number;
   longitude?: number;
   workerProfileId?: number; // WorkerProfile.id (only for workers)
+  // Worker stats (populated when profileType === "WORKER")
+  workerRating?: number;
+  jobsCompleted?: number;
+  totalEarningGross?: number;
 }
 
 export interface WorkerProfile {

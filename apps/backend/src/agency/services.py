@@ -1,6 +1,7 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
-from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview
+from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview, JobEmployeeAssignment
 from iayos_project.utils import upload_agency_doc
+from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
@@ -737,25 +738,42 @@ def update_agency_employee(account_id, employee_id, firstName=None, lastName=Non
 
 def remove_agency_employee(account_id, employee_id):
     """Remove an employee from an agency."""
+    import traceback
     try:
         user = Accounts.objects.get(accountID=account_id)
         employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
-        
-        # Check if employee is currently working on an active job
+
+        # Block deletion if employee is currently assigned to an active job.
         active_job_title = validate_employee_not_working(employee)
         if active_job_title:
             raise ValueError(
-                f"Cannot remove {employee.workerID.profileID.accountFK.first_name or 'this employee'} — "
+                f"Cannot remove '{employee.name}' — "
                 f"currently assigned to '{active_job_title}'. Unassign them from the job first."
             )
-        
-        employee.delete()
-        
+
+        with transaction.atomic():
+            # Explicitly clear assignedEmployeeID (SET_NULL) to avoid any DB-level
+            # conflicts when the cascade collector processes related rows.
+            Job.objects.filter(assignedEmployeeID=employee).update(assignedEmployeeID=None)
+
+            # Explicitly delete through-table rows for the Job.assignedEmployees M2M
+            # before employee.delete() runs its own cascade, preventing duplicate
+            # delete attempts that can cause IntegrityError on some PostgreSQL versions.
+            JobEmployeeAssignment.objects.filter(employee=employee).delete()
+
+            employee.delete()
+
+
         return {"message": "Employee removed successfully"}
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
     except AgencyEmployee.DoesNotExist:
         raise ValueError("Employee not found")
+    except ValueError:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise ValueError(f"Failed to remove employee: {str(e)}")
 
 
 def get_agency_profile(account_id):
@@ -2217,15 +2235,25 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
         
         total = reviews_query.count()
         
-        # Calculate stats
-        all_ratings = list(reviews_query.values_list('rating', flat=True))
-        avg_rating = sum(float(r) for r in all_ratings) / len(all_ratings) if all_ratings else 0.0
-        positive_count = sum(1 for r in all_ratings if float(r) >= 4.0)
-        neutral_count = sum(1 for r in all_ratings if 3.0 <= float(r) < 4.0)
-        negative_count = sum(1 for r in all_ratings if float(r) < 3.0)
+        # Stats ALWAYS from base_query (unfiltered) so all tab badges stay
+        # correct regardless of which review_type filter is currently active.
+        # Use DB aggregates instead of loading all rows into Python memory.
+        from django.db.models import Avg, Count, Q as DQ
+        agg = base_query.aggregate(
+            base_total=Count('reviewID'),
+            avg=Avg('rating'),
+            positive=Count('reviewID', filter=DQ(rating__gte=4.0)),
+            neutral=Count('reviewID', filter=DQ(rating__gte=3.0, rating__lt=4.0)),
+            negative=Count('reviewID', filter=DQ(rating__lt=3.0)),
+        )
+        base_total = agg['base_total'] or 0
+        avg_rating = float(agg['avg'] or 0.0)
+        positive_count = agg['positive'] or 0
+        neutral_count = agg['neutral'] or 0
+        negative_count = agg['negative'] or 0
         
-        agency_reviews_count = reviews_query.filter(revieweeAgencyID=agency).count()
-        employee_reviews_count = reviews_query.filter(revieweeEmployeeID__in=employee_ids).count()
+        agency_reviews_count = base_query.filter(revieweeAgencyID=agency).count()
+        employee_reviews_count = base_query.filter(revieweeEmployeeID__in=employee_ids).count()
         
         # Pagination
         start_idx = (page - 1) * limit
@@ -2235,18 +2263,26 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
         # Build response
         reviews_data = []
         for review in reviews_page:
-            # Get reviewer (client) info
-            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
-            client_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}" if reviewer_profile else "Unknown Client"
+            # FIX #3: Prefer CLIENT profile for dual-profile users so we show the
+            # client's platform data (name/avatar), not their worker profile.
+            reviewer_profile = (
+                Profile.objects.filter(accountFK=review.reviewerID, profileType='CLIENT').first()
+                or Profile.objects.filter(accountFK=review.reviewerID).first()
+            )
+            client_name = (
+                f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                if reviewer_profile else "Unknown Client"
+            )
             client_avatar = reviewer_profile.profileImg if reviewer_profile else None
             
-            # Determine review type and employee info
+            # FIX #2: Use review_type_str (not review_type) to avoid shadowing the
+            # function parameter and corrupting subsequent loop iterations.
             if review.revieweeEmployeeID:
-                review_type = "EMPLOYEE"
+                review_type_str = "EMPLOYEE"
                 employee_name = review.revieweeEmployeeID.name
                 employee_id = review.revieweeEmployeeID.employeeID
             else:
-                review_type = "AGENCY"
+                review_type_str = "AGENCY"
                 employee_name = None
                 employee_id = None
             
@@ -2259,9 +2295,10 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
                 "rating": float(review.rating) if review.rating else 0.0,
                 "comment": review.comment,
                 "created_at": review.createdAt,
-                "review_type": review_type,
+                "review_type": review_type_str,
                 "employee_name": employee_name,
-                "employee_id": employee_id
+                "employee_id": employee_id,
+                "agency_response": review.agency_response,
             })
         
         total_pages = math.ceil(total / limit) if total > 0 else 1
@@ -2270,7 +2307,7 @@ def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_t
             "success": True,
             "reviews": reviews_data,
             "stats": {
-                "total_reviews": total,
+                "total_reviews": base_total,
                 "average_rating": round(avg_rating, 2),
                 "positive_reviews": positive_count,
                 "neutral_reviews": neutral_count,
@@ -2548,11 +2585,18 @@ def assign_employees_to_slots(
             defaults={
                 'client': job.clientID.profileID,
                 'worker': None,  # Agency job - no individual worker
+                'agency': agency,  # Link conversation to agency for proper filtering
                 'status': Conversation.ConversationStatus.ACTIVE
             }
         )
         if created:
             print(f"✅ Created group conversation {conversation.conversationID} for multi-employee job")
+        elif not conversation.agency:
+            # Repair: conversation exists but missing agency field
+            conversation.agency = agency
+            conversation.worker = None
+            conversation.save(update_fields=['agency', 'worker'])
+            print(f"🔧 Repaired conversation {conversation.conversationID}: added missing agency field")
         
         # Create job log
         JobLog.objects.create(

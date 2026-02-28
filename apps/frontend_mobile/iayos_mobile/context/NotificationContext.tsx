@@ -22,6 +22,7 @@ import {
 } from "@/lib/hooks/useNotifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { handleNotificationDeepLink } from "@/lib/utils/deepLinkHandler";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 
 interface NotificationContextType {
   expoPushToken: string | null;
@@ -43,8 +44,12 @@ export function NotificationProvider({
   children: React.ReactNode;
 }) {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
-  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
-  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const notificationListener = useRef<Notifications.Subscription | undefined>(
+    undefined,
+  );
+  const responseListener = useRef<Notifications.Subscription | undefined>(
+    undefined,
+  );
 
   const registerPushTokenMutation = useRegisterPushToken();
   const queryClient = useQueryClient();
@@ -66,10 +71,10 @@ export function NotificationProvider({
 
         // Register token with backend
         // Only attempt backend registration if user is authenticated
-        const accessToken = await AsyncStorage.getItem("access_token");
+        const accessToken = await getAccessToken();
         if (!accessToken) {
           console.warn(
-            "Skipping backend push token registration: user not authenticated"
+            "Skipping backend push token registration: user not authenticated",
           );
           return;
         }
@@ -84,7 +89,7 @@ export function NotificationProvider({
             try {
               console.error(
                 "❌ Failed to register push token:",
-                error?.message || error
+                error?.message || error,
               );
             } catch (e) {
               console.error("❌ Failed to register push token (unknown error)");
@@ -135,15 +140,22 @@ export function NotificationProvider({
               // Parse notification data
               const notification = {
                 notificationID: Number(notificationData.notificationID) || 0,
-                notificationType: String(notificationData.notificationType) || "",
+                notificationType:
+                  String(notificationData.notificationType) || "",
                 title: String(notificationData.title) || "",
                 message: String(notificationData.message) || "",
                 isRead: false,
                 createdAt: new Date().toISOString(),
                 readAt: null,
-                relatedJobID: notificationData.relatedJobID ? Number(notificationData.relatedJobID) : null,
-                relatedApplicationID: notificationData.relatedApplicationID ? Number(notificationData.relatedApplicationID) : null,
-                relatedKYCLogID: notificationData.relatedKYCLogID ? Number(notificationData.relatedKYCLogID) : null,
+                relatedJobID: notificationData.relatedJobID
+                  ? Number(notificationData.relatedJobID)
+                  : null,
+                relatedApplicationID: notificationData.relatedApplicationID
+                  ? Number(notificationData.relatedApplicationID)
+                  : null,
+                relatedKYCLogID: notificationData.relatedKYCLogID
+                  ? Number(notificationData.relatedKYCLogID)
+                  : null,
               };
 
               // Navigate to appropriate screen
@@ -159,7 +171,7 @@ export function NotificationProvider({
           queryClient.invalidateQueries({
             queryKey: ["unreadNotificationsCount"],
           });
-        }
+        },
       );
 
     // Cleanup listeners on unmount

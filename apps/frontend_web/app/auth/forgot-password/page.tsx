@@ -62,11 +62,12 @@ const ForgotPassword = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(values),
           credentials: "include",
-        }
+        },
       );
 
       const data = await res.json();
-      console.log("Forgot password response:", data);
+      if (process.env.NODE_ENV === "development")
+        console.log("Forgot password response:", data);
 
       if (!res.ok) {
         // ❌ Error response from backend
@@ -103,7 +104,7 @@ const ForgotPassword = () => {
       console.error("Request error:", error);
       showAuthError(
         "We're having trouble processing your request. Please try again.",
-        "Request Failed"
+        "Request Failed",
       );
     } finally {
       setIsLoading(false);

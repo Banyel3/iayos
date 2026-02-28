@@ -34,22 +34,22 @@ export default function Index() {
 
   // If authenticated with profile type, go to tabs
   if (user?.profile_data?.profileType) {
-    console.log("🔀 [INDEX] User authenticated, redirecting to tabs");
+    if (__DEV__) console.log("🔀 [INDEX] User authenticated, redirecting to tabs");
     return <Redirect href="/(tabs)" />;
   }
 
   // If authenticated but no profile type, go to role selection
   if (user && !user.profile_data?.profileType) {
-    console.log("🔀 [INDEX] User authenticated but no profile, redirecting to role selection");
+    if (__DEV__) console.log("🔀 [INDEX] User authenticated but no profile, redirecting to role selection");
     return <Redirect href="/auth/select-role" />;
   }
 
   // Not authenticated — first launch shows welcome, subsequent opens go to login
   if (!hasSeenWelcome) {
-    console.log("🔀 [INDEX] First launch, showing welcome");
+    if (__DEV__) console.log("🔀 [INDEX] First launch, showing welcome");
     return <Redirect href="/welcome" />;
   }
 
-  console.log("🔀 [INDEX] Returning user, going straight to login");
+  if (__DEV__) console.log("🔀 [INDEX] Returning user, going straight to login");
   return <Redirect href="/auth/login" />;
 }

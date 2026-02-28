@@ -39,7 +39,7 @@ export default function TermsOfServiceScreen() {
             color={Colors.textSecondary}
           />
           <Text style={styles.lastUpdatedText}>
-            Last updated: December 9, 2025
+            Last updated: February 27, 2026
           </Text>
         </View>
 
@@ -121,22 +121,36 @@ export default function TermsOfServiceScreen() {
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Escrow System:</Text> iAyos uses a secure
             escrow system. Clients pay a 50% downpayment when hiring a worker,
-            which is held in escrow until job completion.
+            which is held in escrow until job completion. The remaining 50% is
+            due upon successful job completion and client approval.
           </Text>
           <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Platform Fee:</Text> A 5% platform fee is
-            applied to the downpayment amount. This fee supports Platform
-            operations, security, and customer support.
+            <Text style={styles.bold}>Platform Fee:</Text> A 10% platform fee is
+            charged on the total job budget. This fee is collected at the time
+            of the escrow downpayment and supports Platform operations,
+            security, and customer support.
           </Text>
           <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Payment Methods:</Text> We accept GCash,
-            wallet deposits, and cash payments (with admin verification). All
-            payments are processed securely through our payment partner.
+            <Text style={styles.bold}>Payment Methods:</Text> Deposits are
+            processed via PayQR powered by PayMongo. All deposit transactions
+            are handled securely through PayMongo's payment platform.
+            Withdrawals are processed manually by the iAyos team and are subject
+            to processing times.
           </Text>
           <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Worker Earnings:</Text> Workers receive
-            payment after successful job completion and client approval. Funds
-            are transferred to worker wallets and can be withdrawn.
+            <Text style={styles.bold}>
+              Worker Earnings &amp; Payment Buffer:
+            </Text>{" "}
+            After a job is approved complete, worker earnings enter a 7-day
+            holding period before being credited to the worker's wallet. This
+            buffer period allows for dispute resolution and payment
+            verification.
+          </Text>
+          <Text style={styles.paragraph}>
+            <Text style={styles.bold}>Withdrawals:</Text> Workers may request a
+            withdrawal of their wallet balance at any time, subject to a minimum
+            withdrawal amount of ₱100. Withdrawals are processed manually by the
+            iAyos team. Processing times may vary.
           </Text>
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Refunds:</Text> Refund eligibility is
@@ -270,8 +284,10 @@ export default function TermsOfServiceScreen() {
           <Text style={styles.paragraph}>
             For questions about these Terms of Service, please contact us at:
           </Text>
-          <Text style={styles.contactInfo}>Email: support@iayos.ph</Text>
-          <Text style={styles.contactInfo}>Phone: +63 XXX XXX XXXX</Text>
+          <Text style={styles.contactInfo}>
+            Email: devante.software@gmail.com
+          </Text>
+          <Text style={styles.contactInfo}>Website: devante.online</Text>
           <Text style={styles.contactInfo}>
             Address: Zamboanga City, Philippines
           </Text>

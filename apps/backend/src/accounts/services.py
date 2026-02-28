@@ -565,7 +565,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
-                    "isVerified": account.isVerified,  # Email verification status
+                    "isVerified": account.isVerified,
                     "kycVerified": account.KYCVerified,
                     "profile_data": {
                         "profileType": "AGENCY",
@@ -642,6 +642,37 @@ def fetch_currentUser(accountID, profile_type=None):
                     profile_data["bio"] = worker_profile.bio or ""
                     profile_data["hourlyRate"] = float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None
                     profile_data["softSkills"] = worker_profile.soft_skills or ""
+                    # Worker stats — used by mobile profile screen
+                    # Compute rating live from JobReview records (WorkerProfile.workerRating is
+                    # never updated by review submissions, so reading it would always return 0)
+                    from django.db.models import Avg as _Avg
+                    from .models import JobReview as _JobReview
+                    _reviews_qs = _JobReview.objects.filter(
+                        revieweeProfileID=worker_profile.profileID,
+                        status='ACTIVE'
+                    )
+                    _avg = _reviews_qs.aggregate(_Avg('rating'))['rating__avg']
+                    # Fallback: legacy reviews stored without profileID
+                    if not _avg:
+                        _avg = _JobReview.objects.filter(
+                            revieweeID=worker_profile.profileID.accountFK,
+                            reviewerType='CLIENT',
+                            status='ACTIVE'
+                        ).aggregate(_Avg('rating'))['rating__avg']
+                    profile_data["workerRating"] = round(float(_avg), 2) if _avg else 0.0
+                    profile_data["totalEarningGross"] = float(worker_profile.totalEarningGross) if worker_profile.totalEarningGross else 0.0
+                    # Count completed jobs: regular (assignedWorkerID) + team jobs (JobWorkerAssignment)
+                    # Team jobs do NOT set assignedWorkerID on the posting; they use JobWorkerAssignment
+                    from .models import JobPosting as _JobPosting, JobWorkerAssignment as _JobWorkerAssignment
+                    _regular = _JobPosting.objects.filter(
+                        assignedWorkerID=worker_profile,
+                        status=_JobPosting.JobStatus.COMPLETED
+                    ).count()
+                    _team = _JobWorkerAssignment.objects.filter(
+                        workerID=worker_profile,
+                        assignment_status='COMPLETED'
+                    ).values('jobID').distinct().count()
+                    profile_data["jobsCompleted"] = _regular + _team
                     print(f"   🔧 Added worker profile ID: {worker_profile.id}")
                     
                     # Get skills with certification counts
@@ -678,7 +709,7 @@ def fetch_currentUser(accountID, profile_type=None):
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,  # <-- systemRole from SystemRoles
-                "isVerified": account.isVerified,  # <-- Email verification status from Accounts
+                "isVerified": account.isVerified,  # email verification status
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
                 "accountType": "individual",
@@ -699,7 +730,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
-                    "isVerified": account.isVerified,  # Email verification status
+                    "isVerified": account.isVerified,
                     "kycVerified": account.KYCVerified,
                     "profile_data": {
                         "profileType": "AGENCY",
@@ -715,7 +746,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "accountID": account.accountID,
                     "email": account.email,
                     "role": user_role,
-                    "isVerified": account.isVerified,  # Email verification status
+                    "isVerified": account.isVerified,
                     "kycVerified": account.KYCVerified,
                     "profile_data": None,
                     "user_data": {},

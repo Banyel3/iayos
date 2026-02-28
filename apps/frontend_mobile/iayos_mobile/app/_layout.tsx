@@ -1,5 +1,11 @@
 import "react-native-reanimated";
-import React, { useEffect, Component, ErrorInfo, ReactNode, useState } from "react";
+import React, {
+  useEffect,
+  Component,
+  ErrorInfo,
+  ReactNode,
+  useState,
+} from "react";
 import {
   DarkTheme,
   DefaultTheme,
@@ -13,13 +19,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { AppThemeProvider, useTheme } from "@/context/ThemeContext";
 import Toast from "react-native-toast-message";
 
-console.log("[RootLayout] module evaluation start");
+if (__DEV__) {
+  console.log("[RootLayout] module evaluation start");
+}
 // Lazy-loaded update modules — prevents import crash from killing entire app.
 // useAppUpdate imports expo-file-system SDK 54 APIs (Paths, File) and
 // expo-intent-launcher which can fail on certain environments.
@@ -28,14 +37,12 @@ let UpdateRequiredModalComponent: any = null;
 
 try {
   useAppUpdateHook = require("@/lib/hooks/useAppUpdate").useAppUpdate;
-  UpdateRequiredModalComponent = require("@/components/UpdateRequiredModal").UpdateRequiredModal;
-  console.log("[RootLayout] update modules loaded");
+  UpdateRequiredModalComponent =
+    require("@/components/UpdateRequiredModal").UpdateRequiredModal;
+  if (__DEV__) console.log("[RootLayout] update modules loaded");
 } catch (e) {
-  console.warn("[RootLayout] Failed to load update modules:", e);
+  if (__DEV__) console.warn("[RootLayout] Failed to load update modules:", e);
 }
-
-const queryClient = new QueryClient();
-console.log("[RootLayout] query client initialized");
 
 // Prevent splash screen from auto-hiding before app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -62,14 +69,11 @@ if (__DEV__) {
     ) {
       if (type === undefined) {
         // eslint-disable-next-line no-console
-        console.error(
-          "[DEV] React.createElement called with undefined type",
-          {
-            props,
-            childrenCount: children.length,
-            stack: new Error().stack,
-          }
-        );
+        console.error("[DEV] React.createElement called with undefined type", {
+          props,
+          childrenCount: children.length,
+          stack: new Error().stack,
+        });
       }
       return origCreateElement(type, props, ...children);
     } as typeof React.createElement;
@@ -176,10 +180,11 @@ export const unstable_settings = {
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
   const appUpdate = useAppUpdateHook ? useAppUpdateHook() : null;
   const [dismissed, setDismissed] = useState(false);
-  console.log("[RootLayout] AppUpdateWrapper render", {
-    hasUpdateHook: !!useAppUpdateHook,
-    hasModal: !!UpdateRequiredModalComponent,
-  });
+  if (__DEV__)
+    console.log("[RootLayout] AppUpdateWrapper render", {
+      hasUpdateHook: !!useAppUpdateHook,
+      hasModal: !!UpdateRequiredModalComponent,
+    });
 
   // If update modules failed to load, just render children
   if (!appUpdate || !UpdateRequiredModalComponent) {
@@ -211,84 +216,97 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] component render");
-  const colorScheme = useColorScheme();
+  if (__DEV__) console.log("[RootLayout] component render");
+  // Stable QueryClient instance per component lifecycle — not module scope
+  const [queryClient] = useState(() => new QueryClient());
 
   useEffect(() => {
-    console.log("[RootLayout] mount effect start");
+    if (__DEV__) console.log("[RootLayout] mount effect start");
     // Keep Android/iOS system bars consistent with our light background
     SystemUI.setBackgroundColorAsync("transparent").catch((error) => {
-      console.warn("Failed to set system UI background", error);
+      if (__DEV__) console.warn("Failed to set system UI background", error);
     });
 
     // NOTE: SplashScreen.hideAsync() is called in index.tsx AFTER auth state
     // is resolved, preventing the blank flash between splash and content.
-    console.log("[RootLayout] mount effect done (splash hidden by index.tsx)");
+    if (__DEV__)
+      console.log(
+        "[RootLayout] mount effect done (splash hidden by index.tsx)",
+      );
   }, []);
 
   return (
-    <SafeAreaProvider>
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-      <AppUpdateWrapper>
-      <AuthProvider>
-        <NotificationProvider>
-          <PaperProvider>
-            <ThemeProvider
-              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-            >
-              <Stack
-                screenOptions={{
-                  headerShown: false, // Hide default headers globally
-                }}
-              >
-                <Stack.Screen
-                  name="auth/login"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/register"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/select-role"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="messages/[conversationId]"
-                  options={{
-                    headerShown: false,
-                    presentation: "card",
-                    animation: "slide_from_right",
-                  }}
-                />
-                <Stack.Screen
-                  name="notifications/index"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="notifications/settings"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="modal"
-                  options={{ presentation: "modal", title: "Modal" }}
-                />
-              </Stack>
-              <StatusBar
-                style={colorScheme === "dark" ? "light" : "dark"}
-                backgroundColor="transparent"
-                translucent
-              />
-              <Toast />
-            </ThemeProvider>
-          </PaperProvider>
-        </NotificationProvider>
-      </AuthProvider>
-      </AppUpdateWrapper>
-    </QueryClientProvider>
-    </ErrorBoundary>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppThemeProvider>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AppUpdateWrapper>
+              <AuthProvider>
+                <InnerLayout />
+              </AuthProvider>
+            </AppUpdateWrapper>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </AppThemeProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+/**
+ * InnerLayout reads from ThemeContext so the react-navigation ThemeProvider
+ * respects the user's stored preference instead of just the system setting.
+ */
+function InnerLayout() {
+  const { isDarkMode } = useTheme();
+
+  return (
+    <NotificationProvider>
+      <PaperProvider>
+        <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
+          <Stack
+            screenOptions={{
+              headerShown: false, // Hide default headers globally
+            }}
+          >
+            <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="auth/register"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="auth/select-role"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="messages/[conversationId]"
+              options={{
+                headerShown: false,
+                presentation: "card",
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="notifications/index"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="notifications/settings"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="modal"
+              options={{ presentation: "modal", title: "Modal" }}
+            />
+          </Stack>
+          <StatusBar
+            style={isDarkMode ? "light" : "dark"}
+            backgroundColor="transparent"
+            translucent
+          />
+          <Toast />
+        </ThemeProvider>
+      </PaperProvider>
+    </NotificationProvider>
   );
 }

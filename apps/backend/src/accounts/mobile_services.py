@@ -735,6 +735,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             expectedDuration=job_data.get('expected_duration', 'Not specified'),
             urgency=job_data.get('urgency_level', 'MEDIUM'),
             preferredStartDate=datetime.fromisoformat(job_data['preferred_start_date']) if job_data.get('preferred_start_date') else None,
+            scheduled_end_date=datetime.strptime(job_data['scheduled_end_date'], "%Y-%m-%d").date() if job_data.get('scheduled_end_date') else None,
             materialsNeeded=materials_json,
             categoryID=category,
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
@@ -1049,7 +1050,16 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             try:
                 preferred_start_date_obj = datetime.strptime(preferred_start_date_str, "%Y-%m-%d").date()
             except ValueError:
-                return {'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}
+                return {'success': False, 'error': 'Invalid preferred_start_date format. Use YYYY-MM-DD'}
+
+        # Parse scheduled end date
+        scheduled_end_date_obj = None
+        scheduled_end_date_str = job_data.get('scheduled_end_date')
+        if scheduled_end_date_str:
+            try:
+                scheduled_end_date_obj = datetime.strptime(scheduled_end_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return {'success': False, 'error': 'Invalid scheduled_end_date format. Use YYYY-MM-DD'}
         
         # Get client wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -1093,6 +1103,7 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     expectedDuration=job_data.get('expected_duration', 'Not specified'),
                     urgency=job_data.get('urgency_level', 'MEDIUM').upper(),
                     preferredStartDate=preferred_start_date_obj,
+                    scheduled_end_date=scheduled_end_date_obj,
                     materialsNeeded=job_data.get('materials_needed', []),
                     jobType="INVITE",  # INVITE type job
                     inviteStatus="PENDING",  # Waiting for worker/agency response
@@ -3277,7 +3288,9 @@ def submit_review_mobile(
             jobID=job,
             reviewerID=user,
             revieweeID=reviewee,
-            revieweeProfileID=reviewee_profile,  # Profile-specific for proper separation
+            revieweeProfileID=reviewee_profile,   # Profile-specific for proper separation
+            revieweeAgencyID=reviewee_agency,     # Agency-level reviews
+            revieweeEmployeeID=reviewee_employee, # Employee-specific reviews (was missing)
             reviewerType=reviewer_type,
             rating=overall_rating,
             rating_quality=Decimal(str(rating_quality)),
@@ -3300,7 +3313,7 @@ def submit_review_mobile(
                 'reviewer_id': user.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': reviewee.accountID,
+                'reviewee_id': reviewee.accountID if reviewee else None,
                 'reviewer_type': reviewer_type,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3377,14 +3390,26 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
 
         # Format reviews
         review_list = []
+        # Prefetch job IDs that have a backjob dispute (efficient single query)
+        review_job_ids = [r.jobID_id for r in reviews]
+        from .models import JobDispute
+        backjob_job_ids = set(
+            JobDispute.objects.filter(
+                jobID_id__in=review_job_ids,
+                status__in=['IN_NEGOTIATION', 'UNDER_REVIEW', 'RESOLVED']
+            ).values_list('jobID_id', flat=True)
+        )
         for review in reviews:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
 
-            # Check if can edit (within 24 hours)
-            can_edit = False
-            if (timezone.now() - review.createdAt) <= timedelta(hours=24):
-                can_edit = True
+            # Check if can edit (within 24 hours or within backjob edit deadline)
+            now = timezone.now()
+            within_24h = (now - review.createdAt) <= timedelta(hours=24)
+            within_backjob_window = (
+                review.backjob_edit_deadline is not None and now < review.backjob_edit_deadline
+            )
+            can_edit = within_24h or within_backjob_window
 
             review_list.append({
                 'review_id': review.reviewID,
@@ -3402,6 +3427,8 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                'backjob_edit_deadline': review.backjob_edit_deadline.isoformat() if review.backjob_edit_deadline else None,
+                'has_backjob': review.jobID_id in backjob_job_ids,
                 # Multi-criteria category ratings (default 0 for old reviews)
                 'rating_quality': float(review.rating_quality or 0),
                 'rating_communication': float(review.rating_communication or 0),
@@ -3686,15 +3713,29 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
         return {'success': False, 'error': f'Failed to fetch review stats: {str(e)}'}
 
 
-def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str) -> Dict[str, Any]:
+def edit_review_mobile(
+    user: Accounts,
+    review_id: int,
+    rating: int,
+    comment: str,
+    rating_quality: int = None,
+    rating_communication: int = None,
+    rating_punctuality: int = None,
+    rating_professionalism: int = None,
+) -> Dict[str, Any]:
     """
-    Edit an existing review (only allowed within 24 hours)
+    Edit an existing review.
+    Allowed within 24 hours of creation OR within backjob_edit_deadline (7 days post-resolution).
 
     Args:
         user: Current authenticated user
         review_id: ID of the review to edit
-        rating: New rating (1-5)
+        rating: New overall rating (1-5)
         comment: New comment text
+        rating_quality: Optional quality sub-rating (1-5)
+        rating_communication: Optional communication sub-rating (1-5)
+        rating_punctuality: Optional punctuality sub-rating (1-5)
+        rating_professionalism: Optional professionalism sub-rating (1-5)
 
     Returns:
         Updated review data or error
@@ -3710,25 +3751,49 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
         if review.reviewerID.accountID != user.accountID:
             return {'success': False, 'error': 'You can only edit your own reviews'}
 
-        # Check 24-hour window
-        time_since_creation = timezone.now() - review.createdAt
-        if time_since_creation > timedelta(hours=24):
+        # Check edit window: 24h from creation OR backjob edit deadline
+        now = timezone.now()
+        within_24h = (now - review.createdAt) <= timedelta(hours=24)
+        within_backjob_window = (
+            review.backjob_edit_deadline is not None and now < review.backjob_edit_deadline
+        )
+        if not within_24h and not within_backjob_window:
+            if review.backjob_edit_deadline is not None:
+                return {'success': False, 'error': 'Edit window has expired (7-day backjob review period ended)'}
             return {'success': False, 'error': 'Can only edit reviews within 24 hours of creation'}
 
-        # Validate rating
+        # Validate overall rating
         if rating < 1 or rating > 5:
             return {'success': False, 'error': 'Rating must be between 1 and 5'}
 
-        # Update review
+        # Validate optional sub-ratings
+        for field_name, value in [
+            ('rating_quality', rating_quality),
+            ('rating_communication', rating_communication),
+            ('rating_punctuality', rating_punctuality),
+            ('rating_professionalism', rating_professionalism),
+        ]:
+            if value is not None and (value < 1 or value > 5):
+                return {'success': False, 'error': f'{field_name} must be between 1 and 5'}
+
+        # Update review fields
         review.rating = Decimal(str(rating))
         review.comment = comment.strip()
+        if rating_quality is not None:
+            review.rating_quality = Decimal(str(rating_quality))
+        if rating_communication is not None:
+            review.rating_communication = Decimal(str(rating_communication))
+        if rating_punctuality is not None:
+            review.rating_punctuality = Decimal(str(rating_punctuality))
+        if rating_professionalism is not None:
+            review.rating_professionalism = Decimal(str(rating_professionalism))
         review.save()
 
-        # Format response - use helper function to get name (handles agencies too)
+        # Format response
         profile_type = getattr(user, 'profile_type', None)
         reviewer_name, reviewer_img = get_reviewer_info(user, profile_type)
 
-        can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
+        can_edit = within_24h or within_backjob_window
 
         return {
             'success': True,
@@ -3741,6 +3806,10 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
                 'reviewee_id': review.revieweeID.accountID,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
+                'rating_quality': float(review.rating_quality) if review.rating_quality else None,
+                'rating_communication': float(review.rating_communication) if review.rating_communication else None,
+                'rating_punctuality': float(review.rating_punctuality) if review.rating_punctuality else None,
+                'rating_professionalism': float(review.rating_professionalism) if review.rating_professionalism else None,
                 'comment': review.comment,
                 'status': review.status,
                 'is_flagged': review.isFlagged,
@@ -3748,6 +3817,7 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                'backjob_edit_deadline': review.backjob_edit_deadline.isoformat() if review.backjob_edit_deadline else None,
             }
         }
 

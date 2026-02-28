@@ -15,7 +15,7 @@ import { Colors, BorderRadius } from "@/constants/theme";
 
 export default function AboutScreen() {
   const openWebsite = () => {
-    Linking.openURL("https://iayos.ph");
+    Linking.openURL("https://devante.online");
   };
 
   const openEmail = (email: string) => {
@@ -182,38 +182,16 @@ export default function AboutScreen() {
         <Section title="Get in Touch">
           <ContactButton
             icon="mail-outline"
-            label="Email Support"
-            value="support@iayos.ph"
-            onPress={() => openEmail("support@iayos.ph")}
-          />
-          <ContactButton
-            icon="chatbubble-ellipses-outline"
-            label="General Inquiries"
-            value="hello@iayos.ph"
-            onPress={() => openEmail("hello@iayos.ph")}
-          />
-          <ContactButton
-            icon="briefcase-outline"
-            label="Business Partnerships"
-            value="partnerships@iayos.ph"
-            onPress={() => openEmail("partnerships@iayos.ph")}
+            label="Contact Us"
+            value="devante.software@gmail.com"
+            onPress={() => openEmail("devante.software@gmail.com")}
           />
           <ContactButton
             icon="globe-outline"
             label="Visit Our Website"
-            value="iayos.ph"
+            value="devante.online"
             onPress={openWebsite}
           />
-        </Section>
-
-        {/* Social Media */}
-        <Section title="Follow Us">
-          <View style={styles.socialContainer}>
-            <SocialButton icon="logo-facebook" label="Facebook" />
-            <SocialButton icon="logo-instagram" label="Instagram" />
-            <SocialButton icon="logo-twitter" label="Twitter" />
-            <SocialButton icon="logo-tiktok" label="TikTok" />
-          </View>
         </Section>
 
         {/* Legal Links */}
@@ -357,15 +335,6 @@ function ContactButton({
         <Text style={styles.contactValue}>{value}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
-    </TouchableOpacity>
-  );
-}
-
-function SocialButton({ icon, label }: { icon: string; label: string }) {
-  return (
-    <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>
-      <Ionicons name={icon as any} size={24} color={Colors.primary} />
-      <Text style={styles.socialLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -616,29 +585,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     color: Colors.primary,
-  },
-  socialContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  socialButton: {
-    flex: 1,
-    minWidth: "45%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.md,
-    padding: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  socialLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: Colors.textPrimary,
   },
   legalLink: {
     flexDirection: "row",

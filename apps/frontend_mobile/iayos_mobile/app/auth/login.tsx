@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../context/AuthContext";
@@ -29,21 +29,29 @@ import { Ionicons } from "@expo/vector-icons";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { Image } from "react-native";
+import * as Haptics from "expo-haptics";
+import { useBiometricAuth } from "@/lib/hooks/useBiometricAuth";
+import {
+  saveBiometricCredentials,
+  getBiometricCredentials,
+  hasBiometricCredentials,
+} from "@/lib/utils/biometricCredentials";
 
 // Required for auth session redirect to complete properly
 WebBrowser.maybeCompleteAuthSession();
 
 // Fallback ensures client_id is never empty even if the env var isn't injected by EAS
-const GOOGLE_WEB_CLIENT_ID =
-  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-  "206806083752-1kg56bt2t73c60lh794hr3pubrb175bs.apps.googleusercontent.com";
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isBiometricReady, setIsBiometricReady] = useState(false);
   const { login, googleSignIn, user } = useAuth();
+  const { checkAvailability, authenticate, biometricLabel } =
+    useBiometricAuth();
   const router = useRouter();
 
   // Google OAuth - uses authorization code flow (auto-exchanged for tokens)
@@ -100,28 +108,31 @@ export default function LoginScreen() {
   const lastFocusedRef = useRef<any>(null);
 
   // Redirect authenticated users away from login screen
-  // Only redirect if user exists AND there's a valid token in AsyncStorage
+  // Only redirect if user exists AND there's a valid token in SecureStore
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
-      // Check if there's a token in AsyncStorage
-      const token = await AsyncStorage.getItem("access_token");
+      // Check if there's a token in SecureStore
+      const token = await getAccessToken();
 
       if (!token) {
         // No token = definitely not authenticated, stay on login
-        console.log("🔀 [LOGIN] No token found, staying on login screen");
+        if (__DEV__)
+          console.log("🔀 [LOGIN] No token found, staying on login screen");
         return;
       }
 
       // Token exists, check user state
       if (user?.profile_data?.profileType) {
-        console.log(
-          "🔀 [LOGIN] User already authenticated, redirecting to tabs",
-        );
+        if (__DEV__)
+          console.log(
+            "🔀 [LOGIN] User already authenticated, redirecting to tabs",
+          );
         router.replace("/(tabs)");
       } else if (user && !user.profile_data?.profileType) {
-        console.log(
-          "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
-        );
+        if (__DEV__)
+          console.log(
+            "🔀 [LOGIN] User authenticated but no profile type, redirecting to role selection",
+          );
         router.replace("/auth/select-role");
       }
     };
@@ -149,15 +160,36 @@ export default function LoginScreen() {
     };
   }, []);
 
+  // Check if biometric login is available on mount
+  useEffect(() => {
+    const checkBiometric = async () => {
+      const { isAvailable, isEnrolled } = await checkAvailability();
+      if (isAvailable && isEnrolled) {
+        const hasCredentials = await hasBiometricCredentials();
+        setIsBiometricReady(hasCredentials);
+      }
+    };
+    checkBiometric();
+  }, []);
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
       const userData = await login(email, password);
+      // Silently save credentials for future biometric login
+      try {
+        const { isAvailable, isEnrolled } = await checkAvailability();
+        if (isAvailable && isEnrolled) {
+          await saveBiometricCredentials(email.trim().toLowerCase(), password);
+          setIsBiometricReady(true);
+        }
+      } catch {}
       // Check profileType immediately from returned data
       if (!userData?.profile_data?.profileType) {
         router.replace("/auth/select-role");
@@ -166,6 +198,33 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       Alert.alert("Error", error.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const credentials = await getBiometricCredentials();
+    if (!credentials) {
+      Alert.alert(
+        "Not Set Up",
+        "Log in with your email first to enable biometric login.",
+      );
+      return;
+    }
+    const success = await authenticate(`Login as ${credentials.email}`);
+    if (!success) return;
+    setIsLoading(true);
+    try {
+      const userData = await login(credentials.email, credentials.password);
+      if (!userData?.profile_data?.profileType) {
+        router.replace("/auth/select-role");
+      } else {
+        router.replace("/(tabs)");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Biometric login failed");
     } finally {
       setIsLoading(false);
     }
@@ -271,6 +330,31 @@ export default function LoginScreen() {
             >
               Login
             </Button>
+
+            {/* Biometric Login Button */}
+            {isBiometricReady && (
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                disabled={isLoading || isGoogleLoading}
+                activeOpacity={0.7}
+                testID="login-biometric-button"
+              >
+                <Ionicons
+                  name={
+                    biometricLabel === "Face ID"
+                      ? "scan-outline"
+                      : "finger-print-outline"
+                  }
+                  size={22}
+                  color={Colors.primary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <Text style={styles.biometricButtonText}>
+                  Login with {biometricLabel}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* OR Divider */}
             <View style={styles.dividerContainer}>
@@ -432,5 +516,21 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  biometricButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    height: 52,
+  },
+  biometricButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 });

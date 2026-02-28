@@ -1,213 +1,256 @@
 "use client";
 
-import {
-  useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api/config";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { toast } from "sonner";
-import {
-  ArrowLeft,
-  AlertTriangle,
-  User,
-  Briefcase,
-  Calendar,
-  MessageSquare,
-  FileText,
-  CheckCircle,
-  XCircle,
-  Clock,
-  AlertCircle,
-  Loader2,
-  ImageIcon,
-  History,
-  PlayCircle,
-  CheckCircle2,
+  ArrowLeft, AlertTriangle, CheckCircle, Clock, XCircle, MessageSquare,
+  Send, User, DollarSign, FileText, Shield, ChevronRight, Calendar, RefreshCw,
+  Image,
 } from "lucide-react";
 import Link from "next/link";
 
-interface ActivityLog {
-  id: number;
-  old_status: string | null;
-  new_status: string;
-  changed_by: string;
-  notes: string | null;
-  created_at: string;
-  is_backjob_event: boolean;
-}
-
-interface BackjobWorkflow {
-  backjob_started: boolean;
-  backjob_started_at: string | null;
-  worker_marked_complete: boolean;
-  worker_marked_complete_at: string | null;
-  client_confirmed: boolean;
-  client_confirmed_at: string | null;
-}
-
-interface JobDispute {
+interface DisputeDetail {
   id: string;
-  jobId: string;
-  jobTitle: string;
-  category: string;
-  disputedBy: "client" | "worker";
-  client: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-  };
-  worker: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-  };
+  dispute_id: number;
+  job_id: string;
+  job_title: string;
+  category: string | null;
+  disputed_by: string;
+  client: { id: string; name: string };
+  worker: { id: string; name: string } | null;
+  agency: { id: string; name: string } | null;
   reason: string;
   description: string;
-  openedDate: string;
-  status: "open" | "under_review" | "resolved" | "closed";
+  opened_date: string;
+  updated_at: string;
+  status: "open" | "in_negotiation" | "under_review" | "resolved" | "closed";
   priority: "low" | "medium" | "high" | "critical";
-  jobAmount: number;
-  disputedAmount: number;
-  resolution?: string;
-  resolvedDate?: string;
-  evidence: {
-    type: string;
-    description: string;
-    submittedBy: string;
-    submittedDate: string;
-  }[];
-  evidenceImages: string[];
-  messages: {
-    id: string;
-    sender: string;
-    role: string;
-    message: string;
-    timestamp: string;
-  }[];
-  timeline: {
-    event: string;
-    description: string;
-    timestamp: string;
-  }[];
-  assignedTo?: string;
-  activityLogs?: ActivityLog[];
-  backjobWorkflow?: BackjobWorkflow;
+  job_amount: number;
+  disputed_amount: number;
+  resolution: string | null;
+  resolved_date: string | null;
+  in_negotiation_at: string | null;
+  admin_rejection_reason: string | null;
+  conversation_id: number | null;
+  evidence: { id: number; image_url: string; description: string | null; uploaded_at: string }[];
+  backjob_started: boolean;
+  worker_marked_complete: boolean;
+  client_confirmed: boolean;
 }
 
-export default function DisputeDetailPage() {
+interface ChatMessage {
+  id: number;
+  text: string;
+  sender_type: "profile" | "agency" | "admin" | "system";
+  sender_name: string;
+  created_at: string;
+}
+
+function getStatusBadge(status: string) {
+  switch (status) {
+    case "open":
+      return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">\u23f3 Pending Review</Badge>;
+    case "in_negotiation":
+      return <Badge className="bg-purple-100 text-purple-700 border-purple-200">\u2696\ufe0f In Negotiation</Badge>;
+    case "under_review":
+      return <Badge className="bg-blue-100 text-blue-700 border-blue-200">\U0001f50d Under Review</Badge>;
+    case "resolved":
+      return <Badge className="bg-green-100 text-green-700 border-green-200">\u2705 Resolved</Badge>;
+    case "closed":
+      return <Badge className="bg-gray-100 text-gray-700 border-gray-200">\U0001f6ab Closed</Badge>;
+    default:
+      return <Badge className="bg-gray-100 text-gray-600">{status}</Badge>;
+  }
+}
+
+function getPriorityBadge(priority: string) {
+  switch (priority) {
+    case "critical":
+      return <Badge className="bg-red-100 text-red-700 border-red-200">\U0001f534 Critical</Badge>;
+    case "high":
+      return <Badge className="bg-orange-100 text-orange-700 border-orange-200">\U0001f7e0 High</Badge>;
+    case "medium":
+      return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">\U0001f7e1 Medium</Badge>;
+    case "low":
+      return <Badge className="bg-green-100 text-green-700 border-green-200">\U0001f7e2 Low</Badge>;
+    default:
+      return <Badge className="bg-gray-100 text-gray-600">{priority}</Badge>;
+  }
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount);
+}
+
+export default function BackjobDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const mainClass = useMainContentClass();
   const disputeId = params.id as string;
-  const [dispute, setDispute] = useState<JobDispute | null>(null);
+
+  const [dispute, setDispute] = useState<DisputeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
+
   const [actionLoading, setActionLoading] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDisputeDetail();
-  }, [disputeId]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatMessage, setChatMessage] = useState("");
+  const [sendingChat, setSendingChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchDisputeDetail = async () => {
-    setLoading(true);
-    setError(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const fetchDispute = useCallback(async () => {
     try {
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/transactions/disputes/${disputeId}`,
-        { credentials: "include" },
-      );
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Authentication required. Please log in again.");
-        } else if (response.status === 404) {
-          setError("Dispute not found.");
-        } else {
-          setError(`Failed to fetch dispute: ${response.status}`);
-        }
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.dispute) {
-        // Transform backend response to frontend interface
-        const d = data.dispute;
-        setDispute({
-          id: d.id?.toString() || d.dispute_id?.toString() || disputeId,
-          jobId: d.job?.id?.toString() || d.job_id?.toString() || "",
-          jobTitle: d.job?.title || d.job_title || "Unknown Job",
-          category: d.job?.category || d.category || "General",
-          disputedBy:
-            d.disputed_by?.toLowerCase() === "worker" ? "worker" : "client",
-          client: {
-            id: d.client?.id?.toString() || d.client_id?.toString() || "",
-            name: d.client?.name || d.client_name || "Unknown Client",
-            email: d.client?.email || d.client_email || "",
-            phone: d.client?.phone || d.client_phone || "",
-          },
-          worker: {
-            id: d.worker?.id?.toString() || d.worker_id?.toString() || "",
-            name: d.worker?.name || d.worker_name || "Unknown Worker",
-            email: d.worker?.email || d.worker_email || "",
-            phone: d.worker?.phone || d.worker_phone || "",
-          },
-          reason: d.reason || "Not specified",
-          description: d.description || "",
-          openedDate: d.created_at || d.opened_date || new Date().toISOString(),
-          status: (d.status?.toLowerCase()?.replace(" ", "_") || "open") as any,
-          priority: (d.priority?.toLowerCase() || "medium") as any,
-          jobAmount: d.job_amount || d.job?.budget || 0,
-          disputedAmount: d.disputed_amount || d.job_amount || 0,
-          resolution: d.resolution,
-          resolvedDate: d.resolved_date || d.resolved_at,
-          evidence: d.evidence || [],
-          evidenceImages: d.evidence_images || [],
-          messages: d.messages || [],
-          timeline: d.timeline || [],
-          assignedTo: d.assigned_to || d.worker?.name || "Unassigned",
-          activityLogs: d.activity_logs || [],
-          backjobWorkflow: d.backjob_workflow || null,
-        });
+      const res = await fetch(`${API_BASE}/adminpanel/jobs/disputes/${disputeId}`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDispute(data.dispute);
+        setLoading(false);
       } else {
-        setError(data.error || "Failed to load dispute details.");
+        setError(data.error || "Failed to load dispute");
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error fetching dispute:", err);
-      setError("Failed to load dispute. Please try again.");
-    } finally {
+    } catch {
+      setError("Network error loading dispute");
       setLoading(false);
     }
+  }, [disputeId]);
+
+  useEffect(() => { fetchDispute(); }, [fetchDispute]);
+
+  const fetchMessages = useCallback(async (convId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/adminpanel/conversations/${convId}/messages`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.success && data.messages) setMessages(data.messages);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (dispute?.status === "in_negotiation" && dispute.conversation_id) {
+      const convId = dispute.conversation_id;
+      fetchMessages(convId);
+      pollRef.current = setInterval(() => fetchMessages(convId), 5000);
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [dispute?.status, dispute?.conversation_id, fetchMessages]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleAcceptNegotiation = async () => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/adminpanel/jobs/disputes/${dispute!.dispute_id}/accept-negotiation`,
+        { method: "POST", credentials: "include" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg("Dispute moved to negotiation. Admin chat is now open.");
+        fetchDispute();
+      } else {
+        alert(data.error || "Failed to accept negotiation");
+      }
+    } catch { alert("Network error"); }
+    finally { setActionLoading(false); }
   };
 
-  const mainClass = useMainContentClass("p-6 bg-gray-50 min-h-screen");
+  const handleApproveBackjob = async () => {
+    if (!confirm("Approve this backjob? Both parties will be notified.")) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/adminpanel/jobs/disputes/${dispute!.dispute_id}/approve-backjob`,
+        { method: "POST", credentials: "include" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg("Backjob approved. Both parties have been notified.");
+        fetchDispute();
+      } else {
+        alert(data.error || "Failed to approve backjob");
+      }
+    } catch { alert("Network error"); }
+    finally { setActionLoading(false); }
+  };
+
+  const handleRejectSubmit = async () => {
+    setRejectError("");
+    if (rejectReason.trim().length < 10) {
+      setRejectError("Reason must be at least 10 characters.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/adminpanel/jobs/disputes/${dispute!.dispute_id}/reject-backjob`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: rejectReason }),
+        }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setShowRejectModal(false);
+        setRejectReason("");
+        setSuccessMsg("Backjob request rejected. The client has been notified.");
+        fetchDispute();
+      } else {
+        setRejectError(data.error || "Failed to reject");
+      }
+    } catch { setRejectError("Network error"); }
+    finally { setActionLoading(false); }
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!chatMessage.trim() || !dispute?.conversation_id) return;
+    setSendingChat(true);
+    const text = chatMessage.trim();
+    setChatMessage("");
+    try {
+      await fetch(`${API_BASE}/adminpanel/conversations/${dispute.conversation_id}/send-message`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      fetchMessages(dispute.conversation_id);
+    } catch { alert("Failed to send message"); }
+    finally { setSendingChat(false); }
+  };
 
   if (loading) {
     return (
-      <div>
+      <div className="min-h-screen">
         <Sidebar />
         <main className={mainClass}>
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="flex flex-col items-center space-y-4">
-              <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
-              <p className="text-muted-foreground">
-                Loading dispute details...
-              </p>
-            </div>
+          <div className="flex items-center justify-center h-64">
+            <RefreshCw className="h-8 w-8 text-orange-500 animate-spin" />
           </div>
         </main>
       </div>
@@ -216,841 +259,518 @@ export default function DisputeDetailPage() {
 
   if (error || !dispute) {
     return (
-      <div>
+      <div className="min-h-screen">
         <Sidebar />
         <main className={mainClass}>
-          <div className="max-w-7xl mx-auto">
-            <Card>
-              <CardContent className="p-12 text-center">
-                <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  {error || "Dispute Not Found"}
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  The requested dispute could not be loaded.
-                </p>
-                <Link href="/admin/jobs/backjobs">
-                  <Button>
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Disputes
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+          <div className="text-center py-16">
+            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-3" />
+            <p className="text-red-600 font-medium">{error || "Dispute not found"}</p>
+            <Button className="mt-4" onClick={() => router.back()}>Back</Button>
           </div>
         </main>
       </div>
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "open":
-        return "bg-red-100 text-red-800";
-      case "under_review":
-        return "bg-yellow-100 text-yellow-800";
-      case "resolved":
-        return "bg-green-100 text-green-800";
-      case "closed":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "critical":
-        return "bg-red-600 text-white";
-      case "high":
-        return "bg-orange-600 text-white";
-      case "medium":
-        return "bg-yellow-600 text-white";
-      case "low":
-        return "bg-blue-600 text-white";
-      default:
-        return "bg-gray-600 text-white";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "open":
-        return <AlertCircle className="h-4 w-4" />;
-      case "under_review":
-        return <Clock className="h-4 w-4" />;
-      case "resolved":
-        return <CheckCircle className="h-4 w-4" />;
-      case "closed":
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return <AlertTriangle className="h-4 w-4" />;
-    }
-  };
+  const isOpen = dispute.status === "open";
+  const isNegotiating = dispute.status === "in_negotiation";
+  const isFinished = ["resolved", "closed"].includes(dispute.status);
 
   return (
-    <div>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50">
       <Sidebar />
-      <main className={mainClass}>
-        <div className="max-w-7xl mx-auto">
-          {/* Back Button */}
-          <div className="mb-6">
-            <Link href="/admin/jobs/backjobs">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Backjobs
-              </Button>
-            </Link>
-          </div>
 
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <AlertTriangle className="h-8 w-8 text-red-600" />
+      <main className={`${mainClass} p-6 space-y-6`}>
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1 text-gray-500 hover:text-orange-600 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Backjobs
+          </button>
+          <ChevronRight className="h-4 w-4 text-gray-300" />
+          <span className="text-gray-700 font-medium">{dispute.id}</span>
+        </div>
+
+        {successMsg && (
+          <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 font-medium flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 flex-shrink-0" />
+            {successMsg}
+          </div>
+        )}
+
+        <Card className="border-0 shadow-xl overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500" />
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row md:items-start gap-4 justify-between">
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {dispute.jobTitle}
-                </h1>
-                <p className="text-gray-600 mt-1">Dispute ID: {dispute.id}</p>
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  {getStatusBadge(dispute.status)}
+                  {getPriorityBadge(dispute.priority)}
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">{dispute.job_title}</h1>
+                <p className="text-gray-500 text-sm">{dispute.id} &middot; Opened {fmtDate(dispute.opened_date)}</p>
+                {dispute.in_negotiation_at && (
+                  <p className="text-purple-600 text-sm mt-1">
+                    Negotiation started {fmtDate(dispute.in_negotiation_at)}
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-3 py-1 text-sm font-medium rounded-full flex items-center gap-2 ${getStatusColor(
-                    dispute.status,
-                  )}`}
-                >
-                  {getStatusIcon(dispute.status)}
-                  {dispute.status.replace("_", " ").toUpperCase()}
-                </span>
-                <span
-                  className={`px-3 py-1 text-sm font-bold rounded ${getPriorityColor(
-                    dispute.priority,
-                  )}`}
-                >
-                  {dispute.priority.toUpperCase()} PRIORITY
-                </span>
+              <div className="flex flex-wrap gap-3">
+                <div className="bg-orange-50 rounded-xl px-4 py-2 text-center min-w-[100px]">
+                  <p className="text-xs text-gray-500">Job Amount</p>
+                  <p className="font-bold text-orange-600">{formatCurrency(dispute.job_amount)}</p>
+                </div>
+                {dispute.disputed_amount > 0 && (
+                  <div className="bg-red-50 rounded-xl px-4 py-2 text-center min-w-[100px]">
+                    <p className="text-xs text-gray-500">Disputed</p>
+                    <p className="font-bold text-red-600">{formatCurrency(dispute.disputed_amount)}</p>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Main Details */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Dispute Overview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    Dispute Overview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="h-5 w-5 text-orange-500" />
+                  Dispute Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Reason</p>
+                  <p className="text-gray-800 font-medium">{dispute.reason}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Description</p>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{dispute.description}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-2">
                   <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">
-                      Reason
-                    </p>
-                    <p className="text-lg font-semibold text-red-600">
-                      {dispute.reason}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Disputed By</p>
+                    <p className="capitalize font-medium text-gray-800">
+                      {dispute.disputed_by === "client" ? "Client" : "Worker"}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">
-                      Description
-                    </p>
-                    <p className="text-gray-700">{dispute.description}</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                  {dispute.category && (
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Job Amount</p>
-                      <p className="text-xl font-bold text-gray-900">
-                        ${dispute.jobAmount}
-                      </p>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Category</p>
+                      <p className="font-medium text-gray-800">{dispute.category}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">
-                        Disputed Amount
-                      </p>
-                      <p className="text-xl font-bold text-red-600">
-                        ${dispute.disputedAmount}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">Category</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {dispute.category}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Parties Involved */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Parties Involved
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-8">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Client</p>
-                        <Link
-                          href={`/admin/users/clients/${dispute.client.id}`}
-                          className="font-semibold text-blue-600 hover:underline"
-                        >
-                          {dispute.client.name}
-                        </Link>
-                      </div>
-                      <span className="text-gray-400">→</span>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Worker</p>
-                        <Link
-                          href={`/admin/users/workers/${dispute.worker.id}`}
-                          className="font-semibold text-blue-600 hover:underline"
-                        >
-                          {dispute.worker.name}
-                        </Link>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500 mb-1">Disputed by</p>
-                      <p className="font-semibold text-gray-900 capitalize">
-                        {dispute.disputedBy}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Evidence */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-purple-600" />
-                    Evidence Submitted
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {/* Evidence Images */}
-                  {dispute.evidenceImages &&
-                    dispute.evidenceImages.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-sm font-medium text-gray-500 mb-2">
-                          <ImageIcon className="h-4 w-4 inline mr-1" />
-                          Photos ({dispute.evidenceImages.length})
-                        </p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {dispute.evidenceImages.map((imageUrl, index) => (
-                            <a
-                              key={index}
-                              href={imageUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all bg-gray-100"
-                            >
-                              <img
-                                src={imageUrl}
-                                alt={`Evidence ${index + 1}`}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = "none";
-                                  target.parentElement!.innerHTML = `
-                                    <div class="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                                      <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                      </svg>
-                                      <span class="text-xs">Image unavailable</span>
-                                    </div>
-                                  `;
-                                }}
-                              />
-                            </a>
-                          ))}
+                  )}
+                </div>
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Backjob Progress</p>
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    {[
+                      { label: "Started", done: dispute.backjob_started },
+                      { label: "Worker Done", done: dispute.worker_marked_complete },
+                      { label: "Client Confirmed", done: dispute.client_confirmed },
+                    ].map((step, i, arr) => (
+                      <div key={step.label} className="flex items-center gap-2">
+                        <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                          step.done ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
+                        }`}>
+                          {step.done
+                            ? <CheckCircle className="h-3 w-3" />
+                            : <Clock className="h-3 w-3" />}
+                          {step.label}
                         </div>
+                        {i < arr.length - 1 && <ChevronRight className="h-3 w-3 text-gray-300" />}
                       </div>
+                    ))}
+                  </div>
+                </div>
+                {dispute.resolution && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Resolution</p>
+                    <p className="text-gray-700">{dispute.resolution}</p>
+                    {dispute.resolved_date && (
+                      <p className="text-xs text-gray-400 mt-1">{fmtDate(dispute.resolved_date)}</p>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                  {/* Text Evidence */}
-                  <div className="space-y-2">
-                    {dispute.evidence.map((evidence, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
+            {dispute.evidence.length > 0 && (
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Image className="h-5 w-5 text-orange-500" />
+                    Evidence ({dispute.evidence.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {dispute.evidence.map((ev) => (
+                      <button
+                        key={ev.id}
+                        onClick={() => setLightboxUrl(ev.image_url)}
+                        className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square focus:outline-none focus:ring-2 focus:ring-orange-400"
                       >
-                        <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {evidence.description}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Submitted by {evidence.submittedBy.split(" (")[0]}
-                          </p>
-                        </div>
-                      </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={ev.image_url}
+                          alt={ev.description || `Evidence ${ev.id}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        {ev.description && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 truncate">
+                            {ev.description}
+                          </div>
+                        )}
+                      </button>
                     ))}
                   </div>
                 </CardContent>
               </Card>
+            )}
 
-              {/* Resolution Chat */}
-              {dispute.status === "resolved" && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-blue-600" />
-                      Resolution Discussion
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {dispute.messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`p-3 rounded-lg border ${
-                            message.role === "Staff"
-                              ? "bg-blue-50 border-blue-200"
-                              : message.role === "Client"
-                                ? "bg-gray-50 border-gray-200"
-                                : "bg-green-50 border-green-200"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-xs font-bold ${
-                                  message.role === "Staff"
-                                    ? "text-blue-700"
-                                    : message.role === "Client"
-                                      ? "text-gray-700"
-                                      : "text-green-700"
-                                }`}
-                              >
-                                {message.sender}
-                              </span>
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded ${
-                                  message.role === "Staff"
-                                    ? "bg-blue-200 text-blue-800"
-                                    : message.role === "Client"
-                                      ? "bg-gray-200 text-gray-800"
-                                      : "bg-green-200 text-green-800"
-                                }`}
-                              >
-                                {message.role}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-400">
-                              {new Date(message.timestamp).toLocaleDateString()}{" "}
-                              {new Date(message.timestamp).toLocaleTimeString(
-                                [],
-                                { hour: "2-digit", minute: "2-digit" },
-                              )}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-700 leading-relaxed">
-                            {message.message}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Resolution Summary */}
-              {dispute.status === "resolved" && dispute.resolution && (
-                <Card className="border-green-200 bg-green-50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-green-900">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      Resolution Summary
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-800 mb-3">
-                      {dispute.resolution}
-                    </p>
-                    <div className="pt-3 border-t border-green-200">
-                      <p className="text-xs text-green-700 font-medium">
-                        Dispute Resolved •{" "}
-                        {new Date(dispute.resolvedDate!).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Backjob Workflow Progress */}
-              {dispute.status === "under_review" && dispute.backjobWorkflow && (
-                <Card className="border-orange-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-orange-900">
-                      <PlayCircle className="h-5 w-5 text-orange-600" />
-                      Backjob Workflow Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Step 1: Client confirms work started */}
-                      <div
-                        className={`flex items-start gap-3 p-3 rounded-lg border ${
-                          dispute.backjobWorkflow.backjob_started
-                            ? "bg-green-50 border-green-200"
-                            : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <div
-                          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                            dispute.backjobWorkflow.backjob_started
-                              ? "bg-green-500 text-white"
-                              : "bg-gray-300 text-gray-600"
-                          }`}
-                        >
-                          {dispute.backjobWorkflow.backjob_started ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <span className="text-xs font-bold">1</span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p
-                            className={`text-sm font-medium ${
-                              dispute.backjobWorkflow.backjob_started
-                                ? "text-green-800"
-                                : "text-gray-600"
-                            }`}
-                          >
-                            Client Confirms Work Started
-                          </p>
-                          {dispute.backjobWorkflow.backjob_started_at && (
-                            <p className="text-xs text-green-600 mt-1">
-                              ✓{" "}
-                              {new Date(
-                                dispute.backjobWorkflow.backjob_started_at,
-                              ).toLocaleString()}
-                            </p>
-                          )}
-                          {!dispute.backjobWorkflow.backjob_started && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Waiting for client...
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Step 2: Worker marks complete */}
-                      <div
-                        className={`flex items-start gap-3 p-3 rounded-lg border ${
-                          dispute.backjobWorkflow.worker_marked_complete
-                            ? "bg-green-50 border-green-200"
-                            : dispute.backjobWorkflow.backjob_started
-                              ? "bg-yellow-50 border-yellow-200"
-                              : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <div
-                          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                            dispute.backjobWorkflow.worker_marked_complete
-                              ? "bg-green-500 text-white"
-                              : dispute.backjobWorkflow.backjob_started
-                                ? "bg-yellow-500 text-white"
-                                : "bg-gray-300 text-gray-600"
-                          }`}
-                        >
-                          {dispute.backjobWorkflow.worker_marked_complete ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <span className="text-xs font-bold">2</span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p
-                            className={`text-sm font-medium ${
-                              dispute.backjobWorkflow.worker_marked_complete
-                                ? "text-green-800"
-                                : dispute.backjobWorkflow.backjob_started
-                                  ? "text-yellow-800"
-                                  : "text-gray-600"
-                            }`}
-                          >
-                            Worker Marks Complete
-                          </p>
-                          {dispute.backjobWorkflow
-                            .worker_marked_complete_at && (
-                            <p className="text-xs text-green-600 mt-1">
-                              ✓{" "}
-                              {new Date(
-                                dispute.backjobWorkflow.worker_marked_complete_at,
-                              ).toLocaleString()}
-                            </p>
-                          )}
-                          {dispute.backjobWorkflow.backjob_started &&
-                            !dispute.backjobWorkflow.worker_marked_complete && (
-                              <p className="text-xs text-yellow-600 mt-1">
-                                ⏳ In progress...
-                              </p>
-                            )}
-                          {!dispute.backjobWorkflow.backjob_started && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Pending step 1
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Step 3: Client confirms completion */}
-                      <div
-                        className={`flex items-start gap-3 p-3 rounded-lg border ${
-                          dispute.backjobWorkflow.client_confirmed
-                            ? "bg-green-50 border-green-200"
-                            : dispute.backjobWorkflow.worker_marked_complete
-                              ? "bg-yellow-50 border-yellow-200"
-                              : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <div
-                          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                            dispute.backjobWorkflow.client_confirmed
-                              ? "bg-green-500 text-white"
-                              : dispute.backjobWorkflow.worker_marked_complete
-                                ? "bg-yellow-500 text-white"
-                                : "bg-gray-300 text-gray-600"
-                          }`}
-                        >
-                          {dispute.backjobWorkflow.client_confirmed ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <span className="text-xs font-bold">3</span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p
-                            className={`text-sm font-medium ${
-                              dispute.backjobWorkflow.client_confirmed
-                                ? "text-green-800"
-                                : dispute.backjobWorkflow.worker_marked_complete
-                                  ? "text-yellow-800"
-                                  : "text-gray-600"
-                            }`}
-                          >
-                            Client Confirms Completion
-                          </p>
-                          {dispute.backjobWorkflow.client_confirmed_at && (
-                            <p className="text-xs text-green-600 mt-1">
-                              ✓{" "}
-                              {new Date(
-                                dispute.backjobWorkflow.client_confirmed_at,
-                              ).toLocaleString()}
-                            </p>
-                          )}
-                          {dispute.backjobWorkflow.worker_marked_complete &&
-                            !dispute.backjobWorkflow.client_confirmed && (
-                              <p className="text-xs text-yellow-600 mt-1">
-                                ⏳ Waiting for client approval...
-                              </p>
-                            )}
-                          {!dispute.backjobWorkflow.worker_marked_complete && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Pending step 2
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Activity Log */}
-              {dispute.activityLogs && dispute.activityLogs.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <History className="h-5 w-5 text-indigo-600" />
-                      Activity Log
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                      {dispute.activityLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className={`p-3 rounded-lg border ${
-                            log.is_backjob_event
-                              ? "bg-orange-50 border-orange-200"
-                              : "bg-gray-50 border-gray-200"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded font-medium ${
-                                  log.is_backjob_event
-                                    ? "bg-orange-200 text-orange-800"
-                                    : "bg-gray-200 text-gray-700"
-                                }`}
-                              >
-                                {log.new_status.replace(/_/g, " ")}
-                              </span>
-                              {log.old_status &&
-                                log.old_status !== log.new_status && (
-                                  <span className="text-xs text-gray-400">
-                                    from {log.old_status.replace(/_/g, " ")}
-                                  </span>
-                                )}
-                            </div>
-                            <span className="text-xs text-gray-400">
-                              {new Date(log.created_at).toLocaleString()}
-                            </span>
-                          </div>
-                          {log.notes && (
-                            <p className="text-sm text-gray-700 mt-1">
-                              {log.notes}
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-1">
-                            By: {log.changed_by}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Right Column - Sidebar Info */}
-            <div className="space-y-6">
-              {/* Quick Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Dispute Information</CardTitle>
+            {isNegotiating && dispute.conversation_id && (
+              <Card className="border-0 shadow-xl">
+                <CardHeader className="pb-3 border-b border-gray-100">
+                  <CardTitle className="flex items-center gap-2 text-lg text-purple-700">
+                    <MessageSquare className="h-5 w-5 text-purple-500" />
+                    Negotiation Chat
+                    <span className="ml-auto text-xs font-normal text-gray-400 flex items-center gap-1">
+                      <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse" />
+                      Live
+                    </span>
+                  </CardTitle>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Visible to client, worker, and admin. Auto-refreshes every 5 seconds.
+                  </p>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Job ID</p>
-                    <Link
-                      href={`/admin/jobs/listings/${dispute.jobId}`}
-                      className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
+                <CardContent className="p-0 flex flex-col" style={{ height: "420px" }}>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {messages.length === 0 ? (
+                      <div className="text-center text-gray-400 text-sm py-8">
+                        <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                        No messages yet. Start the negotiation below.
+                      </div>
+                    ) : (
+                      messages.map((msg) => {
+                        if (msg.sender_type === "system") {
+                          return (
+                            <div key={msg.id} className="text-center">
+                              <span className="inline-block bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full italic">
+                                {msg.text}
+                              </span>
+                            </div>
+                          );
+                        }
+                        const isAdmin = msg.sender_type === "admin";
+                        return (
+                          <div key={msg.id} className={`flex gap-2 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                              isAdmin ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"
+                            }`}>
+                              {isAdmin ? <Shield className="h-4 w-4" /> : msg.sender_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className={`max-w-[75%] flex flex-col gap-1 ${isAdmin ? "items-end" : "items-start"}`}>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-semibold ${isAdmin ? "text-purple-600" : "text-gray-600"}`}>
+                                  {isAdmin ? "Admin" : msg.sender_name}
+                                </span>
+                                <span className="text-xs text-gray-400">{fmtDate(msg.created_at)}</span>
+                              </div>
+                              <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
+                                isAdmin
+                                  ? "bg-purple-600 text-white rounded-tr-sm"
+                                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
+                              }`}>
+                                {msg.text}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <div className="border-t border-gray-100 p-3 flex gap-2 items-end">
+                    <Textarea
+                      placeholder="Type a message as Admin (Enter to send, Shift+Enter for new line)"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChatMessage(); }
+                      }}
+                      className="flex-1 min-h-[60px] max-h-[120px] resize-none rounded-xl border-gray-200 text-sm"
+                    />
+                    <Button
+                      onClick={handleSendChatMessage}
+                      disabled={sendingChat || !chatMessage.trim()}
+                      className="bg-purple-600 hover:bg-purple-700 text-white h-10 px-4 rounded-xl"
                     >
-                      {dispute.jobId}
-                      <span className="text-xs">
-                        #{dispute.jobId.split("-")[1]}
-                      </span>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <User className="h-4 w-4 text-orange-500" />
+                  Parties Involved
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
+                  <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                    {dispute.client.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-400">Client</p>
+                    <p className="font-semibold text-gray-800 truncate">{dispute.client.name}</p>
+                  </div>
+                  <Link href={`/admin/users/clients/${dispute.client.id}`}>
+                    <Badge className="bg-blue-100 text-blue-600 hover:bg-blue-200 cursor-pointer text-xs">View</Badge>
+                  </Link>
+                </div>
+                {dispute.worker && (
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                    <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm">
+                      {dispute.worker.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400">Worker</p>
+                      <p className="font-semibold text-gray-800 truncate">{dispute.worker.name}</p>
+                    </div>
+                    <Link href={`/admin/users/workers/${dispute.worker.id}`}>
+                      <Badge className="bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer text-xs">View</Badge>
                     </Link>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Category</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {dispute.category}
-                    </p>
+                )}
+                {dispute.agency && (
+                  <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
+                    <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm">
+                      {dispute.agency.name?.charAt(0) ?? "A"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400">Agency</p>
+                      <p className="font-semibold text-gray-800 truncate">{dispute.agency.name}</p>
+                    </div>
+                    <Link href={`/admin/users/agencies/${dispute.agency.id}`}>
+                      <Badge className="bg-amber-100 text-amber-600 hover:bg-amber-200 cursor-pointer text-xs">View</Badge>
+                    </Link>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Opened</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(dispute.openedDate).toLocaleDateString()}
-                    </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Calendar className="h-4 w-4 text-orange-500" />
+                  Timeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Opened</span>
+                    <span className="text-gray-800 font-medium">{fmtDate(dispute.opened_date)}</span>
                   </div>
-                  {dispute.resolvedDate && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Resolved</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {new Date(dispute.resolvedDate).toLocaleDateString()}
-                      </p>
+                  {dispute.in_negotiation_at && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-purple-500">Negotiation</span>
+                      <span className="text-purple-700 font-medium">{fmtDate(dispute.in_negotiation_at)}</span>
                     </div>
                   )}
-                  {dispute.assignedTo && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Assigned To</p>
-                      <p className="text-sm font-medium text-blue-600">
-                        {dispute.assignedTo}
-                      </p>
+                  {dispute.resolved_date && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-green-500">Resolved</span>
+                      <span className="text-green-700 font-medium">{fmtDate(dispute.resolved_date)}</span>
                     </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                    <span className="text-gray-400">Last updated</span>
+                    <span className="text-gray-600 text-xs">{fmtDate(dispute.updated_at)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {!isFinished && (
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Shield className="h-4 w-4 text-orange-500" />
+                    Admin Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {isOpen && (
+                    <>
+                      <Button
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        disabled={actionLoading}
+                        onClick={handleAcceptNegotiation}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Accept for Negotiation
+                      </Button>
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        disabled={actionLoading}
+                        onClick={handleApproveBackjob}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve Directly
+                      </Button>
+                      <Button
+                        className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
+                        disabled={actionLoading}
+                        onClick={() => setShowRejectModal(true)}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject Request
+                      </Button>
+                    </>
+                  )}
+                  {isNegotiating && (
+                    <>
+                      <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-600">
+                        Negotiation in progress. Use the chat to communicate with the parties.
+                      </div>
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        disabled={actionLoading}
+                        onClick={handleApproveBackjob}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve Backjob
+                      </Button>
+                      <Button
+                        className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
+                        disabled={actionLoading}
+                        onClick={() => setShowRejectModal(true)}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject &amp; Close
+                      </Button>
+                    </>
+                  )}
+                  {dispute.status === "under_review" && (
+                    <>
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-600">
+                        This dispute is under review.
+                      </div>
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        disabled={actionLoading}
+                        onClick={handleApproveBackjob}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve Backjob
+                      </Button>
+                    </>
                   )}
                 </CardContent>
               </Card>
+            )}
 
-              {/* Action Buttons */}
-              {(dispute.status === "open" ||
-                dispute.status === "under_review") && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {dispute.status === "open" && (
+            {isFinished && (
+              <Card className="border-0 shadow-lg">
+                <CardContent className="p-4">
+                  <div className={`p-4 rounded-xl text-center ${
+                    dispute.status === "resolved"
+                      ? "bg-green-50 border border-green-200 text-green-600"
+                      : "bg-gray-50 border border-gray-200 text-gray-500"
+                  }`}>
+                    {dispute.status === "resolved" ? (
                       <>
-                        <Button
-                          className="w-full bg-green-600 hover:bg-green-700 text-white"
-                          disabled={actionLoading}
-                          onClick={() => setApproveDialogOpen(true)}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Approve Backjob
-                        </Button>
-                        <Button
-                          className="w-full bg-red-600 hover:bg-red-700 text-white"
-                          disabled={actionLoading}
-                          onClick={() => {
-                            setRejectReason("");
-                            setRejectDialogOpen(true);
-                          }}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Reject Backjob
-                        </Button>
+                        <CheckCircle className="h-8 w-8 mx-auto mb-2" />
+                        <p className="font-semibold">Backjob Resolved</p>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-8 w-8 mx-auto mb-2" />
+                        <p className="font-semibold">Request Closed</p>
+                        {dispute.admin_rejection_reason && (
+                          <p className="text-xs mt-1 opacity-70">{dispute.admin_rejection_reason}</p>
+                        )}
                       </>
                     )}
-                    {dispute.status === "under_review" && (
-                      <div className="text-center py-2">
-                        <p className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded-lg">
-                          ⏳ Waiting for worker/agency to complete the backjob
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Approve Confirmation Dialog */}
-              <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      Approve Backjob Request
-                    </DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to approve this backjob request? The worker/agency will be notified and assigned to redo the work.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter className="gap-2 sm:gap-0">
-                    <Button
-                      variant="outline"
-                      disabled={actionLoading}
-                      onClick={() => setApproveDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        setActionLoading(true);
-                        try {
-                          const res = await fetch(
-                            `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/approve-backjob`,
-                            {
-                              method: "POST",
-                              credentials: "include",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ priority: dispute.priority }),
-                            },
-                          );
-                          const data = await res.json();
-                          if (data.success) {
-                            toast.success("Backjob approved! Worker/agency has been notified.");
-                            setApproveDialogOpen(false);
-                            fetchDisputeDetail();
-                          } else {
-                            toast.error(data.error || "Failed to approve backjob");
-                          }
-                        } catch (err) {
-                          toast.error("Error approving backjob. Please try again.");
-                        } finally {
-                          setActionLoading(false);
-                        }
-                      }}
-                    >
-                      {actionLoading ? (
-                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Approving...</>
-                      ) : (
-                        <><CheckCircle className="h-4 w-4 mr-2" /> Confirm Approve</>
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              {/* Reject Dialog with Reason Input */}
-              <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <XCircle className="h-5 w-5 text-red-600" />
-                      Reject Backjob Request
-                    </DialogTitle>
-                    <DialogDescription>
-                      Please provide a reason for rejecting this backjob request. The client will be notified with your reason.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="py-2">
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Rejection Reason</label>
-                    <textarea
-                      className="w-full min-h-[100px] p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-y"
-                      placeholder="Enter the reason for rejection (min 10 characters)..."
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                    />
-                    <p className="text-xs text-gray-400 mt-1">{rejectReason.length}/500 characters</p>
                   </div>
-                  <DialogFooter className="gap-2 sm:gap-0">
-                    <Button
-                      variant="outline"
-                      disabled={actionLoading}
-                      onClick={() => setRejectDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                      disabled={actionLoading || rejectReason.trim().length < 10}
-                      onClick={async () => {
-                        setActionLoading(true);
-                        try {
-                          const res = await fetch(
-                            `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/reject-backjob`,
-                            {
-                              method: "POST",
-                              credentials: "include",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ reason: rejectReason.trim() }),
-                            },
-                          );
-                          const data = await res.json();
-                          if (data.success) {
-                            toast.success("Backjob rejected. Client has been notified.");
-                            setRejectDialogOpen(false);
-                            setRejectReason("");
-                            fetchDisputeDetail();
-                          } else {
-                            toast.error(data.error || "Failed to reject backjob");
-                          }
-                        } catch (err) {
-                          toast.error("Error rejecting backjob. Please try again.");
-                        } finally {
-                          setActionLoading(false);
-                        }
-                      }}
-                    >
-                      {actionLoading ? (
-                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Rejecting...</>
-                      ) : (
-                        <><XCircle className="h-4 w-4 mr-2" /> Confirm Reject</>
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </main>
+
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Reject Backjob Request</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Provide a clear reason. The client will be notified.
+            </p>
+            <Textarea
+              placeholder="Reason for rejection (minimum 10 characters)"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              className="w-full min-h-[100px] rounded-xl border-gray-200 text-sm mb-2"
+            />
+            <div className="flex justify-between items-center mb-4">
+              <span className={`text-xs ${rejectReason.length < 10 ? "text-red-400" : "text-green-500"}`}>
+                {rejectReason.length} / 10 min characters
+              </span>
+              {rejectError && <span className="text-xs text-red-500">{rejectError}</span>}
+            </div>
+            <div className="flex gap-3">
+              <Button
+                className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200"
+                disabled={actionLoading}
+                onClick={() => { setShowRejectModal(false); setRejectReason(""); setRejectError(""); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 text-white hover:bg-red-700"
+                disabled={actionLoading || rejectReason.trim().length < 10}
+                onClick={handleRejectSubmit}
+              >
+                {actionLoading ? "Rejecting..." : "Confirm Reject"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setLightboxUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxUrl}
+            alt="Evidence"
+            className="max-w-full max-h-full rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full h-9 w-9 flex items-center justify-center text-lg font-bold"
+          >
+            x
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface TicketData {
   id: string;
@@ -107,8 +108,14 @@ const CATEGORY_CONFIG: Record<string, { color: string }> = {
 };
 
 const TICKET_TYPE_CONFIG = {
-  individual: { label: "Individual", color: "bg-gray-100 text-gray-700 border-gray-200" },
-  agency: { label: "Agency", color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
+  individual: {
+    label: "Individual",
+    color: "bg-gray-100 text-gray-700 border-gray-200",
+  },
+  agency: {
+    label: "Agency",
+    color: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  },
 };
 
 export default function SupportTicketsPage() {
@@ -166,7 +173,8 @@ export default function SupportTicketsPage() {
       if (assignedFilter !== "all")
         params.append("assigned_to", assignedFilter);
       if (searchTerm) params.append("search", searchTerm);
-      if (ticketTypeFilter !== "all") params.append("ticket_type", ticketTypeFilter);
+      if (ticketTypeFilter !== "all")
+        params.append("ticket_type", ticketTypeFilter);
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets?${params.toString()}`,
@@ -191,11 +199,27 @@ export default function SupportTicketsPage() {
           (t) => t.status === "resolved" && isToday(t.last_reply_at),
         ).length;
 
+        const resolvedWithTimes = ticketsArray.filter(
+          (t) => t.status === "resolved" && t.last_reply_at && t.created_at,
+        );
+        const avgResponseTime =
+          resolvedWithTimes.length > 0
+            ? Math.round(
+                (resolvedWithTimes.reduce((sum, t) => {
+                  const created = new Date(t.created_at).getTime();
+                  const replied = new Date(t.last_reply_at).getTime();
+                  return sum + Math.max(0, (replied - created) / 3600000);
+                }, 0) /
+                  resolvedWithTimes.length) *
+                  10,
+              ) / 10
+            : 0;
+
         setStats({
           open: openCount,
           in_progress: inProgressCount,
           resolved_today: resolvedToday,
-          avg_response_time: 3.5, // Mock value
+          avg_response_time: avgResponseTime,
         });
       }
     } catch (error) {
@@ -234,12 +258,16 @@ export default function SupportTicketsPage() {
 
   const handleBulkAssign = () => {
     // TODO: Implement bulk assign modal
-    alert(`Bulk assign ${selectedTickets.length} tickets`);
+    toast.info(`Bulk assign: ${selectedTickets.length} ticket(s) selected`, {
+      description: "Bulk assignment UI coming soon.",
+    });
   };
 
   const handleBulkClose = () => {
     // TODO: Implement bulk close modal
-    alert(`Bulk close ${selectedTickets.length} tickets`);
+    toast.info(`Bulk close: ${selectedTickets.length} ticket(s) selected`, {
+      description: "Bulk close UI coming soon.",
+    });
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -264,7 +292,9 @@ export default function SupportTicketsPage() {
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                       <Ticket className="h-6 w-6 sm:h-8 sm:w-8" />
                     </div>
-                    <h1 className="text-2xl sm:text-4xl font-bold">Support Tickets</h1>
+                    <h1 className="text-2xl sm:text-4xl font-bold">
+                      Support Tickets
+                    </h1>
                   </div>
                   <p className="text-blue-100 text-sm sm:text-lg">
                     Manage customer support tickets and inquiries
@@ -371,7 +401,9 @@ export default function SupportTicketsPage() {
                       className="pl-10 h-10"
                     />
                   </div>
-                  <Button type="submit" className="h-10 px-6 text-white">Search</Button>
+                  <Button type="submit" className="h-10 px-6 text-white">
+                    Search
+                  </Button>
                 </form>
 
                 {/* Status Tabs */}
@@ -397,7 +429,7 @@ export default function SupportTicketsPage() {
                       {status === "all"
                         ? "All"
                         : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-                          ?.label || status}
+                            ?.label || status}
                     </Button>
                   ))}
                 </div>
@@ -519,7 +551,10 @@ export default function SupportTicketsPage() {
                         <input
                           type="checkbox"
                           className="rounded-md border-gray-300 text-blue-600 focus:ring-blue-500"
-                          checked={selectedTickets.length === tickets.length && tickets.length > 0}
+                          checked={
+                            selectedTickets.length === tickets.length &&
+                            tickets.length > 0
+                          }
                           onChange={(e) =>
                             setSelectedTickets(
                               e.target.checked ? tickets.map((t) => t.id) : [],
@@ -527,15 +562,33 @@ export default function SupportTicketsPage() {
                           }
                         />
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">ID</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Type</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Subject</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">User / Agency</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Category</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Priority</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Last Reply</th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">Actions</th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        ID
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Type
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Subject
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        User / Agency
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Category
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Priority
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Last Reply
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -544,7 +597,9 @@ export default function SupportTicketsPage() {
                         <td colSpan={10} className="px-6 py-12 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <RefreshCw className="h-8 w-8 text-blue-500 animate-spin" />
-                            <p className="text-gray-500 font-medium tracking-tight">Syncing tickets...</p>
+                            <p className="text-gray-500 font-medium tracking-tight">
+                              Syncing tickets...
+                            </p>
                           </div>
                         </td>
                       </tr>
@@ -555,8 +610,13 @@ export default function SupportTicketsPage() {
                             <div className="p-4 bg-gray-100 rounded-full">
                               <Inbox className="h-8 w-8 text-gray-400" />
                             </div>
-                            <p className="text-lg font-bold text-gray-900 leading-tight">No tickets match your filters</p>
-                            <p className="text-sm text-gray-500 leading-relaxed font-medium">Try broadening your search criteria or resetting filters to find what you're looking for.</p>
+                            <p className="text-lg font-bold text-gray-900 leading-tight">
+                              No tickets match your filters
+                            </p>
+                            <p className="text-sm text-gray-500 leading-relaxed font-medium">
+                              Try broadening your search criteria or resetting
+                              filters to find what you're looking for.
+                            </p>
                           </div>
                         </td>
                       </tr>
@@ -565,7 +625,9 @@ export default function SupportTicketsPage() {
                         <tr
                           key={ticket.id}
                           className="hover:bg-blue-50/30 cursor-pointer transition-colors group"
-                          onClick={() => router.push(`/admin/support/tickets/${ticket.id}`)}
+                          onClick={() =>
+                            router.push(`/admin/support/tickets/${ticket.id}`)
+                          }
                         >
                           <td className="px-6 py-4">
                             <input
@@ -579,10 +641,16 @@ export default function SupportTicketsPage() {
                               onClick={(e) => e.stopPropagation()}
                             />
                           </td>
-                          <td className="px-6 py-4 text-sm font-black text-gray-400">#{ticket.id}</td>
+                          <td className="px-6 py-4 text-sm font-black text-gray-400">
+                            #{ticket.id}
+                          </td>
                           <td className="px-6 py-4">
-                            <Badge className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-bold px-2 py-0.5`}>
-                              {ticket.ticket_type === "agency" ? "Agency" : "User"}
+                            <Badge
+                              className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-bold px-2 py-0.5`}
+                            >
+                              {ticket.ticket_type === "agency"
+                                ? "Agency"
+                                : "User"}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
@@ -599,26 +667,35 @@ export default function SupportTicketsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">{ticket.user_name}</span>
-                              {ticket.ticket_type === "agency" && ticket.agency_name && (
-                                <span className="text-[10px] text-blue-600 font-bold tracking-tight">
-                                  {ticket.agency_name}
-                                </span>
-                              )}
+                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
+                                {ticket.user_name}
+                              </span>
+                              {ticket.ticket_type === "agency" &&
+                                ticket.agency_name && (
+                                  <span className="text-[10px] text-blue-600 font-bold tracking-tight">
+                                    {ticket.agency_name}
+                                  </span>
+                                )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge className={`${CATEGORY_CONFIG[ticket.category]?.color || "bg-gray-100"} border-0 font-bold px-2 py-0.5`}>
+                            <Badge
+                              className={`${CATEGORY_CONFIG[ticket.category]?.color || "bg-gray-100"} border-0 font-bold px-2 py-0.5`}
+                            >
                               {ticket.category.replace("_", " ")}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-bold px-2 py-0.5`}>
+                            <Badge
+                              className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-bold px-2 py-0.5`}
+                            >
                               {PRIORITY_CONFIG[ticket.priority].label}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge className={`${STATUS_CONFIG[ticket.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit`}>
+                            <Badge
+                              className={`${STATUS_CONFIG[ticket.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit`}
+                            >
                               {(() => {
                                 const Icon = STATUS_CONFIG[ticket.status].icon;
                                 return <Icon className="h-3 w-3" />;
@@ -646,27 +723,41 @@ export default function SupportTicketsPage() {
                 {loading ? (
                   <div className="p-12 text-center">
                     <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3" />
-                    <p className="text-sm font-bold text-gray-500 tracking-tight">Loading ticket database...</p>
+                    <p className="text-sm font-bold text-gray-500 tracking-tight">
+                      Loading ticket database...
+                    </p>
                   </div>
                 ) : tickets.length === 0 ? (
                   <div className="p-12 text-center">
                     <Inbox className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-base font-bold text-gray-900 mb-1">No tickets found</p>
-                    <p className="text-xs text-gray-500 font-medium">Try different filter settings</p>
+                    <p className="text-base font-bold text-gray-900 mb-1">
+                      No tickets found
+                    </p>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Try different filter settings
+                    </p>
                   </div>
                 ) : (
                   tickets.map((ticket) => (
                     <div
                       key={ticket.id}
                       className="p-4 bg-white active:bg-blue-50 transition-colors"
-                      onClick={() => router.push(`/admin/support/tickets/${ticket.id}`)}
+                      onClick={() =>
+                        router.push(`/admin/support/tickets/${ticket.id}`)
+                      }
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">#{ticket.id}</span>
-                            <Badge className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase`}>
-                              {ticket.ticket_type === "agency" ? "Agency" : "User"}
+                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">
+                              #{ticket.id}
+                            </span>
+                            <Badge
+                              className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase`}
+                            >
+                              {ticket.ticket_type === "agency"
+                                ? "Agency"
+                                : "User"}
                             </Badge>
                           </div>
                           <h3 className="text-sm font-bold text-gray-900 leading-tight truncate">
@@ -692,14 +783,18 @@ export default function SupportTicketsPage() {
                             {ticket.user_name}
                           </span>
                         </div>
-                        <Badge className={`${STATUS_CONFIG[ticket.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 flex items-center gap-1 uppercase tracking-wider`}>
+                        <Badge
+                          className={`${STATUS_CONFIG[ticket.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 flex items-center gap-1 uppercase tracking-wider`}
+                        >
                           {(() => {
                             const Icon = STATUS_CONFIG[ticket.status].icon;
                             return <Icon className="h-2.5 w-2.5" />;
                           })()}
                           {STATUS_CONFIG[ticket.status].label}
                         </Badge>
-                        <Badge className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}>
+                        <Badge
+                          className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}
+                        >
                           {PRIORITY_CONFIG[ticket.priority].label}
                         </Badge>
                       </div>

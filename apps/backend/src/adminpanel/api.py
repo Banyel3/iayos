@@ -1070,11 +1070,328 @@ def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None
         return {"success": False, "error": str(e)}
 
 
+@router.get("/jobs/disputes/{dispute_id}", auth=cookie_auth)
+def get_dispute_detail_endpoint(request, dispute_id: int):
+    """
+    Get full details of a single dispute.
+    Returns dispute info, evidence images, and conversation_id.
+    """
+    from accounts.models import JobDispute
+    from profiles.models import Conversation
+    try:
+        dispute = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID',
+            'jobID__clientID__profileID',
+            'jobID__assignedWorkerID',
+            'jobID__assignedWorkerID__profileID',
+            'jobID__assignedAgencyFK',
+            'jobID__categoryID',
+        ).prefetch_related('evidence').get(disputeID=dispute_id)
+
+        job = dispute.jobID
+        client = job.clientID
+        worker = job.assignedWorkerID
+        agency = getattr(job, 'assignedAgencyFK', None)
+
+        # Get most recent conversation for this job
+        conversation = Conversation.objects.filter(
+            relatedJobPosting=job
+        ).order_by('-conversationID').first()
+
+        # Evidence images
+        evidence = [
+            {
+                'id': e.evidenceID,
+                'image_url': e.imageURL,
+                'description': e.description,
+                'uploaded_at': e.createdAt.isoformat(),
+            }
+            for e in dispute.evidence.all()
+        ]
+
+        return {
+            'success': True,
+            'dispute': {
+                'id': f"DISP-{str(dispute.disputeID).zfill(3)}",
+                'dispute_id': dispute.disputeID,
+                'job_id': f"JOB-{str(job.jobID).zfill(3)}",
+                'job_title': job.title,
+                'category': job.categoryID.specializationName if job.categoryID else None,
+                'disputed_by': dispute.disputedBy.lower(),
+                'client': {
+                    'id': str(client.profileID.profileID),
+                    'name': f"{client.profileID.firstName} {client.profileID.lastName}",
+                },
+                'worker': {
+                    'id': str(worker.profileID.profileID) if worker else None,
+                    'name': f"{worker.profileID.firstName} {worker.profileID.lastName}" if worker else "Not Assigned",
+                } if worker else None,
+                'agency': {
+                    'id': str(agency.agencyID) if agency else None,
+                    'name': agency.agencyName if agency else None,
+                } if agency else None,
+                'reason': dispute.reason,
+                'description': dispute.description,
+                'opened_date': dispute.openedDate.isoformat(),
+                'updated_at': dispute.updatedAt.isoformat(),
+                'status': dispute.status.lower(),
+                'priority': dispute.priority.lower(),
+                'job_amount': float(dispute.jobAmount),
+                'disputed_amount': float(dispute.disputedAmount),
+                'resolution': dispute.resolution,
+                'resolved_date': dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                'in_negotiation_at': dispute.in_negotiation_at.isoformat() if dispute.in_negotiation_at else None,
+                'admin_rejection_reason': dispute.adminRejectionReason,
+                'conversation_id': conversation.conversationID if conversation else None,
+                'evidence': evidence,
+                'backjob_started': dispute.backjobStarted,
+                'worker_marked_complete': dispute.workerMarkedBackjobComplete,
+                'client_confirmed': dispute.clientConfirmedBackjob,
+            }
+        }
+    except JobDispute.DoesNotExist:
+        return {"success": False, "error": "Dispute not found"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/jobs/disputes/{dispute_id}/accept-negotiation", auth=cookie_auth)
+def accept_negotiation(request, dispute_id: int):
+    """
+    Admin accepts a backjob request into negotiation.
+    Changes status from OPEN to IN_NEGOTIATION.
+    Opens a 3-party (admin + client + worker) chat inside the existing job conversation.
+    """
+    from accounts.models import JobDispute, Notification, JobLog
+    from profiles.models import Conversation, Message, ConversationParticipant
+    from django.db import transaction
+    from django.utils import timezone
+
+    try:
+        dispute = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__assignedWorkerID__profileID__accountFK',
+            'jobID__assignedAgencyFK__accountFK',
+            'jobID__clientID__profileID__accountFK'
+        ).get(disputeID=dispute_id)
+
+        if dispute.status != 'OPEN':
+            return {"success": False, "error": "Dispute must be OPEN to accept into negotiation"}
+
+        job = dispute.jobID
+
+        with transaction.atomic():
+            # Transition status to IN_NEGOTIATION
+            dispute.status = 'IN_NEGOTIATION'
+            dispute.in_negotiation_at = timezone.now()
+            dispute.save()
+
+            JobLog.objects.create(
+                jobID=job,
+                oldStatus=job.status,
+                newStatus="BACKJOB_NEGO",
+                changedBy=request.auth,
+                notes="Admin accepted backjob into negotiation"
+            )
+
+            log_action(
+                admin=request.auth,
+                action="backjob_accept_negotiation",
+                entity_type="job",
+                entity_id=str(dispute_id),
+                details={"job_id": job.jobID, "job_title": job.title},
+                before_value={"status": "OPEN"},
+                after_value={"status": "IN_NEGOTIATION"},
+                request=request
+            )
+
+            # Reopen or create conversation and add admin as participant
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.ACTIVE
+                conversation.archivedByClient = False
+                conversation.archivedByWorker = False
+                conversation.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
+            else:
+                client_profile = job.clientID.profileID
+                worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                conversation = Conversation.objects.create(
+                    client=client_profile,
+                    worker=worker_profile,
+                    agency=job.assignedAgencyFK,
+                    relatedJobPosting=job,
+                    status=Conversation.ConversationStatus.ACTIVE,
+                )
+
+            # Unarchive so it appears in active tab
+            from profiles.conversation_service import unarchive_conversation
+            unarchive_conversation(conversation)
+
+            # Add admin as participant (idempotent)
+            ConversationParticipant.objects.get_or_create(
+                conversation=conversation,
+                admin_account=request.auth,
+                defaults={'participant_type': 'ADMIN'}
+            )
+
+            # System message to announce negotiation
+            Message.create_system_message(
+                conversation,
+                "⚖️ Negotiation started — an admin has joined this conversation to help resolve the backjob request."
+            )
+
+            # Notify client + worker
+            if job.clientID:
+                Notification.objects.create(
+                    accountFK=job.clientID.profileID.accountFK,
+                    notificationType="BACKJOB_NEGOTIATION",
+                    title="Backjob Negotiation Started",
+                    message=f"An admin has joined the conversation for '{job.title}' to help resolve your backjob request.",
+                    relatedJobID=job.jobID
+                )
+            worker_account = None
+            if job.assignedWorkerID:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+            elif job.assignedAgencyFK:
+                worker_account = job.assignedAgencyFK.accountFK
+            if worker_account:
+                Notification.objects.create(
+                    accountFK=worker_account,
+                    notificationType="BACKJOB_NEGOTIATION",
+                    title="Backjob Negotiation Started",
+                    message=f"An admin has joined the conversation for '{job.title}' to discuss the backjob request.",
+                    relatedJobID=job.jobID
+                )
+
+        return {
+            "success": True,
+            "message": "Backjob accepted into negotiation. Admin chat is now open.",
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "conversation_id": conversation.conversationID
+        }
+
+    except JobDispute.DoesNotExist:
+        return {"success": False, "error": "Dispute not found"}
+    except Exception as e:
+        print(f"❌ Error accepting negotiation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/conversations/{conv_id}/messages", auth=cookie_auth)
+def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_size: int = 50):
+    """
+    Admin: fetch paginated message history for a conversation (for backjob negotiation panel).
+    """
+    from profiles.models import Conversation, Message
+
+    try:
+        conversation = Conversation.objects.get(conversationID=conv_id)
+    except Conversation.DoesNotExist:
+        return {"success": False, "error": "Conversation not found"}
+
+    messages_qs = Message.objects.filter(conversationID=conversation).select_related(
+        'sender', 'senderAgency', 'sender_admin'
+    ).order_by('createdAt')
+
+    total = messages_qs.count()
+    offset = (page - 1) * page_size
+    messages_page = messages_qs[offset: offset + page_size]
+
+    def _serialize(msg):
+        if msg.sender:
+            sender_type = 'profile'
+            sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
+            sender_id = msg.sender.profileID
+        elif msg.senderAgency:
+            sender_type = 'agency'
+            sender_name = msg.senderAgency.businessName
+            sender_id = msg.senderAgency.agencyID
+        elif msg.sender_admin:
+            sender_type = 'admin'
+            sender_name = f"Admin ({msg.sender_admin.email})"
+            sender_id = msg.sender_admin.accountID
+        else:
+            sender_type = 'system'
+            sender_name = None
+            sender_id = None
+        return {
+            "id": msg.messageID,
+            "text": msg.messageText,
+            "type": msg.messageType,
+            "sender_type": sender_type,
+            "sender_name": sender_name,
+            "sender_id": sender_id,
+            "created_at": msg.createdAt.isoformat(),
+        }
+
+    return {
+        "success": True,
+        "conversation_id": conv_id,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "messages": [_serialize(m) for m in messages_page]
+    }
+
+
+@router.post("/conversations/{conv_id}/send-message", auth=cookie_auth)
+def admin_send_message(request, conv_id: int):
+    """
+    Admin sends a message into a conversation (for backjob negotiation).
+    """
+    from profiles.models import Conversation, Message
+
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        text = (body.get('text') or '').strip()
+        if not text:
+            return {"success": False, "error": "Message text is required"}
+
+        try:
+            conversation = Conversation.objects.get(conversationID=conv_id)
+        except Conversation.DoesNotExist:
+            return {"success": False, "error": "Conversation not found"}
+
+        msg = Message.objects.create(
+            conversationID=conversation,
+            sender=None,
+            senderAgency=None,
+            sender_admin=request.auth,
+            messageText=text,
+            messageType=Message.MessageType.TEXT,
+        )
+
+        return {
+            "success": True,
+            "message": {
+                "id": msg.messageID,
+                "text": msg.messageText,
+                "type": msg.messageType,
+                "sender_type": "admin",
+                "sender_name": f"Admin ({request.auth.email})",
+                "created_at": msg.createdAt.isoformat(),
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ Error sending admin message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 @router.post("/jobs/disputes/{dispute_id}/approve-backjob", auth=cookie_auth)
 def approve_backjob(request, dispute_id: int):
     """
     Admin approves a backjob request.
-    Changes status from OPEN to UNDER_REVIEW and notifies the worker/agency.
+    Changes status from OPEN or IN_NEGOTIATION to UNDER_REVIEW and notifies the worker/agency.
+    If coming from IN_NEGOTIATION, removes the admin ConversationParticipant and posts a sign-off message.
     """
     from accounts.models import JobDispute, Notification, Agency, JobLog
     
@@ -1090,7 +1407,7 @@ def approve_backjob(request, dispute_id: int):
             'jobID__clientID__profileID__accountFK'
         ).get(disputeID=dispute_id)
         
-        if dispute.status != 'OPEN':
+        if dispute.status not in ('OPEN', 'IN_NEGOTIATION'):
             return {"success": False, "error": "This backjob has already been processed"}
         
         # Store before state for audit
@@ -1213,6 +1530,20 @@ def approve_backjob(request, dispute_id: int):
                 from profiles.conversation_service import unarchive_conversation
                 unarchive_result = unarchive_conversation(conversation)
                 print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+
+                # If transitioning from IN_NEGOTIATION, remove admin participant and post sign-off
+                if before_state["status"] == "IN_NEGOTIATION":
+                    from profiles.models import ConversationParticipant
+                    deleted_count, _ = ConversationParticipant.objects.filter(
+                        conversation=conversation,
+                        admin_account=request.auth,
+                        participant_type='ADMIN'
+                    ).delete()
+                    print(f"🚪 Removed {deleted_count} admin participant(s) from conversation {conversation.conversationID}")
+                    Message.create_system_message(
+                        conversation,
+                        "✅ Negotiation complete — admin has left the conversation. Backjob is now approved and in progress."
+                    )
         
         except Exception as e:
             print(f"❌ Error managing conversation for backjob: {str(e)}")

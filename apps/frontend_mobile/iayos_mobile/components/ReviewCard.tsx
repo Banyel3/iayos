@@ -52,7 +52,7 @@ function CategoryRatingRow({
           name={i <= rating ? "star" : "star-outline"}
           size={12}
           color={i <= rating ? "#FFB800" : Colors.border}
-        />
+        />,
       );
     }
     return <View style={styles.miniStarsContainer}>{stars}</View>;
@@ -83,7 +83,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
           name={i <= rating ? "star" : "star-outline"}
           size={16}
           color={i <= rating ? "#FFB800" : Colors.border}
-        />
+        />,
       );
     }
 
@@ -138,6 +138,11 @@ export function ReviewCard({ review }: ReviewCardProps) {
             {review.reviewer_type}
           </Text>
         </View>
+        {review.has_backjob && (
+          <View style={styles.backjobBadge}>
+            <Text style={styles.backjobBadgeText}>🔧 Backjob</Text>
+          </View>
+        )}
       </View>
 
       {/* Review Comment */}
@@ -272,6 +277,21 @@ const styles = StyleSheet.create({
   },
   clientText: {
     color: "#2E7D32",
+  },
+  workerText: {
+    color: "#1565C0",
+  },
+  backjobBadge: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 4,
+  },
+  backjobBadgeText: {
+    color: "#D97706",
+    fontSize: 11,
+    fontWeight: "600",
   },
   workerText: {
     color: "#1565C0",

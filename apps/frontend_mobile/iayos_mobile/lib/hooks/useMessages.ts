@@ -28,6 +28,7 @@ export type Message = {
   is_read: boolean;
   created_at: string;
   is_mine: boolean;
+  sender_type?: "profile" | "agency" | "admin" | "system";
   message_id?: number;
   attachments?: MessageAttachment[];
 };
@@ -88,7 +89,12 @@ export type ConversationDetail = {
     daily_rate?: number;
     duration_days?: number;
     // Materials purchasing workflow
-    materials_status?: "NONE" | "PENDING_PURCHASE" | "BUYING" | "PURCHASED" | "APPROVED";
+    materials_status?:
+      | "NONE"
+      | "PENDING_PURCHASE"
+      | "BUYING"
+      | "PURCHASED"
+      | "APPROVED";
     materials_cost?: number;
   };
   other_participant: {
@@ -158,7 +164,13 @@ export type ConversationDetail = {
     has_backjob: boolean;
     dispute_id?: number;
     reason?: string;
-    status?: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED";
+    status?:
+      | "OPEN"
+      | "IN_NEGOTIATION"
+      | "UNDER_REVIEW"
+      | "APPROVED"
+      | "REJECTED"
+      | "COMPLETED";
     backjob_started?: boolean;
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;
@@ -223,15 +235,15 @@ export function useMessages(conversationId: number) {
         ...data,
         other_participant: data.other_participant
           ? {
-            ...data.other_participant,
-            avatar: getAbsoluteMediaUrl(data.other_participant.avatar) || "",
-          }
+              ...data.other_participant,
+              avatar: getAbsoluteMediaUrl(data.other_participant.avatar) || "",
+            }
           : null,
         assigned_employee: data.assigned_employee
           ? {
-            ...data.assigned_employee,
-            avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar) || "",
-          }
+              ...data.assigned_employee,
+              avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar) || "",
+            }
           : null,
         assigned_employees: data.assigned_employees?.map((emp: any) => ({
           ...emp,
@@ -257,7 +269,7 @@ export function useMessages(conversationId: number) {
       };
     },
     enabled: !!conversationId,
-    staleTime: 5000, // 5 seconds - consider data fresh for 5s
+    staleTime: 0, // Always refetch on window focus (critical for job status sync)
     refetchInterval: 3000, // Poll every 3 seconds as fallback for WebSocket
     refetchOnWindowFocus: true,
     refetchOnMount: true,

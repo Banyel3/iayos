@@ -27,6 +27,7 @@ import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
 import { Colors, Typography, Spacing } from "@/constants/theme";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
+import { useAuth } from "@/context/AuthContext";
 
 import NotificationCard from "@/components/Notifications/NotificationCard";
 import {
@@ -36,11 +37,15 @@ import {
   useDeleteNotification,
   Notification,
 } from "@/lib/hooks/useNotifications";
+import Swipeable from "react-native-gesture-handler/Swipeable";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function NotificationsScreen() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
   const routerHook = useRouter(); // For safe back navigation
+  const { user } = useAuth();
+  const profileType = user?.profile_data?.profileType ?? undefined;
 
   // Fetch notifications based on filter
   const {
@@ -50,7 +55,7 @@ export default function NotificationsScreen() {
     error,
     refetch,
     isRefetching,
-  } = useNotifications(50, filter === "unread");
+  } = useNotifications(50, filter === "unread", profileType);
 
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
@@ -71,10 +76,15 @@ export default function NotificationsScreen() {
         router.push(`/jobs/${notification.relatedJobID}` as any);
       } else if (notification.relatedApplicationID) {
         router.push(
-          `/applications/${notification.relatedApplicationID}` as any
+          `/applications/${notification.relatedApplicationID}` as any,
         );
       } else if (notification.notificationType === "MESSAGE") {
-        router.push("/messages" as any);
+        // Deep-link to specific conversation when ID is available, else open inbox
+        if (notification.relatedConversationID) {
+          router.push(`/messages/${notification.relatedConversationID}` as any);
+        } else {
+          router.push("/messages" as any);
+        }
       } else if (
         notification.notificationType?.includes("KYC") ||
         notification.notificationType?.includes("AGENCY_KYC")
@@ -86,7 +96,7 @@ export default function NotificationsScreen() {
         router.push("/reviews/my-reviews" as any);
       }
     },
-    [markReadMutation]
+    [markReadMutation],
   );
 
   // Mark single notification as read
@@ -102,7 +112,7 @@ export default function NotificationsScreen() {
         },
       });
     },
-    [markReadMutation]
+    [markReadMutation],
   );
 
   // Delete single notification
@@ -118,7 +128,7 @@ export default function NotificationsScreen() {
         },
       });
     },
-    [deleteNotificationMutation]
+    [deleteNotificationMutation],
   );
 
   // Mark all as read
@@ -136,17 +146,36 @@ export default function NotificationsScreen() {
 
   // Render notification item
   const renderNotification = useCallback(
-    ({ item }: { item: Notification }) => (
-      <NotificationCard
-        notification={item}
-        onPress={() => handleNotificationPress(item)}
-        onMarkRead={
-          !item.isRead ? () => handleMarkRead(item.notificationID) : undefined
-        }
-        onDelete={() => handleDelete(item.notificationID)}
-      />
-    ),
-    [handleNotificationPress, handleMarkRead, handleDelete]
+    ({ item }: { item: Notification }) => {
+      const renderRightActions = () => (
+        <TouchableOpacity
+          style={styles.swipeDeleteAction}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            handleDelete(item.notificationID);
+          }}
+        >
+          <Ionicons name="trash-outline" size={22} color={Colors.white} />
+          <Text style={styles.swipeDeleteText}>Delete</Text>
+        </TouchableOpacity>
+      );
+
+      return (
+        <Swipeable renderRightActions={renderRightActions}>
+          <NotificationCard
+            notification={item}
+            onPress={() => handleNotificationPress(item)}
+            onMarkRead={
+              !item.isRead
+                ? () => handleMarkRead(item.notificationID)
+                : undefined
+            }
+            onDelete={() => handleDelete(item.notificationID)}
+          />
+        </Swipeable>
+      );
+    },
+    [handleNotificationPress, handleMarkRead, handleDelete],
   );
 
   // Empty state
@@ -443,5 +472,18 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: Colors.primary,
+  },
+  swipeDeleteAction: {
+    backgroundColor: Colors.error,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    marginVertical: 2,
+  },
+  swipeDeleteText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
   },
 });

@@ -162,7 +162,7 @@ export default function KycGateClient({
                   {submissionFiles.map((f, i) => (
                     <li key={i} className="flex items-center justify-between">
                       <span className="truncate">
-                        {f.file_name || f.fileName || f.fileName}
+                        {f.file_name || f.fileName}
                       </span>
                       {f.file_url || f.fileURL ? (
                         <a

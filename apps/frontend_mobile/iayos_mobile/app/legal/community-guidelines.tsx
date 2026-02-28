@@ -39,7 +39,7 @@ export default function CommunityGuidelinesScreen() {
             color={Colors.textSecondary}
           />
           <Text style={styles.lastUpdatedText}>
-            Last updated: December 9, 2025
+            Last updated: February 27, 2026
           </Text>
         </View>
 
@@ -235,7 +235,7 @@ export default function CommunityGuidelinesScreen() {
           </Text>
           <DoItem text="Use the in-app report feature on profiles, messages, or jobs" />
           <DoItem text="Provide specific details and evidence when reporting" />
-          <DoItem text="Contact support at support@iayos.ph for urgent matters" />
+          <DoItem text="Contact support at devante.software@gmail.com for urgent matters" />
           <Text style={styles.paragraph}>
             All reports are reviewed by our team. We take violations seriously
             and will take appropriate action, which may include warnings,
@@ -272,9 +272,8 @@ export default function CommunityGuidelinesScreen() {
             If you have questions about these guidelines or need to report a
             violation:
           </Text>
-          <Text style={styles.contactInfo}>Email: community@iayos.ph</Text>
-          <Text style={styles.contactInfo}>Support: support@iayos.ph</Text>
-          <Text style={styles.contactInfo}>Phone: +63 XXX XXX XXXX</Text>
+          <Text style={styles.contactInfo}>Email: devante.software@gmail.com</Text>
+          <Text style={styles.contactInfo}>Website: devante.online</Text>
         </Section>
 
         <View style={styles.acknowledgment}>

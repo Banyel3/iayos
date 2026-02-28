@@ -24,12 +24,13 @@ import {
 } from "../../lib/hooks/useWebSocket";
 import ConversationCard from "../../components/ConversationCard";
 import { Colors, Typography, Spacing } from "../../constants/theme";
+import CalendarFAB from "../../components/CalendarFAB";
 import {
   setupNetworkListener,
   processOfflineQueue,
 } from "../../lib/services/offline-queue";
 
-type FilterType = "all" | "active" | "unread" | "archived";
+type FilterType = "all" | "active" | "unread" | "archived" | "upcoming";
 
 export default function MessagesTabScreen() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,16 +47,16 @@ export default function MessagesTabScreen() {
     const unsubscribe = setupNetworkListener(
       // On online
       async () => {
-        console.log("[Messages Tab] Device back online, processing queue...");
+        if (__DEV__) console.log("[Messages Tab] Device back online, processing queue...");
         await processOfflineQueue(async (message) => {
-          console.log("[Messages Tab] Sending queued message:", message.id);
+          if (__DEV__) console.log("[Messages Tab] Sending queued message:", message.id);
           return true;
         });
         refetch();
       },
       // On offline
       () => {
-        console.log("[Messages Tab] Device offline");
+        if (__DEV__) console.log("[Messages Tab] Device offline");
       }
     );
 
@@ -262,6 +263,7 @@ export default function MessagesTabScreen() {
               .length
           )}
           {renderFilterButton("archived", "Archived")}
+          {renderFilterButton("upcoming", "Upcoming")}
         </View>
       )}
 
@@ -298,6 +300,7 @@ export default function MessagesTabScreen() {
           </Text>
         </View>
       )}
+      <CalendarFAB />
     </SafeAreaView>
   );
 }

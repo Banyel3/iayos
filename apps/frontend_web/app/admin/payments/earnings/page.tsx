@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -130,7 +131,7 @@ export default function WorkerEarningsPage() {
     if (!selectedWorker) return;
 
     if (payoutMethod === "gcash" && !gcashNumber) {
-      alert("Please enter GCash number");
+      toast.error("Please enter GCash number");
       return;
     }
 
@@ -138,13 +139,14 @@ export default function WorkerEarningsPage() {
       payoutMethod === "bank_transfer" &&
       (!bankName || !bankAccount || !bankAccountName)
     ) {
-      alert("Please fill in all bank details");
+      toast.error("Please fill in all bank details");
       return;
     }
 
     if (
       !confirm(
-        `Process payout of ₱${(selectedWorker?.pending_payout ?? 0).toLocaleString()} to ${selectedWorker?.worker_name ?? "worker"
+        `Process payout of ₱${(selectedWorker?.pending_payout ?? 0).toLocaleString()} to ${
+          selectedWorker?.worker_name ?? "worker"
         }?`,
       )
     )
@@ -172,7 +174,7 @@ export default function WorkerEarningsPage() {
 
       if (!response.ok) throw new Error("Failed to process payout");
 
-      alert("Payout processed successfully");
+      toast.success("Payout processed successfully");
       setShowPayoutModal(false);
       setSelectedWorker(null);
       setGcashNumber("");
@@ -183,7 +185,7 @@ export default function WorkerEarningsPage() {
       fetchStatistics();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to process payout");
+      toast.error("Failed to process payout");
     }
   };
 
@@ -221,7 +223,9 @@ export default function WorkerEarningsPage() {
             <div className="relative">
               <div className="flex flex-col sm:flex-row items-center sm:items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                 <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Worker Earnings</h1>
+                <h1 className="text-2xl sm:text-4xl font-bold">
+                  Worker Earnings
+                </h1>
               </div>
               <p className="text-blue-100 text-sm sm:text-lg">
                 Manage payouts and worker earnings
@@ -239,7 +243,9 @@ export default function WorkerEarningsPage() {
                       <Users className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Workers</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">
+                    Workers
+                  </p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
                     {statistics.total_workers}
                   </p>
@@ -253,7 +259,9 @@ export default function WorkerEarningsPage() {
                       <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Pending Payout</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">
+                    Pending Payout
+                  </p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">
                     ₱{(statistics.pending_payouts ?? 0).toLocaleString()}
                   </p>
@@ -267,7 +275,9 @@ export default function WorkerEarningsPage() {
                       <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Total Paid Out</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">
+                    Total Paid Out
+                  </p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">
                     ₱{(statistics.total_payouts ?? 0).toLocaleString()}
                   </p>
@@ -281,7 +291,9 @@ export default function WorkerEarningsPage() {
                       <Banknote className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
                     </div>
                   </div>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">Processed Today</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mb-0.5 sm:mb-1 uppercase font-semibold">
+                    Processed Today
+                  </p>
                   <p className="text-xl sm:text-3xl font-bold text-gray-900">
                     {statistics.this_month_payouts?.count ?? 0}
                   </p>
@@ -293,7 +305,10 @@ export default function WorkerEarningsPage() {
           {/* Search */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
-              <form onSubmit={handleSearch} className="flex items-stretch gap-2">
+              <form
+                onSubmit={handleSearch}
+                className="flex items-stretch gap-2"
+              >
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
@@ -368,11 +383,15 @@ export default function WorkerEarningsPage() {
                             <td className="p-6">
                               <div className="space-y-1">
                                 <p className="text-sm text-gray-600">
-                                  Total: <span className="font-bold">₱{worker.total_earnings.toLocaleString()}</span>
+                                  Total:{" "}
+                                  <span className="font-bold">
+                                    ₱{worker.total_earnings.toLocaleString()}
+                                  </span>
                                 </p>
                                 <div className="flex items-center gap-2">
                                   <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-                                    ₱{worker.pending_payout.toLocaleString()} Pending
+                                    ₱{worker.pending_payout.toLocaleString()}{" "}
+                                    Pending
                                   </Badge>
                                 </div>
                               </div>
@@ -380,12 +399,20 @@ export default function WorkerEarningsPage() {
                             <td className="p-6">
                               <div className="flex gap-4">
                                 <div>
-                                  <p className="text-[10px] text-gray-500 uppercase">Jobs</p>
-                                  <p className="font-semibold text-gray-900">{worker.jobs_completed}</p>
+                                  <p className="text-[10px] text-gray-500 uppercase">
+                                    Jobs
+                                  </p>
+                                  <p className="font-semibold text-gray-900">
+                                    {worker.jobs_completed}
+                                  </p>
                                 </div>
                                 <div>
-                                  <p className="text-[10px] text-gray-500 uppercase">Rating</p>
-                                  <p className="font-semibold text-green-600 text-sm">⭐ {worker.average_rating.toFixed(1)}</p>
+                                  <p className="text-[10px] text-gray-500 uppercase">
+                                    Rating
+                                  </p>
+                                  <p className="font-semibold text-green-600 text-sm">
+                                    ⭐ {worker.average_rating.toFixed(1)}
+                                  </p>
                                 </div>
                               </div>
                             </td>
@@ -420,7 +447,10 @@ export default function WorkerEarningsPage() {
                 </Card>
               ) : (
                 workers.map((worker) => (
-                  <Card key={worker.id} className="border-0 shadow-md overflow-hidden hover:shadow-lg transition-all">
+                  <Card
+                    key={worker.id}
+                    className="border-0 shadow-md overflow-hidden hover:shadow-lg transition-all"
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
@@ -428,8 +458,12 @@ export default function WorkerEarningsPage() {
                             {worker.worker_name.charAt(0)}
                           </div>
                           <div>
-                            <h3 className="font-bold text-gray-900 truncate max-w-[150px]">{worker.worker_name}</h3>
-                            <p className="text-xs text-gray-500 truncate max-w-[150px]">{worker.worker_email}</p>
+                            <h3 className="font-bold text-gray-900 truncate max-w-[150px]">
+                              {worker.worker_name}
+                            </h3>
+                            <p className="text-xs text-gray-500 truncate max-w-[150px]">
+                              {worker.worker_email}
+                            </p>
                           </div>
                         </div>
                         <Badge className="bg-green-100 text-green-700 text-[10px]">
@@ -439,20 +473,36 @@ export default function WorkerEarningsPage() {
 
                       <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gray-50 rounded-xl">
                         <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Pending</p>
-                          <p className="font-bold text-amber-600">₱{worker.pending_payout.toLocaleString()}</p>
+                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">
+                            Pending
+                          </p>
+                          <p className="font-bold text-amber-600">
+                            ₱{worker.pending_payout.toLocaleString()}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Paid</p>
-                          <p className="font-bold text-gray-900">₱{worker.paid_out.toLocaleString()}</p>
+                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">
+                            Paid
+                          </p>
+                          <p className="font-bold text-gray-900">
+                            ₱{worker.paid_out.toLocaleString()}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Total</p>
-                          <p className="font-bold text-gray-900 text-xs">₱{worker.total_earnings.toLocaleString()}</p>
+                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">
+                            Total
+                          </p>
+                          <p className="font-bold text-gray-900 text-xs">
+                            ₱{worker.total_earnings.toLocaleString()}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">Jobs</p>
-                          <p className="font-bold text-gray-900 text-xs">{worker.jobs_completed}</p>
+                          <p className="text-[10px] text-gray-500 uppercase mb-0.5">
+                            Jobs
+                          </p>
+                          <p className="font-bold text-gray-900 text-xs">
+                            {worker.jobs_completed}
+                          </p>
                         </div>
                       </div>
 
@@ -484,7 +534,9 @@ export default function WorkerEarningsPage() {
                   Previous
                 </Button>
                 <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline text-gray-500 text-sm">Page</span>
+                  <span className="hidden sm:inline text-gray-500 text-sm">
+                    Page
+                  </span>
                   <span className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center bg-blue-100 text-blue-700 rounded-lg font-bold text-sm">
                     {page}
                   </span>

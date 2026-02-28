@@ -27,6 +27,7 @@ export interface Review {
   rating_communication?: number; // 0.0 to 5.0
   rating_punctuality?: number; // 0.0 to 5.0
   rating_professionalism?: number; // 0.0 to 5.0
+  has_backjob?: boolean; // True if this job had an approved backjob
 }
 
 export interface RatingBreakdown {

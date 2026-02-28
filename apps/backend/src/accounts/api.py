@@ -71,9 +71,12 @@ def _get_worker_profile(
     """Resolve the worker profile for the authenticated account."""
     print(f"[WORKER_PROFILE] Getting worker profile for account: {account.email}")
     
+    # Filter explicitly by WORKER profile type so that dual-profile accounts
+    # (who also have a CLIENT profile) don't accidentally end up on their
+    # CLIENT profile, which lacks a WorkerProfile relation and causes a 403.
     profile = (
         Profile.objects
-        .filter(accountFK=account)
+        .filter(accountFK=account, profileType='WORKER')
         .select_related("workerprofile")
         .first()
     )

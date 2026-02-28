@@ -226,7 +226,7 @@ export default function JobDetailScreen() {
   const queryClient = useQueryClient();
 
   // Debug logging
-  console.log("[JobDetail] Loaded with id:", id, "typeof:", typeof id);
+  if (__DEV__) console.log("[JobDetail] Loaded with id:", id, "typeof:", typeof id);
 
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -278,7 +278,7 @@ export default function JobDetailScreen() {
     !isNaN(jobId) && jobId > 0 && id !== "create" && id !== "undefined";
 
   // Debug validation
-  console.log(
+  if (__DEV__) console.log(
     "[JobDetail] Parsed jobId:",
     jobId,
     "isValidJobId:",
@@ -297,7 +297,7 @@ export default function JobDetailScreen() {
         console.error("[JobDetail] Query blocked - invalid job ID:", id);
         throw new Error("Invalid job ID");
       }
-      console.log("[JobDetail] Fetching job details for ID:", jobId);
+      if (__DEV__) console.log("[JobDetail] Fetching job details for ID:", jobId);
       const response = await apiRequest(ENDPOINTS.JOB_DETAILS(jobId));
 
       if (!response.ok) {
@@ -308,7 +308,7 @@ export default function JobDetailScreen() {
       const jobData = result.data || result; // Handle both wrapped and unwrapped responses
 
       // Debug: Log team job data from API
-      console.log("[JobDetail] Raw API response:", {
+      if (__DEV__) console.log("[JobDetail] Raw API response:", {
         is_team_job: jobData.is_team_job,
         skill_slots_count: jobData.skill_slots?.length || 0,
         total_workers_needed: jobData.total_workers_needed,
@@ -809,7 +809,7 @@ export default function JobDetailScreen() {
   const isTeamJob = job?.is_team_job === true;
 
   // Debug: Log team job state in render
-  console.log("[JobDetail] Team Job State:", {
+  if (__DEV__) console.log("[JobDetail] Team Job State:", {
     isTeamJob,
     job_is_team_job: job?.is_team_job,
     skill_slots_count: job?.skill_slots?.length || 0,

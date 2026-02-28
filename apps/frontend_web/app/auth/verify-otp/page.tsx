@@ -145,7 +145,8 @@ function VerifyOTPContent() {
     setError("");
 
     try {
-      console.log("🔄 Resending OTP for:", email);
+      if (process.env.NODE_ENV === "development")
+        console.log("🔄 Resending OTP for:", email);
 
       // First, call resend-otp to generate new OTP
       const resendRes = await fetch(`${API_BASE}/api/accounts/resend-otp`, {
@@ -155,7 +156,8 @@ function VerifyOTPContent() {
       });
 
       const resendData = await resendRes.json();
-      console.log("🔄 Resend OTP response:", resendRes.status, resendData);
+      if (process.env.NODE_ENV === "development")
+        console.log("🔄 Resend OTP response:", resendRes.status, resendData);
 
       if (!resendRes.ok) {
         if (resendData.wait_seconds) {
@@ -171,7 +173,8 @@ function VerifyOTPContent() {
       }
 
       // Then send the OTP email
-      console.log("📧 Sending OTP email with code:", resendData.otp_code);
+      if (process.env.NODE_ENV === "development")
+        console.log("📧 Sending OTP email with code:", resendData.otp_code);
       const emailRes = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -183,7 +186,8 @@ function VerifyOTPContent() {
       });
 
       const emailData = await emailRes.json();
-      console.log("📧 Email send response:", emailRes.status, emailData);
+      if (process.env.NODE_ENV === "development")
+        console.log("📧 Email send response:", emailRes.status, emailData);
 
       if (emailRes.ok) {
         setTimeLeft(300); // Reset timer to 5 minutes

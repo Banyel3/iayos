@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { toast } from "sonner";
 
 interface Category {
   id: number;
@@ -123,14 +124,14 @@ export default function JobListingsPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Job deleted successfully");
+        toast.success("Job deleted successfully");
         fetchJobs(); // Refresh the list
       } else {
-        alert(data.error || "Failed to delete job");
+        toast.error(data.error || "Failed to delete job");
       }
     } catch (error) {
       console.error("Error deleting job:", error);
-      alert(getErrorMessage(error, "Failed to delete job"));
+      toast.error(getErrorMessage(error, "Failed to delete job"));
     }
   };
 

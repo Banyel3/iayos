@@ -33,6 +33,27 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { Image } from "react-native";
 import { useBarangays, Barangay } from "@/lib/hooks/useLocations";
+import * as Haptics from "expo-haptics";
+
+function getPasswordStrength(pw: string): {
+  score: number;
+  label: string;
+  color: string;
+} {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const map = [
+    { label: "Weak", color: "#E53E3E" },
+    { label: "Weak", color: "#E53E3E" },
+    { label: "Fair", color: "#D97706" },
+    { label: "Good", color: "#0891B2" },
+    { label: "Strong", color: "#16A34A" },
+  ];
+  return { score, ...map[score] };
+}
 
 const DEFAULT_COUNTRY = "Philippines";
 const DEFAULT_CITY = "Zamboanga City";
@@ -66,6 +87,7 @@ export default function RegisterScreen() {
   const [postalCode, setPostalCode] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
 
@@ -296,6 +318,12 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (!termsAccepted) {
+      Alert.alert("Error", "Please accept the Terms of Service to continue");
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
       const response = await register({
@@ -668,6 +696,33 @@ export default function RegisterScreen() {
               }}
             />
 
+            {/* Password Strength Indicator */}
+            {password.length > 0 &&
+              (() => {
+                const { score, label, color } = getPasswordStrength(password);
+                return (
+                  <View style={styles.strengthContainer}>
+                    <View style={styles.strengthBarRow}>
+                      {[1, 2, 3, 4].map((i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.strengthSegment,
+                            {
+                              backgroundColor:
+                                i <= score ? color : Colors.border,
+                            },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.strengthLabel, { color }]}>
+                      Password strength: {label}
+                    </Text>
+                  </View>
+                );
+              })()}
+
             {/* Confirm Password */}
             <Input
               ref={confirmPasswordRef}
@@ -843,11 +898,41 @@ export default function RegisterScreen() {
               }}
             />
 
+            {/* Terms & Conditions */}
+            <View style={styles.termsContainer}>
+              <TouchableOpacity
+                style={styles.termsCheckboxRow}
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                disabled={isLoading}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    termsAccepted && styles.checkboxChecked,
+                  ]}
+                >
+                  {termsAccepted && (
+                    <Ionicons name="checkmark" size={14} color={Colors.white} />
+                  )}
+                </View>
+                <Text style={styles.termsText}>
+                  I agree to the{" "}
+                  <Text
+                    style={styles.termsLink}
+                    onPress={() => router.push("/legal/terms" as any)}
+                  >
+                    Terms of Service
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Register Button */}
             <Button
               testID="register-submit-button"
               onPress={handleRegister}
-              disabled={isLoading}
+              disabled={isLoading || !termsAccepted}
               loading={isLoading}
               variant="primary"
               size="lg"
@@ -1238,5 +1323,58 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textHint,
     marginTop: Spacing.sm,
+  },
+  // Terms & Conditions Styles
+  termsContainer: {
+    marginVertical: Spacing.lg,
+  },
+  termsCheckboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.white,
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: Colors.primary,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  strengthContainer: {
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingHorizontal: 2,
+  },
+  strengthBarRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginBottom: 4,
+  },
+  strengthSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  strengthLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
   },
 });

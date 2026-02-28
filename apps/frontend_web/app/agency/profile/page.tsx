@@ -1,9 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { API_BASE } from "@/lib/api/config";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import { toast } from "sonner";
@@ -96,6 +107,9 @@ export default function AgencyProfilePage() {
   const [newAccountNumber, setNewAccountNumber] = useState("");
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
+    number | null
+  >(null);
+  const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<
     number | null
   >(null);
 
@@ -251,9 +265,6 @@ export default function AgencyProfilePage() {
   };
 
   const handleDeletePaymentMethod = async (methodId: number) => {
-    if (!confirm("Are you sure you want to remove this payment method?"))
-      return;
-
     try {
       const res = await fetch(
         `${API_BASE}/api/agency/payment-methods/${methodId}`,
@@ -343,10 +354,12 @@ export default function AgencyProfilePage() {
         formData.append("contact_number", editContactNumber.trim());
       }
 
-      console.log("Sending update:", {
-        business_description: editBusinessDesc,
-        contact_number: editContactNumber,
-      });
+      if (process.env.NODE_ENV === "development") {
+        console.log("Sending update:", {
+          business_description: editBusinessDesc,
+          contact_number: editContactNumber,
+        });
+      }
 
       const res = await fetch(`${API_BASE}/api/agency/profile/update`, {
         method: "POST",
@@ -356,7 +369,9 @@ export default function AgencyProfilePage() {
 
       if (res.ok) {
         const data = await res.json();
-        console.log("Update response:", data);
+        if (process.env.NODE_ENV === "development") {
+          console.log("Update response:", data);
+        }
         toast.success("Profile updated successfully");
         setIsEditing(false);
         // Refresh profile data
@@ -806,7 +821,7 @@ export default function AgencyProfilePage() {
                           </Button>
                         )}
                         <Button
-                          onClick={() => handleDeletePaymentMethod(method.id)}
+                          onClick={() => setPendingDeleteMethodId(method.id)}
                           className="bg-red-50 text-red-600 hover:bg-red-100 p-2"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -953,6 +968,14 @@ export default function AgencyProfilePage() {
                       Submitted on {formatDate(profile.kyc_submitted_at)}
                     </span>
                   </div>
+                )}
+                {profile.kyc_status === "REJECTED" && (
+                  <Link
+                    href="/agency/kyc"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  >
+                    Resubmit KYC Documents
+                  </Link>
                 )}
               </CardContent>
             </Card>
@@ -1358,6 +1381,39 @@ export default function AgencyProfilePage() {
           </div>
         </div>
       )}
+      {/* Confirm delete payment method dialog */}
+      <AlertDialog
+        open={pendingDeleteMethodId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteMethodId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this payment method? This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDeleteMethodId(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (pendingDeleteMethodId !== null) {
+                  handleDeletePaymentMethod(pendingDeleteMethodId);
+                  setPendingDeleteMethodId(null);
+                }
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
