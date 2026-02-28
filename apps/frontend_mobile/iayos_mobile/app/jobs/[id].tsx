@@ -502,6 +502,21 @@ export default function JobDetailScreen() {
     },
   });
 
+  const handleViewChat = async () => {
+    try {
+      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
+      const data = await response.json();
+      if (data.success && data.conversation_id) {
+        router.push(`/messages/${data.conversation_id}` as any);
+      } else {
+        Alert.alert("Error", "Could not find conversation for this job.");
+      }
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      Alert.alert("Error", "Failed to connect to chat.");
+    }
+  };
+
   // Delete job mutation (for clients only)
   const deleteJobMutation = useMutation({
     mutationFn: async () => {
@@ -1973,6 +1988,7 @@ export default function JobDetailScreen() {
                       </Text>
                     </View>
                   )}
+                  {job.status !== "IN_PROGRESS" && (
                   <TouchableOpacity
                     style={{
                       flexDirection: 'row',
@@ -1996,6 +2012,7 @@ export default function JobDetailScreen() {
                       Invite Workers
                     </Text>
                   </TouchableOpacity>
+                  )}
                 </View>
               </View>
 
@@ -2110,6 +2127,18 @@ export default function JobDetailScreen() {
                           </View>
                         )}
                       </View>
+
+                      {/* View Chat Button for Accepted Applications */}
+                      {application.status === "ACCEPTED" && !job?.is_team_job && (
+                        <TouchableOpacity
+                          style={[styles.viewChatButton, { marginTop: 8 }]}
+                          onPress={handleViewChat}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="chatbubble-outline" size={18} color={Colors.white} />
+                          <Text style={styles.viewChatButtonText}>View Chat</Text>
+                        </TouchableOpacity>
+                      )}
 
                       {/* Action Buttons */}
                       {application.status === "PENDING" && (
@@ -2499,14 +2528,26 @@ export default function JobDetailScreen() {
           )}
           {hasApplied ? (
             <View style={styles.appliedContainer}>
-              <Ionicons
-                name="checkmark-circle"
-                size={24}
-                color={Colors.success}
-              />
-              <Text style={styles.appliedText}>
-                You have already applied to this job
-              </Text>
+              <View style={styles.appliedRow}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={Colors.success}
+                />
+                <Text style={styles.appliedText}>
+                  You have already applied to this job
+                </Text>
+              </View>
+              {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
+                <TouchableOpacity
+                  style={styles.viewChatButton}
+                  onPress={handleViewChat}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble-outline" size={18} color={Colors.white} />
+                  <Text style={styles.viewChatButtonText}>View Chat</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <TouchableOpacity
@@ -3311,11 +3352,17 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   appliedContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    width: "100%",
+  },
+  appliedRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.sm,
-    paddingVertical: Spacing.md,
   },
   appliedText: {
     fontSize: Typography.fontSize.base,
@@ -4177,5 +4224,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
     textAlign: "center",
+  },
+  viewChatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: 6,
+    marginTop: Spacing.sm,
+    width: "100%",
+  },
+  viewChatButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
   },
 });
