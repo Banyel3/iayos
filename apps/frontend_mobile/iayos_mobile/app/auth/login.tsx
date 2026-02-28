@@ -455,6 +455,7 @@ const styles = StyleSheet.create({
   formContainer: {
     paddingHorizontal: Spacing["2xl"],
     paddingTop: Spacing["2xl"],
+    paddingBottom: Spacing["6xl"],
   },
   forgotPassword: {
     alignSelf: "flex-end",
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: Spacing["2xl"],
+    marginTop: Spacing["3xl"],
   },
   registerText: {
     fontSize: Typography.fontSize.base,
