@@ -1,8 +1,6 @@
 "use client";
 
-import {
-  useState, useEffect
-} from "react";
+import { useState, useEffect } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,7 +43,13 @@ interface BackJob {
   reason: string;
   description: string;
   requested_date: string;
-  status: "pending" | "in_negotiation" | "under_review" | "approved" | "rejected" | "completed";
+  status:
+    | "pending"
+    | "in_negotiation"
+    | "under_review"
+    | "approved"
+    | "rejected"
+    | "completed";
   priority: "low" | "medium" | "high" | "urgent";
   job_amount: number;
   backjob_amount: number;
@@ -241,7 +245,9 @@ export default function BackJobsPage() {
             <div className="relative">
               <div className="flex items-center gap-3 mb-2">
                 <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Back Jobs / Disputes</h1>
+                <h1 className="text-2xl sm:text-4xl font-bold">
+                  Back Jobs / Disputes
+                </h1>
               </div>
               <p className="text-blue-100 text-sm sm:text-lg">
                 Dispute resolutions and back job request management
@@ -466,11 +472,11 @@ export default function BackJobsPage() {
                             <p className="font-semibold text-gray-900">
                               {job.requested_date
                                 ? new Date(
-                                  job.requested_date,
-                                ).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                })
+                                    job.requested_date,
+                                  ).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })
                                 : "N/A"}
                             </p>
                           </div>

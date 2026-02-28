@@ -125,9 +125,15 @@ export default function EmployeesPage() {
   const [eotmReason, setEotmReason] = useState("");
 
   // Remove employee modal state
-  const [removeTarget, setRemoveTarget] = useState<{ id: string | number; name: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{
+    id: string | number;
+    name: string;
+  } | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [removeResult, setRemoveResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [removeResult, setRemoveResult] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Active tab
   const [activeTab, setActiveTab] = useState<
@@ -418,24 +424,36 @@ export default function EmployeesPage() {
     setIsRemoving(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/agency/employees/${removeTarget.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${API_BASE}/api/agency/employees/${removeTarget.id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
 
       if (res.ok) {
         setRemoveTarget(null);
-        setRemoveResult({ type: "success", message: `${removeTarget.name} has been removed from your team.` });
+        setRemoveResult({
+          type: "success",
+          message: `${removeTarget.name} has been removed from your team.`,
+        });
         fetchEmployees();
       } else {
         const err = await res.json();
         setRemoveTarget(null);
-        setRemoveResult({ type: "error", message: err.error || "Failed to remove employee" });
+        setRemoveResult({
+          type: "error",
+          message: err.error || "Failed to remove employee",
+        });
       }
     } catch (error) {
       console.error("Error removing employee:", error);
       setRemoveTarget(null);
-      setRemoveResult({ type: "error", message: "A network error occurred. Please try again." });
+      setRemoveResult({
+        type: "error",
+        message: "A network error occurred. Please try again.",
+      });
     } finally {
       setIsRemoving(false);
     }
@@ -1198,216 +1216,231 @@ export default function EmployeesPage() {
         </div>
       )}
 
-        {/* Remove Employee Confirmation Modal */}
-        {removeTarget && !removeResult && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-red-600">
-                    <AlertTriangle className="h-5 w-5" />
-                    Remove Employee
-                  </CardTitle>
-                  <button
-                    onClick={() => setRemoveTarget(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                    disabled={isRemoving}
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-gray-700">
-                  Are you sure you want to remove <strong>{removeTarget.name}</strong> from your team? This action cannot be undone.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={confirmRemoveEmployee}
-                    disabled={isRemoving}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    {isRemoving ? "Removing..." : "Yes, Remove"}
-                  </Button>
-                  <Button
-                    onClick={() => setRemoveTarget(null)}
-                    disabled={isRemoving}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Remove Result Modal (Success / Error) */}
-        {removeResult && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className={`flex items-center gap-2 ${
-                    removeResult.type === "success" ? "text-green-600" : "text-red-600"
-                  }`}>
-                    {removeResult.type === "success" ? (
-                      <CheckCircle className="h-5 w-5" />
-                    ) : (
-                      <AlertTriangle className="h-5 w-5" />
-                    )}
-                    {removeResult.type === "success" ? "Employee Removed" : "Cannot Remove Employee"}
-                  </CardTitle>
-                  <button
-                    onClick={() => setRemoveResult(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-gray-700">{removeResult.message}</p>
+      {/* Remove Employee Confirmation Modal */}
+      {removeTarget && !removeResult && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Remove Employee
+                </CardTitle>
+                <button
+                  onClick={() => setRemoveTarget(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={isRemoving}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-700">
+                Are you sure you want to remove{" "}
+                <strong>{removeTarget.name}</strong> from your team? This action
+                cannot be undone.
+              </p>
+              <div className="flex gap-2">
                 <Button
-                  onClick={() => setRemoveResult(null)}
-                  className={`w-full ${
+                  onClick={confirmRemoveEmployee}
+                  disabled={isRemoving}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isRemoving ? "Removing..." : "Yes, Remove"}
+                </Button>
+                <Button
+                  onClick={() => setRemoveTarget(null)}
+                  disabled={isRemoving}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Remove Result Modal (Success / Error) */}
+      {removeResult && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle
+                  className={`flex items-center gap-2 ${
                     removeResult.type === "success"
-                      ? "bg-green-600 hover:bg-green-700 text-white"
-                      : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                      ? "text-green-600"
+                      : "text-red-600"
                   }`}
                 >
-                  Close
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                  {removeResult.type === "success" ? (
+                    <CheckCircle className="h-5 w-5" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5" />
+                  )}
+                  {removeResult.type === "success"
+                    ? "Employee Removed"
+                    : "Cannot Remove Employee"}
+                </CardTitle>
+                <button
+                  onClick={() => setRemoveResult(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-700">{removeResult.message}</p>
+              <Button
+                onClick={() => setRemoveResult(null)}
+                className={`w-full ${
+                  removeResult.type === "success"
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                }`}
+              >
+                Close
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-        {/* Edit Employee Modal */}
-        {editingEmployee && (
-          <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-lg">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Edit2 className="h-5 w-5 text-blue-500" />
-                    Edit Employee
-                  </CardTitle>
-                  <button
-                    onClick={() => {
-                      setEditingEmployee(null);
-                      setEditMobileError(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      First Name *
-                    </label>
-                    <Input
-                      value={editFirstName}
-                      onChange={(e) => setEditFirstName(e.target.value)}
-                      placeholder="First name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Last Name *
-                    </label>
-                    <Input
-                      value={editLastName}
-                      onChange={(e) => setEditLastName(e.target.value)}
-                      placeholder="Last name"
-                    />
-                  </div>
-                </div>
+      {/* Edit Employee Modal */}
+      {editingEmployee && (
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Edit2 className="h-5 w-5 text-blue-500" />
+                  Edit Employee
+                </CardTitle>
+                <button
+                  onClick={() => {
+                    setEditingEmployee(null);
+                    setEditMobileError(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Middle Name (optional)
+                    First Name *
                   </label>
                   <Input
-                    value={editMiddleName}
-                    onChange={(e) => setEditMiddleName(e.target.value)}
-                    placeholder="Middle name"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    placeholder="First name"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mobile Number *
+                    Last Name *
                   </label>
                   <Input
-                    type="tel"
-                    value={editMobile}
-                    onChange={(e) => {
-                      setEditMobile(e.target.value);
-                      if (editMobileError) setEditMobileError(null);
-                    }}
-                    placeholder="Mobile number (e.g. 09171234567)"
-                    className={editMobileError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    placeholder="Last name"
                   />
-                  {editMobileError && (
-                    <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
-                      <X className="h-4 w-4" />
-                      {editMobileError}
-                    </p>
-                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Specializations * (select one or more)
-                  </label>
-                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                    {specializations.map((spec) => (
-                      <button
-                        key={spec.specializationID}
-                        type="button"
-                        onClick={() => toggleEditSpecialization(spec.categoryName)}
-                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${editSpecializations.includes(spec.categoryName)
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                          }`}
-                      >
-                        {spec.categoryName}
-                        {editSpecializations.includes(spec.categoryName) && (
-                          <CheckCircle className="inline-block ml-1 h-3 w-3" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {editSpecializations.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Selected: {editSpecializations.join(", ")}
-                    </p>
-                  )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Middle Name (optional)
+                </label>
+                <Input
+                  value={editMiddleName}
+                  onChange={(e) => setEditMiddleName(e.target.value)}
+                  placeholder="Middle name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mobile Number *
+                </label>
+                <Input
+                  type="tel"
+                  value={editMobile}
+                  onChange={(e) => {
+                    setEditMobile(e.target.value);
+                    if (editMobileError) setEditMobileError(null);
+                  }}
+                  placeholder="Mobile number (e.g. 09171234567)"
+                  className={
+                    editMobileError
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }
+                />
+                {editMobileError && (
+                  <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                    <X className="h-4 w-4" />
+                    {editMobileError}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Specializations * (select one or more)
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                  {specializations.map((spec) => (
+                    <button
+                      key={spec.specializationID}
+                      type="button"
+                      onClick={() =>
+                        toggleEditSpecialization(spec.categoryName)
+                      }
+                      className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                        editSpecializations.includes(spec.categoryName)
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                      }`}
+                    >
+                      {spec.categoryName}
+                      {editSpecializations.includes(spec.categoryName) && (
+                        <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                      )}
+                    </button>
+                  ))}
                 </div>
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    onClick={saveEditEmployee}
-                    disabled={isSavingEdit}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isSavingEdit ? "Saving..." : "Save Changes"}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setEditingEmployee(null);
-                      setEditMobileError(null);
-                    }}
-                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                {editSpecializations.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {editSpecializations.join(", ")}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={saveEditEmployee}
+                  disabled={isSavingEdit}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isSavingEdit ? "Saving..." : "Save Changes"}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setEditingEmployee(null);
+                    setEditMobileError(null);
+                  }}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

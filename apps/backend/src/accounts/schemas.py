@@ -170,7 +170,8 @@ class CreateJobMobileSchema(Schema):
     location: Optional[str] = None
     expected_duration: str
     urgency_level: str  # 'LOW' | 'MEDIUM' | 'HIGH'
-    preferred_start_date: Optional[str] = None  # ISO format datetime string
+    preferred_start_date: str  # YYYY-MM-DD format (required)
+    scheduled_end_date: str    # YYYY-MM-DD format (required)
     materials_needed: Optional[list] = None  # List of strings
     downpayment_method: str  # 'WALLET' | 'GCASH'
     # Universal fields for ML accuracy
@@ -408,7 +409,8 @@ class CreateInviteJobMobileSchema(Schema):
     location: str
     expected_duration: Optional[str] = None
     urgency_level: str  # 'LOW' | 'MEDIUM' | 'HIGH'
-    preferred_start_date: Optional[str] = None  # YYYY-MM-DD format
+    preferred_start_date: str  # YYYY-MM-DD format (required)
+    scheduled_end_date: str    # YYYY-MM-DD format (required)
     materials_needed: Optional[list] = None  # List of strings
     worker_id: Optional[int] = None  # Either worker_id OR agency_id (not both)
     agency_id: Optional[int] = None

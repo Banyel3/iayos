@@ -834,6 +834,25 @@ def get_conversations(request, filter: str = "all"):
                     relatedJobPosting__status='COMPLETED'
                 )
             )
+        elif filter == "upcoming":
+            # Show conversations for jobs scheduled in the future (start date > today)
+            from django.utils import timezone
+            today = timezone.now().date()
+            archived_team_ids = ConversationParticipant.objects.filter(
+                profile=user_profile,
+                is_archived=True
+            ).values_list('conversation_id', flat=True)
+
+            conversations_query = conversations_query.filter(
+                (Q(conversation_type='ONE_ON_ONE') & (
+                    (Q(client=user_profile) & Q(archivedByClient=False)) |
+                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
+                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
+                )) |
+                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
+            ).filter(
+                relatedJobPosting__preferredStartDate__gt=today
+            )
         else:
             # For 'all' and 'unread', exclude archived conversations
             archived_team_ids = ConversationParticipant.objects.filter(
@@ -1033,7 +1052,9 @@ def get_conversations(request, filter: str = "all"):
                     "workerReviewed": worker_reviewed,
                     "clientReviewed": client_reviewed,
                     "remainingPaymentPaid": job.remainingPaymentPaid,
-                    "is_team_job": job.is_team_job
+                    "is_team_job": job.is_team_job,
+                    "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+                    "scheduled_end_date": job.scheduled_end_date.isoformat() if job.scheduled_end_date else None
                 },
                 "all_team_workers_reviewed": all_team_workers_reviewed,
                 "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),

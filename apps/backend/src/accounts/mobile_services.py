@@ -735,6 +735,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             expectedDuration=job_data.get('expected_duration', 'Not specified'),
             urgency=job_data.get('urgency_level', 'MEDIUM'),
             preferredStartDate=datetime.fromisoformat(job_data['preferred_start_date']) if job_data.get('preferred_start_date') else None,
+            scheduled_end_date=datetime.strptime(job_data['scheduled_end_date'], "%Y-%m-%d").date() if job_data.get('scheduled_end_date') else None,
             materialsNeeded=materials_json,
             categoryID=category,
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
@@ -1049,7 +1050,16 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             try:
                 preferred_start_date_obj = datetime.strptime(preferred_start_date_str, "%Y-%m-%d").date()
             except ValueError:
-                return {'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}
+                return {'success': False, 'error': 'Invalid preferred_start_date format. Use YYYY-MM-DD'}
+
+        # Parse scheduled end date
+        scheduled_end_date_obj = None
+        scheduled_end_date_str = job_data.get('scheduled_end_date')
+        if scheduled_end_date_str:
+            try:
+                scheduled_end_date_obj = datetime.strptime(scheduled_end_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return {'success': False, 'error': 'Invalid scheduled_end_date format. Use YYYY-MM-DD'}
         
         # Get client wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -1093,6 +1103,7 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     expectedDuration=job_data.get('expected_duration', 'Not specified'),
                     urgency=job_data.get('urgency_level', 'MEDIUM').upper(),
                     preferredStartDate=preferred_start_date_obj,
+                    scheduled_end_date=scheduled_end_date_obj,
                     materialsNeeded=job_data.get('materials_needed', []),
                     jobType="INVITE",  # INVITE type job
                     inviteStatus="PENDING",  # Waiting for worker/agency response

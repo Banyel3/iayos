@@ -2683,11 +2683,37 @@ export default function ChatScreen() {
                     </View>
                   )}
 
+                {/* Date Gate: Show locked banner for future scheduled jobs */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.job?.preferred_start_date &&
+                  new Date() < (() => { const d = new Date(conversation.job!.preferred_start_date!); d.setHours(0,0,0,0); return d; })() && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <View style={{ flex: 1, marginLeft: 4 }}>
+                        <Text style={styles.waitingButtonText}>
+                          Job starts on{" "}
+                          {new Date(conversation.job.preferred_start_date).toLocaleDateString(
+                            undefined,
+                            { weekday: "short", month: "short", day: "numeric", year: "numeric" }
+                          )}
+                          {" "}— action buttons will unlock on that date.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
                 {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
                   conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
+                  (!conversation.job?.preferred_start_date ||
+                    new Date() >= (() => { const d = new Date(conversation.job.preferred_start_date!); d.setHours(0,0,0,0); return d; })()) &&
                   !conversation.job.clientConfirmedWorkStarted &&
                   (conversation.job.materials_status === "NONE" ||
                     conversation.job.materials_status === "APPROVED" ||
@@ -4588,8 +4614,8 @@ export default function ChatScreen() {
                   {conversation.backjob.status === "UNDER_REVIEW"
                     ? "Action"
                     : conversation.backjob.status === "IN_NEGOTIATION"
-                    ? "Negotiating"
-                    : "Pending"}
+                      ? "Negotiating"
+                      : "Pending"}
                 </Text>
               </View>
               <Ionicons
