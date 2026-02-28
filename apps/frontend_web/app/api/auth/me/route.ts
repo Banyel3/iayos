@@ -19,9 +19,10 @@ export async function GET(request: NextRequest) {
       headers["Cookie"] = cookieHeader;
     }
 
-    console.log(
-      `[/api/auth/me] Forwarding ${cookies.length} cookies to backend`,
-    );
+    if (process.env.NODE_ENV === "development")
+      console.log(
+        `[/api/auth/me] Forwarding ${cookies.length} cookies to backend`,
+      );
 
     const backendResponse = await fetch(`${API_BASE}/api/accounts/me`, {
       method: "GET",

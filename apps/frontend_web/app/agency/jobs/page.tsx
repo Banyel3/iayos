@@ -147,14 +147,10 @@ export default function AgencyJobsPage() {
   const [loadingSkillSlots, setLoadingSkillSlots] = useState(false);
   // Pending invite acceptance flow - true when accepting pending invite (not just assigning to accepted job)
   const [isPendingInviteFlow, setIsPendingInviteFlow] = useState(false);
-  const hasFetched = React.useRef(false);
+  const isInitialMount = React.useRef(true);
 
   // Fetch jobs based on active tab
   useEffect(() => {
-    // Prevent duplicate fetches in React Strict Mode (dev only)
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-
     const loadAll = async () => {
       setLoading(true);
       await Promise.all([
@@ -170,9 +166,12 @@ export default function AgencyJobsPage() {
     loadAll();
   }, []);
 
-  // Refetch when tab changes
+  // Refetch when tab changes (skip on initial mount to avoid double-fetch)
   useEffect(() => {
-    if (!hasFetched.current) return; // Don't fetch on initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
 
     if (activeTab === "invites") {
       fetchPendingInvites(true);
@@ -277,6 +276,9 @@ export default function AgencyJobsPage() {
       setInProgressJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load in-progress jobs",
+      );
     } finally {
       if (showTabLoading) setTabLoading(false);
     }
@@ -305,6 +307,9 @@ export default function AgencyJobsPage() {
       setCompletedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching completed jobs:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load completed jobs",
+      );
     } finally {
       if (showTabLoading) setTabLoading(false);
     }
@@ -333,6 +338,9 @@ export default function AgencyJobsPage() {
       setCancelledJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching cancelled jobs:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load cancelled jobs",
+      );
     } finally {
       if (showTabLoading) setTabLoading(false);
     }
@@ -493,17 +501,14 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await fetch(
+      const rejectUrl = new URL(
         `${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ rejection_reason: reason }),
-        },
       );
+      if (reason) rejectUrl.searchParams.set("reason", reason);
+      const response = await fetch(rejectUrl.toString(), {
+        method: "POST",
+        credentials: "include",
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -739,678 +744,661 @@ export default function AgencyJobsPage() {
       <div>
         <div className="border-b border-gray-200 overflow-x-auto">
           <nav className="-mb-px flex space-x-4 md:space-x-8 min-w-max pb-px">
-              <button
-                onClick={() => setActiveTab("invites")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                  activeTab === "invites"
-                    ? "border-purple-600 text-purple-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Mail className="h-5 w-5" />
-                  <span>Pending Invites</span>
-                  {pendingInvites.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "invites"
-                          ? "bg-purple-100 text-purple-600"
-                          : "bg-red-100 text-red-600"
-                      }`}
-                    >
-                      {pendingInvites.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("accepted")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                  activeTab === "accepted"
-                    ? "border-green-600 text-green-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5" />
-                  <span>Accepted</span>
-                  {acceptedJobs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "accepted"
-                          ? "bg-green-100 text-green-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {acceptedJobs.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("inProgress")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                  activeTab === "inProgress"
-                    ? "border-orange-600 text-orange-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="h-5 w-5" />
-                  <span>In Progress</span>
-                  {inProgressJobs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "inProgress"
-                          ? "bg-orange-100 text-orange-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {inProgressJobs.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("completed")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                  activeTab === "completed"
-                    ? "border-emerald-600 text-emerald-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5" />
-                  <span>Completed</span>
-                  {completedJobs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "completed"
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {completedJobs.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("cancelled")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                  activeTab === "cancelled"
-                    ? "border-red-600 text-red-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="h-5 w-5" />
-                  <span>Cancelled</span>
-                  {cancelledJobs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "cancelled"
-                          ? "bg-red-100 text-red-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {cancelledJobs.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-            </nav>
-          </div>
-        </div>
-
-        {/* Success Message */}
-        {successMessage && (
-          <Alert className="mb-6 bg-green-50 border-green-200">
-            <AlertCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              {successMessage}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <Alert className="mb-6 bg-red-50 border-red-200">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800">
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Tab Loading Indicator */}
-        {tabLoading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span className="ml-2 text-sm text-gray-500">Refreshing...</span>
-          </div>
-        )}
-
-        {/* Tab Content */}
-        {!tabLoading && activeTab === "invites" && (
-          <>
-            {pendingInvites.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Pending Invites
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      You don't have any pending job invitations at the moment.
-                      When clients send you direct invitations, they will appear
-                      here.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  You have {pendingInvites.length} pending{" "}
-                  {pendingInvites.length === 1 ? "invitation" : "invitations"}
-                </div>
-                {pendingInvites.map((job) => (
-                  <PendingInviteCard
-                    key={job.jobID}
-                    job={job}
-                    onAccept={handleAcceptInvite}
-                    onReject={handleRejectInviteClick}
-                    accepting={accepting === job.jobID}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {!tabLoading && activeTab === "accepted" && (
-          <>
-            {acceptedJobs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Accepted Jobs
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      You haven't accepted any job invitations yet. Accepted
-                      jobs that need employee assignment will appear here.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  Showing {acceptedJobs.length} accepted{" "}
-                  {acceptedJobs.length === 1 ? "job" : "jobs"}
-                </div>
-                {acceptedJobs.map((job) => (
-                  <Card
-                    key={job.jobID}
-                    className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+            <button
+              onClick={() => setActiveTab("invites")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === "invites"
+                  ? "border-purple-600 text-purple-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Mail className="h-5 w-5" />
+                <span>Pending Invites</span>
+                {pendingInvites.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === "invites"
+                        ? "bg-purple-100 text-purple-600"
+                        : "bg-red-100 text-red-600"
+                    }`}
                   >
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors">
-                              {job.title}
-                            </h3>
-                            {job.is_team_job && (
-                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                                <Users size={12} className="mr-1" />
-                                Team Job ({job.total_workers_assigned || 0}/
-                                {job.total_workers_needed || 0})
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-gray-600 mb-3">
-                            {job.description}
-                          </p>
-                        </div>
-                      </div>
+                    {pendingInvites.length}
+                  </span>
+                )}
+              </div>
+            </button>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <span className="text-sm text-gray-600">Budget</span>
-                          <p className="font-semibold text-gray-900">
-                            <JobBudgetDisplay
-                              budget={job.budget}
-                              paymentModel={job.payment_model}
-                              dailyRate={job.daily_rate_agreed}
-                              durationDays={job.duration_days}
-                            />
-                          </p>
-                          {job.payment_model && (
-                            <PaymentModelBadge
-                              paymentModel={job.payment_model}
-                              className="mt-1"
-                            />
+            <button
+              onClick={() => setActiveTab("accepted")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === "accepted"
+                  ? "border-green-600 text-green-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5" />
+                <span>Accepted</span>
+                {acceptedJobs.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === "accepted"
+                        ? "bg-green-100 text-green-600"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {acceptedJobs.length}
+                  </span>
+                )}
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("inProgress")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === "inProgress"
+                  ? "border-orange-600 text-orange-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Loader2 className="h-5 w-5" />
+                <span>In Progress</span>
+                {inProgressJobs.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === "inProgress"
+                        ? "bg-orange-100 text-orange-600"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {inProgressJobs.length}
+                  </span>
+                )}
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("completed")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === "completed"
+                  ? "border-emerald-600 text-emerald-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5" />
+                <span>Completed</span>
+                {completedJobs.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === "completed"
+                        ? "bg-emerald-100 text-emerald-600"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {completedJobs.length}
+                  </span>
+                )}
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("cancelled")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === "cancelled"
+                  ? "border-red-600 text-red-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5" />
+                <span>Cancelled</span>
+                {cancelledJobs.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === "cancelled"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {cancelledJobs.length}
+                  </span>
+                )}
+              </div>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <Alert className="mb-6 bg-green-50 border-green-200">
+          <AlertCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            {successMessage}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <Alert className="mb-6 bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Tab Loading Indicator */}
+      {tabLoading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+          <span className="ml-2 text-sm text-gray-500">Refreshing...</span>
+        </div>
+      )}
+
+      {/* Tab Content */}
+      {!tabLoading && activeTab === "invites" && (
+        <>
+          {pendingInvites.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Pending Invites
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    You don't have any pending job invitations at the moment.
+                    When clients send you direct invitations, they will appear
+                    here.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-sm text-gray-600 mb-4">
+                You have {pendingInvites.length} pending{" "}
+                {pendingInvites.length === 1 ? "invitation" : "invitations"}
+              </div>
+              {pendingInvites.map((job) => (
+                <PendingInviteCard
+                  key={job.jobID}
+                  job={job}
+                  onAccept={handleAcceptInvite}
+                  onReject={handleRejectInviteClick}
+                  accepting={accepting === job.jobID}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!tabLoading && activeTab === "accepted" && (
+        <>
+          {acceptedJobs.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Accepted Jobs
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    You haven't accepted any job invitations yet. Accepted jobs
+                    that need employee assignment will appear here.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-sm text-gray-600 mb-4">
+                Showing {acceptedJobs.length} accepted{" "}
+                {acceptedJobs.length === 1 ? "job" : "jobs"}
+              </div>
+              {acceptedJobs.map((job) => (
+                <Card
+                  key={job.jobID}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors">
+                            {job.title}
+                          </h3>
+                          {job.is_team_job && (
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                              <Users size={12} className="mr-1" />
+                              Team Job ({job.total_workers_assigned || 0}/
+                              {job.total_workers_needed || 0})
+                            </Badge>
                           )}
                         </div>
-                        <div>
-                          <span className="text-sm text-gray-600">
-                            Category
-                          </span>
-                          <p className="font-semibold text-gray-900">
-                            {job.category?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Urgency</span>
-                          <p
-                            className={`font-semibold ${
-                              job.urgency === "HIGH"
-                                ? "text-red-600"
-                                : job.urgency === "MEDIUM"
-                                  ? "text-orange-600"
-                                  : "text-green-600"
-                            }`}
-                          >
-                            {job.urgency}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Status</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.status}
-                          </p>
-                        </div>
+                        <p className="text-gray-600 mb-3">{job.description}</p>
                       </div>
+                    </div>
 
-                      {job.assignedEmployee ? (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <CheckCircle className="text-green-600" size={20} />
-                            <span className="text-green-800 font-medium">
-                              Assigned to: {job.assignedEmployee.name}
-                            </span>
-                          </div>
-                        </div>
-                      ) : job.is_team_job &&
-                        (job.total_workers_assigned || 0) > 0 ? (
-                        <div className="space-y-2">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                <Users className="text-blue-600" size={20} />
-                                <span className="text-blue-800 font-medium">
-                                  {job.total_workers_assigned}/
-                                  {job.total_workers_needed} employees assigned
-                                </span>
-                              </div>
-                              <div className="w-24 bg-blue-200 rounded-full h-2">
-                                <div
-                                  className="bg-blue-600 h-2 rounded-full"
-                                  style={{
-                                    width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          {(job.total_workers_assigned || 0) <
-                            (job.total_workers_needed || 0) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenAssignModal(job);
-                              }}
-                              disabled={loadingSkillSlots}
-                              className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
-                            >
-                              {loadingSkillSlots ? (
-                                <Loader2 size={18} className="animate-spin" />
-                              ) : (
-                                <Users size={18} />
-                              )}
-                              <span>Assign More Employees to Slots</span>
-                            </button>
-                          )}
-                        </div>
-                      ) : job.status === "ACTIVE" ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenAssignModal(job);
-                          }}
-                          disabled={loadingSkillSlots}
-                          className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
-                            job.is_team_job
-                              ? "bg-purple-600 text-white hover:bg-purple-700"
-                              : "bg-blue-600 text-white hover:bg-blue-700"
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <span className="text-sm text-gray-600">Budget</span>
+                        <p className="font-semibold text-gray-900">
+                          <JobBudgetDisplay
+                            budget={job.budget}
+                            paymentModel={job.payment_model}
+                            dailyRate={job.daily_rate_agreed}
+                            durationDays={job.duration_days}
+                          />
+                        </p>
+                        {job.payment_model && (
+                          <PaymentModelBadge
+                            paymentModel={job.payment_model}
+                            className="mt-1"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Category</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.category?.name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Urgency</span>
+                        <p
+                          className={`font-semibold ${
+                            job.urgency === "HIGH"
+                              ? "text-red-600"
+                              : job.urgency === "MEDIUM"
+                                ? "text-orange-600"
+                                : "text-green-600"
                           }`}
                         >
-                          {loadingSkillSlots ? (
-                            <Loader2 size={18} className="animate-spin" />
-                          ) : job.is_team_job ? (
-                            <Users size={18} />
-                          ) : (
-                            <UserPlus size={18} />
-                          )}
-                          <span>
-                            {job.is_team_job
-                              ? `Assign Employees to ${job.total_workers_needed || 0} Skill Slots`
-                              : "Assign Employee"}
-                          </span>
-                        </button>
-                      ) : (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm">
-                          ⚠️ Job is already in progress. Check the &quot;In Progress&quot; tab.
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {!tabLoading && activeTab === "inProgress" && (
-          <>
-            {inProgressJobs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <Loader2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Jobs In Progress
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      Active jobs currently being worked on will appear here.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  Showing {inProgressJobs.length} in-progress{" "}
-                  {inProgressJobs.length === 1 ? "job" : "jobs"}
-                </div>
-                {inProgressJobs.map((job) => (
-                  <Card
-                    key={job.jobID}
-                    className="hover:shadow-lg transition-shadow border-orange-200 cursor-pointer"
-                    onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-orange-600 transition-colors">
-                            {job.title}
-                          </h3>
-                          <p className="text-gray-600 mb-3">
-                            {job.description}
-                          </p>
-                        </div>
+                          {job.urgency}
+                        </p>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <span className="text-sm text-gray-600">Budget</span>
-                          <p className="font-semibold text-gray-900">
-                            <JobBudgetDisplay
-                              budget={job.budget}
-                              paymentModel={job.payment_model}
-                              dailyRate={job.daily_rate_agreed}
-                              durationDays={job.duration_days}
-                            />
-                          </p>
-                          {job.payment_model && (
-                            <PaymentModelBadge
-                              paymentModel={job.payment_model}
-                              className="mt-1"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">
-                            Category
-                          </span>
-                          <p className="font-semibold text-gray-900">
-                            {job.category?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Worker</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.assignedEmployee?.name || "Unknown"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Client</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.client.name}
-                          </p>
-                        </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Status</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.status}
+                        </p>
                       </div>
+                    </div>
 
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    {job.assignedEmployee ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <Loader2
-                            className="text-orange-600 animate-spin"
-                            size={20}
+                          <CheckCircle className="text-green-600" size={20} />
+                          <span className="text-green-800 font-medium">
+                            Assigned to: {job.assignedEmployee.name}
+                          </span>
+                        </div>
+                      </div>
+                    ) : job.is_team_job &&
+                      (job.total_workers_assigned || 0) > 0 ? (
+                      <div className="space-y-2">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Users className="text-blue-600" size={20} />
+                              <span className="text-blue-800 font-medium">
+                                {job.total_workers_assigned}/
+                                {job.total_workers_needed} employees assigned
+                              </span>
+                            </div>
+                            <div className="w-24 bg-blue-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full"
+                                style={{
+                                  width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        {(job.total_workers_assigned || 0) <
+                          (job.total_workers_needed || 0) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenAssignModal(job);
+                            }}
+                            disabled={loadingSkillSlots}
+                            className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                          >
+                            {loadingSkillSlots ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                              <Users size={18} />
+                            )}
+                            <span>Assign More Employees to Slots</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : job.status === "ACTIVE" ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAssignModal(job);
+                        }}
+                        disabled={loadingSkillSlots}
+                        className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
+                          job.is_team_job
+                            ? "bg-purple-600 text-white hover:bg-purple-700"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                      >
+                        {loadingSkillSlots ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : job.is_team_job ? (
+                          <Users size={18} />
+                        ) : (
+                          <UserPlus size={18} />
+                        )}
+                        <span>
+                          {job.is_team_job
+                            ? `Assign Employees to ${job.total_workers_needed || 0} Skill Slots`
+                            : "Assign Employee"}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm">
+                        ⚠️ Job is already in progress. Check the &quot;In
+                        Progress&quot; tab.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!tabLoading && activeTab === "inProgress" && (
+        <>
+          {inProgressJobs.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Loader2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Jobs In Progress
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    Active jobs currently being worked on will appear here.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-sm text-gray-600 mb-4">
+                Showing {inProgressJobs.length} in-progress{" "}
+                {inProgressJobs.length === 1 ? "job" : "jobs"}
+              </div>
+              {inProgressJobs.map((job) => (
+                <Card
+                  key={job.jobID}
+                  className="hover:shadow-lg transition-shadow border-orange-200 cursor-pointer"
+                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-orange-600 transition-colors">
+                          {job.title}
+                        </h3>
+                        <p className="text-gray-600 mb-3">{job.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <span className="text-sm text-gray-600">Budget</span>
+                        <p className="font-semibold text-gray-900">
+                          <JobBudgetDisplay
+                            budget={job.budget}
+                            paymentModel={job.payment_model}
+                            dailyRate={job.daily_rate_agreed}
+                            durationDays={job.duration_days}
                           />
-                          <span className="text-orange-800 font-medium">
-                            Work in progress...
-                          </span>
-                        </div>
+                        </p>
+                        {job.payment_model && (
+                          <PaymentModelBadge
+                            paymentModel={job.payment_model}
+                            className="mt-1"
+                          />
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+                      <div>
+                        <span className="text-sm text-gray-600">Category</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.category?.name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Worker</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.assignedEmployee?.name || "Unknown"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Client</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.client.name}
+                        </p>
+                      </div>
+                    </div>
 
-        {!tabLoading && activeTab === "completed" && (
-          <>
-            {completedJobs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Completed Jobs
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      Successfully completed jobs will appear here.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  Showing {completedJobs.length} completed{" "}
-                  {completedJobs.length === 1 ? "job" : "jobs"}
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2">
+                        <Loader2
+                          className="text-orange-600 animate-spin"
+                          size={20}
+                        />
+                        <span className="text-orange-800 font-medium">
+                          Work in progress...
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!tabLoading && activeTab === "completed" && (
+        <>
+          {completedJobs.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Completed Jobs
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    Successfully completed jobs will appear here.
+                  </p>
                 </div>
-                {completedJobs.map((job) => (
-                  <Card
-                    key={job.jobID}
-                    className="hover:shadow-lg transition-shadow border-emerald-200 cursor-pointer"
-                    onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-emerald-600 transition-colors">
-                            {job.title}
-                          </h3>
-                          <p className="text-gray-600 mb-3">
-                            {job.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <span className="text-sm text-gray-600">Budget</span>
-                          <p className="font-semibold text-gray-900">
-                            <JobBudgetDisplay
-                              budget={job.budget}
-                              paymentModel={job.payment_model}
-                              dailyRate={job.daily_rate_agreed}
-                              durationDays={job.duration_days}
-                            />
-                          </p>
-                          {job.payment_model && (
-                            <PaymentModelBadge
-                              paymentModel={job.payment_model}
-                              className="mt-1"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">
-                            Category
-                          </span>
-                          <p className="font-semibold text-gray-900">
-                            {job.category?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Worker</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.assignedEmployee?.name || "Unknown"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Client</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.client.name}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                        <div className="flex items-center space-x-2">
-                          <CheckCircle className="text-emerald-600" size={20} />
-                          <span className="text-emerald-800 font-medium">
-                            Completed successfully
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-sm text-gray-600 mb-4">
+                Showing {completedJobs.length} completed{" "}
+                {completedJobs.length === 1 ? "job" : "jobs"}
               </div>
-            )}
-          </>
-        )}
+              {completedJobs.map((job) => (
+                <Card
+                  key={job.jobID}
+                  className="hover:shadow-lg transition-shadow border-emerald-200 cursor-pointer"
+                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-emerald-600 transition-colors">
+                          {job.title}
+                        </h3>
+                        <p className="text-gray-600 mb-3">{job.description}</p>
+                      </div>
+                    </div>
 
-        {!tabLoading && activeTab === "cancelled" && (
-          <>
-            {cancelledJobs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Cancelled Jobs
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      Cancelled or rejected jobs will appear here.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  Showing {cancelledJobs.length} cancelled{" "}
-                  {cancelledJobs.length === 1 ? "job" : "jobs"}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <span className="text-sm text-gray-600">Budget</span>
+                        <p className="font-semibold text-gray-900">
+                          <JobBudgetDisplay
+                            budget={job.budget}
+                            paymentModel={job.payment_model}
+                            dailyRate={job.daily_rate_agreed}
+                            durationDays={job.duration_days}
+                          />
+                        </p>
+                        {job.payment_model && (
+                          <PaymentModelBadge
+                            paymentModel={job.payment_model}
+                            className="mt-1"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Category</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.category?.name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Worker</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.assignedEmployee?.name || "Unknown"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Client</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.client.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="text-emerald-600" size={20} />
+                        <span className="text-emerald-800 font-medium">
+                          Completed successfully
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!tabLoading && activeTab === "cancelled" && (
+        <>
+          {cancelledJobs.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Cancelled Jobs
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    Cancelled or rejected jobs will appear here.
+                  </p>
                 </div>
-                {cancelledJobs.map((job) => (
-                  <Card
-                    key={job.jobID}
-                    className="hover:shadow-lg transition-shadow border-red-200 opacity-75 cursor-pointer"
-                    onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-red-600 transition-colors">
-                            {job.title}
-                          </h3>
-                          <p className="text-gray-600 mb-3">
-                            {job.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <span className="text-sm text-gray-600">Budget</span>
-                          <p className="font-semibold text-gray-900">
-                            <JobBudgetDisplay
-                              budget={job.budget}
-                              paymentModel={job.payment_model}
-                              dailyRate={job.daily_rate_agreed}
-                              durationDays={job.duration_days}
-                            />
-                          </p>
-                          {job.payment_model && (
-                            <PaymentModelBadge
-                              paymentModel={job.payment_model}
-                              className="mt-1"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">
-                            Category
-                          </span>
-                          <p className="font-semibold text-gray-900">
-                            {job.category?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Worker</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.assignedEmployee?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Client</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.client.name}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <div className="flex items-center space-x-2">
-                          <AlertCircle className="text-red-600" size={20} />
-                          <span className="text-red-800 font-medium">
-                            Job cancelled
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-sm text-gray-600 mb-4">
+                Showing {cancelledJobs.length} cancelled{" "}
+                {cancelledJobs.length === 1 ? "job" : "jobs"}
               </div>
-            )}
-          </>
-        )}
+              {cancelledJobs.map((job) => (
+                <Card
+                  key={job.jobID}
+                  className="hover:shadow-lg transition-shadow border-red-200 opacity-75 cursor-pointer"
+                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-red-600 transition-colors">
+                          {job.title}
+                        </h3>
+                        <p className="text-gray-600 mb-3">{job.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <span className="text-sm text-gray-600">Budget</span>
+                        <p className="font-semibold text-gray-900">
+                          <JobBudgetDisplay
+                            budget={job.budget}
+                            paymentModel={job.payment_model}
+                            dailyRate={job.daily_rate_agreed}
+                            durationDays={job.duration_days}
+                          />
+                        </p>
+                        {job.payment_model && (
+                          <PaymentModelBadge
+                            paymentModel={job.payment_model}
+                            className="mt-1"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Category</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.category?.name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Worker</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.assignedEmployee?.name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600">Client</span>
+                        <p className="font-semibold text-gray-900">
+                          {job.client.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2">
+                        <AlertCircle className="text-red-600" size={20} />
+                        <span className="text-red-800 font-medium">
+                          Job cancelled
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Reject Reason Modal */}
       <RejectReasonModal

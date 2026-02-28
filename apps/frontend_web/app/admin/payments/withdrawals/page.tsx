@@ -24,6 +24,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { toast } from "sonner";
 
 interface WithdrawalRequest {
   id: string;
@@ -313,9 +314,7 @@ export default function WithdrawalsPage() {
     if (!approveModal.transactionId) return;
 
     if (!referenceNumber.trim()) {
-      alert(
-        "Please enter a reference number for audit purposes (e.g., bank transaction ID, GCash reference)",
-      );
+      toast.error("Please enter a reference number for audit purposes (e.g., bank transaction ID, GCash reference)");
       return;
     }
 
@@ -350,16 +349,16 @@ export default function WithdrawalsPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(data.message || "Withdrawal marked as completed!");
+        toast.success(data.message || "Withdrawal marked as completed!");
         closeApproveModal();
         fetchWithdrawals();
         fetchStatistics();
       } else {
-        alert(data.error || "Failed to approve withdrawal");
+        toast.error(data.error || "Failed to approve withdrawal");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert(getErrorMessage(error, "Failed to approve withdrawal"));
+      toast.error(getErrorMessage(error, "Failed to approve withdrawal"));
     }
   };
 
@@ -396,18 +395,15 @@ export default function WithdrawalsPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(
-          data.message ||
-          "Withdrawal rejected and funds refunded to user wallet!",
-        );
+        toast.success(data.message || "Withdrawal rejected and funds refunded to user wallet!");
         fetchWithdrawals();
         fetchStatistics();
       } else {
-        alert(data.error || "Failed to reject withdrawal");
+        toast.error(data.error || "Failed to reject withdrawal");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert(getErrorMessage(error, "Failed to reject withdrawal"));
+      toast.error(getErrorMessage(error, "Failed to reject withdrawal"));
     }
   };
 

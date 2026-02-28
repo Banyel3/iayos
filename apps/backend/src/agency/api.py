@@ -880,8 +880,10 @@ def remove_employee(request, employee_id: int):
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error removing employee: {str(e)}")
-        return Response({"error": "Internal server error"}, status=500)
+        return Response({"error": f"Internal server error: {str(e)}"}, status=500)
 
 
 @router.get("/profile", auth=cookie_auth)
@@ -3562,16 +3564,19 @@ def agency_respond_to_review(request, review_id: int):
         
         # Verify the review is about this agency or one of their employees
         # Check if the reviewee is the agency account OR an employee of the agency
-        is_about_agency = (review.revieweeID == user)
+        is_about_agency = (review.revieweeAgencyID_id == agency.agencyId)
         is_about_employee = False
         
         if not is_about_agency:
             # Check if reviewee is an employee of this agency
             from agency.models import AgencyEmployee
-            is_about_employee = AgencyEmployee.objects.filter(
-                agencyFK=agency,
-                profileFK__accountFK=review.revieweeID
-            ).exists()
+            is_about_employee = (
+                AgencyEmployee.objects.filter(
+                    agency=user,
+                    employeeID=review.revieweeEmployeeID_id
+                ).exists()
+                if review.revieweeEmployeeID_id else False
+            )
         
         if not is_about_agency and not is_about_employee:
             return Response({
@@ -3580,7 +3585,7 @@ def agency_respond_to_review(request, review_id: int):
             }, status=403)
         
         # Check if already responded
-        if review.reviewerResponse:
+        if review.agency_response:
             return Response({
                 'success': False, 
                 'error': 'This review already has a response'
@@ -3602,8 +3607,8 @@ def agency_respond_to_review(request, review_id: int):
             return Response({'success': False, 'error': 'Response cannot exceed 1000 characters'}, status=400)
         
         # Save response
-        review.reviewerResponse = response_text
-        review.reviewerResponseAt = timezone.now()
+        review.agency_response = response_text
+        review.agency_response_at = timezone.now()
         review.save()
         
         logger.info(f"✅ Agency responded to review #{review_id}")
@@ -4171,7 +4176,17 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         assignment.agencyMarkedComplete = True
         assignment.agencyMarkedCompleteAt = timezone.now()
         assignment.completionNotes = notes or ""
-        assignment.save()
+        assignment.save(update_fields=['agencyMarkedComplete', 'agencyMarkedCompleteAt', 'completionNotes'])
+        
+        # POST-SAVE VERIFICATION: Re-read from DB to confirm the save persisted
+        try:
+            verified = JobEmployeeAssignment.objects.values_list('agencyMarkedComplete', flat=True).get(pk=assignment.pk)
+            if verified:
+                logger.info(f"✅ [DB VERIFY] Assignment #{assignment.pk} agencyMarkedComplete=True CONFIRMED in DB")
+            else:
+                logger.error(f"❌ [DB VERIFY] Assignment #{assignment.pk} agencyMarkedComplete=False AFTER SAVE! Save did NOT persist!")
+        except Exception as verify_err:
+            logger.error(f"❌ [DB VERIFY] Failed to verify assignment #{assignment.pk}: {verify_err}")
         
         # Check if ALL employees are complete
         all_assignments = JobEmployeeAssignment.objects.filter(
@@ -4192,7 +4207,23 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
                     Message.create_system_message(conv, f"🎉 All {total_count} employees' work is complete! Waiting for client to review and approve each employee.")
         except Exception as e:
             logger.warning(f"⚠️ Failed to send system message for completion: {str(e)}")
-        
+
+        # Broadcast WebSocket event so the client's device immediately invalidates its
+        # React Query cache and sees agencyMarkedComplete=True → "Approve & Pay" button appears
+        try:
+            from jobs.api import broadcast_job_status_update
+            broadcast_job_status_update(job_id, {
+                'event': 'agency_employee_marked_complete',
+                'job_id': job_id,
+                'employee_id': employee_id,
+                'employee_name': employee.fullName,
+                'all_complete': all_complete,
+                'completed_count': completed_count,
+                'total_count': total_count,
+            })
+        except Exception as ws_err:
+            logger.warning(f"⚠️ Failed to broadcast agency mark-complete event: {ws_err}")
+
         logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) complete for PROJECT job #{job_id} ({completed_count}/{total_count})")
         
         return {

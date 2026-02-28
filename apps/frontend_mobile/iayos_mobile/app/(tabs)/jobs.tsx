@@ -25,6 +25,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, fetchJson, apiRequest } from "@/lib/api/config";
 import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
+import CalendarFAB from "@/components/CalendarFAB";
 
 interface MyJob {
   job_id: number;
@@ -201,21 +202,23 @@ export default function JobsScreen() {
     (app) => app.application_status === "PENDING"
   );
 
-  // DEBUG: Log job data to see what's being received
-  console.log("📋 Jobs received from backend:", jobs.length);
-  console.log("📋 Current user profile ID:", user?.profile_data?.id);
-  console.log("📋 Active tab:", activeTab);
-  jobs.forEach((job, index) => {
-    console.log(`  Job ${index + 1}:`, {
-      id: job.job_id,
-      title: job.title?.substring(0, 20),
-      job_type: job.job_type,
-      invite_status: job.invite_status,
-      assigned_worker_id: job.assigned_worker_id,
-      assigned_agency_id: job.assigned_agency_id,
-      status: job.status,
+  if (__DEV__) {
+    // DEBUG: Log job data to see what's being received
+    console.log("📋 Jobs received from backend:", jobs.length);
+    console.log("📋 Current user profile ID:", user?.profile_data?.id);
+    console.log("📋 Active tab:", activeTab);
+    jobs.forEach((job, index) => {
+      console.log(`  Job ${index + 1}:`, {
+        id: job.job_id,
+        title: job.title?.substring(0, 20),
+        job_type: job.job_type,
+        invite_status: job.invite_status,
+        assigned_worker_id: job.assigned_worker_id,
+        assigned_agency_id: job.assigned_agency_id,
+        status: job.status,
+      });
     });
-  });
+  }
 
   // Filter jobs based on active tab
   const filteredJobs = jobs.filter((job) => {
@@ -273,18 +276,20 @@ export default function JobsScreen() {
     if (activeTab === "requests") {
       // Requests: INVITE type jobs assigned to this worker (worker job invitations)
       if (!isWorker) {
-        console.log("  ❌ Not a worker, skipping requests filter");
+        if (__DEV__) console.log("  ❌ Not a worker, skipping requests filter");
         return false;
       }
 
-      console.log(`\n  🔍 Checking job ${job.job_id} for requests tab:`);
-      console.log(`     job_type: "${job.job_type}" (expected: "INVITE")`);
-      console.log(`     assigned_worker_id: ${job.assigned_worker_id}`);
-      console.log(`     my profile id: ${user?.profile_data?.id}`);
-      console.log(
-        `     invite_status: "${job.invite_status}" (expected: "PENDING")`
-      );
-      console.log(`     status: "${job.status}"`);
+      if (__DEV__) {
+        console.log(`\n  🔍 Checking job ${job.job_id} for requests tab:`);
+        console.log(`     job_type: "${job.job_type}" (expected: "INVITE")`);
+        console.log(`     assigned_worker_id: ${job.assigned_worker_id}`);
+        console.log(`     my profile id: ${user?.profile_data?.id}`);
+        console.log(
+          `     invite_status: "${job.invite_status}" (expected: "PENDING")`
+        );
+        console.log(`     status: "${job.status}"`);
+      }
 
       // Must be INVITE type with this worker assigned and pending status
       const isInviteType = job.job_type === "INVITE";
@@ -295,13 +300,15 @@ export default function JobsScreen() {
         (job.invite_status === null && job.status === "ACTIVE");
       const isActive = job.status === "ACTIVE";
 
-      console.log(`     ✓ isInviteType: ${isInviteType}`);
-      console.log(`     ✓ isAssignedToMe: ${isAssignedToMe}`);
-      console.log(`     ✓ isPendingInvite: ${isPendingInvite}`);
-      console.log(`     ✓ isActive: ${isActive}`);
-      console.log(
-        `     → WILL SHOW: ${isInviteType && isAssignedToMe && isPendingInvite}`
-      );
+      if (__DEV__) {
+        console.log(`     ✓ isInviteType: ${isInviteType}`);
+        console.log(`     ✓ isAssignedToMe: ${isAssignedToMe}`);
+        console.log(`     ✓ isPendingInvite: ${isPendingInvite}`);
+        console.log(`     ✓ isActive: ${isActive}`);
+        console.log(
+          `     → WILL SHOW: ${isInviteType && isAssignedToMe && isPendingInvite}`
+        );
+      }
 
       return isInviteType && isAssignedToMe && isPendingInvite;
     }
@@ -309,12 +316,14 @@ export default function JobsScreen() {
     return true;
   });
 
-  console.log(`📊 Filtered jobs for ${activeTab} tab:`, filteredJobs.length);
-  console.log("  Filter criteria:", {
-    activeTab,
-    isClient,
-    isWorker,
-  });
+  if (__DEV__) {
+    console.log(`📊 Filtered jobs for ${activeTab} tab:`, filteredJobs.length);
+    console.log("  Filter criteria:", {
+      activeTab,
+      isClient,
+      isWorker,
+    });
+  }
 
   // Delete job mutation
   const deleteJobMutation = useMutation({
@@ -1196,6 +1205,7 @@ export default function JobsScreen() {
           </View>
         </View>
       </Modal>
+      <CalendarFAB />
     </SafeAreaView>
   );
 }

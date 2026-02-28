@@ -206,7 +206,6 @@ export function JobTimelineVisualization({
 
   const handleExportPDF = () => {
     // TODO: Implement PDF export
-    console.log("Export to PDF");
   };
 
   return (

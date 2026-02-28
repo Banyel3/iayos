@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -136,13 +137,13 @@ export default function TransactionsPage() {
       const data = await response.json();
       setStatistics(
         data.stats ||
-        data || {
-          total_transactions: 0,
-          total_revenue: 0,
-          escrow_held: 0,
-          refunded_amount: 0,
-          platform_fees: 0,
-        },
+          data || {
+            total_transactions: 0,
+            total_revenue: 0,
+            escrow_held: 0,
+            refunded_amount: 0,
+            platform_fees: 0,
+          },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -249,7 +250,7 @@ export default function TransactionsPage() {
 
   const handleReleasePayment = async (transaction: Transaction) => {
     if (!transaction.job_id) {
-      alert("Cannot release: No job associated with this transaction");
+      toast.error("Cannot release: No job associated with this transaction");
       return;
     }
     if (
@@ -271,16 +272,18 @@ export default function TransactionsPage() {
       );
       const data = await response.json();
       if (data.success) {
-        alert(
-          `✅ Payment released successfully!\nAmount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`,
+        toast.success(
+          `Payment released successfully! Amount: ₱${data.amount?.toLocaleString() || transaction.amount.toLocaleString()}`,
         );
         fetchTransactions();
       } else {
-        alert(`❌ Failed to release payment: ${data.error || "Unknown error"}`);
+        toast.error(
+          `Failed to release payment: ${data.error || "Unknown error"}`,
+        );
       }
     } catch (error) {
       console.error("Error releasing payment:", error);
-      alert("Error releasing payment. Please try again.");
+      toast.error("Error releasing payment. Please try again.");
     } finally {
       setReleasingId(null);
     }
@@ -319,7 +322,7 @@ export default function TransactionsPage() {
   };
 
   const exportToCSV = () => {
-    alert("Export to CSV functionality - Coming soon");
+    toast.info("Export to CSV functionality - Coming soon");
   };
 
   if (loading && transactions.length === 0) {
@@ -394,7 +397,9 @@ export default function TransactionsPage() {
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
                     ₱{statistics?.total_revenue?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Total Revenue</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
+                    Total Revenue
+                  </p>
                 </CardContent>
               </Card>
 
@@ -408,7 +413,9 @@ export default function TransactionsPage() {
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
                     ₱{statistics?.escrow_held?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Escrow Held</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
+                    Escrow Held
+                  </p>
                 </CardContent>
               </Card>
 
@@ -422,7 +429,9 @@ export default function TransactionsPage() {
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
                     ₱{statistics?.refunded_amount?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Refunded</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
+                    Refunded
+                  </p>
                 </CardContent>
               </Card>
 
@@ -436,7 +445,9 @@ export default function TransactionsPage() {
                   <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
                     {statistics?.pending_count?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">Pending</p>
+                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
+                    Pending
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -534,14 +545,30 @@ export default function TransactionsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b-2 border-gray-200 bg-gray-50">
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">ID</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Type</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">User</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Amount</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Status</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Job</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Date</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Actions</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          ID
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          Type
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          User
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          Amount
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          Job
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          Date
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -549,7 +576,9 @@ export default function TransactionsPage() {
                         <tr>
                           <td colSpan={8} className="px-6 py-12 text-center">
                             <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-500 font-medium">No transactions found</p>
+                            <p className="text-gray-500 font-medium">
+                              No transactions found
+                            </p>
                           </td>
                         </tr>
                       ) : (
@@ -557,28 +586,46 @@ export default function TransactionsPage() {
                           <tr
                             key={transaction.id}
                             className="hover:bg-blue-50 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/admin/payments/transactions/${transaction.id}`)}
+                            onClick={() =>
+                              router.push(
+                                `/admin/payments/transactions/${transaction.id}`,
+                              )
+                            }
                           >
-                            <td className="px-6 py-4 text-sm font-mono text-gray-900">#{transaction.id}</td>
-                            <td className="px-6 py-4">{getTypeBadge(transaction.type)}</td>
+                            <td className="px-6 py-4 text-sm font-mono text-gray-900">
+                              #{transaction.id}
+                            </td>
+                            <td className="px-6 py-4">
+                              {getTypeBadge(transaction.type)}
+                            </td>
                             <td className="px-6 py-4 text-sm text-gray-700">
                               <div>
-                                <p className="font-medium text-xs sm:text-sm">{transaction.user?.name || "Unknown"}</p>
-                                <p className="text-xs text-gray-500">{transaction.user?.email || "-"}</p>
+                                <p className="font-medium text-xs sm:text-sm">
+                                  {transaction.user?.name || "Unknown"}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {transaction.user?.email || "-"}
+                                </p>
                               </div>
                             </td>
                             <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                               ₱{(transaction.amount ?? 0).toLocaleString()}
                             </td>
-                            <td className="px-6 py-4">{getStatusBadge(transaction.status)}</td>
+                            <td className="px-6 py-4">
+                              {getStatusBadge(transaction.status)}
+                            </td>
                             <td className="px-6 py-4 text-sm text-gray-600">
                               {transaction.job_title || transaction.job_id ? (
                                 <div>
                                   {transaction.job_title && (
-                                    <p className="font-medium text-gray-800 text-xs leading-tight">{transaction.job_title}</p>
+                                    <p className="font-medium text-gray-800 text-xs leading-tight">
+                                      {transaction.job_title}
+                                    </p>
                                   )}
                                   {transaction.job_id && (
-                                    <span className="font-mono text-blue-600 text-xs">#{transaction.job_id}</span>
+                                    <span className="font-mono text-blue-600 text-xs">
+                                      #{transaction.job_id}
+                                    </span>
                                   )}
                                 </div>
                               ) : (
@@ -586,7 +633,9 @@ export default function TransactionsPage() {
                               )}
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">
-                              {new Date(transaction.created_at).toLocaleDateString()}
+                              {new Date(
+                                transaction.created_at,
+                              ).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
@@ -615,7 +664,9 @@ export default function TransactionsPage() {
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    router.push(`/admin/payments/transactions/${transaction.id}`);
+                                    router.push(
+                                      `/admin/payments/transactions/${transaction.id}`,
+                                    );
                                   }}
                                   className="bg-blue-600 hover:bg-blue-700 text-white"
                                 >
@@ -637,24 +688,36 @@ export default function TransactionsPage() {
                 {transactions.length === 0 ? (
                   <div className="px-6 py-12 text-center">
                     <Banknote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">No transactions found</p>
+                    <p className="text-gray-500 font-medium">
+                      No transactions found
+                    </p>
                   </div>
                 ) : (
                   transactions.map((transaction) => (
                     <div
                       key={transaction.id}
                       className="p-4 active:bg-gray-50 transition-colors"
-                      onClick={() => router.push(`/admin/payments/transactions/${transaction.id}`)}
+                      onClick={() =>
+                        router.push(
+                          `/admin/payments/transactions/${transaction.id}`,
+                        )
+                      }
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <p className="text-xs font-mono text-gray-500 mb-1">#{transaction.id}</p>
-                          <p className="font-semibold text-gray-900">₱{(transaction.amount ?? 0).toLocaleString()}</p>
+                          <p className="text-xs font-mono text-gray-500 mb-1">
+                            #{transaction.id}
+                          </p>
+                          <p className="font-semibold text-gray-900">
+                            ₱{(transaction.amount ?? 0).toLocaleString()}
+                          </p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           {getStatusBadge(transaction.status)}
                           <p className="text-[10px] text-gray-400">
-                            {new Date(transaction.created_at).toLocaleDateString()}
+                            {new Date(
+                              transaction.created_at,
+                            ).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
@@ -666,20 +729,28 @@ export default function TransactionsPage() {
                       <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] font-bold text-blue-600">U</span>
+                            <span className="text-[10px] font-bold text-blue-600">
+                              U
+                            </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-800 truncate">{transaction.user?.name || "Unknown"}</p>
+                            <p className="text-xs font-medium text-gray-800 truncate">
+                              {transaction.user?.name || "Unknown"}
+                            </p>
                           </div>
                         </div>
 
                         {transaction.job_title && (
                           <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
                             <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <span className="text-[10px] font-bold text-purple-600">J</span>
+                              <span className="text-[10px] font-bold text-purple-600">
+                                J
+                              </span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[10px] sm:text-xs text-gray-600 truncate">{transaction.job_title}</p>
+                              <p className="text-[10px] sm:text-xs text-gray-600 truncate">
+                                {transaction.job_title}
+                              </p>
                             </div>
                           </div>
                         )}

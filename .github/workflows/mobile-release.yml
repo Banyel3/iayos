@@ -314,6 +314,17 @@ jobs:
           echo "📱 Running expo prebuild..."
           npx expo prebuild --clean --platform android
 
+          # Pin Gradle to a known stable version.
+          # expo prebuild can generate a gradle-wrapper.properties pointing to a
+          # non-existent / unreleased Gradle version (e.g. 8.14.3 → 502 error).
+          GRADLE_WRAPPER="android/gradle/wrapper/gradle-wrapper.properties"
+          if [ -f "$GRADLE_WRAPPER" ]; then
+            CURRENT_GRADLE_URL=$(grep distributionUrl "$GRADLE_WRAPPER" | cut -d= -f2-)
+            echo "🔧 Patching Gradle wrapper: $CURRENT_GRADLE_URL → 8.10.2"
+            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.10.2-bin.zip|' "$GRADLE_WRAPPER"
+            echo "  ✅ Gradle wrapper pinned to 8.10.2"
+          fi
+
           # Configure release signing with persistent keystore
           echo "🔐 Configuring release signing..."
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/iayos-release.keystore

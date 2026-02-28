@@ -11,15 +11,15 @@ interface AgencyStats {
 }
 
 interface LeaderboardEmployee {
-  employee_id: number;
+  employeeId: number;
   name: string;
   email: string;
   role: string;
   rating: number;
-  total_jobs_completed: number;
-  total_earnings: number;
+  totalJobsCompleted: number;
+  totalEarnings: number;
   rank: number;
-  is_employee_of_month: boolean;
+  isEmployeeOfTheMonth: boolean;
 }
 
 interface RevenueTrendData {
@@ -46,14 +46,15 @@ export function useAgencyStats() {
 
       const data = await response.json();
 
-      // Transform to stats format
+      // Transform to stats format — backend nests under data.statistics
+      const stats = data.statistics || data;
       return {
-        total_jobs: data.total_jobs || 0,
-        completed_jobs: data.completed_jobs || 0,
-        active_jobs: data.active_jobs || 0,
-        cancelled_jobs: data.cancelled_jobs || 0,
-        total_revenue: data.total_revenue || 0,
-        average_rating: data.average_rating || 0,
+        total_jobs: stats.total_jobs || 0,
+        completed_jobs: stats.completed_jobs || 0,
+        active_jobs: stats.active_jobs || 0,
+        cancelled_jobs: stats.cancelled_jobs || 0,
+        total_revenue: stats.total_revenue || 0,
+        average_rating: stats.average_rating || 0,
       };
     },
     refetchOnWindowFocus: false,
@@ -156,8 +157,8 @@ export function exportAnalyticsCSV(
     emp.email,
     emp.role,
     emp.rating.toFixed(2),
-    emp.total_jobs_completed,
-    emp.total_earnings.toFixed(2),
+    emp.totalJobsCompleted,
+    (emp.totalEarnings ?? 0).toFixed(2),
   ]);
 
   // Add summary section

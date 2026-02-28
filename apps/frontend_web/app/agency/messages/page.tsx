@@ -282,7 +282,7 @@ export default function AgencyMessagesPage() {
     filter: FilterType,
     label: string,
     icon: React.ReactNode,
-    count?: number
+    count?: number,
   ) => {
     const isActive = activeFilter === filter;
 
@@ -430,18 +430,18 @@ export default function AgencyMessagesPage() {
             "active",
             "Active",
             <Inbox className="h-4 w-4" />,
-            conversationsData?.total
+            conversationsData?.total,
           )}
           {renderFilterButton(
             "unread",
             "Unread",
             <MessageSquare className="h-4 w-4" />,
-            unreadCount
+            unreadCount,
           )}
           {renderFilterButton(
             "archived",
             "Archived",
-            <Archive className="h-4 w-4" />
+            <Archive className="h-4 w-4" />,
           )}
           <Button
             variant="outline"
@@ -482,7 +482,7 @@ export default function AgencyMessagesPage() {
           ) : (
             <div className="space-y-4">
               {displayedConversations.map((conversation) =>
-                renderConversationCard(conversation)
+                renderConversationCard(conversation),
               )}
             </div>
           )}

@@ -45,7 +45,7 @@ export default function MyBackjobsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "UNDER_REVIEW" | "RESOLVED">(
-    "all"
+    "all",
   );
 
   const fetchBackjobs = async (showLoading = true) => {
@@ -58,16 +58,16 @@ export default function MyBackjobsScreen() {
           ? ENDPOINTS.MY_BACKJOBS
           : `${ENDPOINTS.MY_BACKJOBS}?status=${filter}`;
 
-      console.log("📋 Fetching backjobs from:", url);
+      if (__DEV__) console.log("📋 Fetching backjobs from:", url);
       const response = await apiRequest(url);
-      console.log("📋 Response status:", response.status);
+      if (__DEV__) console.log("📋 Response status:", response.status);
 
       if (response.ok) {
         const data = (await response.json()) as {
           backjobs: BackjobItem[];
           total: number;
         };
-        console.log("📋 Backjobs data:", data);
+        if (__DEV__) console.log("📋 Backjobs data:", data);
         // Transform avatar URLs to absolute URLs for local storage compatibility
         const transformedBackjobs = (data.backjobs || []).map((item) => ({
           ...item,
@@ -100,7 +100,7 @@ export default function MyBackjobsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchBackjobs();
-    }, [filter])
+    }, [filter]),
   );
 
   const handleRefresh = () => {

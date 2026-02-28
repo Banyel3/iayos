@@ -39,7 +39,7 @@ export default function PrivacyPolicyScreen() {
             color={Colors.textSecondary}
           />
           <Text style={styles.lastUpdatedText}>
-            Last updated: December 9, 2025
+            Last updated: February 27, 2026
           </Text>
         </View>
 
@@ -84,10 +84,10 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.paragraph}>
             For payment processing, we collect:
           </Text>
-          <BulletPoint text="GCash account information" />
+          <BulletPoint text="Deposit transaction details processed via PayQR (PayMongo)" />
           <BulletPoint text="Wallet transaction history" />
-          <BulletPoint text="Payment method details (stored securely via our payment processor)" />
-          <BulletPoint text="Bank account information for withdrawals" />
+          <BulletPoint text="Payment method details (stored securely via PayMongo)" />
+          <BulletPoint text="Withdrawal request details processed manually by the iAyos team" />
 
           <Text style={styles.subsectionTitle}>1.4 Usage Data</Text>
           <Text style={styles.paragraph}>
@@ -222,8 +222,8 @@ export default function PrivacyPolicyScreen() {
           <BulletPoint text="Portability: Receive your data in a structured, machine-readable format" />
           <BulletPoint text="Withdraw Consent: Revoke consent for non-essential data processing" />
           <Text style={styles.paragraph}>
-            To exercise these rights, contact us at privacy@iayos.ph. We will
-            respond within 15 business days.
+            To exercise these rights, contact us at devante.software@gmail.com.
+            We will respond within 15 business days.
           </Text>
         </Section>
 
@@ -321,21 +321,18 @@ export default function PrivacyPolicyScreen() {
             If you have questions or concerns about this Privacy Policy or our
             data practices, please contact us:
           </Text>
-          <Text style={styles.contactInfo}>Email: privacy@iayos.ph</Text>
-          <Text style={styles.contactInfo}>Phone: +63 XXX XXX XXXX</Text>
           <Text style={styles.contactInfo}>
-            Mailing Address:{"\n"}
-            iAyos Data Privacy Officer{"\n"}
-            Zamboanga City, Philippines
+            Email: devante.software@gmail.com
           </Text>
+          <Text style={styles.contactInfo}>Website: devante.online</Text>
         </Section>
 
         <Section title="14. Data Privacy Officer">
           <Text style={styles.paragraph}>
             As required by the Philippine Data Privacy Act, we have designated a
             Data Privacy Officer (DPO) to oversee compliance with data
-            protection laws. You can contact our DPO at dpo@iayos.ph for
-            privacy-related inquiries.
+            protection laws. You can contact our DPO at
+            devante.software@gmail.com for privacy-related inquiries.
           </Text>
         </Section>
 

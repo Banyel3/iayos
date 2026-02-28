@@ -2,7 +2,8 @@ import { rateLimiter } from "@/lib/rateLimiter";
 import { NextRequest } from "next/server";
 
 export async function GET(req: NextRequest) {
-  console.log("Rate limit check API called");
+  if (process.env.NODE_ENV === "development")
+    console.log("Rate limit check API called");
 
   try {
     const ip =
@@ -10,16 +11,17 @@ export async function GET(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       "anonymous";
 
-    console.log("Client IP:", ip);
+    if (process.env.NODE_ENV === "development") console.log("Client IP:", ip);
 
     // Get rate limiter status without consuming points
     const rateLimiterStatus = await rateLimiter.get(ip);
-    console.log("Rate limiter status:", rateLimiterStatus);
+    if (process.env.NODE_ENV === "development")
+      console.log("Rate limiter status:", rateLimiterStatus);
 
     if (rateLimiterStatus) {
       const remainingTime = Math.max(
         0,
-        Math.round(rateLimiterStatus.msBeforeNext / 1000)
+        Math.round(rateLimiterStatus.msBeforeNext / 1000),
       );
 
       const isRateLimited = rateLimiterStatus.remainingPoints <= 0;
@@ -30,11 +32,12 @@ export async function GET(req: NextRequest) {
         remainingAttempts: Math.max(0, rateLimiterStatus.remainingPoints),
         totalAttempts: 3,
         resetTime: new Date(
-          Date.now() + rateLimiterStatus.msBeforeNext
+          Date.now() + rateLimiterStatus.msBeforeNext,
         ).toISOString(),
       };
 
-      console.log("Returning response:", response);
+      if (process.env.NODE_ENV === "development")
+        console.log("Returning response:", response);
 
       return new Response(JSON.stringify(response), {
         status: 200,
@@ -53,10 +56,11 @@ export async function GET(req: NextRequest) {
       resetTime: null,
     };
 
-    console.log(
-      "No rate limit record found, returning default:",
-      defaultResponse
-    );
+    if (process.env.NODE_ENV === "development")
+      console.log(
+        "No rate limit record found, returning default:",
+        defaultResponse,
+      );
 
     return new Response(JSON.stringify(defaultResponse), {
       status: 200,

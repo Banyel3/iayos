@@ -834,6 +834,25 @@ def get_conversations(request, filter: str = "all"):
                     relatedJobPosting__status='COMPLETED'
                 )
             )
+        elif filter == "upcoming":
+            # Show conversations for jobs scheduled in the future (start date > today)
+            from django.utils import timezone
+            today = timezone.now().date()
+            archived_team_ids = ConversationParticipant.objects.filter(
+                profile=user_profile,
+                is_archived=True
+            ).values_list('conversation_id', flat=True)
+
+            conversations_query = conversations_query.filter(
+                (Q(conversation_type='ONE_ON_ONE') & (
+                    (Q(client=user_profile) & Q(archivedByClient=False)) |
+                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
+                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
+                )) |
+                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
+            ).filter(
+                relatedJobPosting__preferredStartDate__gt=today
+            )
         else:
             # For 'all' and 'unread', exclude archived conversations
             archived_team_ids = ConversationParticipant.objects.filter(
@@ -1033,7 +1052,9 @@ def get_conversations(request, filter: str = "all"):
                     "workerReviewed": worker_reviewed,
                     "clientReviewed": client_reviewed,
                     "remainingPaymentPaid": job.remainingPaymentPaid,
-                    "is_team_job": job.is_team_job
+                    "is_team_job": job.is_team_job,
+                    "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+                    "scheduled_end_date": job.scheduled_end_date.isoformat() if job.scheduled_end_date else None
                 },
                 "all_team_workers_reviewed": all_team_workers_reviewed,
                 "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),
@@ -1241,6 +1262,7 @@ def get_conversation_messages(request, conversation_id: int):
                 'client__accountFK',
                 'worker__accountFK',
                 'relatedJobPosting',
+                'relatedJobPosting__assignedAgencyFK',
                 'agency'
             ).get(conversationID=conversation_id)
         except Conversation.DoesNotExist:
@@ -1250,7 +1272,24 @@ def get_conversation_messages(request, conversation_id: int):
             )
         
         # Check if this is an agency conversation
+        # Primary check: conversation has agency set and no individual worker
         is_agency_conversation = conversation.agency is not None and conversation.worker is None
+        
+        # Secondary check: if the job itself has an assigned agency, this IS an agency conversation
+        # This handles cases where the conversation was created without the agency field
+        job_ref = conversation.relatedJobPosting
+        if not is_agency_conversation and job_ref and getattr(job_ref, 'assignedAgencyFK_id', None):
+            print(f"⚠️ [AGENCY FIX] Conversation {conversation.conversationID} missing agency field but job {job_ref.jobID} has assignedAgencyFK. Repairing...")
+            try:
+                conversation.agency = job_ref.assignedAgencyFK
+                conversation.worker = None  # Ensure worker is None for agency conversations
+                conversation.save(update_fields=['agency', 'worker'])
+                is_agency_conversation = True
+                print(f"✅ [AGENCY FIX] Conversation {conversation.conversationID} agency field repaired")
+            except Exception as repair_err:
+                print(f"❌ [AGENCY FIX] Failed to repair conversation: {repair_err}")
+                # Still set is_agency_conversation based on job, even if DB repair fails
+                is_agency_conversation = True
         
         # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
@@ -1267,8 +1306,12 @@ def get_conversation_messages(request, conversation_id: int):
         
         # For agency conversations, check if user is the agency owner
         is_agency_owner = False
-        if is_agency_conversation and conversation.agency:
-            is_agency_owner = conversation.agency.accountFK == request.auth
+        if is_agency_conversation:
+            if conversation.agency:
+                is_agency_owner = conversation.agency.accountFK == request.auth
+            elif job_ref and getattr(job_ref, 'assignedAgencyFK', None):
+                # Fallback: check via job's agency FK if conversation agency wasn't repaired
+                is_agency_owner = job_ref.assignedAgencyFK.accountFK == request.auth
         
         print(f"   Conversation ID: {conversation.conversationID}")
         print(f"   Client Profile ID: {conversation.client.profileID}")
@@ -1343,23 +1386,33 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         for msg in messages:
             # Handle system messages (both sender and senderAgency are None)
-            if msg.sender is None and msg.senderAgency is None:
+            if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
                 is_mine = False
                 sender_name = "System"
                 sender_avatar = None
+                sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
+            elif msg.sender is None and msg.senderAgency is None and msg.sender_admin:
+                # Admin message (negotiation chat)
+                is_mine = False
+                sender_name = "Admin"
+                sender_avatar = None
+                sender_type = "admin"
+                print(f"   Admin message from {msg.sender_admin.email}")
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
                 sender_name = msg.senderAgency.businessName if msg.senderAgency else (conversation.agency.businessName if conversation.agency else "Agency")
                 sender_avatar = "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
+                sender_type = "agency"
                 print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
                 # Regular message from a Profile
                 is_mine = msg.sender == user_profile
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
+                sender_type = "profile"
                 print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
             
             # Get attachments for this message
@@ -1384,6 +1437,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "message_id": msg.messageID,
                 "sender_name": sender_name,
                 "sender_avatar": sender_avatar,
+                "sender_type": sender_type,
                 "message_text": msg.messageText,
                 "message_type": msg.messageType,
                 "is_read": msg.isRead,
@@ -1567,8 +1621,11 @@ def get_conversation_messages(request, conversation_id: int):
                 status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
             ).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
             
+            print(f"   📋 [AGENCY EMPLOYEES] Job #{job.jobID}: Found {assignments.count()} assignments")
+            
             for assignment in assignments:
                 emp = assignment.employee
+                print(f"      👤 Employee #{emp.employeeID} ({emp.name}): dispatched={assignment.dispatched}, arrived={assignment.clientConfirmedArrival}, agencyComplete={assignment.agencyMarkedComplete}, clientApproved={getattr(assignment, 'clientApproved', False)}")
                 assigned_employees_list.append({
                     "id": emp.employeeID,
                     "name": emp.name,

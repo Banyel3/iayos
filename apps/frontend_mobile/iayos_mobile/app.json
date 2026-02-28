@@ -2,7 +2,7 @@
   "expo": {
     "name": "iayos_mobile",
     "slug": "iayos_mobile",
-    "version": "1.0.8",
+    "version": "2.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/android-icon-foreground.png",
     "scheme": "iayosmobile",
@@ -22,9 +22,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.devante.iayos",
-      "permissions": [
-        "android.permission.REQUEST_INSTALL_PACKAGES"
-      ]
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "notification": {
       "icon": "./assets/images/notification-icon.png",
@@ -35,20 +33,14 @@
     "web": {
       "bundler": "metro"
     },
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-router",
       [
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true,
-            "permissions": [
-              "android.permission.REQUEST_INSTALL_PACKAGES"
-            ]
+            "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
           }
         }
       ],

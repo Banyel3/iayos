@@ -10,7 +10,6 @@ import { API_BASE } from "@/lib/api/config";
 import {
   useAgencyReviews,
   formatRelativeTime,
-  getRatingColorClass,
   AgencyReview,
   ReviewTypeFilter,
 } from "@/lib/hooks/useAgencyReviews";
@@ -47,7 +46,9 @@ function StarRating({ rating }: { rating: number }) {
           }`}
         />
       ))}
-      <span className="ml-1 text-sm font-medium">{(rating ?? 0).toFixed(1)}</span>
+      <span className="ml-1 text-sm font-medium">
+        {(rating ?? 0).toFixed(1)}
+      </span>
     </div>
   );
 }
@@ -118,7 +119,9 @@ function ReviewCard({ review, onRespond, onReport }: ReviewCardProps) {
           <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
             <div className="flex items-center gap-2 mb-2">
               <Reply className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800">Agency Response</span>
+              <span className="text-sm font-medium text-blue-800">
+                Agency Response
+              </span>
             </div>
             <p className="text-sm text-blue-700">{review.agency_response}</p>
           </div>
@@ -159,14 +162,16 @@ export default function AgencyReviewsPage() {
   const limit = 10;
 
   // Response modal state
-  const [respondingToReviewId, setRespondingToReviewId] = useState<number | null>(null);
+  const [respondingToReviewId, setRespondingToReviewId] = useState<
+    number | null
+  >(null);
   const [responseText, setResponseText] = useState("");
   const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
 
   const { data, isLoading, error, refetch } = useAgencyReviews(
     page,
     limit,
-    reviewTypeFilter
+    reviewTypeFilter,
   );
 
   // Reset page when filter changes
@@ -200,7 +205,7 @@ export default function AgencyReviewsPage() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ response: responseText }),
-        }
+        },
       );
 
       if (res.ok) {
@@ -221,7 +226,11 @@ export default function AgencyReviewsPage() {
   };
 
   const handleReport = (reviewId: number) => {
-    if (confirm("Are you sure you want to report this review for inappropriate content?")) {
+    if (
+      confirm(
+        "Are you sure you want to report this review for inappropriate content?",
+      )
+    ) {
       toast.info("Review reported. Our team will review it shortly.");
       // In a real implementation, this would call an API
     }
@@ -329,7 +338,7 @@ export default function AgencyReviewsPage() {
               <p className="text-xs text-green-600 mt-1">
                 {stats.total_reviews > 0
                   ? Math.round(
-                      (stats.positive_reviews / stats.total_reviews) * 100
+                      (stats.positive_reviews / stats.total_reviews) * 100,
                     )
                   : 0}
                 % of total (4+ stars)
@@ -485,7 +494,8 @@ export default function AgencyReviewsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  Your response will be visible to everyone. Keep it professional and helpful.
+                  Your response will be visible to everyone. Keep it
+                  professional and helpful.
                 </p>
                 <Textarea
                   value={responseText}
@@ -507,7 +517,9 @@ export default function AgencyReviewsPage() {
                     </Button>
                     <Button
                       onClick={handleSubmitResponse}
-                      disabled={isSubmittingResponse || responseText.length < 10}
+                      disabled={
+                        isSubmittingResponse || responseText.length < 10
+                      }
                       className="bg-blue-600 hover:bg-blue-700"
                     >
                       {isSubmittingResponse ? (

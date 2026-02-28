@@ -17,8 +17,10 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  ChevronRight,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface UserReport {
   id: string;
@@ -175,7 +177,7 @@ export default function UserReportsPage() {
       setShowWarningModal(false);
       setShowDetailModal(false);
       fetchReports();
-      alert("Warning sent successfully");
+      toast.success("Warning sent successfully");
     } catch (error) {
       console.error("Error sending warning:", error);
     }
@@ -202,7 +204,7 @@ export default function UserReportsPage() {
       setShowSuspendModal(false);
       setShowDetailModal(false);
       fetchReports();
-      alert("User suspended successfully");
+      toast.success("User suspended successfully");
     } catch (error) {
       console.error("Error suspending user:", error);
     }
@@ -228,7 +230,7 @@ export default function UserReportsPage() {
       setShowBanModal(false);
       setShowDetailModal(false);
       fetchReports();
-      alert("User banned successfully");
+      toast.success("User banned successfully");
     } catch (error) {
       console.error("Error banning user:", error);
     }
@@ -253,7 +255,7 @@ export default function UserReportsPage() {
 
       setShowDetailModal(false);
       fetchReports();
-      alert("Report dismissed");
+      toast.success("Report dismissed");
     } catch (error) {
       console.error("Error dismissing report:", error);
     }
@@ -287,7 +289,9 @@ export default function UserReportsPage() {
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                       <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
                     </div>
-                    <h1 className="text-2xl sm:text-4xl font-bold">User Reports</h1>
+                    <h1 className="text-2xl sm:text-4xl font-bold">
+                      User Reports
+                    </h1>
                   </div>
                   <p className="text-red-100 text-sm sm:text-lg">
                     Review and moderate reported content and users
@@ -314,7 +318,9 @@ export default function UserReportsPage() {
 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Status</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">
+                      Status
+                    </p>
                     <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
                       {[
                         "all",
@@ -325,34 +331,44 @@ export default function UserReportsPage() {
                       ].map((status) => (
                         <Button
                           key={status}
-                          variant={statusFilter === status ? "default" : "outline"}
+                          variant={
+                            statusFilter === status ? "default" : "outline"
+                          }
                           size="sm"
                           className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${statusFilter === status ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
                           onClick={() => setStatusFilter(status)}
                         >
                           {status === "all"
                             ? "All"
-                            : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-                              ?.label}
+                            : STATUS_CONFIG[
+                                status as keyof typeof STATUS_CONFIG
+                              ]?.label}
                         </Button>
                       ))}
                     </div>
                   </div>
 
                   <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">Type</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">
+                      Type
+                    </p>
                     <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
-                      {["all", "user", "job", "review", "message"].map((type) => (
-                        <Button
-                          key={type}
-                          variant={typeFilter === type ? "default" : "outline"}
-                          size="sm"
-                          className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${typeFilter === type ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
-                          onClick={() => setTypeFilter(type)}
-                        >
-                          {type.charAt(0).toUpperCase() + type.slice(1)} Report
-                        </Button>
-                      ))}
+                      {["all", "user", "job", "review", "message"].map(
+                        (type) => (
+                          <Button
+                            key={type}
+                            variant={
+                              typeFilter === type ? "default" : "outline"
+                            }
+                            size="sm"
+                            className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${typeFilter === type ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
+                            onClick={() => setTypeFilter(type)}
+                          >
+                            {type.charAt(0).toUpperCase() + type.slice(1)}{" "}
+                            Report
+                          </Button>
+                        ),
+                      )}
                     </div>
                   </div>
                 </div>
@@ -368,14 +384,30 @@ export default function UserReportsPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Report ID</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Reporter</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Reported User</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Type & Reason</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Description</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Status</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Date</th>
-                      <th className="px-6 py-4 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Actions</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Report ID
+                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Reporter
+                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Reported User
+                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Type & Reason
+                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Description
+                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-50">
@@ -383,7 +415,9 @@ export default function UserReportsPage() {
                       <tr>
                         <td colSpan={8} className="px-6 py-12 text-center">
                           <AlertTriangle className="h-8 w-8 text-red-500 animate-pulse mx-auto mb-3" />
-                          <p className="text-gray-500 font-bold tracking-tight">Syncing reports...</p>
+                          <p className="text-gray-500 font-bold tracking-tight">
+                            Syncing reports...
+                          </p>
                         </td>
                       </tr>
                     ) : filteredReports.length === 0 ? (
@@ -393,8 +427,13 @@ export default function UserReportsPage() {
                             <div className="p-4 bg-gray-50 rounded-full">
                               <AlertTriangle className="h-8 w-8 text-gray-300" />
                             </div>
-                            <p className="text-lg font-bold text-gray-900 leading-tight">No reports match your filters</p>
-                            <p className="text-sm text-gray-500 leading-relaxed font-medium">Try broadening your search criteria or resetting filters.</p>
+                            <p className="text-lg font-bold text-gray-900 leading-tight">
+                              No reports match your filters
+                            </p>
+                            <p className="text-sm text-gray-500 leading-relaxed font-medium">
+                              Try broadening your search criteria or resetting
+                              filters.
+                            </p>
                           </div>
                         </td>
                       </tr>
@@ -405,44 +444,61 @@ export default function UserReportsPage() {
                           className="hover:bg-red-50/30 transition-colors group cursor-pointer"
                           onClick={() => handleViewDetail(report.id)}
                         >
-                          <td className="px-6 py-4 text-sm font-black text-gray-400">#{report.id}</td>
+                          <td className="px-6 py-4 text-sm font-black text-gray-400">
+                            #{report.id}
+                          </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">{report.reporter_name}</span>
+                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
+                                {report.reporter_name}
+                              </span>
                               {report.reporter_total_reports > 1 && (
                                 <span className="text-[10px] text-gray-400 font-bold tracking-tight">
-                                  {report.reporter_total_reports} reports submitted
+                                  {report.reporter_total_reports} reports
+                                  submitted
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">{report.reported_user_name}</span>
+                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
+                                {report.reported_user_name}
+                              </span>
                               {report.reported_user_total_reports > 3 && (
                                 <span className="text-[10px] text-red-600 font-black tracking-tight uppercase">
-                                  {report.reported_user_total_reports} times reported
+                                  {report.reported_user_total_reports} times
+                                  reported
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1.5">
-                              <Badge className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}>
+                              <Badge
+                                className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}
+                              >
                                 {report.reported_content_type}
                               </Badge>
-                              <Badge className={`${REASON_CONFIG[report.reason]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}>
+                              <Badge
+                                className={`${REASON_CONFIG[report.reason]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}
+                              >
                                 {report.reason}
                               </Badge>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="text-xs text-gray-500 font-medium leading-relaxed max-w-xs truncate" title={report.description}>
+                            <p
+                              className="text-xs text-gray-500 font-medium leading-relaxed max-w-xs truncate"
+                              title={report.description}
+                            >
                               {report.description}
                             </p>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge className={`${STATUS_CONFIG[report.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit h-5 uppercase text-[9px] tracking-widest`}>
+                            <Badge
+                              className={`${STATUS_CONFIG[report.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit h-5 uppercase text-[9px] tracking-widest`}
+                            >
                               {(() => {
                                 const Icon = STATUS_CONFIG[report.status].icon;
                                 return <Icon className="h-2.5 w-2.5" />;
@@ -472,13 +528,19 @@ export default function UserReportsPage() {
                 {loading ? (
                   <div className="p-12 text-center">
                     <AlertTriangle className="h-8 w-8 text-red-500 animate-pulse mx-auto mb-3" />
-                    <p className="text-sm font-bold text-gray-500 tracking-tight">Loading reports...</p>
+                    <p className="text-sm font-bold text-gray-500 tracking-tight">
+                      Loading reports...
+                    </p>
                   </div>
                 ) : filteredReports.length === 0 ? (
                   <div className="p-12 text-center">
                     <AlertTriangle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-base font-bold text-gray-900 mb-1">No reports found</p>
-                    <p className="text-xs text-gray-500 font-medium font-bold">Try different filter settings</p>
+                    <p className="text-base font-bold text-gray-900 mb-1">
+                      No reports found
+                    </p>
+                    <p className="text-xs text-gray-500 font-bold">
+                      Try different filter settings
+                    </p>
                   </div>
                 ) : (
                   filteredReports.map((report) => (
@@ -490,8 +552,12 @@ export default function UserReportsPage() {
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">#{report.id}</span>
-                            <Badge className={`${STATUS_CONFIG[report.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase tracking-widest flex items-center gap-1`}>
+                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">
+                              #{report.id}
+                            </span>
+                            <Badge
+                              className={`${STATUS_CONFIG[report.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase tracking-widest flex items-center gap-1`}
+                            >
                               {(() => {
                                 const Icon = STATUS_CONFIG[report.status].icon;
                                 return <Icon className="h-2 w-2" />;
@@ -509,10 +575,14 @@ export default function UserReportsPage() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 mb-4">
-                        <Badge className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}>
+                        <Badge
+                          className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}
+                        >
                           {report.reported_content_type}
                         </Badge>
-                        <Badge className={`${REASON_CONFIG[report.reason]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}>
+                        <Badge
+                          className={`${REASON_CONFIG[report.reason]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}
+                        >
                           {report.reason}
                         </Badge>
                         {report.reported_user_total_reports > 3 && (
@@ -534,7 +604,10 @@ export default function UserReportsPage() {
                           {new Date(report.created_at).toLocaleDateString()}
                         </div>
                         <div className="text-[10px] font-bold text-gray-400">
-                          By <span className="text-gray-900">{report.reporter_name}</span>
+                          By{" "}
+                          <span className="text-gray-900">
+                            {report.reporter_name}
+                          </span>
                         </div>
                       </div>
                     </div>

@@ -22,6 +22,7 @@ export default function MessageBubble({
   const isMine = message.is_mine;
   const isImage = message.message_type === "IMAGE";
   const isSystem = message.message_type === "SYSTEM";
+  const isAdmin = message.sender_type === "admin";
 
   // Format timestamp
   const messageDate = new Date(message.created_at);
@@ -190,5 +191,49 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  // Admin message styles
+  adminContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginVertical: 4,
+    paddingHorizontal: Spacing.sm,
+    gap: 6,
+  },
+  adminIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#ede9fe",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  adminBubble: {
+    backgroundColor: "#ede9fe",
+    borderRadius: 16,
+    borderTopLeftRadius: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: "75%",
+  },
+  adminSenderName: {
+    color: "#7c3aed",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  adminMessageText: {
+    ...Typography.body,
+    fontSize: 14,
+    color: "#4c1d95",
+  },
+  adminTime: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: "#7c3aed",
+    opacity: 0.7,
+    marginTop: 4,
+    textAlign: "right",
   },
 });

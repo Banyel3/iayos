@@ -48,7 +48,9 @@ def get_user_profile(request):
 
 def broadcast_job_status_update(job_id, update_data):
     """
-    Broadcast job status update via WebSocket
+    Broadcast job status update via WebSocket.
+    Sends to both the job_{job_id} group (JobStatusConsumer) AND all chat_{conv_id}
+    groups linked to this job (InboxConsumer) so mobile clients receive the update.
     """
     try:
         channel_layer = get_channel_layer()
@@ -61,6 +63,26 @@ def broadcast_job_status_update(job_id, update_data):
                 }
             )
             print(f"📡 Broadcasted job status update for job {job_id}: {update_data}")
+
+            # Also broadcast to chat groups so InboxConsumer (mobile) receives it
+            try:
+                from profiles.models import Conversation
+                conv_ids = list(
+                    Conversation.objects.filter(relatedJobPosting_id=job_id)
+                    .values_list('pk', flat=True)
+                )
+                for conv_id in conv_ids:
+                    async_to_sync(channel_layer.group_send)(
+                        f'chat_{conv_id}',
+                        {
+                            'type': 'job_status_update',
+                            'data': update_data
+                        }
+                    )
+                if conv_ids:
+                    print(f"📡 Broadcasted job status update to chat groups {conv_ids} for job {job_id}")
+            except Exception as conv_e:
+                print(f"⚠️ Could not broadcast to chat groups for job {job_id}: {str(conv_e)}")
         else:
             print(f"⚠️ No channel layer available for broadcasting")
     except Exception as e:
@@ -1512,6 +1534,50 @@ def get_completed_jobs(request):
         )
 
 
+@router.get("/worker-schedule", auth=cookie_auth)
+def get_worker_schedule(request):
+    """Get current worker's scheduled/active jobs for calendar display.
+    Returns jobs that have both preferredStartDate and scheduled_end_date set.
+    """
+    try:
+        from accounts.models import WorkerProfile
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=403)
+
+        jobs = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+            preferredStartDate__isnull=False,
+            scheduled_end_date__isnull=False,
+        ).select_related('clientID__profileID')
+
+        return {
+            "success": True,
+            "jobs": [
+                {
+                    "id": j.jobID,
+                    "title": j.title,
+                    "preferred_start_date": str(j.preferredStartDate),
+                    "scheduled_end_date": str(j.scheduled_end_date),
+                    "status": j.status,
+                    "client_name": (
+                        f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
+                    ),
+                    "budget": float(j.budget),
+                }
+                for j in jobs
+            ],
+        }
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
 @router.get("/my-applications", auth=cookie_auth)
 def get_my_applications(request):
     """
@@ -2056,43 +2122,7 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=403
             )
         
-        # CRITICAL: Prevent workers from applying if they have an active job
-        # Check both regular jobs (assignedWorkerID) and team jobs (JobWorkerAssignment)
-        from accounts.models import JobWorkerAssignment
-        
-        # Check for active regular job
-        active_regular_job = JobPosting.objects.filter(
-            assignedWorkerID=worker_profile,
-            status=JobPosting.JobStatus.IN_PROGRESS
-        ).first()
-        
-        if active_regular_job:
-            return Response(
-                {
-                    "error": f"You already have an active job: '{active_regular_job.title}'. Complete it before applying to new jobs.",
-                    "active_job_id": active_regular_job.jobID,
-                    "active_job_title": active_regular_job.title
-                },
-                status=400
-            )
-        
-        # Check for active team job assignment
-        active_team_assignment = JobWorkerAssignment.objects.filter(
-            workerID=worker_profile,
-            assignment_status='ACTIVE'
-        ).select_related('jobID').first()
-        
-        if active_team_assignment:
-            return Response(
-                {
-                    "error": f"You are currently assigned to a team job: '{active_team_assignment.jobID.title}'. Complete it before applying to new jobs.",
-                    "active_job_id": active_team_assignment.jobID.jobID,
-                    "active_job_title": active_team_assignment.jobID.title
-                },
-                status=400
-            )
-        
-        # Get the job posting
+        # Get the job posting first (needed for date-overlap check)
         try:
             job = JobPosting.objects.get(jobID=job_id)
         except JobPosting.DoesNotExist:
@@ -2100,6 +2130,28 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "Job posting not found"},
                 status=404
             )
+
+        # DATE OVERLAP CHECK: Workers can apply to multiple jobs as long as dates don't conflict
+        if job.preferredStartDate and job.scheduled_end_date:
+            overlapping_job = JobPosting.objects.filter(
+                assignedWorkerID=worker_profile,
+                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                preferredStartDate__lte=job.scheduled_end_date,
+                scheduled_end_date__gte=job.preferredStartDate,
+            ).exclude(jobID=job.jobID).first()
+            if overlapping_job:
+                return Response(
+                    {
+                        "error": (
+                            f"Schedule conflict: you already have '{overlapping_job.title}' "
+                            f"scheduled on overlapping dates "
+                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
+                        ),
+                        "conflicting_job_id": overlapping_job.jobID,
+                        "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
         
         # CRITICAL: Prevent users from applying to their own jobs (self-hiring)
         if job.clientID.profileID.accountFK == request.auth:
@@ -2250,45 +2302,28 @@ def accept_application(request, job_id: int, application_id: int):
                 status=400
             )
         
-        # CRITICAL: Prevent accepting application if worker already has an active job
-        # This prevents race condition where worker applies to multiple jobs
-        from accounts.models import JobWorkerAssignment
-        
+        # DATE OVERLAP CHECK (race-condition guard): Worker cannot be assigned if dates conflict
         worker = application.workerID
-        
-        # Check for active regular job
-        active_regular_job = JobPosting.objects.filter(
-            assignedWorkerID=worker,
-            status=JobPosting.JobStatus.IN_PROGRESS
-        ).first()
-        
-        if active_regular_job:
-            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
-            return Response(
-                {
-                    "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
-                    "worker_active_job_id": active_regular_job.jobID,
-                    "worker_active_job_title": active_regular_job.title
-                },
-                status=400
-            )
-        
-        # Check for active team job assignment
-        active_team_assignment = JobWorkerAssignment.objects.filter(
-            workerID=worker,
-            assignment_status='ACTIVE'
-        ).select_related('jobID').first()
-        
-        if active_team_assignment:
-            worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
-            return Response(
-                {
-                    "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
-                    "worker_active_job_id": active_team_assignment.jobID.jobID,
-                    "worker_active_job_title": active_team_assignment.jobID.title
-                },
-                status=400
-            )
+        if job.preferredStartDate and job.scheduled_end_date:
+            overlapping_job = JobPosting.objects.filter(
+                assignedWorkerID=worker,
+                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                preferredStartDate__lte=job.scheduled_end_date,
+                scheduled_end_date__gte=job.preferredStartDate,
+            ).exclude(jobID=job.jobID).first()
+            if overlapping_job:
+                worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
+                return Response(
+                    {
+                        "error": (
+                            f"{worker_name} has a scheduling conflict with '{overlapping_job.title}' "
+                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
+                        ),
+                        "conflicting_job_id": overlapping_job.jobID,
+                        "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
         
         # Use database transaction for atomicity
         with db_transaction.atomic():
@@ -5617,9 +5652,17 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                         print(f"⚠️ Failed to upload image {idx}: {upload_error}")
             
             # Notify admins about new backjob request
-            # In a real system, you might have an admin notification channel
-            # For now, just log it
-            print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
+            from accounts.models import Accounts as AccountsModel, Notification
+            admin_accounts = AccountsModel.objects.filter(is_staff=True)
+            for admin_acct in admin_accounts:
+                Notification.objects.create(
+                    accountFK=admin_acct,
+                    notificationType="BACKJOB_NEW_REQUEST",
+                    title="New Backjob Request",
+                    message=f"📢 New backjob request: Dispute #{dispute.disputeID} for job '{job.title}'. Please review.",
+                    relatedJobID=job.jobID
+                )
+            print(f"📢 Notified {admin_accounts.count()} admin(s) about new backjob request for Job #{job.jobID}")
             
             # ============================================================
             # NOTIFY WORKER/AGENCY: Alert them about backjob request
@@ -6000,6 +6043,16 @@ def approve_backjob_completion(request, job_id: int):
             dispute.resolution = "Backjob completed and confirmed by client"
             dispute.resolvedDate = timezone.now()
             dispute.save()
+
+            # Give client 7-day window to edit their review after backjob resolves
+            from accounts.models import JobReview
+            from datetime import timedelta
+            review_deadline = timezone.now() + timedelta(days=7)
+            updated_count = JobReview.objects.filter(
+                jobID=job,
+                reviewerType='CLIENT'
+            ).update(backjob_edit_deadline=review_deadline)
+            print(f"📝 Set backjob_edit_deadline on {updated_count} client review(s) for job #{job.jobID}")
             
             # Close the conversation
             from profiles.models import Conversation, Message

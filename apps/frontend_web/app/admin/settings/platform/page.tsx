@@ -19,6 +19,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface PlatformSettings {
   platform_fee_percentage: number;
@@ -176,14 +177,14 @@ export default function PlatformSettingsPage() {
       if (data.success) {
         setOriginalSettings(settings);
         setHasUnsavedChanges(false);
-        alert("Settings updated successfully!");
+        toast.success("Settings updated successfully!");
         fetchSettings(); // Refresh to get updated timestamp
       } else {
-        alert(data.error || "Failed to update settings");
+        toast.error(data.error || "Failed to update settings");
       }
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("Failed to save settings");
+      toast.error("Failed to save settings");
     } finally {
       setSaving(false);
     }

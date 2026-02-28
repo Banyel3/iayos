@@ -1,11 +1,11 @@
 "use client";
 
-import {
-  useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -99,12 +99,12 @@ export default function DisputeDetailPage() {
 
   const handleResolve = async () => {
     if (!resolution.trim()) {
-      alert("Please provide a resolution explanation");
+      toast.error("Please provide a resolution explanation");
       return;
     }
 
     if (decision === "partial_refund" && !refundAmount) {
-      alert("Please specify refund amount");
+      toast.error("Please specify refund amount");
       return;
     }
 
@@ -132,12 +132,12 @@ export default function DisputeDetailPage() {
 
       if (!response.ok) throw new Error("Failed to resolve dispute");
 
-      alert("Dispute resolved successfully");
+      toast.success("Dispute resolved successfully");
       setShowResolutionForm(false);
       fetchDetail();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to resolve dispute");
+      toast.error("Failed to resolve dispute");
     }
   };
 
@@ -380,7 +380,8 @@ export default function DisputeDetailPage() {
                               ✓ Favor Worker — Full payment to worker wallet
                             </option>
                             <option value="partial_refund">
-                              ⚖️ Partial Refund — Split between client &amp; worker
+                              ⚖️ Partial Refund — Split between client &amp;
+                              worker
                             </option>
                           </select>
                         </div>
@@ -393,7 +394,10 @@ export default function DisputeDetailPage() {
                           </p>
                           {decision === "favor_client" && (
                             <p className="text-sm text-blue-900">
-                              <span className="font-semibold">{detail.client.name}</span> will receive{" "}
+                              <span className="font-semibold">
+                                {detail.client.name}
+                              </span>{" "}
+                              will receive{" "}
                               <span className="font-bold">
                                 ₱{detail.dispute.amount.toLocaleString()}
                               </span>{" "}
@@ -402,7 +406,10 @@ export default function DisputeDetailPage() {
                           )}
                           {decision === "favor_worker" && (
                             <p className="text-sm text-blue-900">
-                              <span className="font-semibold">{detail.worker.name}</span> will receive{" "}
+                              <span className="font-semibold">
+                                {detail.worker.name}
+                              </span>{" "}
+                              will receive{" "}
                               <span className="font-bold">
                                 ₱{detail.dispute.amount.toLocaleString()}
                               </span>{" "}
@@ -412,15 +419,22 @@ export default function DisputeDetailPage() {
                           {decision === "partial_refund" && (
                             <div className="space-y-1 text-sm text-blue-900">
                               <p>
-                                <span className="font-semibold">{detail.client.name}:</span>{" "}
+                                <span className="font-semibold">
+                                  {detail.client.name}:
+                                </span>{" "}
                                 receives{" "}
                                 <span className="font-bold">
-                                  ₱{refundAmount ? parseFloat(refundAmount).toLocaleString() : "—"}
+                                  ₱
+                                  {refundAmount
+                                    ? parseFloat(refundAmount).toLocaleString()
+                                    : "—"}
                                 </span>{" "}
                                 back to wallet.
                               </p>
                               <p>
-                                <span className="font-semibold">{detail.worker.name}:</span>{" "}
+                                <span className="font-semibold">
+                                  {detail.worker.name}:
+                                </span>{" "}
                                 receives{" "}
                                 <span className="font-bold">
                                   ₱
@@ -451,7 +465,8 @@ export default function DisputeDetailPage() {
                               placeholder="0.00"
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                              Max: ₱{detail.dispute.amount.toLocaleString()} — remainder goes to worker
+                              Max: ₱{detail.dispute.amount.toLocaleString()} —
+                              remainder goes to worker
                             </p>
                           </div>
                         )}

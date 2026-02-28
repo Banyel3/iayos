@@ -20,6 +20,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
+import { toast } from "sonner";
 
 interface FAQ {
   id: string;
@@ -186,20 +187,20 @@ export default function FAQManagementPage() {
 
   const handleBulkPublish = async () => {
     if (selectedFaqs.length === 0) return;
-    alert(`Publishing ${selectedFaqs.length} FAQs`);
+    toast.info(`Publishing ${selectedFaqs.length} FAQs`);
     // TODO: Implement bulk publish API
   };
 
   const handleBulkUnpublish = async () => {
     if (selectedFaqs.length === 0) return;
-    alert(`Unpublishing ${selectedFaqs.length} FAQs`);
+    toast.info(`Unpublishing ${selectedFaqs.length} FAQs`);
     // TODO: Implement bulk unpublish API
   };
 
   const handleBulkDelete = async () => {
     if (selectedFaqs.length === 0) return;
     if (!confirm(`Delete ${selectedFaqs.length} FAQs?`)) return;
-    alert(`Deleting ${selectedFaqs.length} FAQs`);
+    toast.info(`Deleting ${selectedFaqs.length} FAQs`);
     // TODO: Implement bulk delete API
   };
 

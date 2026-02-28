@@ -48,6 +48,7 @@ import AgencyCard from "@/components/AgencyCard";
 import InlineLoader from "@/components/ui/InlineLoader";
 import LocationButton from "@/components/LocationButton";
 import { KYCBanner } from "@/components/KYCBanner";
+import CalendarFAB from "@/components/CalendarFAB";
 
 // Hooks
 import { useInfiniteJobs, Job } from "@/lib/hooks/useJobs";
@@ -63,7 +64,7 @@ export default function BrowseJobsScreen() {
   // State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>(
-    undefined
+    undefined,
   );
   const [viewTab, setViewTab] = useState<"workers" | "agencies">("workers");
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -84,7 +85,8 @@ export default function BrowseJobsScreen() {
     if (!isWorker && viewTab === "workers" && workersQuery.data) {
       workersQuery.refetch();
     }
-  }, [maxDistance, sortBy, selectedCategory, minRating]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxDistance, sortBy, selectedCategory, minRating, isWorker, viewTab]);
   const categories = categoriesData?.categories || [];
 
   // WORKER: Only fetch jobs
@@ -94,7 +96,7 @@ export default function BrowseJobsScreen() {
     },
     {
       enabled: isWorker, // Only fetch jobs if user is a worker
-    }
+    },
   );
 
   // CLIENT: Only fetch workers or agencies based on active tab
@@ -109,7 +111,7 @@ export default function BrowseJobsScreen() {
     },
     {
       enabled: !isWorker && viewTab === "workers", // Only fetch workers if client and workers tab
-    }
+    },
   );
 
   const agenciesQuery = useInfiniteAgencies(
@@ -118,7 +120,7 @@ export default function BrowseJobsScreen() {
     },
     {
       enabled: !isWorker && viewTab === "agencies", // Only fetch agencies if client and agencies tab
-    }
+    },
   );
 
   // Unified state based on user type and tab
@@ -179,7 +181,7 @@ export default function BrowseJobsScreen() {
         const matchName = worker.name?.toLowerCase().includes(query);
         const matchBio = worker.bio?.toLowerCase().includes(query);
         const matchCategories = worker.categories?.some((cat) =>
-          cat.toLowerCase().includes(query)
+          cat.toLowerCase().includes(query),
         );
         const matchLocation = worker.location?.toLowerCase().includes(query);
         return matchName || matchBio || matchCategories || matchLocation;
@@ -269,7 +271,8 @@ export default function BrowseJobsScreen() {
   };
 
   const handleWorkerPress = (workerId: number) => {
-    console.log("[Navigation] Attempting to navigate to worker:", workerId);
+    if (__DEV__)
+      console.log("[Navigation] Attempting to navigate to worker:", workerId);
     try {
       router.push({
         pathname: "/workers/[id]",
@@ -281,7 +284,8 @@ export default function BrowseJobsScreen() {
   };
 
   const handleAgencyPress = (agencyId: number) => {
-    console.log("[Navigation] Attempting to navigate to agency:", agencyId);
+    if (__DEV__)
+      console.log("[Navigation] Attempting to navigate to agency:", agencyId);
     try {
       router.push({
         pathname: "/agencies/[id]",
@@ -312,7 +316,7 @@ export default function BrowseJobsScreen() {
 
   // Get category icon based on name
   const getCategoryIcon = (
-    categoryName: string
+    categoryName: string,
   ): keyof typeof Ionicons.glyphMap => {
     const name = categoryName.toLowerCase();
 
@@ -466,7 +470,7 @@ export default function BrowseJobsScreen() {
                     (item.id === 0
                       ? !selectedCategory
                       : selectedCategory === item.id) &&
-                    styles.categoryCardSelected,
+                      styles.categoryCardSelected,
                   ]}
                   onPress={() =>
                     item.id === 0
@@ -493,7 +497,9 @@ export default function BrowseJobsScreen() {
                       name={
                         item.id === 0
                           ? "apps"
-                          : getCategoryIcon(item.specializationName || item.name)
+                          : getCategoryIcon(
+                              item.specializationName || item.name,
+                            )
                       }
                       size={24}
                       color={
@@ -513,7 +519,7 @@ export default function BrowseJobsScreen() {
                       (item.id === 0
                         ? !selectedCategory
                         : selectedCategory === item.id) &&
-                      styles.categoryNameSelected,
+                        styles.categoryNameSelected,
                     ]}
                     numberOfLines={2}
                   >
@@ -534,7 +540,9 @@ export default function BrowseJobsScreen() {
             value={searchQuery}
             onChangeText={handleSearchChange}
             placeholder={
-              isWorker ? "Search jobs, categories..." : "Search professionals..."
+              isWorker
+                ? "Search jobs, categories..."
+                : "Search professionals..."
             }
             showFilterButton
             onFilterPress={handleFilterPress}
@@ -547,7 +555,17 @@ export default function BrowseJobsScreen() {
 
     HeaderComponent.displayName = "HomeHeaderSection";
     return HeaderComponent;
-  }, [isWorker, viewTab, itemCount, selectedCategory, categories, router, searchQuery, handleSearchChange, handleFilterPress]);
+  }, [
+    isWorker,
+    viewTab,
+    itemCount,
+    selectedCategory,
+    categories,
+    router,
+    searchQuery,
+    handleSearchChange,
+    handleFilterPress,
+  ]);
 
   const renderJobItem = ({ item }: { item: Job }) => (
     <JobCard
@@ -855,7 +873,7 @@ export default function BrowseJobsScreen() {
                         style={[
                           styles.sortOptionText,
                           sortBy === "distance_asc" &&
-                          styles.sortOptionTextSelected,
+                            styles.sortOptionTextSelected,
                         ]}
                       >
                         Nearest First
@@ -881,7 +899,7 @@ export default function BrowseJobsScreen() {
                         style={[
                           styles.sortOptionText,
                           sortBy === "distance_desc" &&
-                          styles.sortOptionTextSelected,
+                            styles.sortOptionTextSelected,
                         ]}
                       >
                         Farthest First
@@ -964,6 +982,7 @@ export default function BrowseJobsScreen() {
           </View>
         </View>
       </Modal>
+      <CalendarFAB />
     </SafeAreaView>
   );
 }
@@ -993,7 +1012,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
     marginBottom: 16,
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     ...Shadows.md,
   },
   kycBannerWrapper: {
@@ -1088,7 +1107,7 @@ const styles = StyleSheet.create({
   categoriesSection: {
     marginTop: 8,
     marginBottom: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   sectionHeader: {
     flexDirection: "row",

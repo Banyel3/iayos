@@ -156,6 +156,16 @@ class InboxConsumer(AsyncWebsocketConsumer):
             'is_typing': data['is_typing']
         }))
 
+    async def job_status_update(self, event):
+        """Forward job status updates to WebSocket client (e.g. worker marked complete)"""
+        data = event.get('data', {})
+        job_id = data.get('job_id')
+        print(f"[InboxWS] 📤 Sending job_status_update for job {job_id}")
+        await self.send(text_data=json.dumps({
+            'type': 'job_status_update',
+            'data': data
+        }))
+
     async def handle_subscribe(self, data):
         """
         Dynamically subscribe to a new conversation group.

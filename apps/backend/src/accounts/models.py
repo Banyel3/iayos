@@ -1198,6 +1198,7 @@ class Notification(models.Model):
         BACKJOB_APPROVED = "BACKJOB_APPROVED", "Backjob Approved"
         BACKJOB_REJECTED = "BACKJOB_REJECTED", "Backjob Rejected"
         BACKJOB_COMPLETED = "BACKJOB_COMPLETED", "Backjob Completed"
+        BACKJOB_NEGOTIATION = "BACKJOB_NEGOTIATION", "Backjob In Negotiation"
 
         # Certification Notifications
         CERTIFICATION_APPROVED = "CERTIFICATION_APPROVED", "Certification Approved"
@@ -1497,7 +1498,10 @@ class Job(models.Model):
     
     # Preferred Start Date
     preferredStartDate = models.DateField(null=True, blank=True)
-    
+
+    # Scheduled End Date (used for multi-job date-overlap scheduling)
+    scheduled_end_date = models.DateField(null=True, blank=True)
+
     # Materials Needed (stored as JSON array)
     materialsNeeded = models.JSONField(default=list, blank=True)
     
@@ -2158,6 +2162,7 @@ class JobDispute(models.Model):
     # Status
     class DisputeStatus(models.TextChoices):
         OPEN = "OPEN", "Open"
+        IN_NEGOTIATION = "IN_NEGOTIATION", "In Negotiation"
         UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
         RESOLVED = "RESOLVED", "Resolved"
         CLOSED = "CLOSED", "Closed"
@@ -2216,6 +2221,13 @@ class JobDispute(models.Model):
         blank=True, 
         null=True,
         help_text="Reason for admin rejection"
+    )
+    
+    # Negotiation tracking
+    in_negotiation_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When admin accepted this dispute into negotiation"
     )
     
     # Timestamps
@@ -2391,7 +2403,26 @@ class JobReview(models.Model):
     
     # Helpful votes (optional feature)
     helpfulCount = models.IntegerField(default=0)
-    
+
+    # Agency/reviewee response to the review
+    agency_response = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Response from the agency or reviewee to this review"
+    )
+    agency_response_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the response was submitted"
+    )
+
+    # Backjob review edit window (7 days after backjob resolved)
+    backjob_edit_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Deadline for client to edit review after backjob resolution"
+    )
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)

@@ -18,19 +18,21 @@ import PendingReviewModal from "@/components/PendingReviewModal";
 import KYCRequiredListener from "@/components/KYCRequiredListener";
 import { usePendingReviews } from "@/lib/hooks/useReviews";
 import { useUnreadMessageCount } from "@/lib/hooks/useUnreadCounts";
+import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
 // Debug imports at runtime to detect undefined exports
-try {
-  // eslint-disable-next-line no-console
-  console.log("[TabsLayout] Imports:", {
-    Tabs: typeof Tabs !== "undefined" ? "defined" : "undefined",
-    HapticTab: typeof HapticTab !== "undefined" ? "defined" : "undefined",
-    IconSymbol: typeof IconSymbol !== "undefined" ? "defined" : "undefined",
-    Colors: typeof Colors !== "undefined" ? "defined" : "undefined",
-    useColorScheme:
-      typeof useColorScheme !== "undefined" ? "defined" : "undefined",
-    useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
-  });
-} catch (e) {}
+if (__DEV__) {
+  try {
+    console.log("[TabsLayout] Imports:", {
+      Tabs: typeof Tabs !== "undefined" ? "defined" : "undefined",
+      HapticTab: typeof HapticTab !== "undefined" ? "defined" : "undefined",
+      IconSymbol: typeof IconSymbol !== "undefined" ? "defined" : "undefined",
+      Colors: typeof Colors !== "undefined" ? "defined" : "undefined",
+      useColorScheme:
+        typeof useColorScheme !== "undefined" ? "defined" : "undefined",
+      useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
+    });
+  } catch (e) {}
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -39,6 +41,7 @@ export default function TabLayout() {
 
   // Unread messages badge
   const { data: unreadMessages = 0 } = useUnreadMessageCount();
+  const { data: unreadNotifications = 0 } = useUnreadNotificationsCount();
 
   // Pending review check - force review on app reopen
   const [showPendingReview, setShowPendingReview] = useState(false);
@@ -82,40 +85,44 @@ export default function TabLayout() {
     if (!isLoading) {
       if (!isAuthenticated) {
         // Not logged in - redirect to login
-        console.log("🔀 [TABS] Redirecting to login (not authenticated)");
+        if (__DEV__)
+          console.log("🔀 [TABS] Redirecting to login (not authenticated)");
         router.replace("/auth/login");
       } else if (!user?.profile_data?.profileType) {
         // Logged in but no role selected - redirect to role selection
-        console.log(
-          "🔀 [TABS] Redirecting to role selection (no profile type)",
-        );
+        if (__DEV__)
+          console.log(
+            "🔀 [TABS] Redirecting to role selection (no profile type)",
+          );
         router.replace("/auth/select-role");
       } else {
-        console.log("✅ [TABS] User authenticated, showing tabs");
+        if (__DEV__) console.log("✅ [TABS] User authenticated, showing tabs");
       }
     } else {
-      console.log("⏳ [TABS] Waiting for auth to load...");
+      if (__DEV__) console.log("⏳ [TABS] Waiting for auth to load...");
     }
   }, [isAuthenticated, isLoading, user]);
 
   // Wait for auth state to be determined before rendering anything
   if (isLoading) {
-    console.log("⏳ [TABS] Still loading, showing blank screen");
-    return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;
+    if (__DEV__) console.log("⏳ [TABS] Still loading, showing blank screen");
+    return <View style={{ flex: 1, backgroundColor: "#ffffff" }} />;
   }
 
   // After loading is complete, check auth state
   if (!isAuthenticated) {
-    console.log(
-      "🔀 [TABS] Not authenticated after loading, redirecting to login",
-    );
+    if (__DEV__)
+      console.log(
+        "🔀 [TABS] Not authenticated after loading, redirecting to login",
+      );
     return <Redirect href="/auth/login" />;
   }
 
   if (!user?.profile_data?.profileType) {
-    console.log(
-      "🔀 [TABS] No profile type after loading, redirecting to role selection",
-    );
+    if (__DEV__)
+      console.log(
+        "🔀 [TABS] No profile type after loading, redirecting to role selection",
+      );
     return <Redirect href="/auth/select-role" />;
   }
 
@@ -162,6 +169,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
+            tabBarAccessibilityLabel: "Home tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="house.fill" color={color} />
             ),
@@ -171,6 +179,7 @@ export default function TabLayout() {
           name="jobs"
           options={{
             title: "Jobs",
+            tabBarAccessibilityLabel: "Jobs tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="briefcase.fill" color={color} />
             ),
@@ -187,6 +196,7 @@ export default function TabLayout() {
           name="messages"
           options={{
             title: "Messages",
+            tabBarAccessibilityLabel: "Messages tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="message.fill" color={color} />
             ),
@@ -197,9 +207,12 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Profile",
+            tabBarAccessibilityLabel: "Profile tab",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="person.fill" color={color} />
             ),
+            tabBarBadge:
+              unreadNotifications > 0 ? unreadNotifications : undefined,
           }}
         />
       </Tabs>

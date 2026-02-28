@@ -1,7 +1,6 @@
 "use client";
 
-import {
-  useState } from "react";
+import { useState } from "react";
 import {
   useLeaderboard,
   useAgencyStats,
@@ -28,8 +27,6 @@ import {
   Award,
   Download,
   Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import { format, subMonths } from "date-fns";
 
@@ -42,11 +39,10 @@ export default function AnalyticsPage() {
   const { data: stats, isLoading: statsLoading } = useAgencyStats();
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(
     leaderboardSort,
-    20
+    20,
   );
-  const { data: revenueTrends, isLoading: trendsLoading } = useRevenueTrends(
-    weeksRange
-  );
+  const { data: revenueTrends, isLoading: trendsLoading } =
+    useRevenueTrends(weeksRange);
 
   if (statsLoading || leaderboardLoading || trendsLoading) {
     return (
@@ -111,11 +107,7 @@ export default function AnalyticsPage() {
           <p className="text-3xl font-bold text-gray-900">
             ₱{(stats?.total_revenue ?? 0).toLocaleString()}
           </p>
-          <div className="flex items-center gap-1 mt-2">
-            <ArrowUpRight className="text-green-600" size={16} />
-            <span className="text-sm text-green-600 font-medium">+12.5%</span>
-            <span className="text-sm text-gray-500">vs last month</span>
-          </div>
+          <p className="text-sm text-gray-500 mt-2">vs last month</p>
         </div>
 
         {/* Jobs Completed */}
@@ -192,7 +184,13 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(date) => format(new Date(date), "MMM dd")}
+                tickFormatter={(date) => {
+                  try {
+                    return date ? format(new Date(date), "MMM dd") : "";
+                  } catch {
+                    return "";
+                  }
+                }}
                 stroke="#9ca3af"
                 fontSize={12}
               />
@@ -202,9 +200,13 @@ export default function AnalyticsPage() {
                   `₱${value.toLocaleString()}`,
                   "Revenue",
                 ]}
-                labelFormatter={(label) =>
-                  format(new Date(label), "MMM dd, yyyy")
-                }
+                labelFormatter={(label) => {
+                  try {
+                    return label ? format(new Date(label), "MMM dd, yyyy") : "";
+                  } catch {
+                    return "";
+                  }
+                }}
                 contentStyle={{
                   backgroundColor: "#fff",
                   border: "1px solid #e5e7eb",
@@ -241,15 +243,25 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(date) => format(new Date(date), "MMM dd")}
+                tickFormatter={(date) => {
+                  try {
+                    return date ? format(new Date(date), "MMM dd") : "";
+                  } catch {
+                    return "";
+                  }
+                }}
                 stroke="#9ca3af"
                 fontSize={12}
               />
               <YAxis stroke="#9ca3af" fontSize={12} />
               <Tooltip
-                labelFormatter={(label) =>
-                  format(new Date(label), "MMM dd, yyyy")
-                }
+                labelFormatter={(label) => {
+                  try {
+                    return label ? format(new Date(label), "MMM dd, yyyy") : "";
+                  } catch {
+                    return "";
+                  }
+                }}
                 contentStyle={{
                   backgroundColor: "#fff",
                   border: "1px solid #e5e7eb",
@@ -281,7 +293,7 @@ export default function AnalyticsPage() {
             value={leaderboardSort}
             onChange={(e) =>
               setLeaderboardSort(
-                e.target.value as "rating" | "jobs" | "earnings"
+                e.target.value as "rating" | "jobs" | "earnings",
               )
             }
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -302,34 +314,61 @@ export default function AnalyticsPage() {
           ) : (
             leaderboard?.slice(0, 10).map((employee, index) => (
               <div
-                key={employee.employee_id}
+                key={employee.employeeId}
                 className={`flex items-center gap-3 p-4 rounded-lg border ${
-                  index < 3 ? "border-blue-200 bg-blue-50/50" : "border-gray-100"
+                  index < 3
+                    ? "border-blue-200 bg-blue-50/50"
+                    : "border-gray-100"
                 }`}
               >
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {index === 0 && <Award className="text-yellow-500 fill-yellow-500" size={18} />}
-                  {index === 1 && <Award className="text-gray-400 fill-gray-400" size={18} />}
-                  {index === 2 && <Award className="text-orange-600 fill-orange-600" size={18} />}
-                  <span className="font-bold text-gray-900 text-sm">#{employee.rank}</span>
+                  {index === 0 && (
+                    <Award
+                      className="text-yellow-500 fill-yellow-500"
+                      size={18}
+                    />
+                  )}
+                  {index === 1 && (
+                    <Award className="text-gray-400 fill-gray-400" size={18} />
+                  )}
+                  {index === 2 && (
+                    <Award
+                      className="text-orange-600 fill-orange-600"
+                      size={18}
+                    />
+                  )}
+                  <span className="font-bold text-gray-900 text-sm">
+                    #{employee.rank}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-gray-900 text-sm truncate">{employee.name}</p>
-                    {employee.is_employee_of_month && (
+                    <p className="font-medium text-gray-900 text-sm truncate">
+                      {employee.name}
+                    </p>
+                    {employee.isEmployeeOfTheMonth && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                         🏆 EOTM
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{employee.email}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {employee.email}
+                  </p>
                   <div className="flex items-center gap-4 mt-1">
                     <span className="text-xs text-gray-600 flex items-center gap-1">
-                      <Star className="text-yellow-500 fill-yellow-500" size={12} />
+                      <Star
+                        className="text-yellow-500 fill-yellow-500"
+                        size={12}
+                      />
                       {employee.rating.toFixed(1)}
                     </span>
-                    <span className="text-xs text-gray-600">{employee.total_jobs_completed} jobs</span>
-                    <span className="text-xs font-semibold text-green-600">₱{employee.total_earnings.toLocaleString()}</span>
+                    <span className="text-xs text-gray-600">
+                      {employee.totalJobsCompleted} jobs
+                    </span>
+                    <span className="text-xs font-semibold text-green-600">
+                      ₱{(employee.totalEarnings ?? 0).toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -362,7 +401,7 @@ export default function AnalyticsPage() {
             <tbody className="divide-y divide-gray-200">
               {leaderboard?.slice(0, 10).map((employee, index) => (
                 <tr
-                  key={employee.employee_id}
+                  key={employee.employeeId}
                   className={`${
                     index < 3 ? "bg-blue-50/50" : ""
                   } hover:bg-gray-50 transition`}
@@ -401,7 +440,7 @@ export default function AnalyticsPage() {
                         <p className="text-sm text-gray-500">
                           {employee.email}
                         </p>
-                        {employee.is_employee_of_month && (
+                        {employee.isEmployeeOfTheMonth && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                             🏆 EOTM
                           </span>
@@ -422,12 +461,12 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="px-4 py-4 text-center">
                     <span className="font-medium text-gray-900">
-                      {employee.total_jobs_completed}
+                      {employee.totalJobsCompleted}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-right">
                     <span className="font-semibold text-green-600">
-                      ₱{(employee.total_earnings ?? 0).toLocaleString()}
+                      ₱{(employee.totalEarnings ?? 0).toLocaleString()}
                     </span>
                   </td>
                 </tr>
