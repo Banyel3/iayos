@@ -48,7 +48,8 @@ export default function JobDetailPage() {
         credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to fetch job");
-      return response.json() as Promise<JobDetail>;
+      const data = await response.json();
+      return (data.job || data) as JobDetail;
     },
   });
 

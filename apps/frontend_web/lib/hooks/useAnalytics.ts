@@ -11,15 +11,15 @@ interface AgencyStats {
 }
 
 interface LeaderboardEmployee {
-  employee_id: number;
+  employeeId: number;
   name: string;
   email: string;
   role: string;
   rating: number;
-  total_jobs_completed: number;
-  total_earnings: number;
+  totalJobsCompleted: number;
+  totalEarnings: number;
   rank: number;
-  is_employee_of_month: boolean;
+  isEmployeeOfTheMonth: boolean;
 }
 
 interface RevenueTrendData {
@@ -157,8 +157,8 @@ export function exportAnalyticsCSV(
     emp.email,
     emp.role,
     emp.rating.toFixed(2),
-    emp.total_jobs_completed,
-    emp.total_earnings.toFixed(2),
+    emp.totalJobsCompleted,
+    (emp.totalEarnings ?? 0).toFixed(2),
   ]);
 
   // Add summary section

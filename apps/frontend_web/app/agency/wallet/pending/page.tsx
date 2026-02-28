@@ -29,7 +29,7 @@ interface PendingEarning {
 }
 
 interface PendingEarningsResponse {
-  earnings: PendingEarning[];
+  pending_earnings: PendingEarning[];
   total_pending: number;
   total_count: number;
 }
@@ -63,7 +63,7 @@ export default function AgencyPendingEarningsPage() {
       });
       if (res.ok) {
         const data: PendingEarningsResponse = await res.json();
-        setPendingEarnings(data.earnings || []);
+        setPendingEarnings(data.pending_earnings || []);
         setTotalPending(data.total_pending || 0);
       }
     } catch (error) {

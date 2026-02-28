@@ -495,17 +495,12 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await fetch(
-        `${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ rejection_reason: reason }),
-        },
-      );
+      const rejectUrl = new URL(`${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`);
+      if (reason) rejectUrl.searchParams.set("reason", reason);
+      const response = await fetch(rejectUrl.toString(), {
+        method: "POST",
+        credentials: "include",
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

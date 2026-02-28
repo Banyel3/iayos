@@ -394,8 +394,8 @@ export default function AgencyTransactionsPage() {
                             <p className="text-xs text-gray-500">ID: {tx.id}{tx.payment_method && ` • ${tx.payment_method}`}</p>
                           </div>
                         </div>
-                        <p className={`font-semibold text-sm flex-shrink-0 ml-2 ${tx.type === "WITHDRAWAL" ? "text-red-600" : "text-green-600"}`}>
-                          {tx.type === "WITHDRAWAL" ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        <p className={`font-semibold text-sm flex-shrink-0 ml-2 ${["WITHDRAWAL","FEE","PAYMENT"].includes(tx.type) ? "text-red-600" : "text-green-600"}`}>
+                          {["WITHDRAWAL","FEE","PAYMENT"].includes(tx.type) ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                         </p>
                       </div>
                       <div className="flex items-center justify-between gap-2">
@@ -472,9 +472,9 @@ export default function AgencyTransactionsPage() {
                           </td>
                           <td className="py-4 px-4 text-right">
                             <p className={`font-semibold ${
-                              tx.type === "WITHDRAWAL" ? "text-red-600" : "text-green-600"
+                              ["WITHDRAWAL","FEE","PAYMENT"].includes(tx.type) ? "text-red-600" : "text-green-600"
                             }`}>
-                              {tx.type === "WITHDRAWAL" ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              {["WITHDRAWAL","FEE","PAYMENT"].includes(tx.type) ? "-" : "+"}₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                             </p>
                           </td>
                           <td className="py-4 px-4 text-right">
