@@ -8,13 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Banknote,
   Star,
   Trophy,
@@ -55,29 +48,28 @@ interface Employee {
 }
 
 interface PerformanceStats {
-  employee_id: number;
+  employeeId: number;
   name: string;
   email: string;
   role: string;
   rating: number;
-  total_jobs_completed: number;
-  total_earnings: string;
-  average_rating: number;
-  job_completion_rate: number;
-  is_employee_of_month: boolean;
-  employee_of_month_date?: string;
-  employee_of_month_reason?: string;
+  totalJobsCompleted: number;
+  totalEarnings: number;
+  employeeOfTheMonth: boolean;
+  employeeOfTheMonthDate?: string;
+  employeeOfTheMonthReason?: string;
 }
 
 interface LeaderboardEntry {
-  employee_id: number;
+  employeeId: number;
   name: string;
   email: string;
   role: string;
   rating: number;
-  total_jobs_completed: number;
-  total_earnings: string;
+  totalJobsCompleted: number;
+  totalEarnings: number;
   rank: number;
+  isEmployeeOfTheMonth?: boolean;
 }
 
 function Rating({ value }: { value?: number | null }) {
@@ -177,7 +169,7 @@ export default function EmployeesPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setLeaderboard(data.leaderboard || []);
+        setLeaderboard(data.employees || []);
       }
     } catch (error) {
       console.error("Error fetching leaderboard:", error);
@@ -194,7 +186,7 @@ export default function EmployeesPage() {
       );
       if (res.ok) {
         const data = await res.json();
-        setPerformanceStats(data.performance);
+        setPerformanceStats(data);
       } else {
         toast.error("Failed to fetch performance stats");
       }
@@ -874,7 +866,7 @@ export default function EmployeesPage() {
                 <div className="space-y-3">
                   {leaderboard.map((entry, index) => (
                     <div
-                      key={entry.employee_id}
+                      key={entry.employeeId}
                       className={`flex items-center justify-between p-4 rounded-lg border-2 ${index === 0
                           ? "border-yellow-400 bg-yellow-50"
                           : index === 1
@@ -934,7 +926,7 @@ export default function EmployeesPage() {
                             <div className="flex items-center gap-1">
                               <Briefcase className="h-4 w-4 text-blue-400" />
                               <span className="font-semibold">
-                                {entry.total_jobs_completed}
+                                {entry.totalJobsCompleted}
                               </span>
                             </div>
                             <div className="text-xs text-gray-500">Jobs</div>
@@ -943,7 +935,7 @@ export default function EmployeesPage() {
                             <div className="flex items-center gap-1">
                               <Banknote className="h-4 w-4 text-green-400" />
                               <span className="font-semibold">
-                                ₱{parseFloat(entry.total_earnings || "0").toFixed(0)}
+                                ₱{(entry.totalEarnings ?? 0).toLocaleString()}
                               </span>
                             </div>
                             <div className="text-xs text-gray-500">
@@ -990,7 +982,7 @@ export default function EmployeesPage() {
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-8 w-8 text-green-400" />
                   <span className="text-3xl font-bold">
-                    {performanceStats?.total_jobs_completed || 0}
+                    {performanceStats?.totalJobsCompleted || 0}
                   </span>
                 </div>
               </CardContent>
@@ -1008,7 +1000,7 @@ export default function EmployeesPage() {
                   <span className="text-3xl font-bold">
                     ₱
                     {performanceStats
-                      ? parseFloat(performanceStats.total_earnings).toFixed(0)
+                      ? (performanceStats.totalEarnings ?? 0).toLocaleString()
                       : "0"}
                   </span>
                 </div>
@@ -1025,7 +1017,7 @@ export default function EmployeesPage() {
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-8 w-8 text-blue-400" />
                   <span className="text-3xl font-bold">
-                    {(performanceStats?.job_completion_rate ?? 0).toFixed(0)}%
+                    0%
                   </span>
                 </div>
               </CardContent>
@@ -1053,7 +1045,7 @@ export default function EmployeesPage() {
                       <h3 className="text-2xl font-bold">
                         {selectedEmployee.name}
                       </h3>
-                      {performanceStats?.is_employee_of_month && (
+                      {performanceStats?.employeeOfTheMonth && (
                         <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
                           <Award className="h-4 w-4" />
                           <span className="text-sm font-medium">
@@ -1070,12 +1062,12 @@ export default function EmployeesPage() {
                     </p>
                     <p className="text-gray-600 mb-1">
                       <strong>Average Rating:</strong>{" "}
-                      {(performanceStats?.average_rating ?? 0).toFixed(2)} / 5.0
+                      {(performanceStats?.rating ?? 0).toFixed(2)} / 5.0
                     </p>
-                    {performanceStats?.employee_of_month_reason && (
+                    {performanceStats?.employeeOfTheMonthReason && (
                       <p className="text-gray-700 mt-3 italic">
                         <strong>EOTM Reason:</strong> "
-                        {performanceStats.employee_of_month_reason}"
+                        {performanceStats.employeeOfTheMonthReason}"
                       </p>
                     )}
                   </div>
