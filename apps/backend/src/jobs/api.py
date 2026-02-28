@@ -48,7 +48,9 @@ def get_user_profile(request):
 
 def broadcast_job_status_update(job_id, update_data):
     """
-    Broadcast job status update via WebSocket
+    Broadcast job status update via WebSocket.
+    Sends to both the job_{job_id} group (JobStatusConsumer) AND all chat_{conv_id}
+    groups linked to this job (InboxConsumer) so mobile clients receive the update.
     """
     try:
         channel_layer = get_channel_layer()
@@ -61,6 +63,26 @@ def broadcast_job_status_update(job_id, update_data):
                 }
             )
             print(f"📡 Broadcasted job status update for job {job_id}: {update_data}")
+
+            # Also broadcast to chat groups so InboxConsumer (mobile) receives it
+            try:
+                from profiles.models import Conversation
+                conv_ids = list(
+                    Conversation.objects.filter(relatedJobPosting_id=job_id)
+                    .values_list('pk', flat=True)
+                )
+                for conv_id in conv_ids:
+                    async_to_sync(channel_layer.group_send)(
+                        f'chat_{conv_id}',
+                        {
+                            'type': 'job_status_update',
+                            'data': update_data
+                        }
+                    )
+                if conv_ids:
+                    print(f"📡 Broadcasted job status update to chat groups {conv_ids} for job {job_id}")
+            except Exception as conv_e:
+                print(f"⚠️ Could not broadcast to chat groups for job {job_id}: {str(conv_e)}")
         else:
             print(f"⚠️ No channel layer available for broadcasting")
     except Exception as e:

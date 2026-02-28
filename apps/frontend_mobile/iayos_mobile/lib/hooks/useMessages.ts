@@ -257,7 +257,7 @@ export function useMessages(conversationId: number) {
       };
     },
     enabled: !!conversationId,
-    staleTime: 5000, // 5 seconds - consider data fresh for 5s
+    staleTime: 0, // Always refetch on window focus (critical for job status sync)
     refetchInterval: 3000, // Poll every 3 seconds as fallback for WebSocket
     refetchOnWindowFocus: true,
     refetchOnMount: true,

@@ -174,6 +174,17 @@ export function useMessageListener(conversationId?: number) {
           });
         }
       }
+
+      // Handle job status updates (worker marked complete, client approved, etc.)
+      // Backend broadcasts these to chat_{conv_id} groups so InboxConsumer delivers them here
+      if (data.type === "job_status_update") {
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        if (conversationId) {
+          queryClient.invalidateQueries({
+            queryKey: ["messages", conversationId],
+          });
+        }
+      }
     });
 
     return () => {
