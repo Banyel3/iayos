@@ -100,7 +100,7 @@ export default function AgencySidebar({
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <h2 className="text-2xl font-bold">
-                <span className="text-blue-600 agency-verified:text-blue-800">
+                <span className="text-blue-600">
                   iAyos
                 </span>{" "}
                 <span className="text-gray-500 font-normal">Agency</span>
@@ -127,7 +127,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/dashboard")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -141,7 +141,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/employees")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -154,7 +154,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/jobs") && !isActive("/agency/jobs/backjobs")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -167,7 +167,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/jobs/backjobs")
-              ? "bg-orange-50 text-orange-600 agency-verified:bg-orange-100 agency-verified:text-orange-800"
+              ? "bg-orange-50 text-orange-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -195,7 +195,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/messages")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -209,11 +209,25 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/reviews")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
           <Star className="h-5 w-5 shrink-0" /> {!collapsed && <span>Reviews</span>}
+        </Link>
+
+        <Link
+          href="/agency/analytics"
+          onClick={handleNavClick}
+          className={cn(
+            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            isActive("/agency/analytics")
+              ? "bg-blue-50 text-blue-600"
+              : "text-gray-700 hover:bg-gray-100",
+          )}
+        >
+          <BarChart3 className="h-5 w-5 shrink-0" />{" "}
+          {!collapsed && <span>Analytics</span>}
         </Link>
 
         <Link
@@ -222,7 +236,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/transactions")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -236,7 +250,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/wallet")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -249,7 +263,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px] relative",
             isActive("/agency/notifications")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -279,7 +293,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/profile")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
@@ -292,25 +306,11 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/settings")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
           <Settings className="h-5 w-5 shrink-0" /> {!collapsed && <span>Settings</span>}
-        </Link>
-
-        <Link
-          href="/agency/analytics"
-          onClick={handleNavClick}
-          className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
-            isActive("/agency/analytics")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
-              : "text-gray-700 hover:bg-gray-100",
-          )}
-        >
-          <BarChart3 className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Analytics</span>}
         </Link>
 
         <Link
@@ -319,7 +319,7 @@ export default function AgencySidebar({
           className={cn(
             "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
             isActive("/agency/support")
-              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >

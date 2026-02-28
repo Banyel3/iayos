@@ -29,7 +29,6 @@ import {
   Download,
   Calendar,
   ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import { format, subMonths } from "date-fns";
 
