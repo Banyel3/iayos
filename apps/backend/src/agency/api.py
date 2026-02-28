@@ -4207,7 +4207,23 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
                     Message.create_system_message(conv, f"🎉 All {total_count} employees' work is complete! Waiting for client to review and approve each employee.")
         except Exception as e:
             logger.warning(f"⚠️ Failed to send system message for completion: {str(e)}")
-        
+
+        # Broadcast WebSocket event so the client's device immediately invalidates its
+        # React Query cache and sees agencyMarkedComplete=True → "Approve & Pay" button appears
+        try:
+            from jobs.api import broadcast_job_status_update
+            broadcast_job_status_update(job_id, {
+                'event': 'agency_employee_marked_complete',
+                'job_id': job_id,
+                'employee_id': employee_id,
+                'employee_name': employee.fullName,
+                'all_complete': all_complete,
+                'completed_count': completed_count,
+                'total_count': total_count,
+            })
+        except Exception as ws_err:
+            logger.warning(f"⚠️ Failed to broadcast agency mark-complete event: {ws_err}")
+
         logger.info(f"✅ Agency marked employee #{employee_id} ({employee.fullName}) complete for PROJECT job #{job_id} ({completed_count}/{total_count})")
         
         return {
