@@ -71,7 +71,6 @@ export default function AdminProfilePage() {
       }
 
       const data = await response.json();
-      console.log("✅ Fetched admin user:", data);
 
       setUser({
         id: data.accountID || data.id,

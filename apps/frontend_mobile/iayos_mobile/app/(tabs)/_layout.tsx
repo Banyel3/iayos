@@ -85,19 +85,17 @@ export default function TabLayout() {
     if (!isLoading) {
       if (!isAuthenticated) {
         // Not logged in - redirect to login
-        console.log("🔀 [TABS] Redirecting to login (not authenticated)");
+        if (__DEV__) console.log("🔀 [TABS] Redirecting to login (not authenticated)");
         router.replace("/auth/login");
       } else if (!user?.profile_data?.profileType) {
         // Logged in but no role selected - redirect to role selection
-        console.log(
-          "🔀 [TABS] Redirecting to role selection (no profile type)",
-        );
+        if (__DEV__) console.log("🔀 [TABS] Redirecting to role selection (no profile type)");
         router.replace("/auth/select-role");
       } else {
-        console.log("✅ [TABS] User authenticated, showing tabs");
+        if (__DEV__) console.log("✅ [TABS] User authenticated, showing tabs");
       }
     } else {
-      console.log("⏳ [TABS] Waiting for auth to load...");
+      if (__DEV__) console.log("⏳ [TABS] Waiting for auth to load...");
     }
   }, [isAuthenticated, isLoading, user]);
 

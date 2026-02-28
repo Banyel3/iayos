@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -130,7 +131,7 @@ export default function WorkerEarningsPage() {
     if (!selectedWorker) return;
 
     if (payoutMethod === "gcash" && !gcashNumber) {
-      alert("Please enter GCash number");
+      toast.error("Please enter GCash number");
       return;
     }
 
@@ -138,7 +139,7 @@ export default function WorkerEarningsPage() {
       payoutMethod === "bank_transfer" &&
       (!bankName || !bankAccount || !bankAccountName)
     ) {
-      alert("Please fill in all bank details");
+      toast.error("Please fill in all bank details");
       return;
     }
 
@@ -172,7 +173,7 @@ export default function WorkerEarningsPage() {
 
       if (!response.ok) throw new Error("Failed to process payout");
 
-      alert("Payout processed successfully");
+      toast.success("Payout processed successfully");
       setShowPayoutModal(false);
       setSelectedWorker(null);
       setGcashNumber("");
@@ -183,7 +184,7 @@ export default function WorkerEarningsPage() {
       fetchStatistics();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to process payout");
+      toast.error("Failed to process payout");
     }
   };
 
