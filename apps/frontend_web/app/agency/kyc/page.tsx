@@ -194,6 +194,7 @@ const AgencyKYCPage = () => {
     documentType: string,
   ): Promise<{
     valid: boolean;
+    networkError?: boolean;
     error?: string;
     warning?: string;
     details?: any;
@@ -224,10 +225,14 @@ const AgencyKYCPage = () => {
       }
       return data;
     } catch (error) {
-      console.error("AI validation error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return { valid: false, error: `Validation failed: ${errorMessage}` };
+      // Network / CORS / connectivity error — treat as non-blocking so the user
+      // can still submit. Backend will perform its own validation on upload.
+      console.warn("AI validation unavailable (network error):", error);
+      return {
+        valid: true,
+        networkError: true,
+        warning: "AI pre-validation unavailable. Document will be verified on submission.",
+      };
     }
   };
 
@@ -281,9 +286,15 @@ const AgencyKYCPage = () => {
       }));
     }
 
-    toast.success("Document Validated", {
-      description: "Business permit validated successfully",
-    });
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "Document accepted. AI pre-validation service is offline; your documents will be verified on submission.",
+      });
+    } else {
+      toast.success("Document Validated", {
+        description: "Business permit validated successfully",
+      });
+    }
   };
 
   const handleRepFrontChange = async (
@@ -334,8 +345,13 @@ const AgencyKYCPage = () => {
       setFileHashes((prev) => ({ ...prev, REP_ID_FRONT: result.file_hash! }));
     }
 
-    // Check if face detection was skipped (CompreFace unavailable) - show warning
-    if (result.details?.face_detection_skipped) {
+    // Treat network error as warning (AI validation offline)  
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "ID front accepted. Your document will be verified on submission.",
+      });
+    } else if (result.details?.face_detection_skipped) {
+      // Check if face detection was skipped (CompreFace unavailable) - show warning
       toast.warning("Manual Review Required", {
         description:
           result.warning ||
@@ -390,8 +406,13 @@ const AgencyKYCPage = () => {
 
     setRepIDBack(f);
 
-    // Check if face detection was skipped (CompreFace unavailable) - show warning
-    if (result.details?.face_detection_skipped) {
+    // Treat network error as warning (AI validation offline)
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "ID back accepted. Your document will be verified on submission.",
+      });
+    } else if (result.details?.face_detection_skipped) {
+      // Check if face detection was skipped (CompreFace unavailable) - show warning
       toast.warning("Manual Review Required", {
         description:
           result.warning ||
@@ -443,14 +464,21 @@ const AgencyKYCPage = () => {
       setFileHashes((prev) => ({ ...prev, REP_SELFIE: result.file_hash! }));
     }
 
-    if (result.details?.face_detection_skipped) {
+    // Treat network error as warning (AI validation offline)
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "Selfie accepted. Face matching will be verified on submission.",
+      });
+    } else if (result.details?.face_detection_skipped) {
       toast.warning("Manual Review Required", {
         description:
           result.warning ||
           "Face verification unavailable. Selfie will be reviewed manually.",
       });
     } else {
-      toast.success("Selfie Validated", { description: "Face detected successfully" });
+      toast.success("Selfie Validated", {
+        description: "Face detected successfully",
+      });
     }
   };
 
@@ -1145,14 +1173,16 @@ const AgencyKYCPage = () => {
           {/* Representative Selfie — required for face matching */}
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Representative Selfie{" "}
-              <span className="text-red-500">*</span>
+              Representative Selfie <span className="text-red-500">*</span>
               {isValidatingSelfie && (
-                <span className="text-blue-500 text-xs ml-2">Validating...</span>
+                <span className="text-blue-500 text-xs ml-2">
+                  Validating...
+                </span>
               )}
             </label>
             <p className="text-xs text-gray-500 mb-2">
-              Take a clear photo of the representative&apos;s face. It must match the face on the ID.
+              Take a clear photo of the representative&apos;s face. It must
+              match the face on the ID.
             </p>
             <label
               htmlFor="repSelfie"
@@ -1180,26 +1210,49 @@ const AgencyKYCPage = () => {
                   />
                   {repSelfie && (
                     <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     </div>
                   )}
                 </div>
               ) : (
                 <div>
-                  <svg className="w-10 h-10 text-purple-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  <svg
+                    className="w-10 h-10 text-purple-400 mx-auto mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
                   </svg>
                   <p className="text-sm font-medium text-gray-700">
-                    Upload representative selfie <span className="text-red-500">*</span>
+                    Upload representative selfie{" "}
+                    <span className="text-red-500">*</span>
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">JPG, PNG (Max 15MB)</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    JPG, PNG (Max 15MB)
+                  </p>
                 </div>
               )}
             </label>
             {selfieValidationError && (
-              <p className="text-red-500 text-xs mt-1">{selfieValidationError}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {selfieValidationError}
+              </p>
             )}
             <input
               id="repSelfie"
@@ -1217,7 +1270,11 @@ const AgencyKYCPage = () => {
         <Button
           onClick={handleExtractOCR}
           disabled={
-            isExtractingOCR || !businessPermit || !repIDFront || !repIDBack || !repSelfie
+            isExtractingOCR ||
+            !businessPermit ||
+            !repIDFront ||
+            !repIDBack ||
+            !repSelfie
           }
           className="bg-blue-500 text-white"
         >
