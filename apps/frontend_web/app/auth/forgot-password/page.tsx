@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
+import { API_BASE } from "@/lib/api/config";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -56,7 +57,7 @@ const ForgotPassword = () => {
 
     try {
       const res = await fetch(
-        "http://127.0.0.1:8000/api/accounts/forgot-password/send-verify",
+        `${API_BASE}/api/accounts/forgot-password/send-verify`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,6 +161,15 @@ const ForgotPassword = () => {
                   </FormItem>
                 )}
               />
+
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm font-inter text-red-700">{error}</p>
+                </div>
+              )}
 
               <Button
                 type="submit"
