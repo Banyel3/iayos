@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/form_button";
 import { useEffect, useState } from "react";
 import { Suspense } from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Form,
   FormControl,
@@ -49,8 +50,7 @@ const Login = () => {
     checkAuth,
     user,
   } = useAuth();
-  const { showAuthError, showAuthSuccess } = useAuthToast();
-  const searchParams = useSearchParams();
+  const { showAuthError } = useAuthToast();
 
   // Initialize form hook at the top (before any returns)
   const form = useForm<z.infer<typeof formSchema>>({
@@ -122,16 +122,6 @@ const Login = () => {
       }
     }
   };
-
-  // Show success toast when redirected after email verification
-  useEffect(() => {
-    if (searchParams.get("verified") === "true") {
-      showAuthSuccess(
-        "Your email has been verified. Please sign in to continue.",
-        "Email Verified!"
-      );
-    }
-  }, [searchParams]);
 
   // Check for existing rate limit on component mount
   useEffect(() => {
@@ -793,4 +783,32 @@ const Login = () => {
   );
 };
 
-export default Login;
+// Separate component so useSearchParams is inside a Suspense boundary
+function VerifiedEmailToast() {
+  const searchParams = useSearchParams();
+  const { showAuthSuccess } = useAuthToast();
+
+  useEffect(() => {
+    if (searchParams.get("verified") === "true") {
+      showAuthSuccess(
+        "Your email has been verified. Please sign in to continue.",
+        "Email Verified!"
+      );
+    }
+  }, [searchParams]);
+
+  return null;
+}
+
+function LoginPage() {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <VerifiedEmailToast />
+      </Suspense>
+      <Login />
+    </>
+  );
+}
+
+export default LoginPage;
