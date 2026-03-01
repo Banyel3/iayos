@@ -25,10 +25,11 @@ import { useAgoraCall } from "@/lib/hooks/useAgoraCall";
 import { getAbsoluteMediaUrl } from "@/lib/api/config";
 
 export default function IncomingCallScreen() {
-  const { conversationId, callerName, callerAvatar } = useLocalSearchParams<{
+  const { conversationId, callerName, callerAvatar, isGroupCall } = useLocalSearchParams<{
     conversationId: string;
     callerName: string;
     callerAvatar?: string;
+    isGroupCall?: string;
   }>();
 
   const { acceptCall, rejectCall, callStatus } = useAgoraCall();
@@ -115,7 +116,9 @@ export default function IncomingCallScreen() {
         </Animated.View>
 
         <Text style={styles.callerName}>{callerName || "Unknown Caller"}</Text>
-        <Text style={styles.callStatus}>Incoming voice call...</Text>
+        <Text style={styles.callStatus}>
+          {isGroupCall === "true" ? "Incoming group call..." : "Incoming voice call..."}
+        </Text>
       </View>
 
       {/* Action Buttons */}

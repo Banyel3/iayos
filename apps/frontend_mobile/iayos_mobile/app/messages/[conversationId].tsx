@@ -1463,8 +1463,8 @@ export default function ChatScreen() {
         </View>
         {/* Header Action Buttons */}
         <View style={styles.headerActions}>
-          {/* Voice Call Button - Only show for non-closed conversations and non-team jobs */}
-          {!isConversationClosed && !conversation.is_team_job && (
+          {/* Voice Call Button - supports both 1-on-1 and group (team job) calls */}
+          {!isConversationClosed && (
             <TouchableOpacity
               onPress={() => {
                 if (!AGORA_AVAILABLE) {
@@ -1476,8 +1476,10 @@ export default function ChatScreen() {
                   return;
                 }
                 const recipientName =
-                  conversation.other_participant?.name || "Unknown";
-                initiateCall(conversationId, recipientName);
+                  conversation.other_participant?.name ||
+                  (conversation.is_team_job ? "Group Call" : "Unknown");
+                const isGroupCall = conversation.is_team_job === true;
+                initiateCall(conversationId, recipientName, isGroupCall);
               }}
               style={styles.callButton}
               disabled={callStatus !== "idle"}

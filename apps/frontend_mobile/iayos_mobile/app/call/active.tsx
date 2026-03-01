@@ -27,11 +27,13 @@ export default function ActiveCallScreen() {
     recipientName,
     recipientAvatar,
     isOutgoing,
+    isGroupCall,
   } = useLocalSearchParams<{
     conversationId: string;
     recipientName?: string;
     recipientAvatar?: string;
     isOutgoing?: string;
+    isGroupCall?: string;
   }>();
 
   const {
@@ -41,9 +43,15 @@ export default function ActiveCallScreen() {
     toggleMute,
     toggleSpeaker,
     getFormattedDuration,
+    remoteParticipants,
   } = useAgoraCall();
 
   const [duration, setDuration] = useState("00:00");
+
+  // Detect group call: either passed as param or determined by participant count
+  const isGroup = isGroupCall === "true" || remoteParticipants.length > 1;
+  // Total = self + all remotes
+  const participantCount = remoteParticipants.length + 1;
 
   // Update duration display
   useEffect(() => {
@@ -89,7 +97,17 @@ export default function ActiveCallScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Voice Call</Text>
+        <Text style={styles.headerTitle}>
+          {isGroup ? "Group Call" : "Voice Call"}
+        </Text>
+        {isGroup && isConnected && participantCount > 1 && (
+          <View style={styles.participantBadge}>
+            <Ionicons name="people" size={12} color="rgba(255,255,255,0.8)" />
+            <Text style={styles.participantCount}>
+              {participantCount} participants
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Caller/Recipient Info */}
@@ -225,6 +243,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Typography.body.medium.fontSize,
     color: "rgba(255, 255, 255, 0.6)",
+    fontWeight: "500",
+  },
+  participantBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  participantCount: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.8)",
     fontWeight: "500",
   },
   callerSection: {

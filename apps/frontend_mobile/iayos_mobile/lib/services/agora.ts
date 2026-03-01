@@ -4,13 +4,9 @@
  * Manages the Agora RTC engine for voice calls.
  * Provides singleton access to the engine instance and
  * handles initialization, joining/leaving channels, and audio controls.
- * 
- * ⚠️ TEMPORARILY DISABLED - Agora native module requires development build
- * TODO: Re-enable when creating production build with expo-dev-client
+ * Supports both 1-on-1 and group voice calls (team conversations).
  */
 
-// TEMPORARILY COMMENTED OUT - Requires native build
-/*
 import {
   createAgoraRtcEngine,
   ChannelProfileType,
@@ -21,68 +17,7 @@ import {
   ConnectionStateType,
   ConnectionChangedReasonType,
 } from "react-native-agora";
-*/
 import { Platform, PermissionsAndroid, Alert } from "react-native";
-
-// Temporary type stubs for development
-type IRtcEngine = any;
-type IRtcEngineEventHandler = any;
-type ConnectionStateType = number;
-type ConnectionChangedReasonType = number;
-type RtcConnection = any;
-
-const ConnectionStateType = {
-  ConnectionStateConnecting: 2,
-  ConnectionStateConnected: 3,
-  ConnectionStateFailed: 5,
-};
-
-const ChannelProfileType = {
-  ChannelProfileCommunication: 0,
-};
-
-const ClientRoleType = {
-  ClientRoleBroadcaster: 1,
-};
-
-// Stub function - will not work until native build is created
-const createAgoraRtcEngine = (): any => {
-  console.warn('[Agora] Native module disabled - requires development build');
-  
-  const noop = () => {};
-  const asyncNoop = async () => {};
-
-  // Return a no-op engine stub so calls like `this.engine.initialize(...)`
-  // do not crash when the native module is unavailable.
-  const stubEngine: IRtcEngine = {
-    // Core lifecycle
-    initialize: asyncNoop,
-    release: noop,
-
-    // Event handling
-    registerEventHandler: noop,
-    unregisterEventHandler: noop,
-
-    // Channel operations
-    joinChannel: asyncNoop,
-    leaveChannel: asyncNoop,
-
-    // Audio controls
-    muteLocalAudioStream: noop,
-    enableAudio: noop,
-    disableAudio: noop,
-    enableLocalAudio: noop,
-    setEnableSpeakerphone: noop,
-    setChannelProfile: noop,
-    setClientRole: noop,
-    setDefaultAudioRouteToSpeakerphone: noop,
-  } as any;
-
-  return stubEngine;
-};
-
-// Agora availability flag - false when using stub engine (Expo Go)
-export const AGORA_AVAILABLE = false; // Set to true when native build is created
 
 export interface CallState {
   isInitialized: boolean;
@@ -90,6 +25,8 @@ export interface CallState {
   isMuted: boolean;
   isSpeakerOn: boolean;
   remoteUserId: number | null;
+  /** All currently connected remote participant UIDs (for group calls) */
+  remoteUserIds: number[];
   connectionState: "disconnected" | "connecting" | "connected" | "failed";
   callDuration: number;
 }
@@ -118,6 +55,7 @@ class AgoraService {
     isMuted: false,
     isSpeakerOn: false,
     remoteUserId: null,
+    remoteUserIds: [],
     connectionState: "disconnected",
     callDuration: 0,
   };
@@ -254,13 +192,16 @@ class AgoraService {
 
       onUserJoined: (connection: RtcConnection, remoteUid: number) => {
         console.log(`[Agora] 👤 Remote user joined: ${remoteUid}`);
-        this.updateState({ remoteUserId: remoteUid });
+        const newRemoteIds = [...this._state.remoteUserIds, remoteUid];
+        this.updateState({ remoteUserId: remoteUid, remoteUserIds: newRemoteIds });
         this.customEventHandler?.onUserJoined?.(remoteUid);
       },
 
       onUserOffline: (connection: RtcConnection, remoteUid: number) => {
         console.log(`[Agora] 👤 Remote user left: ${remoteUid}`);
-        this.updateState({ remoteUserId: null });
+        const newRemoteIds = this._state.remoteUserIds.filter(id => id !== remoteUid);
+        const newPrimary = newRemoteIds.length > 0 ? newRemoteIds[newRemoteIds.length - 1] : null;
+        this.updateState({ remoteUserId: newPrimary, remoteUserIds: newRemoteIds });
         this.customEventHandler?.onUserOffline?.(remoteUid);
       },
 
@@ -270,6 +211,7 @@ class AgoraService {
         this.updateState({
           isInCall: false,
           remoteUserId: null,
+          remoteUserIds: [],
           connectionState: "disconnected",
           callDuration: 0,
         });
@@ -466,6 +408,7 @@ class AgoraService {
       isMuted: false,
       isSpeakerOn: false,
       remoteUserId: null,
+      remoteUserIds: [],
       connectionState: "disconnected",
       callDuration: 0,
     });

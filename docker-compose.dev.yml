@@ -53,6 +53,8 @@ services:
     environment:
       # TODO: REMOVE FOR PROD - Enable testing mode for GCash direct deposits
       - TESTING=true
+      - AGORA_APP_ID=dd813eb4ff734c79b4502481c2a6842b
+      - AGORA_APP_CERTIFICATE=e5d045b3919f4fb5af4c061698f56ee3
     ports:
       - "8000:8000"
       - "8001:8001"
