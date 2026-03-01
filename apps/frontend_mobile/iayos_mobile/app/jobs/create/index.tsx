@@ -204,6 +204,7 @@ export default function CreateJobScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [isOneDayJob, setIsOneDayJob] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
   // New universal job fields for ML accuracy
   const [skillLevel, setSkillLevel] = useState<
@@ -1004,14 +1005,76 @@ export default function CreateJobScreen() {
                 📋 Job Details <Text style={{ color: Colors.error }}>*</Text>
               </Text>
 
-              {/* 1. Job Category Selection */}
+              {/* 1. Job Title */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Category</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.label, { marginBottom: 0 }]}>Job Title</Text>
+                  <Text style={styles.charCount}>{title.length}/100</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Fix leaking pipe in bathroom"
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholderTextColor={Colors.textHint}
+                  maxLength={100}
+                />
+
+                {/* Title Suggestions - Database-driven */}
+                <SuggestionBubbles
+                  suggestions={titleSuggestions.length > 0
+                    ? titleSuggestions
+                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
+                  onSelect={setTitle}
+                  isLoading={loadingSuggestionFields.has('title')}
+                  label="Suggestions"
+                  icon="sparkles-outline"
+                  showFrequency
+                />
+              </View>
+
+              {/* 2. Description */}
+              <View style={styles.inputGroup}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.label, { marginBottom: 0 }]}>Description</Text>
+                  <Text style={styles.charCount}>{description.length}/500</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Describe the job in detail..."
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  placeholderTextColor={Colors.textHint}
+                  maxLength={500}
+                />
+
+                {!agencyId && (
+                  <SuggestionBubbles
+                    suggestions={descriptionSuggestions}
+                    onSelect={(text) => setDescription(text)}
+                    isLoading={loadingSuggestionFields.has('description')}
+                    label="Common descriptions"
+                    icon="document-text-outline"
+                  />
+                )}
+              </View>
+
+              {/* 3. Job Category (moved below description) */}
+              <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.label, { marginBottom: 0 }]}>Job Category</Text>
+                  {!!agencyId && (
+                    <Text style={styles.categoryHintText}>2 or more workers required</Text>
+                  )}
+                </View>
                 <SearchBar
                   value={categorySearch}
                   onChangeText={setCategorySearch}
-                  placeholder="Search categories"
-                  style={styles.categorySearchBar}
+                  placeholder={agencyId ? "Search specializations" : "Search categories"}
+                  style={{ marginBottom: Spacing.md, ...(agencyId ? { backgroundColor: Colors.white } : {}) }}
                 />
 
                 {categoriesLoading ? (
@@ -1032,129 +1095,126 @@ export default function CreateJobScreen() {
                     style={styles.categoryScroll}
                     contentContainerStyle={styles.categoryScrollContent}
                   >
-                    {filteredCategories.map((category) => (
-                      <TouchableOpacity
-                        key={category.id}
-                        style={[
-                          styles.categoryChip,
-                          effectiveCategoryId === category.id && styles.categoryChipActive,
-                        ]}
-                        onPress={() => {
-                          // Update skill slots with the selected category
-                          setSkillSlots([{
-                            specialization_id: category.id,
-                            workers_needed: 1,
-                            skill_level_required: null,
-                          }]);
-                          // Set budget from category's minimum_rate if not already set or lower than min
-                          if (category.minimum_rate > 0) {
-                            const currentBudget = parseFloat(budget) || 0;
-                            if (currentBudget < category.minimum_rate) {
-                              setBudget(category.minimum_rate.toFixed(2));
-                            }
-                          }
-                        }}
-                      >
-                        <Text
+                    {filteredCategories.map((category) => {
+                      const alreadySelected = skillSlots.some(
+                        (s) => s.specialization_id === category.id
+                      );
+                      return (
+                        <TouchableOpacity
+                          key={category.id}
                           style={[
-                            styles.categoryChipText,
-                            effectiveCategoryId === category.id && styles.categoryChipTextActive,
+                            styles.categoryChip,
+                            !agencyId && alreadySelected && { backgroundColor: Colors.primary, borderColor: Colors.primary },
                           ]}
+                          onPress={() => {
+                            if (agencyId) {
+                              // Agency: additive multi-select, filter zero-worker slots first
+                              if (alreadySelected) return;
+                              setSkillSlots((prev) => [
+                                ...prev.filter((s) => s.workers_needed > 0),
+                                {
+                                  specialization_id: category.id,
+                                  workers_needed: 0,
+                                  skill_level_required: null,
+                                },
+                              ]);
+                            } else {
+                              // Regular job: single-select, replace
+                              setSkillSlots([{
+                                specialization_id: category.id,
+                                workers_needed: 1,
+                                skill_level_required: null,
+                              }]);
+                            }
+                            // Set budget from category's minimum_rate if not already set or lower than min
+                            if (category.minimum_rate > 0) {
+                              const currentBudget = parseFloat(budget) || 0;
+                              if (currentBudget < category.minimum_rate) {
+                                setBudget(category.minimum_rate.toFixed(2));
+                              }
+                            }
+                          }}
                         >
-                          {category.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <Text
+                            style={[
+                              styles.categoryChipText,
+                              agencyId && alreadySelected && styles.categoryChipTextSelected,
+                              !agencyId && alreadySelected && { color: Colors.white },
+                            ]}
+                          >
+                            {agencyId && alreadySelected ? "✓ " : ""}{category.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </ScrollView>
                 )}
               </View>
 
-              {/* 2. Job Title */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Title</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., Fix leaking pipe in bathroom"
-                  value={title}
-                  onChangeText={setTitle}
-                  placeholderTextColor={Colors.textHint}
-                  maxLength={100}
-                />
-                <Text style={styles.charCount}>{title.length}/100</Text>
-
-                {/* Title Suggestions - Database-driven */}
-                <SuggestionBubbles
-                  suggestions={titleSuggestions.length > 0
-                    ? titleSuggestions
-                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
-                  onSelect={setTitle}
-                  isLoading={loadingSuggestionFields.has('title')}
-                  label="Suggestions"
-                  icon="sparkles-outline"
-                  showFrequency
-                />
-              </View>
-
-              {/* 3. Description */}
-              <View style={[styles.inputGroup, { marginBottom: 0 }]}>
-                <Text style={styles.label}>Description</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Describe the job in detail..."
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  placeholderTextColor={Colors.textHint}
-                  maxLength={500}
-                />
-                <Text style={styles.charCount}>{description.length}/500</Text>
-
-                {/* Description Suggestions - Database-driven */}
-                <SuggestionBubbles
-                  suggestions={descriptionSuggestions}
-                  onSelect={(text) => setDescription(text)}
-                  isLoading={loadingSuggestionFields.has('description')}
-                  label="Common descriptions"
-                  icon="document-text-outline"
-                />
-              </View>
-
-              {/* Worker Requirements Integrated into Job Details */}
-              {skillSlots.length > 0 && (
+              {/* Worker Requirements - Agency only */}
+              {!!agencyId && skillSlots.length > 0 && (
                 <View style={styles.slotsBreakdown}>
-                  <View style={styles.sectionHeaderRow}>
-                    {!!agencyId && (
-                      <>
-                        <View />
-                        <TouchableOpacity
-                          style={styles.addMoreBtn}
-                          onPress={() => setShowAddSlotModal(true)}
-                        >
-                          <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-                          <Text style={styles.addMoreBtnText}>Add More</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-
                   {skillSlots.map((slot, index) => (
-                    <View key={index} style={styles.slotEntry}>
-                      {(skillSlots.length > 1 || !!agencyId) && (
-                        <View style={styles.slotHeader}>
-                          <Text style={styles.breakdownTitle}>
-                            {getSpecializationName(slot.specialization_id)}
-                          </Text>
+                    <View
+                      key={index}
+                      style={[
+                        styles.slotFlatRow,
+                        index < skillSlots.length - 1 && styles.slotFlatRowBorder,
+                      ]}
+                    >
+                      {/* ✕ + Category name + stepper all in one row */}
+                      <View style={[styles.slotHeader, { justifyContent: 'space-between' }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                           <TouchableOpacity
                             onPress={() => removeSkillSlot(index)}
                             style={styles.removeSlotBtn}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                            <Text style={styles.removeSlotXText}>✕</Text>
+                          </TouchableOpacity>
+                          <Text style={[styles.breakdownTitle, { flex: 1 }]} numberOfLines={1}>
+                            {getSpecializationName(slot.specialization_id)}
+                          </Text>
+                        </View>
+                        <View style={styles.workerStepper}>
+                          <TouchableOpacity
+                            style={[styles.stepperBtn, slot.workers_needed <= 0 && styles.stepperBtnDisabled]}
+                            onPress={() =>
+                              slot.workers_needed > 0 &&
+                              setSkillSlots((prev) =>
+                                prev.map((s, i) =>
+                                  i === index ? { ...s, workers_needed: s.workers_needed - 1 } : s
+                                )
+                              )
+                            }
+                            disabled={slot.workers_needed <= 0}
+                          >
+                            <Text style={[styles.stepperBtnText, slot.workers_needed <= 0 && styles.stepperBtnTextDisabled]}>−</Text>
+                          </TouchableOpacity>
+                          <Text
+                            style={[
+                              styles.stepperCount,
+                              slot.workers_needed === 0 && styles.stepperCountZero,
+                            ]}
+                          >
+                            {slot.workers_needed}
+                          </Text>
+                          <TouchableOpacity
+                            style={[styles.stepperBtn, slot.workers_needed >= 10 && styles.stepperBtnDisabled]}
+                            onPress={() =>
+                              slot.workers_needed < 10 &&
+                              setSkillSlots((prev) =>
+                                prev.map((s, i) =>
+                                  i === index ? { ...s, workers_needed: s.workers_needed + 1 } : s
+                                )
+                              )
+                            }
+                            disabled={slot.workers_needed >= 10}
+                          >
+                            <Text style={[styles.stepperBtnText, slot.workers_needed >= 10 && styles.stepperBtnTextDisabled]}>+</Text>
                           </TouchableOpacity>
                         </View>
-                      )}
-
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -1689,11 +1749,13 @@ export default function CreateJobScreen() {
 
             {/* Timing Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⏰ Timing & Urgency (Optional)</Text>
+              <Text style={styles.sectionTitle}>
+                ⏰ Timing & Urgency{!!agencyId && <Text style={{ color: Colors.error }}> *</Text>}
+              </Text>
 
               {/* Urgency Level */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Urgency Level</Text>
+                <Text style={styles.label}>Urgency Level (Optional)</Text>
                 <View style={styles.urgencyRow}>
                   {(["LOW", "MEDIUM", "HIGH"] as const).map((level) => (
                     <TouchableOpacity
@@ -1721,100 +1783,149 @@ export default function CreateJobScreen() {
                 </View>
               </View>
 
-              {/* Expected Duration */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Expected Duration</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 2-3 hours, 1 day"
-                  value={duration}
-                  onChangeText={setDuration}
-                  placeholderTextColor={Colors.textHint}
-                />
-                <SuggestionBubbles
-                  suggestions={durationSuggestions}
-                  onSelect={setDuration}
-                  isLoading={loadingSuggestionFields.has('duration')}
-                  label="Common durations"
-                  icon="time-outline"
-                />
-              </View>
-
-              {/* Job Dates - Required */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Start Date <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-                <TouchableOpacity
-                  style={[styles.dateButton, !startDate && { borderColor: Colors.error }]}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Ionicons
-                    name="calendar"
-                    size={20}
-                    color={startDate ? Colors.textSecondary : Colors.error}
-                  />
-                  <Text style={[styles.dateButtonText, !startDate && { color: Colors.error }]}>
-                    {startDate
-                      ? startDate.toLocaleDateString()
-                      : "Select start date (required)"}
+              {/* Job Dates */}
+              <View style={!!agencyId ? styles.datesRow : undefined}>
+                {/* Start Date */}
+                <View style={!!agencyId ? [styles.inputGroup, styles.dateHalf] : styles.inputGroup}>
+                  <Text style={styles.label}>
+                    Start Date <Text style={{ color: Colors.error }}>*</Text>
                   </Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={startDate || new Date()}
-                    mode="date"
-                    display="default"
-                    minimumDate={new Date()}
-                    onChange={(event, selectedDate) => {
-                      setShowDatePicker(Platform.OS === "ios");
-                      if (selectedDate) {
-                        setStartDate(selectedDate);
-                        // Reset end date if it's before new start date
-                        if (scheduledEndDate && scheduledEndDate < selectedDate) {
-                          setScheduledEndDate(null);
+                  <TouchableOpacity
+                    style={[styles.dateButton, !startDate && { borderColor: Colors.error }]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar"
+                      size={18}
+                      color={startDate ? Colors.textSecondary : Colors.error}
+                    />
+                    <Text style={[styles.dateButtonText, styles.dateButtonTextSmall, !startDate && { color: Colors.error }]}>
+                      {startDate
+                        ? startDate.toLocaleDateString()
+                        : "Select date"}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={startDate || new Date()}
+                      mode="date"
+                      display="default"
+                      minimumDate={new Date()}
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(Platform.OS === "ios");
+                        if (selectedDate) {
+                          setStartDate(selectedDate);
+                          if (scheduledEndDate && scheduledEndDate < selectedDate) {
+                            setScheduledEndDate(null);
+                          }
                         }
+                      }}
+                    />
+                  )}
+                </View>
+
+                {/* End Date */}
+                <View style={!!agencyId ? [styles.inputGroup, styles.dateHalf] : styles.inputGroup}>
+                  <Text style={[styles.label, isOneDayJob && { color: Colors.textHint }]}>
+                    End Date{" "}
+                    {isOneDayJob
+                      ? <Text style={{ color: Colors.textHint }}>(N/A)</Text>
+                      : <Text style={{ color: Colors.error }}>*</Text>}
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.dateButton,
+                      !isOneDayJob && !scheduledEndDate && { borderColor: Colors.error },
+                      isOneDayJob && styles.dateButtonDisabled,
+                    ]}
+                    onPress={() => !isOneDayJob && setShowEndDatePicker(true)}
+                    disabled={isOneDayJob}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={18}
+                      color={
+                        isOneDayJob
+                          ? Colors.textHint
+                          : scheduledEndDate
+                            ? Colors.textSecondary
+                            : Colors.error
                       }
-                    }}
-                  />
-                )}
+                    />
+                    <Text
+                      style={[
+                        styles.dateButtonText,
+                        styles.dateButtonTextSmall,
+                        !isOneDayJob && !scheduledEndDate && { color: Colors.error },
+                        isOneDayJob && { color: Colors.textHint },
+                      ]}
+                    >
+                      {isOneDayJob
+                        ? "Same as start"
+                        : scheduledEndDate
+                          ? scheduledEndDate.toLocaleDateString()
+                          : "Select date"}
+                    </Text>
+                  </TouchableOpacity>
+                  {showEndDatePicker && !isOneDayJob && (
+                    <DateTimePicker
+                      value={scheduledEndDate || startDate || new Date()}
+                      mode="date"
+                      display="default"
+                      minimumDate={startDate || new Date()}
+                      onChange={(event, selectedDate) => {
+                        setShowEndDatePicker(Platform.OS === "ios");
+                        if (selectedDate) {
+                          setScheduledEndDate(selectedDate);
+                        }
+                      }}
+                    />
+                  )}
+                </View>
               </View>
 
-              {/* Scheduled End Date - Required */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  End Date <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
+              {/* One day or less checkbox - agency only */}
+              {!!agencyId && (
                 <TouchableOpacity
-                  style={[styles.dateButton, !scheduledEndDate && { borderColor: Colors.error }]}
-                  onPress={() => setShowEndDatePicker(true)}
+                  style={styles.checkboxRow}
+                  onPress={() => {
+                    const next = !isOneDayJob;
+                    setIsOneDayJob(next);
+                    if (next) {
+                      setScheduledEndDate(null);
+                    }
+                  }}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={scheduledEndDate ? Colors.textSecondary : Colors.error}
-                  />
-                  <Text style={[styles.dateButtonText, !scheduledEndDate && { color: Colors.error }]}>
-                    {scheduledEndDate
-                      ? scheduledEndDate.toLocaleDateString()
-                      : "Select end date (required)"}
-                  </Text>
+                  <View style={[styles.checkbox, isOneDayJob && styles.checkboxChecked]}>
+                    {isOneDayJob && (
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    )}
+                  </View>
+                  <Text style={styles.checkboxLabel}>This job is one day or less</Text>
                 </TouchableOpacity>
-                {showEndDatePicker && (
-                  <DateTimePicker
-                    value={scheduledEndDate || startDate || new Date()}
-                    mode="date"
-                    display="default"
-                    minimumDate={startDate || new Date()}
-                    onChange={(event, selectedDate) => {
-                      setShowEndDatePicker(Platform.OS === "ios");
-                      if (selectedDate) {
-                        setScheduledEndDate(selectedDate);
-                      }
-                    }}
+              )}
+
+              {/* Expected Duration - always visible for regular jobs; agency shows only for one-day */}
+              {(!agencyId || isOneDayJob) && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Expected Duration (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 2-3 hours, half a day"
+                    value={duration}
+                    onChangeText={setDuration}
+                    placeholderTextColor={Colors.textHint}
                   />
-                )}
-              </View>
+                  <SuggestionBubbles
+                    suggestions={durationSuggestions}
+                    onSelect={setDuration}
+                    isLoading={loadingSuggestionFields.has('duration')}
+                    label="Common durations"
+                    icon="time-outline"
+                  />
+                </View>
+              )}
             </View>
 
             {/* Job Options Section */}
@@ -2284,8 +2395,6 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: 12,
     color: Colors.textHint,
-    textAlign: "right",
-    marginTop: 4,
   },
   // Loading styles
   loadingContainer: {
@@ -3004,11 +3113,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  slotFlatRow: {
+    paddingVertical: 10,
+    gap: 8,
+  },
+  slotFlatRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
   slotHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    gap: 8,
   },
   slotTitle: {
     fontSize: 15,
@@ -3017,7 +3133,72 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   removeSlotBtn: {
-    padding: 4,
+    padding: 2,
+  },
+  removeSlotXText: {
+    fontSize: 16,
+    color: Colors.textHint,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  workerStepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  workerStepperLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  workerStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+  },
+  stepperBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperBtnDisabled: {
+    opacity: 0.35,
+  },
+  stepperBtnText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    lineHeight: 22,
+  },
+  stepperBtnTextDisabled: {
+    color: Colors.textHint,
+  },
+  stepperCount: {
+    minWidth: 36,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  stepperCountZero: {
+    color: Colors.textHint,
+    fontWeight: "400",
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  categoryHintText: {
+    fontSize: 11,
+    color: Colors.textHint,
+    fontStyle: "italic",
+  },
+  categoryChipTextSelected: {
+    color: Colors.primary,
+    fontWeight: "600",
   },
   slotDetails: {
     flexDirection: "row",
@@ -3272,5 +3453,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.primary,
     fontWeight: "500",
+  },
+  datesRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: Spacing.sm,
+  },
+  dateHalf: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  dateButtonTextSmall: {
+    fontSize: 13,
+  },
+  dateButtonDisabled: {
+    opacity: 0.45,
+    backgroundColor: Colors.surface,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: Spacing.md,
+    paddingVertical: 2,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.white,
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    flex: 1,
   },
 });
