@@ -1129,7 +1129,7 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         from accounts.models import JobDispute
         active_dispute = JobDispute.objects.filter(
             jobID=job,
-            status__in=['OPEN', 'UNDER_REVIEW']
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
         ).first()
         
         backjob_info = None
@@ -1147,6 +1147,7 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
+                "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
         
@@ -1747,7 +1748,7 @@ def get_conversation_messages(request, conversation_id: int):
         from accounts.models import JobDispute
         active_dispute = JobDispute.objects.filter(
             jobID=job,
-            status__in=['OPEN', 'UNDER_REVIEW']
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
         ).first()
         
         backjob_info = None
@@ -1766,6 +1767,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
+                "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 
