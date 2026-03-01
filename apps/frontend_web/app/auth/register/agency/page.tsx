@@ -825,6 +825,10 @@ const AgencyRegister = () => {
                           )}
                         />
 
+                      </div>
+
+                      {/* Right Column */}
+                      <div className="space-y-6">
                         <FormField
                           control={agencyForm.control}
                           name="street_address"
@@ -881,10 +885,7 @@ const AgencyRegister = () => {
                             </FormItem>
                           )}
                         />
-                      </div>
 
-                      {/* Right Column */}
-                      <div className="space-y-6">
                         <FormField
                           control={agencyForm.control}
                           name="city"
