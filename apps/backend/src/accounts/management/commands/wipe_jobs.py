@@ -17,11 +17,17 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
-        from accounts.models import Job, Wallet  # local import to avoid circular refs
+        from accounts.models import Job, Wallet, Transaction  # local import to avoid circular refs
 
         self.stdout.write("Starting job wipe and wallet reset...")
 
         with transaction.atomic():
+            # Delete job-related transactions FIRST, before Job.delete() sets relatedJobPosting to NULL.
+            # Transaction.relatedJobPosting uses SET_NULL (not CASCADE), so they survive job deletion
+            # and become impossible to filter by job after the fact.
+            txn_count, _ = Transaction.objects.filter(relatedJobPosting__isnull=False).delete()
+            self.stdout.write(f"  Deleted {txn_count} job-related transaction(s).")
+
             job_count, deleted_detail = Job.objects.all().delete()
             wallet_count = Wallet.objects.update(
                 balance=Decimal("0.00"),

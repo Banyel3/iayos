@@ -1128,8 +1128,8 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
                     'name': f"{worker.profileID.firstName} {worker.profileID.lastName}" if worker else "Not Assigned",
                 } if worker else None,
                 'agency': {
-                    'id': str(agency.agencyID) if agency else None,
-                    'name': agency.agencyName if agency else None,
+                    'id': str(agency.agencyId) if agency else None,
+                    'name': agency.businessName if agency else None,
                 } if agency else None,
                 'reason': dispute.reason,
                 'description': dispute.description,

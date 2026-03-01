@@ -118,7 +118,7 @@ export default function BackjobDetailPage() {
 
   const fetchDispute = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/adminpanel/jobs/disputes/${disputeId}`, {
+      const res = await fetch(`${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}`, {
         credentials: "include",
       });
       const data = await res.json();
@@ -139,7 +139,7 @@ export default function BackjobDetailPage() {
 
   const fetchMessages = useCallback(async (convId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/adminpanel/conversations/${convId}/messages`, {
+      const res = await fetch(`${API_BASE}/api/adminpanel/conversations/${convId}/messages`, {
         credentials: "include",
       });
       const data = await res.json();
@@ -164,7 +164,7 @@ export default function BackjobDetailPage() {
     setActionLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE}/adminpanel/jobs/disputes/${dispute!.dispute_id}/accept-negotiation`,
+        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/accept-negotiation`,
         { method: "POST", credentials: "include" }
       );
       const data = await res.json();
@@ -183,7 +183,7 @@ export default function BackjobDetailPage() {
     setActionLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE}/adminpanel/jobs/disputes/${dispute!.dispute_id}/approve-backjob`,
+        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/approve-backjob`,
         { method: "POST", credentials: "include" }
       );
       const data = await res.json();
@@ -206,7 +206,7 @@ export default function BackjobDetailPage() {
     setActionLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE}/adminpanel/jobs/disputes/${dispute!.dispute_id}/reject-backjob`,
+        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/reject-backjob`,
         {
           method: "POST",
           credentials: "include",
@@ -233,7 +233,7 @@ export default function BackjobDetailPage() {
     const text = chatMessage.trim();
     setChatMessage("");
     try {
-      await fetch(`${API_BASE}/adminpanel/conversations/${dispute.conversation_id}/send-message`, {
+      await fetch(`${API_BASE}/api/adminpanel/conversations/${dispute.conversation_id}/send-message`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
