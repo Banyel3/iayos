@@ -35,18 +35,28 @@ interface AgencySidebarProps {
    *  - Uses h-full instead of h-screen
    */
   isMobileDrawer?: boolean;
+  /** Controlled collapsed state (lifted to AgencyShell for layout sync) */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 export default function AgencySidebar({
   className,
   onMobileClose,
   isMobileDrawer = false,
+  collapsed: collapsedProp,
+  onCollapsedChange,
 }: AgencySidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
   const { unreadCount } = useNotifications();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsedInternal, setCollapsedInternal] = useState(false);
+  const collapsed = collapsedProp !== undefined ? collapsedProp : collapsedInternal;
+  const setCollapsed = (v: boolean) => {
+    setCollapsedInternal(v);
+    onCollapsedChange?.(v);
+  };
   const [backjobsCount, setBackjobsCount] = useState(0);
 
   // Fetch backjobs count
