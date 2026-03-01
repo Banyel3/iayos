@@ -156,6 +156,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Get the login response which includes tokens
       const loginData = await response.json();
 
+      // Backend always returns HTTP 200, even for errors like wrong password,
+      // suspended account, unverified email, etc.  Check for error payload first.
+      if (loginData.error) {
+        let errorMessage = "Login failed";
+        if (Array.isArray(loginData.error) && loginData.error.length > 0) {
+          errorMessage = (loginData.error[0].message || errorMessage).trim();
+        } else if (typeof loginData.error === "string") {
+          errorMessage = loginData.error.trim();
+        }
+        setUser(null);
+        clearAllAuthCaches();
+        throw new Error(errorMessage);
+      }
+
       // Store access token for WebSocket authentication
       // (Cookies are HTTP-only, so WebSocket needs token via query param)
       if (loginData.access) {

@@ -373,7 +373,7 @@ const AgencyRegister = () => {
             data,
           );
           setAgencyError(
-            `Registration succeeded but verification data is missing. Response: ${JSON.stringify(data)}`,
+            "Registration succeeded but an unexpected error occurred. Please contact support.",
           );
           return; // Don't proceed with verification email sending
         }
