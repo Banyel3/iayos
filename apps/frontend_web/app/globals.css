@@ -149,6 +149,13 @@ body {
   }
 }
 
+/* Admin theme: white background for all admin pages */
+.admin-theme main,
+.admin-theme main > div:first-child {
+  background-color: white !important;
+  background-image: none !important;
+}
+
 /* Admin theme: make cards match dashboard stat cards (sky blue background and blue border) */
 .admin-theme [data-slot="card"] {
   @apply bg-sky-100 border-blue-400;
