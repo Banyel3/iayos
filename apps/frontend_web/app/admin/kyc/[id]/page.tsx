@@ -47,6 +47,7 @@ interface KYCRecord {
   reviewedDate?: string;
   rejectionReason?: string;
   comments?: string;
+  faceMatchScore?: number | null;
 }
 
 interface SignedDocument {
@@ -98,46 +99,49 @@ function combineKYCData(data: any): KYCRecord[] {
   // Process agency KYC records
   if (data.agency_kyc && Array.isArray(data.agency_kyc)) {
     data.agency_kyc.forEach((agencyKyc: any) => {
+      // Backend serializes accountFK_id (not agencyID); agencies list uses accountID
       const agency = data.agencies?.find(
-        (a: any) => a.agencyID === agencyKyc.agencyID,
+        (a: any) => a.accountID === agencyKyc.accountFK_id,
       );
-      const files =
-        data.files?.filter(
-          (f: any) => f.agencyKycID === agencyKyc.agencyKycID,
-        ) || [];
+      // Agency files are in agency_kyc_files (separate from user kyc files)
+      const files = (data.agency_kyc_files || []).filter(
+        (f: any) => f.agencyKyc_id === agencyKyc.agencyKycID,
+      );
 
-      if (agency) {
-        records.push({
-          id: `agency_${agencyKyc.agencyKycID}`,
-          userId: agency.agencyID.toString(),
-          userName: agency.agencyName,
-          userEmail: agency.email,
-          userType: "agency",
-          submissionDate: agencyKyc.createdAt || new Date().toISOString(),
-          status: agencyKyc.status?.toLowerCase() || "pending",
-          documents: {
-            idType: agencyKyc.documentType || "Business Permit",
-            idNumber: agencyKyc.documentNumber || "N/A",
-            frontImage:
-              files.find((f: any) => f.fileType === "front")?.filePath || "",
-            backImage:
-              files.find((f: any) => f.fileType === "back")?.filePath || "",
-            selfieImage:
-              files.find((f: any) => f.fileType === "selfie")?.filePath || "",
-            businessPermit:
-              files.find((f: any) => f.fileType === "business_permit")
-                ?.filePath || "",
-            birCertificate:
-              files.find((f: any) => f.fileType === "bir_certificate")
-                ?.filePath || "",
-          },
-          verificationNotes: agencyKyc.notes,
-          reviewedBy: agencyKyc.reviewedBy,
-          reviewedDate: agencyKyc.reviewedAt,
-          rejectionReason: agencyKyc.rejectionReason,
-          comments: agencyKyc.comments,
-        });
-      }
+      records.push({
+        id: `agency_${agencyKyc.agencyKycID}`,
+        userId: (agency?.accountID ?? agencyKyc.accountFK_id ?? "0").toString(),
+        userName:
+          agency?.businessName ||
+          agency?.email?.split("@")?.[0] ||
+          "Unknown Agency",
+        userEmail: agency?.email || "unknown@email.com",
+        userType: "agency",
+        submissionDate: agencyKyc.createdAt || new Date().toISOString(),
+        status: agencyKyc.status?.toLowerCase() || "pending",
+        documents: {
+          idType: "Business Permit",
+          idNumber: "N/A",
+          // Agency file type enums: REP_ID_FRONT, REP_ID_BACK, REP_SELFIE,
+          // BUSINESS_PERMIT, AUTH_LETTER, ADDRESS_PROOF
+          frontImage:
+            files.find((f: any) => f.fileType === "REP_ID_FRONT")?.fileURL || "",
+          backImage:
+            files.find((f: any) => f.fileType === "REP_ID_BACK")?.fileURL || "",
+          selfieImage:
+            files.find((f: any) => f.fileType === "REP_SELFIE")?.fileURL || "",
+          businessPermit:
+            files.find((f: any) => f.fileType === "BUSINESS_PERMIT")?.fileURL || "",
+          birCertificate:
+            files.find((f: any) => f.fileType === "AUTH_LETTER")?.fileURL || "",
+        },
+        verificationNotes: agencyKyc.notes,
+        reviewedBy: agencyKyc.reviewedBy,
+        reviewedDate: agencyKyc.reviewedAt,
+        rejectionReason: agencyKyc.rejectionReason,
+        comments: agencyKyc.comments,
+        faceMatchScore: agencyKyc.face_similarity_score ?? null,
+      });
     });
   }
 
@@ -755,6 +759,64 @@ export default function KYCDetailPage() {
               </dl>
             </CardContent>
           </Card>
+
+          {/* Face Match Score card — agency KYC only */}
+          {record.userType === "agency" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Face Verification
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {record.faceMatchScore != null ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Selfie vs ID similarity</span>
+                      <span
+                        className={`text-sm font-bold ${
+                          record.faceMatchScore >= 0.75
+                            ? "text-green-600"
+                            : record.faceMatchScore >= 0.55
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                        }`}
+                      >
+                        {(record.faceMatchScore * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${
+                          record.faceMatchScore >= 0.75
+                            ? "bg-green-500"
+                            : record.faceMatchScore >= 0.55
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                        }`}
+                        style={{ width: `${Math.min(record.faceMatchScore * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {record.faceMatchScore >= 0.75
+                        ? "✅ Strong match — faces appear to be the same person"
+                        : record.faceMatchScore >= 0.55
+                          ? "⚠️ Borderline — review both images carefully"
+                          : "❌ Low similarity — may be different people"}
+                    </p>
+                    <p className="text-xs text-muted-foreground italic">
+                      This score is a hint only. Final decision rests with the reviewer.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Face comparison not available (selfie or ID front missing at submission time).
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
