@@ -65,6 +65,11 @@ on:
         options:
           - development
           - production
+      replace_latest:
+        description: "Archive the current 'latest' production release as a pre-release (renamed to -prev tag), then publish this build with the SAME version as the new 'latest'. No version bump or commit. Overrides build_type/is_prerelease — the new release is always production."
+        required: false
+        default: false
+        type: boolean
 
 env:
   MOBILE_DIR: apps/frontend_mobile/iayos_mobile
@@ -179,7 +184,16 @@ jobs:
           cd ${{ github.workspace }}
           git fetch --tags
 
-          if [ "$BUILD_TYPE" = "production" ]; then
+          if [ "${{ github.event.inputs.replace_latest }}" == "true" ]; then
+            # ── REPLACE LATEST: keep same version, no bump, no commit ──
+            # The current production release will be archived as a pre-release by the next step.
+            NEW_VERSION="$BASE_VERSION"
+            TAG_NAME="mobile-v${NEW_VERSION}"
+            BUILD_TYPE="production"  # Force production so new release is NOT marked as pre-release
+            echo "🔄 REPLACE LATEST — version stays at: $NEW_VERSION (tag: $TAG_NAME)"
+            echo "   The existing $TAG_NAME release will be archived as pre-release before the new release is created."
+
+          elif [ "$BUILD_TYPE" = "production" ]; then
             # ── PRODUCTION: bump semver, commit back, use release tag ──
             case $VERSION_TYPE in
               major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
@@ -498,7 +512,7 @@ jobs:
           fi
 
       - name: Commit version bump
-        if: steps.analyze.outputs.should_release == 'true' && steps.version.outputs.build_type == 'production'
+        if: steps.analyze.outputs.should_release == 'true' && steps.version.outputs.build_type == 'production' && github.event.inputs.replace_latest != 'true'
         id: commit_version
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -590,12 +604,61 @@ jobs:
           echo "📝 Changelog content extracted:"
           echo "$CHANGELOG_OUTPUT"
 
+      - name: Archive current release as pre-release
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.replace_latest == 'true' && github.event.inputs.skip_build != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag_name }}"
+          echo "🔍 Looking for existing release with tag: $TAG"
+
+          RELEASE_INFO=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG")
+
+          RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "ℹ️ No existing release found for $TAG — nothing to archive. New release will be created fresh."
+            exit 0
+          fi
+
+          TARGET_COMMITISH=$(echo "$RELEASE_INFO" | jq -r '.target_commitish // "main"')
+          OLD_NAME=$(echo "$RELEASE_INFO" | jq -r '.name // ""')
+          # Use a timestamp suffix to avoid collisions if replace_latest is run multiple times
+          ARCHIVE_TAG="${TAG}-prev-$(date +%Y%m%d%H%M%S)"
+
+          echo "📦 Archiving release ID $RELEASE_ID as pre-release..."
+          echo "   $TAG → $ARCHIVE_TAG"
+
+          PATCH_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"tag_name\": \"$ARCHIVE_TAG\", \"target_commitish\": \"$TARGET_COMMITISH\", \"name\": \"[Archive] $OLD_NAME\", \"prerelease\": true, \"make_latest\": \"false\"}")
+
+          if [ "$PATCH_CODE" -eq 200 ]; then
+            echo "✅ Release archived as pre-release under tag: $ARCHIVE_TAG"
+          else
+            echo "⚠️ PATCH release returned HTTP $PATCH_CODE — continuing anyway"
+          fi
+
+          # Delete the original git tag so softprops can recreate it pointing to the new commit
+          DELETE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$TAG" \
+            -H "Authorization: token $GITHUB_TOKEN")
+
+          if [ "$DELETE_CODE" -eq 204 ]; then
+            echo "✅ Tag $TAG deleted — ready to be recreated for the new release"
+          else
+            echo "⚠️ Tag delete returned HTTP $DELETE_CODE (may not exist or was already moved)"
+          fi
+
       - name: Create Release
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}
-          name: iAyos Mobile ${{ github.event.inputs.build_type == 'development' && '🔧 Dev Build' || '🚀' }} v${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
+          name: iAyos Mobile ${{ (github.event.inputs.replace_latest == 'true' || github.event.inputs.build_type == 'production') && '🚀' || '🔧 Dev Build' }} v${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.replace_latest != 'true' && github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
             ## iAyos Mobile App Release v${{ steps.commit_version.outputs.final_version }}
 
@@ -631,7 +694,8 @@ jobs:
           files: |
             ${{ env.MOBILE_DIR }}/iayos-${{ steps.version.outputs.new_version }}.apk
           draft: false
-          prerelease: ${{ github.event.inputs.build_type == 'development' || github.event.inputs.is_prerelease == 'true' || github.ref_name != 'main' }}
+          prerelease: ${{ github.event.inputs.replace_latest != 'true' && (github.event.inputs.build_type == 'development' || github.event.inputs.is_prerelease == 'true' || github.ref_name != 'main') }}
+          make_latest: ${{ github.event.inputs.replace_latest == 'true' && 'true' || 'legacy' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -688,6 +752,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.analyze.outputs.should_release }}" == "true" ]; then
             echo "✅ **Version:** ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.event.inputs.replace_latest }}" == "true" ]; then
+              echo "🔄 **Mode:** Replace Latest — previous release archived as pre-release, same version republished as new latest" >> $GITHUB_STEP_SUMMARY
+            fi
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
             echo "🏗️ **Profile:** production" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.include_x86 }}" == "true" ]; then
