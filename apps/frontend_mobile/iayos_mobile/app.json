@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.iayos.mobile"
+      "bundleIdentifier": "com.iayos.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "iAyos needs microphone access for voice calls."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -41,6 +44,7 @@
     ],
     "plugins": [
       "expo-router",
+      "react-native-agora",
       [
         "expo-build-properties",
         {

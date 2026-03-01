@@ -21,24 +21,22 @@ export interface CallTokenResponse {
 }
 
 export interface CallSignal {
-  type:
-    | "call.initiate"
-    | "call.incoming"
-    | "call.accept"
-    | "call.accepted"
-    | "call.reject"
-    | "call.rejected"
-    | "call.end"
-    | "call.ended"
-    | "call.busy"
-    | "call.missed";
-  conversation_id: number;
-  caller_id?: number;
-  caller_name?: string;
-  caller_avatar?: string;
-  recipient_id?: number;
-  recipient_name?: string;
-  reason?: string;
+  /** Backend always sends type: "call_event" */
+  type: "call_event";
+  /** The specific call event name */
+  event: "incoming" | "accepted" | "rejected" | "ended" | "busy" | "missed";
+  data: {
+    caller_id?: number;
+    caller_name?: string;
+    caller_avatar?: string;
+    user_id?: number;
+    user_name?: string;
+    conversation_id?: number | string;
+    channel_name?: string;
+    reason?: string;
+    duration?: number;
+    is_group?: boolean;
+  };
 }
 
 export interface CallInfo {
@@ -48,6 +46,8 @@ export interface CallInfo {
   callerAvatar: string | null;
   recipientId?: number;
   recipientName?: string;
+  /** True when the conversation has more than 2 participants (team job) */
+  isGroupCall?: boolean;
 }
 
 export type CallStatus =
@@ -67,9 +67,11 @@ interface UseAgoraCallReturn {
   incomingCall: CallInfo | null;
   currentCall: CallInfo | null;
   error: string | null;
+  /** UIDs of all connected remote participants (for group calls) */
+  remoteParticipants: number[];
 
   // Actions
-  initiateCall: (conversationId: number, recipientName?: string) => Promise<boolean>;
+  initiateCall: (conversationId: number, recipientName?: string, isGroupCall?: boolean) => Promise<boolean>;
   acceptCall: () => Promise<boolean>;
   rejectCall: (reason?: string) => void;
   endCall: () => void;
@@ -185,17 +187,31 @@ export function useAgoraCall(): UseAgoraCallReturn {
 
   // Handle incoming signals
   const handleSignal = useCallback(
-    (signal: CallSignal) => {
-      console.log("[Call] 📨 Signal received:", signal.type);
+    (raw: any) => {
+      // Backend sends: { type: "call_event", event: "...", data: { ... } }
+      if (raw.type !== "call_event") {
+        console.log("[Call] Ignoring non-call-event signal:", raw.type);
+        return;
+      }
 
-      switch (signal.type) {
-        case "call.incoming":
+      const evt: string = raw.event;
+      const data = raw.data || {};
+
+      console.log("[Call] 📨 Signal received:", evt, data);
+
+      switch (evt) {
+        case "incoming": {
           // Someone is calling us
+          const convId = typeof data.conversation_id === "string"
+            ? parseInt(data.conversation_id, 10)
+            : (data.conversation_id as number);
+
           setIncomingCall({
-            conversationId: signal.conversation_id,
-            callerId: signal.caller_id!,
-            callerName: signal.caller_name || "Unknown",
-            callerAvatar: signal.caller_avatar || null,
+            conversationId: convId,
+            callerId: data.caller_id!,
+            callerName: data.caller_name || "Unknown",
+            callerAvatar: data.caller_avatar || null,
+            isGroupCall: !!data.is_group,
           });
           setCallStatus("ringing");
 
@@ -203,21 +219,23 @@ export function useAgoraCall(): UseAgoraCallReturn {
           router.push({
             pathname: "/call/incoming" as any,
             params: {
-              conversationId: signal.conversation_id.toString(),
-              callerName: signal.caller_name || "Unknown",
-              callerAvatar: signal.caller_avatar || "",
+              conversationId: String(convId),
+              callerName: data.caller_name || "Unknown",
+              callerAvatar: data.caller_avatar || "",
+              isGroupCall: data.is_group ? "true" : "false",
             },
           });
           break;
+        }
 
-        case "call.accepted":
+        case "accepted":
           // Our call was accepted - join the voice channel
           clearCallTimeout();
           setCallStatus("connecting");
           joinVoiceChannel();
           break;
 
-        case "call.rejected":
+        case "rejected":
           // Our call was rejected
           clearCallTimeout();
           setCallStatus("ended");
@@ -226,7 +244,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
           router.back();
           break;
 
-        case "call.ended":
+        case "ended":
           // Call ended by other party
           clearCallTimeout();
           agoraService.leaveChannel();
@@ -236,7 +254,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
           router.back();
           break;
 
-        case "call.busy":
+        case "busy":
           // Other party is on another call
           clearCallTimeout();
           setCallStatus("busy");
@@ -244,7 +262,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
           setError("User is busy on another call");
           break;
 
-        case "call.missed":
+        case "missed":
           // Call timed out (wasn't answered)
           clearCallTimeout();
           setCallStatus("ended");
@@ -252,6 +270,9 @@ export function useAgoraCall(): UseAgoraCallReturn {
           setError("Call not answered");
           router.back();
           break;
+
+        default:
+          console.log("[Call] Unknown call event:", evt);
       }
     },
     [clearCallTimeout]
@@ -306,6 +327,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
         params: {
           conversationId: currentCall?.conversationId?.toString() || "",
           recipientName: currentCall?.recipientName || "",
+          isGroupCall: currentCall?.isGroupCall ? "true" : "false",
         },
       });
     }
@@ -324,7 +346,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
 
   // Initiate a call
   const initiateCall = useCallback(
-    async (conversationId: number, recipientName?: string): Promise<boolean> => {
+    async (conversationId: number, recipientName?: string, isGroupCall?: boolean): Promise<boolean> => {
       try {
         setError(null);
         setCallStatus("initiating");
@@ -354,6 +376,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
           callerName: "You",
           callerAvatar: null,
           recipientName,
+          isGroupCall: !!isGroupCall,
         });
 
         // Send call initiation signal
@@ -376,6 +399,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
             conversationId: conversationId.toString(),
             recipientName: recipientName || "",
             isOutgoing: "true",
+            isGroupCall: isGroupCall ? "true" : "false",
           },
         });
 
@@ -506,6 +530,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
     incomingCall,
     currentCall,
     error,
+    remoteParticipants: callState.remoteUserIds,
     initiateCall,
     acceptCall,
     rejectCall,
