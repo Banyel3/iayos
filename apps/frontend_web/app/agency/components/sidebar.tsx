@@ -40,6 +40,31 @@ interface AgencySidebarProps {
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
+// Helper: badge label for counts
+function badgeLabel(n: number) {
+  return n > 99 ? "99+" : n;
+}
+
+// Light-blue badge pill (expanded sidebar)
+function BadgePill({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[11px] font-semibold bg-sky-400 text-white rounded-full">
+      {badgeLabel(count)}
+    </span>
+  );
+}
+
+// Light-blue dot badge (collapsed icon)
+function BadgeDot({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-sky-400 text-[7px] font-bold text-white">
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 export default function AgencySidebar({
   className,
   onMobileClose,
@@ -50,7 +75,7 @@ export default function AgencySidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { notifications } = useNotifications();
   const [collapsedInternal, setCollapsedInternal] = useState(false);
   const collapsed = collapsedProp !== undefined ? collapsedProp : collapsedInternal;
   const setCollapsed = (v: boolean) => {
@@ -58,29 +83,77 @@ export default function AgencySidebar({
     onCollapsedChange?.(v);
   };
   const [backjobsCount, setBackjobsCount] = useState(0);
+  const [pendingJobsCount, setPendingJobsCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-  // Fetch backjobs count
+  // Derive per-section unread notification counts from the already-fetched notifications list
+  const unreadNotifs = notifications.filter((n) => !n.isRead);
+  // Use derived count (consistent with what the notifications page shows)
+  const derivedUnreadCount = unreadNotifs.length;
+
+  const REVIEW_TYPES = ["REVIEW", "NEW_REVIEW", "REVIEW_RECEIVED"];
+  const TRANSACTION_TYPES = ["PAYMENT_PENDING", "PAYMENT_RELEASED", "DAILY_PAYMENT",
+    "EXTENSION_REQUEST", "EXTENSION_APPROVED", "RATE_CHANGE_REQUEST", "RATE_CHANGE_APPROVED"];
+  const WALLET_TYPES = ["WALLET", "AUTO_WITHDRAW", "DEPOSIT", "WITHDRAW", "WALLET_FUNDED",
+    "WITHDRAWAL_PROCESSED", "AUTO_WITHDRAWAL"];
+  const SUPPORT_TYPES = ["SUPPORT", "TICKET", "KYC", "CERTIFICATION", "KYC_APPROVED",
+    "KYC_REJECTED", "CERTIFICATION_APPROVED", "CERTIFICATION_REJECTED", "SYSTEM"];
+
+  const reviewsCount = unreadNotifs.filter((n) =>
+    REVIEW_TYPES.some((t) => n.type?.toUpperCase().includes(t))
+  ).length;
+  const transactionsCount = unreadNotifs.filter((n) =>
+    TRANSACTION_TYPES.some((t) => n.type?.toUpperCase() === t)
+  ).length;
+  const walletCount = unreadNotifs.filter((n) =>
+    WALLET_TYPES.some((t) => n.type?.toUpperCase().includes(t))
+  ).length;
+  const supportCount = unreadNotifs.filter((n) =>
+    SUPPORT_TYPES.some((t) => n.type?.toUpperCase().includes(t))
+  ).length;
+
+  // Fetch sidebar counts
   useEffect(() => {
-    const fetchBackjobsCount = async () => {
+    const fetchCounts = async () => {
       try {
-        const response = await fetch(
-          `${API_BASE}/api/jobs/my-backjobs?status=UNDER_REVIEW`,
-          {
-            credentials: "include",
-          },
-        );
-        if (response.ok) {
-          const data = await response.json();
+        // Backjobs count
+        const backjobRes = await fetch(`${API_BASE}/api/jobs/my-backjobs?status=UNDER_REVIEW`, { credentials: "include" });
+        if (backjobRes.ok) {
+          const data = await backjobRes.json();
           setBackjobsCount(data.backjobs?.length || 0);
         }
       } catch (error) {
-        console.error("Error fetching backjobs count:", error);
+        console.error("Error fetching sidebar counts:", error);
+      }
+
+      try {
+        // Pending job invites count
+        const inviteRes = await fetch(`${API_BASE}/api/agency/jobs?invite_status=PENDING`, { credentials: "include" });
+        if (inviteRes.ok) {
+          const data = await inviteRes.json();
+          setPendingJobsCount(data.jobs?.length || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching pending invites count:", error);
+      }
+
+      try {
+        // Unread messages count
+        const msgRes = await fetch(`${API_BASE}/api/profiles/chat/conversations?filter=unread`, { credentials: "include" });
+        if (msgRes.ok) {
+          const data = await msgRes.json();
+          const convos = data.conversations ?? [];
+          const count = convos.filter((c: { unread_count?: number }) => (c.unread_count ?? 0) > 0).length;
+          setUnreadMessagesCount(count);
+        }
+      } catch (error) {
+        console.error("Error fetching unread messages count:", error);
       }
     };
 
-    fetchBackjobsCount();
+    fetchCounts();
     // Refresh every 30 seconds
-    const interval = setInterval(fetchBackjobsCount, 30000);
+    const interval = setInterval(fetchCounts, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -110,7 +183,10 @@ export default function AgencySidebar({
     >
       {/* Desktop-only brand header + collapse toggle */}
       {!isMobileDrawer && (
-        <div className={cn("flex items-center border-b border-sidebar-border p-4", collapsed ? "justify-center" : "justify-between")}>
+        <div className={cn(
+          "flex items-center border-b border-sidebar-border",
+          collapsed ? "justify-center py-3" : "justify-between p-4"
+        )}>
           {!collapsed && (
             <Image
               src="/logos/logo-agency.png"
@@ -123,14 +199,17 @@ export default function AgencySidebar({
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
+            className={cn(
+              "rounded-lg hover:bg-sidebar-accent transition-colors",
+              collapsed ? "w-full flex justify-center py-3" : "p-1.5"
+            )}
           >
             {collapsed ? (
               <Image
                 src="/logos/favicon.png"
                 alt="iAyos"
-                width={28}
-                height={28}
+                width={40}
+                height={40}
                 className="object-contain"
               />
             ) : (
@@ -140,18 +219,18 @@ export default function AgencySidebar({
         </div>
       )}
 
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
+      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-0.5">
         <Link
           href="/agency/dashboard"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/dashboard")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Building2 className="h-5 w-5 shrink-0" />{" "}
+          <Building2 className="h-4 w-4 shrink-0" />{" "}
           {!collapsed && <span>Dashboard</span>}
         </Link>
 
@@ -159,13 +238,13 @@ export default function AgencySidebar({
           href="/agency/employees"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/employees")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Users className="h-5 w-5 shrink-0" />{" "}
+          <Users className="h-4 w-4 shrink-0" />{" "}
           {!collapsed && <span>Employees</span>}
         </Link>
 
@@ -173,40 +252,42 @@ export default function AgencySidebar({
           href="/agency/jobs"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/jobs") && !isActive("/agency/jobs/backjobs")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Briefcase className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Jobs</span>}
+          <div className="relative shrink-0">
+            <Briefcase className="h-4 w-4" />
+            {collapsed && <BadgeDot count={pendingJobsCount} />}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2 flex-1">
+              Jobs
+              <BadgePill count={pendingJobsCount} />
+            </span>
+          )}
         </Link>
 
         <Link
           href="/agency/jobs/backjobs"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/jobs/backjobs")
-              ? "bg-orange-50 text-orange-600"
+              ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <RotateCcw className="h-5 w-5 shrink-0" />
+          <div className="relative shrink-0">
+            <RotateCcw className="h-4 w-4" />
+            {collapsed && <BadgeDot count={backjobsCount} />}
+          </div>
           {!collapsed && (
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 flex-1">
               Backjobs
-              {backjobsCount > 0 && (
-                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium bg-orange-500 text-white rounded-full">
-                  {backjobsCount}
-                </span>
-              )}
-            </span>
-          )}
-          {collapsed && backjobsCount > 0 && (
-            <span className="absolute right-1 top-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-medium bg-orange-500 text-white rounded-full">
-              {backjobsCount}
+              <BadgePill count={backjobsCount} />
             </span>
           )}
         </Link>
@@ -215,41 +296,57 @@ export default function AgencySidebar({
           href="/agency/messages"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/messages")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <MessageSquare className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Messages</span>}
+          <div className="relative shrink-0">
+            <MessageSquare className="h-4 w-4" />
+            {collapsed && <BadgeDot count={unreadMessagesCount} />}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2 flex-1">
+              Messages
+              <BadgePill count={unreadMessagesCount} />
+            </span>
+          )}
         </Link>
 
         <Link
           href="/agency/reviews"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/reviews")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Star className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Reviews</span>}
+          <div className="relative shrink-0">
+            <Star className="h-4 w-4" />
+            {collapsed && <BadgeDot count={reviewsCount} />}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2 flex-1">
+              Reviews
+              <BadgePill count={reviewsCount} />
+            </span>
+          )}
         </Link>
 
         <Link
           href="/agency/analytics"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/analytics")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <BarChart3 className="h-5 w-5 shrink-0" />{" "}
+          <BarChart3 className="h-4 w-4 shrink-0" />{" "}
           {!collapsed && <span>Analytics</span>}
         </Link>
 
@@ -257,56 +354,64 @@ export default function AgencySidebar({
           href="/agency/transactions"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/transactions")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Receipt className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Transactions</span>}
+          <div className="relative shrink-0">
+            <Receipt className="h-4 w-4" />
+            {collapsed && <BadgeDot count={transactionsCount} />}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2 flex-1">
+              Transactions
+              <BadgePill count={transactionsCount} />
+            </span>
+          )}
         </Link>
 
         <Link
           href="/agency/wallet"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/wallet")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Wallet className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Wallet</span>}
+          <div className="relative shrink-0">
+            <Wallet className="h-4 w-4" />
+            {collapsed && <BadgeDot count={walletCount} />}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2 flex-1">
+              Wallet
+              <BadgePill count={walletCount} />
+            </span>
+          )}
         </Link>
 
         <Link
           href="/agency/notifications"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px] relative",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm relative",
             isActive("/agency/notifications")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
           <div className="relative shrink-0">
-            <Bell className="h-5 w-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
+            <Bell className="h-4 w-4" />
+            {collapsed && <BadgeDot count={derivedUnreadCount} />}
           </div>
           {!collapsed && (
             <span className="flex items-center gap-2 flex-1">
               Notifications
-              {unreadCount > 0 && (
-                <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
+              <BadgePill count={derivedUnreadCount} />
             </span>
           )}
         </Link>
@@ -315,13 +420,13 @@ export default function AgencySidebar({
           href="/agency/profile"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/profile")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <UserCheck className="h-5 w-5 shrink-0" />{" "}
+          <UserCheck className="h-4 w-4 shrink-0" />{" "}
           {!collapsed && <span>Profile</span>}
         </Link>
 
@@ -329,13 +434,13 @@ export default function AgencySidebar({
           href="/agency/settings"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/settings")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <Settings className="h-5 w-5 shrink-0" />{" "}
+          <Settings className="h-4 w-4 shrink-0" />{" "}
           {!collapsed && <span>Settings</span>}
         </Link>
 
@@ -343,14 +448,22 @@ export default function AgencySidebar({
           href="/agency/support"
           onClick={handleNavClick}
           className={cn(
-            "flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px]",
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
             isActive("/agency/support")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-700 hover:bg-gray-100",
           )}
         >
-          <HelpCircle className="h-5 w-5 shrink-0" />{" "}
-          {!collapsed && <span>Support</span>}
+          <div className="relative shrink-0">
+            <HelpCircle className="h-4 w-4" />
+            {collapsed && <BadgeDot count={supportCount} />}
+          </div>
+          {!collapsed && (
+            <span className="flex items-center gap-2 flex-1">
+              Support
+              <BadgePill count={supportCount} />
+            </span>
+          )}
         </Link>
       </nav>
 
@@ -360,9 +473,9 @@ export default function AgencySidebar({
             handleLogout();
             handleNavClick();
           }}
-          className="flex items-center gap-3 px-3 py-3 rounded-lg min-h-[44px] w-full text-gray-700 hover:text-red-600 hover:bg-red-50 transition-colors"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm w-full text-gray-700 hover:text-red-600 hover:bg-red-50 transition-colors"
         >
-          <LogOut className="h-5 w-5 shrink-0" />{" "}
+          <LogOut className="h-4 w-4 shrink-0" />{" "}
           {!collapsed && <span>Logout</span>}
         </button>
       </div>
