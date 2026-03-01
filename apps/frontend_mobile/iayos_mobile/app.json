@@ -44,7 +44,6 @@
     ],
     "plugins": [
       "expo-router",
-      "react-native-agora",
       [
         "expo-build-properties",
         {
