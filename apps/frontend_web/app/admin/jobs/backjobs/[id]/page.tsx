@@ -22,8 +22,8 @@ interface DisputeDetail {
   job_title: string;
   category: string | null;
   disputed_by: string;
-  client: { id: string; name: string };
-  worker: { id: string; name: string } | null;
+  client: { id: string; name: string; email: string };
+  worker: { id: string; name: string; email: string } | null;
   agency: { id: string; name: string } | null;
   reason: string;
   description: string;
@@ -534,6 +534,7 @@ export default function BackjobDetailPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-400">Client</p>
                     <p className="font-semibold text-gray-800 truncate">{dispute.client.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{dispute.client.email}</p>
                   </div>
                   <Link href={`/admin/users/clients/${dispute.client.id}`}>
                     <Badge className="bg-blue-100 text-blue-600 hover:bg-blue-200 cursor-pointer text-xs">View</Badge>
@@ -547,6 +548,7 @@ export default function BackjobDetailPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400">Worker</p>
                       <p className="font-semibold text-gray-800 truncate">{dispute.worker.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{dispute.worker.email}</p>
                     </div>
                     <Link href={`/admin/users/workers/${dispute.worker.id}`}>
                       <Badge className="bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer text-xs">View</Badge>
