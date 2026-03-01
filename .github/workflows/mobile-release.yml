@@ -57,6 +57,14 @@ on:
         required: false
         default: true
         type: boolean
+      build_type:
+        description: "Build type: 'production' bumps semver + commits. 'development' uses current-dev.N suffix, no version commit (pre-release)"
+        required: false
+        default: "development"
+        type: choice
+        options:
+          - development
+          - production
 
 env:
   MOBILE_DIR: apps/frontend_mobile/iayos_mobile
@@ -159,72 +167,64 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
           VERSION_TYPE="${{ steps.analyze.outputs.version_type }}"
           CURRENT="${{ steps.current_version.outputs.current_version }}"
+          RUN_NUMBER="${{ github.run_number }}"
 
-          # Parse version
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          # Strip any pre-existing -dev suffix to get the clean base version
+          BASE_VERSION=$(echo "$CURRENT" | sed 's/-dev\..*//')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
 
-          case $VERSION_TYPE in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
-
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-
-          # Check if this tag already exists and keep incrementing until we find an unused one
           cd ${{ github.workspace }}
           git fetch --tags
 
-          TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}"
-          TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
+          if [ "$BUILD_TYPE" = "production" ]; then
+            # ── PRODUCTION: bump semver, commit back, use release tag ──
+            case $VERSION_TYPE in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
 
-          MAX_INCREMENT=10
-          INCREMENT=0
-          while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
-            echo "⚠️ Tag $TAG_NAME already exists, incrementing patch..."
-            PATCH=$((PATCH + 1))
             NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}"
             TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
-            INCREMENT=$((INCREMENT + 1))
-            
-            if [ $INCREMENT -ge $MAX_INCREMENT ]; then
-              echo "❌ Too many existing versions, something is wrong"
-              exit 1
-            fi
-          done
 
-          if [ $INCREMENT -gt 0 ]; then
-            echo "✅ Found unused version: $NEW_VERSION (incremented $INCREMENT times)"
+            # Increment patch until we find an unused tag
+            MAX_INCREMENT=10; INCREMENT=0
+            while git rev-parse "$TAG_NAME" > /dev/null 2>&1; do
+              echo "⚠️ Tag $TAG_NAME exists, incrementing..."
+              PATCH=$((PATCH + 1))
+              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+              TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
+              INCREMENT=$((INCREMENT + 1))
+              if [ $INCREMENT -ge $MAX_INCREMENT ]; then echo "❌ Too many existing tags"; exit 1; fi
+            done
+
+            cd ${{ env.MOBILE_DIR }}
+            npm version $NEW_VERSION --no-git-tag-version
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.expo.version = '$NEW_VERSION';
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+            "
+            echo "🚀 PRODUCTION build — version: $NEW_VERSION"
+
+          else
+            # ── DEVELOPMENT: append -dev.N suffix, NO semver bump, NO commit ──
+            NEW_VERSION="${BASE_VERSION}-dev.${RUN_NUMBER}"
+            TAG_NAME="mobile-dev-v${NEW_VERSION}"
+            echo "🔧 DEVELOPMENT build — version: $NEW_VERSION (base stays at $BASE_VERSION)"
+            cd ${{ env.MOBILE_DIR }}
           fi
-
-          cd ${{ env.MOBILE_DIR }}
 
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "New version: $NEW_VERSION"
-          echo "Tag name: $TAG_NAME"
-
-          # Update package.json
-          npm version $NEW_VERSION --no-git-tag-version
-
-          # Update app.json version
-          node -e "
-            const fs = require('fs');
-            const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-            appJson.expo.version = '$NEW_VERSION';
-            fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
-          "
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG_NAME"
 
       - name: Install dependencies
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
@@ -498,7 +498,7 @@ jobs:
           fi
 
       - name: Commit version bump
-        if: steps.analyze.outputs.should_release == 'true'
+        if: steps.analyze.outputs.should_release == 'true' && steps.version.outputs.build_type == 'production'
         id: commit_version
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -594,8 +594,8 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.commit_version.outputs.tag_name }}
-          name: iAyos Mobile v${{ steps.commit_version.outputs.final_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
+          tag_name: ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}
+          name: iAyos Mobile ${{ github.event.inputs.build_type == 'development' && '🔧 Dev Build' || '🚀' }} v${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
             ## iAyos Mobile App Release v${{ steps.commit_version.outputs.final_version }}
 
@@ -631,7 +631,7 @@ jobs:
           files: |
             ${{ env.MOBILE_DIR }}/iayos-${{ steps.version.outputs.new_version }}.apk
           draft: false
-          prerelease: ${{ github.event.inputs.is_prerelease == 'true' || github.ref_name != 'main' }}
+          prerelease: ${{ github.event.inputs.build_type == 'development' || github.event.inputs.is_prerelease == 'true' || github.ref_name != 'main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
