@@ -102,6 +102,7 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
+  const [negotiationPanelExpanded, setNegotiationPanelExpanded] = useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
@@ -199,6 +200,10 @@ export default function ChatScreen() {
   const hasApprovedBackjob =
     conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "UNDER_REVIEW";
+  // IN_NEGOTIATION: admin has joined to negotiate — keeps conversation open
+  const hasActiveNegotiation =
+    conversation?.backjob?.has_backjob === true &&
+    conversation?.backjob?.status === "IN_NEGOTIATION";
   // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
   const clientHasFullyReviewed = conversation?.is_team_job
@@ -208,12 +213,14 @@ export default function ChatScreen() {
     (conversation?.job?.clientMarkedComplete &&
       clientHasFullyReviewed &&
       conversation?.job?.workerReviewed &&
-      !hasApprovedBackjob) || // Don't close if there's an APPROVED backjob
+      !hasApprovedBackjob &&
+      !hasActiveNegotiation) || // Don't close if there's an approved backjob or active negotiation
     // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
     (conversation?.job?.status === "COMPLETED" &&
       clientHasFullyReviewed &&
       conversation?.job?.workerReviewed &&
-      !hasApprovedBackjob);
+      !hasApprovedBackjob &&
+      !hasActiveNegotiation);
 
   // Force review: user must review before leaving conversation after payment/completion
   const needsReview = !!(
@@ -4627,6 +4634,83 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
+            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION or after if admin messages exist */}
+            {(hasActiveNegotiation ||
+              conversation.messages.some(
+                (m: any) => m.sender_type === "admin",
+              )) && (
+              <View style={styles.negotiationPanel}>
+                <TouchableOpacity
+                  style={styles.negotiationPanelHeader}
+                  onPress={() =>
+                    setNegotiationPanelExpanded(!negotiationPanelExpanded)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="shield-half-outline"
+                    size={13}
+                    color="#7C3AED"
+                  />
+                  <Text style={styles.negotiationPanelHeaderText}>
+                    {hasActiveNegotiation
+                      ? "Negotiation Chat"
+                      : "Negotiation History"}
+                  </Text>
+                  {hasActiveNegotiation && (
+                    <View style={styles.negotiationLiveBadge}>
+                      <Text style={styles.negotiationLiveBadgeText}>LIVE</Text>
+                    </View>
+                  )}
+                  <Ionicons
+                    name={
+                      negotiationPanelExpanded ? "chevron-up" : "chevron-down"
+                    }
+                    size={13}
+                    color="#7C3AED"
+                  />
+                </TouchableOpacity>
+
+                {negotiationPanelExpanded && (
+                  <View style={styles.negotiationPanelBody}>
+                    {conversation.messages.filter(
+                      (m: any) => m.sender_type === "admin",
+                    ).length === 0 ? (
+                      <Text style={styles.negotiationEmptyText}>
+                        Waiting for admin to join the negotiation…
+                      </Text>
+                    ) : (
+                      conversation.messages
+                        .filter((m: any) => m.sender_type === "admin")
+                        .map((msg: any, idx: number) => (
+                          <View
+                            key={msg.message_id || idx}
+                            style={styles.negotiationMessage}
+                          >
+                            <Ionicons
+                              name="shield-checkmark-outline"
+                              size={12}
+                              color="#7C3AED"
+                            />
+                            <View style={styles.negotiationMessageContent}>
+                              <Text style={styles.negotiationMessageSender}>
+                                Admin
+                              </Text>
+                              <Text style={styles.negotiationMessageText}>
+                                {msg.message_text}
+                              </Text>
+                              <Text style={styles.negotiationMessageTime}>
+                                {format(new Date(msg.created_at), "h:mm a")}
+                              </Text>
+                            </View>
+                          </View>
+                        ))
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
             {hasApprovedBackjob && (
               <View style={styles.backjobActionButtonsCompact}>
@@ -4770,7 +4854,13 @@ export default function ChatScreen() {
         {/* Messages List */}
         <FlatList
           ref={flatListRef}
-          data={conversation.messages}
+          data={
+            hasActiveNegotiation
+              ? conversation.messages.filter(
+                  (m: any) => m.sender_type !== "admin",
+                )
+              : conversation.messages
+          }
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
@@ -6365,6 +6455,85 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     fontSize: 11,
     color: Colors.textSecondary,
+  },
+  // Negotiation Panel Styles (collapsible admin chat within backjob section)
+  negotiationPanel: {
+    borderTopWidth: 1,
+    borderTopColor: "#E9D5FF",
+    backgroundColor: "#FAF5FF",
+  },
+  negotiationPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    gap: 5,
+  },
+  negotiationPanelHeaderText: {
+    flex: 1,
+    ...Typography.body.small,
+    fontWeight: "600",
+    color: "#6B21A8",
+    fontSize: 11,
+  },
+  negotiationLiveBadge: {
+    backgroundColor: "#7C3AED",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  negotiationLiveBadgeText: {
+    ...Typography.body.small,
+    fontSize: 8,
+    fontWeight: "700",
+    color: Colors.white,
+    letterSpacing: 0.5,
+  },
+  negotiationPanelBody: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
+    maxHeight: 220,
+  },
+  negotiationMessage: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    paddingVertical: 3,
+  },
+  negotiationMessageContent: {
+    flex: 1,
+    backgroundColor: "#EDE9FE",
+    borderRadius: BorderRadius.small,
+    padding: Spacing.xs,
+    paddingHorizontal: 8,
+  },
+  negotiationMessageSender: {
+    ...Typography.body.small,
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#7C3AED",
+    marginBottom: 2,
+  },
+  negotiationMessageText: {
+    ...Typography.body.small,
+    fontSize: 12,
+    color: "#3B0764",
+  },
+  negotiationMessageTime: {
+    ...Typography.body.small,
+    fontSize: 9,
+    color: "#8B5CF6",
+    marginTop: 2,
+    textAlign: "right",
+  },
+  negotiationEmptyText: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: Spacing.sm,
   },
   // Compact Review Banner Styles
   reviewCompleteBanner: {
