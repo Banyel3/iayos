@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
@@ -11,7 +12,6 @@ import {
   HelpCircle,
   LogOut,
   ChevronLeft,
-  ChevronRight,
   Star,
   MessageSquare,
   Receipt,
@@ -110,21 +110,29 @@ export default function AgencySidebar({
     >
       {/* Desktop-only brand header + collapse toggle */}
       {!isMobileDrawer && (
-        <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
+        <div className={cn("flex items-center border-b border-sidebar-border p-4", collapsed ? "justify-center" : "justify-between")}>
           {!collapsed && (
-            <div className="flex items-center space-x-2">
-              <h2 className="text-2xl font-bold">
-                <span className="text-blue-600">iAyos</span>{" "}
-                <span className="text-gray-500 font-normal">Agency</span>
-              </h2>
-            </div>
+            <Image
+              src="/logos/logo-agency.png"
+              alt="iAyos Agency"
+              width={120}
+              height={32}
+              className="object-contain"
+              priority
+            />
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
           >
             {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <Image
+                src="/logos/favicon.png"
+                alt="iAyos"
+                width={28}
+                height={28}
+                className="object-contain"
+              />
             ) : (
               <ChevronLeft className="h-4 w-4" />
             )}
