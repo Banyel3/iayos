@@ -15,7 +15,7 @@ import * as Updates from 'expo-updates';
 import { Paths, File } from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { Platform, Alert, Linking } from 'react-native';
+import { Platform, Alert, Linking, AppState, AppStateStatus } from 'react-native';
 import { ENDPOINTS } from '@/lib/api/config';
 
 export interface VersionInfo {
@@ -66,17 +66,17 @@ export interface AppUpdateState {
 function compareVersions(a: string, b: string): number {
   const partsA = a.split('.').map(Number);
   const partsB = b.split('.').map(Number);
-  
+
   const maxLength = Math.max(partsA.length, partsB.length);
-  
+
   for (let i = 0; i < maxLength; i++) {
     const partA = partsA[i] || 0;
     const partB = partsB[i] || 0;
-    
+
     if (partA < partB) return -1;
     if (partA > partB) return 1;
   }
-  
+
   return 0;
 }
 
@@ -89,35 +89,35 @@ async function getDirectApkUrl(releaseUrl: string): Promise<string> {
     if (releaseUrl.endsWith('.apk')) {
       return releaseUrl;
     }
-    
+
     // Convert GitHub releases page URL to API URL
     // https://github.com/Banyel3/iayos/releases/latest -> API call
     const apiUrl = releaseUrl.replace(
       'github.com/Banyel3/iayos/releases/latest',
       'api.github.com/repos/Banyel3/iayos/releases/latest'
     );
-    
+
     const response = await fetch(apiUrl, {
       headers: { 'Accept': 'application/vnd.github.v3+json' }
     });
-    
+
     if (!response.ok) {
       console.warn('[APP UPDATE] Failed to fetch GitHub release info');
       return releaseUrl;
     }
-    
+
     const release = await response.json() as { assets?: Array<{ name?: string; content_type?: string; browser_download_url?: string }> };
-    
+
     // Find the APK asset
-    const apkAsset = release.assets?.find((asset) => 
+    const apkAsset = release.assets?.find((asset) =>
       asset.name?.endsWith('.apk') || asset.content_type === 'application/vnd.android.package-archive'
     );
-    
+
     if (apkAsset?.browser_download_url) {
       console.log('[APP UPDATE] Found direct APK URL:', apkAsset.browser_download_url);
       return apkAsset.browser_download_url;
     }
-    
+
     return releaseUrl;
   } catch (error) {
     console.warn('[APP UPDATE] Error fetching direct APK URL:', error);
@@ -164,15 +164,15 @@ export function useAppUpdate() {
       console.log('[OTA UPDATE] Skipping - development mode or updates disabled');
       return false;
     }
-    
+
     try {
       setState(prev => ({
         ...prev,
         ota: { ...prev.ota, isChecking: true, error: null }
       }));
-      
+
       const update = await Updates.checkForUpdateAsync();
-      
+
       if (update.isAvailable) {
         console.log('[OTA UPDATE] Update available:', update.manifest);
         setState(prev => ({
@@ -217,19 +217,19 @@ export function useAppUpdate() {
       console.warn('[OTA UPDATE] Updates not enabled');
       return;
     }
-    
+
     try {
       setState(prev => ({
         ...prev,
         ota: { ...prev.ota, isDownloading: true, error: null }
       }));
-      
+
       console.log('[OTA UPDATE] Fetching update...');
       await Updates.fetchUpdateAsync();
-      
+
       console.log('[OTA UPDATE] Update downloaded, reloading app...');
       await Updates.reloadAsync();
-      
+
     } catch (error) {
       console.error('[OTA UPDATE] Failed to apply update:', error);
       setState(prev => ({
@@ -252,11 +252,11 @@ export function useAppUpdate() {
       Alert.alert('Not Supported', 'APK download is only available on Android');
       return null;
     }
-    
+
     try {
       // Get direct APK URL from GitHub releases
       const directUrl = await getDirectApkUrl(url);
-      
+
       setState(prev => ({
         ...prev,
         download: {
@@ -270,13 +270,13 @@ export function useAppUpdate() {
           localUri: null,
         }
       }));
-      
+
       console.log('[APK DOWNLOAD] Starting download from:', directUrl);
-      
+
       const fileName = `iayos-update-${Date.now()}.apk`;
       const cacheDir = Paths.cache.uri;
       const fileUri = `${cacheDir}/${fileName}`;
-      
+
       // Create download resumable with progress callback
       const downloadResumable = LegacyFileSystem.createDownloadResumable(
         directUrl,
@@ -286,7 +286,7 @@ export function useAppUpdate() {
           const progress = downloadProgress.totalBytesExpectedToWrite > 0
             ? Math.round((downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100)
             : 0;
-          
+
           setState(prev => ({
             ...prev,
             download: {
@@ -298,9 +298,9 @@ export function useAppUpdate() {
           }));
         }
       );
-      
+
       const result = await downloadResumable.downloadAsync();
-      
+
       if (result?.uri) {
         console.log('[APK DOWNLOAD] Download complete:', result.uri);
         setState(prev => ({
@@ -311,7 +311,7 @@ export function useAppUpdate() {
       } else {
         throw new Error('Download failed - no URI returned');
       }
-      
+
     } catch (error) {
       console.error('[APK DOWNLOAD] Failed:', error);
       setState(prev => ({
@@ -328,47 +328,89 @@ export function useAppUpdate() {
   }, []);
 
   /**
-   * Install APK using Android's package installer
+   * Install APK using Android's package installer.
+   *
+   * Strategy:
+   * 1. Copy APK from cache to document directory (accessible via FileProvider).
+   * 2. Use ACTION_VIEW with APK MIME type (modern, works Android 7+).
+   * 3. Detect return from installer via AppState listener (no blind timeout).
    */
   const installAPK = useCallback(async (fileUri: string): Promise<void> => {
     if (Platform.OS !== 'android') {
       return;
     }
-    
+
     try {
       setState(prev => ({
         ...prev,
         download: { ...prev.download, isInstalling: true, installError: null }
       }));
-      console.log('[APK INSTALL] Launching installer for:', fileUri);
-      
-      // Get content URI for the file
-      const contentUri = await LegacyFileSystem.getContentUriAsync(fileUri);
-      
-      // Launch Android's package installer with INSTALL_PACKAGE intent
-      // Using INSTALL_PACKAGE instead of VIEW for better compatibility on real devices
-      await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
+      console.log('[APK INSTALL] Starting install flow for:', fileUri);
+
+      // Step 1: Copy APK to document directory for FileProvider accessibility
+      const stableFileName = 'iayos-update.apk';
+      const docDir = LegacyFileSystem.documentDirectory;
+      if (!docDir) {
+        throw new Error('Document directory not available');
+      }
+      const destUri = `${docDir}${stableFileName}`;
+
+      // Remove previous update file if it exists
+      const destInfo = await LegacyFileSystem.getInfoAsync(destUri);
+      if (destInfo.exists) {
+        await LegacyFileSystem.deleteAsync(destUri, { idempotent: true });
+      }
+
+      console.log('[APK INSTALL] Copying APK to document directory...');
+      await LegacyFileSystem.copyAsync({ from: fileUri, to: destUri });
+
+      // Step 2: Get content URI via FileProvider
+      const contentUri = await LegacyFileSystem.getContentUriAsync(destUri);
+      console.log('[APK INSTALL] Content URI:', contentUri);
+
+      // Step 3: Launch system installer with ACTION_VIEW + APK MIME type
+      console.log('[APK INSTALL] Launching system installer...');
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
         data: contentUri,
+        type: 'application/vnd.android.package-archive',
         flags: 1 | 268435456, // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
       });
-      
-      console.log('[APK INSTALL] Installer launched successfully');
-      
-      // Give the installer 15 seconds - if we're still here, it may have failed silently
-      await new Promise(resolve => setTimeout(resolve, 15000));
-      
-      // If we reach here, the installer may not have started properly
-      // Offer the user a fallback to open install permission settings
+
+      console.log('[APK INSTALL] Intent launched — waiting for return from installer');
+
+      // Step 4: Wait for app to return to foreground from installer
+      await new Promise<void>((resolve) => {
+        let wentBackground = false;
+
+        const handleAppState = (nextState: AppStateStatus) => {
+          if (nextState === 'background' || nextState === 'inactive') {
+            wentBackground = true;
+          }
+          if (wentBackground && nextState === 'active') {
+            subscription.remove();
+            resolve();
+          }
+        };
+
+        const subscription = AppState.addEventListener('change', handleAppState);
+
+        // Safety: if intent never backgrounds the app, resolve after 10s
+        setTimeout(() => {
+          subscription.remove();
+          resolve();
+        }, 10000);
+      });
+
+      console.log('[APK INSTALL] App returned to foreground');
+
       Alert.alert(
-        'Installation may need permission',
-        'If the installer did not appear, you may need to allow iAyos to install apps. Open Settings to grant permission, then try again.',
+        'Install Complete?',
+        'If the app was not installed, you may need to allow iAyos to install apps from this source.',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Done', style: 'default' },
           {
             text: 'Open Settings',
-            onPress: () => {
-              Linking.openSettings();
-            },
+            onPress: () => Linking.openSettings(),
           },
           {
             text: 'Retry Install',
@@ -376,13 +418,13 @@ export function useAppUpdate() {
           },
         ]
       );
-      
+
       setState(prev => ({
         ...prev,
         download: { ...prev.download, isInstalling: false }
       }));
     } catch (error) {
-      console.error('[APK INSTALL] Failed to launch installer:', error);
+      console.error('[APK INSTALL] Failed:', error);
       setState(prev => ({
         ...prev,
         download: {
@@ -393,12 +435,17 @@ export function useAppUpdate() {
       }));
       Alert.alert(
         'Installation Failed',
-        'Could not open the APK installer. You may need to allow iAyos to install apps in Settings.',
+        'Could not open the APK installer. You may need to allow iAyos to install apps in Settings.\n\nError: ' +
+        (error instanceof Error ? error.message : String(error)),
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Open Settings',
             onPress: () => Linking.openSettings(),
+          },
+          {
+            text: 'Retry',
+            onPress: () => installAPK(fileUri),
           },
         ]
       );
@@ -427,38 +474,38 @@ export function useAppUpdate() {
   const checkForUpdates = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
+
       // Get installed app version from Expo config
       const installedVersion = Constants.expoConfig?.version || '0.0.0';
-      
+
       // Fetch config from backend
       const response = await fetch(ENDPOINTS.MOBILE_CONFIG, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
-      
+
       if (!response.ok) {
         throw new Error(`Config fetch failed: ${response.status}`);
       }
-      
+
       const config = await response.json() as { version?: VersionInfo };
       console.log('[APP UPDATE] Raw API response:', JSON.stringify(config, null, 2));
       const versionInfo: VersionInfo = config.version || {} as VersionInfo;
       console.log('[APP UPDATE] Extracted version info:', JSON.stringify(versionInfo, null, 2));
-      
+
       const minVersion = versionInfo.min_version || '0.0.0';
       const currentVersion = versionInfo.current_version || '0.0.0';
       const forceUpdate = versionInfo.force_update ?? true;
       const downloadUrl = versionInfo.download_url || 'https://github.com/Banyel3/iayos/releases/latest';
-      
+
       console.log('[APP UPDATE] Final values:', { minVersion, currentVersion, forceUpdate, installedVersion });
-      
+
       // Check if update is required (installed < min_version)
       const updateRequired = compareVersions(installedVersion, minVersion) < 0;
-      
+
       // Check if update is available (installed < current_version)
       const updateAvailable = compareVersions(installedVersion, currentVersion) < 0;
-      
+
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -470,7 +517,7 @@ export function useAppUpdate() {
         downloadUrl,
         error: null,
       }));
-      
+
       if (updateRequired) {
         console.log(`[APP UPDATE] Update required: ${installedVersion} → ${minVersion}+ (force: ${forceUpdate})`);
       } else if (updateAvailable) {
@@ -482,7 +529,7 @@ export function useAppUpdate() {
         // Still check for OTA updates even if backend says we're current
         await checkForOTAUpdate();
       }
-      
+
     } catch (error) {
       console.error('[APP UPDATE] Failed to check for updates:', error);
       setState(prev => ({
