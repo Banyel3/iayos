@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/form_button";
 import { useEffect, useState } from "react";
 import { Suspense } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Form,
   FormControl,
@@ -49,7 +49,8 @@ const Login = () => {
     checkAuth,
     user,
   } = useAuth();
-  const { showAuthError } = useAuthToast();
+  const { showAuthError, showAuthSuccess } = useAuthToast();
+  const searchParams = useSearchParams();
 
   // Initialize form hook at the top (before any returns)
   const form = useForm<z.infer<typeof formSchema>>({
@@ -121,6 +122,16 @@ const Login = () => {
       }
     }
   };
+
+  // Show success toast when redirected after email verification
+  useEffect(() => {
+    if (searchParams.get("verified") === "true") {
+      showAuthSuccess(
+        "Your email has been verified. Please sign in to continue.",
+        "Email Verified!"
+      );
+    }
+  }, [searchParams]);
 
   // Check for existing rate limit on component mount
   useEffect(() => {
