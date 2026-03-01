@@ -425,7 +425,7 @@ export default function PendingKYCPage() {
         frontID = kycFiles.find((f: any) => f.fileType === "REP_ID_FRONT");
         backID = kycFiles.find((f: any) => f.fileType === "REP_ID_BACK");
         clearance = kycFiles.find((f: any) => f.fileType === "BUSINESS_PERMIT");
-        selfie = kycFiles.find((f: any) => f.fileType === "AUTH_LETTER");
+        selfie = kycFiles.find((f: any) => f.fileType === "REP_SELFIE");
         addressProof = kycFiles.find(
           (f: any) => f.fileType === "ADDRESS_PROOF",
         );

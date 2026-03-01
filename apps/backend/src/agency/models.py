@@ -53,7 +53,14 @@ class AgencyKYC(models.Model):
         default=3,
         help_text="Maximum allowed resubmission attempts"
     )
-    
+
+    # Face verification — computed at submission time, surfaced to admin as a hint
+    face_similarity_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Face similarity score between rep selfie and ID front (0–1), computed at submission"
+    )
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     
