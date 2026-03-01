@@ -1084,8 +1084,10 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
             'jobID',
             'jobID__clientID',
             'jobID__clientID__profileID',
+            'jobID__clientID__profileID__accountFK',
             'jobID__assignedWorkerID',
             'jobID__assignedWorkerID__profileID',
+            'jobID__assignedWorkerID__profileID__accountFK',
             'jobID__assignedAgencyFK',
             'jobID__categoryID',
         ).prefetch_related('evidence').get(disputeID=dispute_id)
@@ -1121,12 +1123,14 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
                 'category': job.categoryID.specializationName if job.categoryID else None,
                 'disputed_by': dispute.disputedBy.lower(),
                 'client': {
-                    'id': str(client.profileID.profileID),
+                    'id': str(client.profileID.accountFK.accountID),
                     'name': f"{client.profileID.firstName} {client.profileID.lastName}",
+                    'email': client.profileID.accountFK.email,
                 },
                 'worker': {
-                    'id': str(worker.profileID.profileID) if worker else None,
-                    'name': f"{worker.profileID.firstName} {worker.profileID.lastName}" if worker else "Not Assigned",
+                    'id': str(worker.profileID.accountFK.accountID),
+                    'name': f"{worker.profileID.firstName} {worker.profileID.lastName}",
+                    'email': worker.profileID.accountFK.email,
                 } if worker else None,
                 'agency': {
                     'id': str(agency.agencyId) if agency else None,
