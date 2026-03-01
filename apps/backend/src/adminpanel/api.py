@@ -1348,7 +1348,7 @@ def admin_send_message(request, conv_id: int):
     from profiles.models import Conversation, Message
 
     try:
-        body = request.data if hasattr(request, 'data') else {}
+        body = json.loads(request.body.decode('utf-8')) if request.body else {}
         text = (body.get('text') or '').strip()
         if not text:
             return {"success": False, "error": "Message text is required"}
@@ -1396,7 +1396,7 @@ def approve_backjob(request, dispute_id: int):
     from accounts.models import JobDispute, Notification, Agency, JobLog
     
     try:
-        body = request.data if hasattr(request, 'data') else {}
+        body = json.loads(request.body.decode('utf-8')) if request.body else {}
         admin_notes = body.get('notes', '')
         priority = body.get('priority', 'MEDIUM')
         
@@ -1578,7 +1578,7 @@ def reject_backjob(request, dispute_id: int):
     from jobs.payment_buffer_service import resume_payment_after_backjob_rejection
     
     try:
-        body = request.data if hasattr(request, 'data') else {}
+        body = json.loads(request.body.decode('utf-8')) if request.body else {}
         rejection_reason = body.get('reason', 'Backjob request was not approved')
         
         if not rejection_reason or len(rejection_reason) < 10:
@@ -1954,7 +1954,7 @@ def release_escrow_payment(request, transaction_id: int):
     Release escrow payment to worker.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
+        body = json.loads(request.body.decode('utf-8')) if request.body else {}
         reason = body.get('reason', None)
         result = release_escrow(transaction_id, reason, admin=request.auth, request=request)
         return result
@@ -2014,7 +2014,7 @@ def refund_transaction(request, transaction_id: int):
     Process refund for a transaction.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
+        body = json.loads(request.body.decode('utf-8')) if request.body else {}
         amount = body.get('amount')
         reason = body.get('reason')
         refund_to = body.get('refund_to', 'WALLET')
