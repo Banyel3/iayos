@@ -71,7 +71,6 @@ export default function WorkerEarningsPage() {
       );
 
       if (!response.ok) {
-        console.warn("Worker earnings API not available");
         setWorkers([]);
         return;
       }
@@ -93,7 +92,6 @@ export default function WorkerEarningsPage() {
       );
 
       if (!response.ok) {
-        console.warn("Earnings statistics API not available");
         setStatistics({
           total_workers: 0,
           pending_payouts: 0,

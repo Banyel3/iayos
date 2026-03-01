@@ -125,7 +125,6 @@ export default function WithdrawalsPage() {
       );
 
       if (!response.ok) {
-        console.warn("Withdrawals API not available");
         setWithdrawals([]);
         return;
       }
@@ -164,7 +163,6 @@ export default function WithdrawalsPage() {
       );
 
       if (!response.ok) {
-        console.warn("Withdrawals statistics API not available");
         return;
       }
 

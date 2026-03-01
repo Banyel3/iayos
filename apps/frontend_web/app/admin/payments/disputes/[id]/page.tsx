@@ -79,7 +79,6 @@ export default function DisputeDetailPage() {
       );
 
       if (!response.ok) {
-        console.warn("Dispute detail API not available");
         setDetail(null);
         return;
       }
