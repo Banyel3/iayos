@@ -205,7 +205,7 @@ function ErrorContent() {
     if (decodedError.includes("network") || decodedError.includes("timeout")) {
       return {
         title: "Connection Issue",
-        message: "We're having trouble connecting to our servers."
+        message: "We're having trouble connecting to our servers.",
         suggestion: "Please check your internet connection and try again.",
         actionText: "Try Again",
         actionHref: "/auth/login",
