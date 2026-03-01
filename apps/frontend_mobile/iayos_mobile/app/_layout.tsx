@@ -19,7 +19,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import Toast from "react-native-toast-message";
 
-console.log("[RootLayout] module evaluation start");
+if (__DEV__) console.log("[RootLayout] module evaluation start");
 // Lazy-loaded update modules — prevents import crash from killing entire app.
 // useAppUpdate imports expo-file-system SDK 54 APIs (Paths, File) and
 // expo-intent-launcher which can fail on certain environments.
@@ -29,13 +29,13 @@ let UpdateRequiredModalComponent: any = null;
 try {
   useAppUpdateHook = require("@/lib/hooks/useAppUpdate").useAppUpdate;
   UpdateRequiredModalComponent = require("@/components/UpdateRequiredModal").UpdateRequiredModal;
-  console.log("[RootLayout] update modules loaded");
+  if (__DEV__) console.log("[RootLayout] update modules loaded");
 } catch (e) {
   console.warn("[RootLayout] Failed to load update modules:", e);
 }
 
 const queryClient = new QueryClient();
-console.log("[RootLayout] query client initialized");
+if (__DEV__) console.log("[RootLayout] query client initialized");
 
 // Prevent splash screen from auto-hiding before app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -176,7 +176,7 @@ export const unstable_settings = {
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
   const appUpdate = useAppUpdateHook ? useAppUpdateHook() : null;
   const [dismissed, setDismissed] = useState(false);
-  console.log("[RootLayout] AppUpdateWrapper render", {
+  if (__DEV__) console.log("[RootLayout] AppUpdateWrapper render", {
     hasUpdateHook: !!useAppUpdateHook,
     hasModal: !!UpdateRequiredModalComponent,
   });
@@ -211,11 +211,11 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] component render");
+  if (__DEV__) console.log("[RootLayout] component render");
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    console.log("[RootLayout] mount effect start");
+    if (__DEV__) console.log("[RootLayout] mount effect start");
     // Keep Android/iOS system bars consistent with our light background
     SystemUI.setBackgroundColorAsync("transparent").catch((error) => {
       console.warn("Failed to set system UI background", error);
@@ -223,7 +223,7 @@ export default function RootLayout() {
 
     // NOTE: SplashScreen.hideAsync() is called in index.tsx AFTER auth state
     // is resolved, preventing the blank flash between splash and content.
-    console.log("[RootLayout] mount effect done (splash hidden by index.tsx)");
+    if (__DEV__) console.log("[RootLayout] mount effect done (splash hidden by index.tsx)");
   }, []);
 
   return (

@@ -14,7 +14,6 @@ import {
   Building2,
   Calendar,
   Loader2,
-  ExternalLink,
   AlertCircle,
   Mail,
   Phone,
@@ -769,41 +768,12 @@ export default function WorkerDetailPage() {
                 <CardTitle>Job History & Reviews</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {/* Example Job Item */}
-                  <div className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold">
-                            Ceiling Fan Repair
-                          </p>
-                          <Link
-                            href="/admin/jobs/completed/COMP-001"
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </Link>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Completed · ₱300
-                        </p>
-                        <p className="text-xs mt-2 italic text-gray-600">
-                          "my fan is ok na hehe"
-                        </p>
-                        <div className="flex items-center mt-1 text-yellow-500">
-                          <Star className="h-4 w-4 fill-yellow-500" />
-                          <span className="ml-1 text-sm font-medium">5.0</span>
-                        </div>
-                      </div>
-                    </div>
+                <div className="text-center py-12 text-gray-500">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Star className="h-6 w-6 text-gray-400" />
                   </div>
-                  {/* More job items would go here */}
-                  <div className="text-center py-8 text-gray-500">
-                    <p className="text-sm">
-                      Full job history integration coming soon
-                    </p>
-                  </div>
+                  <p className="text-sm font-medium text-gray-600">No job history available</p>
+                  <p className="text-xs text-gray-400 mt-1">Job history will appear here once the worker completes jobs.</p>
                 </div>
               </CardContent>
             </Card>

@@ -93,8 +93,6 @@ export default function TransactionsPage() {
       );
 
       if (!response.ok) {
-        // Backend endpoint not yet implemented - using mock data
-        console.warn("Transactions API not available, using mock data");
         setTransactions([]);
         return;
       }
@@ -122,8 +120,6 @@ export default function TransactionsPage() {
       );
 
       if (!response.ok) {
-        // Backend endpoint not yet implemented - using mock data
-        console.warn("Statistics API not available, using mock data");
         setStatistics({
           total_transactions: 0,
           total_revenue: 0,

@@ -101,7 +101,6 @@ export default function TransactionDetailPage() {
       );
 
       if (!response.ok) {
-        console.warn("Transaction detail API not available");
         setDetail(null);
         return;
       }

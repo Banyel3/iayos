@@ -78,8 +78,7 @@ function connectGlobalWebSocket(attemptNum: number = 1) {
   const host = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "localhost:8000";
   const wsUrl = `${protocol}//${host}/ws/inbox/`;
 
-  console.log(`[WebSocket] Attempting connection to: ${wsUrl}`);
-  console.log(`[WebSocket] Current cookies:`, document.cookie);
+  if (process.env.NODE_ENV === 'development') console.log(`[WebSocket] Attempting connection to: ${wsUrl}`);
 
   try {
     const ws = new WebSocket(wsUrl);
@@ -93,7 +92,7 @@ function connectGlobalWebSocket(attemptNum: number = 1) {
 
     ws.onopen = () => {
       clearTimeout(connectionTimeout);
-      console.log("[WebSocket] ✅ Connection opened successfully");
+      if (process.env.NODE_ENV === 'development') console.log("[WebSocket] ✅ Connection opened successfully");
       globalConnectionState.isConnected = true;
       globalConnectionState.isConnecting = false;
       globalConnectionState.reconnectAttempts = 0;
@@ -135,7 +134,7 @@ function connectGlobalWebSocket(attemptNum: number = 1) {
 
     ws.onclose = (event) => {
       clearTimeout(connectionTimeout);
-      console.log(
+      if (process.env.NODE_ENV === 'development') console.log(
         `[WebSocket] Connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`
       );
 
@@ -284,10 +283,10 @@ export const useWebSocket = (
   }, []);
 
   const requestMessages = useCallback((convId: number) => {
-    console.log(
+    if (process.env.NODE_ENV === 'development') console.log(
       `[WebSocket] 📤 Attempting to request messages for conversation ${convId}`
     );
-    console.log(
+    if (process.env.NODE_ENV === 'development') console.log(
       `[WebSocket] Connection state - readyState: ${globalWebSocket?.readyState}, has WS: ${!!globalWebSocket}`
     );
 
@@ -301,7 +300,7 @@ export const useWebSocket = (
     }
 
     try {
-      console.log(
+      if (process.env.NODE_ENV === 'development') console.log(
         `[WebSocket] � Sending get_messages request for conversation ${convId}`
       );
       globalWebSocket.send(
@@ -310,7 +309,7 @@ export const useWebSocket = (
           conversation_id: convId,
         })
       );
-      console.log(`[WebSocket] ✅ Message sent successfully`);
+      if (process.env.NODE_ENV === 'development') console.log(`[WebSocket] ✅ Message sent successfully`);
     } catch (err) {
       console.error("[WebSocket] ❌ Failed to send request:", err);
     }
