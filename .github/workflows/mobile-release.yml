@@ -587,13 +587,13 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         id: changelog
         run: |
-          echo "Extracting changelog for version ${{ steps.commit_version.outputs.final_version }}"
+          echo "Extracting changelog for version ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}"
 
           # Make script executable
           chmod +x .github/scripts/extract-changelog.sh
 
           # Extract changelog content
-          CHANGELOG_OUTPUT=$(./.github/scripts/extract-changelog.sh "${{ steps.commit_version.outputs.final_version }}")
+          CHANGELOG_OUTPUT=$(./.github/scripts/extract-changelog.sh "${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}")
 
           # Output to GitHub Actions (multiline)
           echo "changelog_notes<<EOF" >> $GITHUB_OUTPUT
