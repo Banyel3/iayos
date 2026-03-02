@@ -596,71 +596,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Link href="/admin/kyc/pending" className="block">
-                  <div className="p-4 border rounded-lg cursor-pointer bg-yellow-50 border-yellow-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          Review Pending KYC
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {stats.pending_kyc} submissions awaiting verification
-                        </p>
-                      </div>
-                      <AlertCircle className="h-6 w-6 text-yellow-600" />
-                    </div>
-                  </div>
-                </Link>
 
-                <Link href="/admin/jobs" className="block">
-                  <div className="p-4 border rounded-lg cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          Manage Job Postings
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {stats.active_jobs} active jobs across platform
-                        </p>
-                      </div>
-                      <Briefcase className="h-6 w-6 text-blue-600" />
-                    </div>
-                  </div>
-                </Link>
-
-                <Link href="/admin/users" className="block">
-                  <div className="p-4 border rounded-lg cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          User Management
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          View and manage all platform users
-                        </p>
-                      </div>
-                      <Users className="h-6 w-6 text-purple-600" />
-                    </div>
-                  </div>
-                </Link>
-
-                <Link href="/admin/reports" className="block">
-                  <div className="p-4 border rounded-lg cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          Platform Reports
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          View detailed analytics and reports
-                        </p>
-                      </div>
-                      <FileText className="h-6 w-6 text-green-600" />
-                    </div>
-                  </div>
-                </Link>
-              </div>
             </CardContent>
           </Card>
         </div>
