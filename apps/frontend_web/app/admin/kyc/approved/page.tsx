@@ -238,7 +238,7 @@ export default function ApprovedKYCPage() {
             reviewedBy: "Admin",
             documentsCount: filesCount,
             processingDays: isNaN(processingDays) ? 0 : processingDays,
-            verificationLevel: 1, // Agencies get Level 1 by default
+            verificationLevel: 2, // Agencies are fully verified on approval (no clearance step)
           };
         });
 
