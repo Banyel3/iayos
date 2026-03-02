@@ -16,11 +16,25 @@ const nextConfig: NextConfig = {
       {
         source: "/dashboard/:path*",
         destination: "/mobile-only",
-        permanent: true, // 301 redirect
+        permanent: true,
       },
     ];
   },
+  // In local dev: proxy /api/* and /ws/* through Next.js to avoid CORS.
+  // Set BACKEND_PROXY_URL=https://api.iayos.online (server-only, not NEXT_PUBLIC_)
+  // and leave NEXT_PUBLIC_API_URL unset so client uses relative /api/* paths.
+  async rewrites() {
+    const proxyTarget = process.env.BACKEND_PROXY_URL || "";
+    const proxyRewrites = proxyTarget
+      ? [
+        { source: "/api/:path*", destination: `${proxyTarget}/api/:path*` },
+        { source: "/ws/:path*", destination: `${proxyTarget}/ws/:path*` },
+      ]
+      : [];
+    return { beforeFiles: proxyRewrites };
+  },
   // Enable experimental features for better caching
+
   experimental: {
     staleTimes: {
       dynamic: 30, // 30 seconds for dynamic pages

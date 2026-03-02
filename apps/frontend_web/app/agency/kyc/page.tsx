@@ -231,7 +231,8 @@ const AgencyKYCPage = () => {
       return {
         valid: true,
         networkError: true,
-        warning: "AI pre-validation unavailable. Document will be verified on submission.",
+        warning:
+          "AI pre-validation unavailable. Document will be verified on submission.",
       };
     }
   };
@@ -288,7 +289,8 @@ const AgencyKYCPage = () => {
 
     if (result.networkError) {
       toast.warning("Validation Unavailable", {
-        description: "Document accepted. AI pre-validation service is offline; your documents will be verified on submission.",
+        description:
+          "Document accepted. AI pre-validation service is offline; your documents will be verified on submission.",
       });
     } else {
       toast.success("Document Validated", {
@@ -345,10 +347,11 @@ const AgencyKYCPage = () => {
       setFileHashes((prev) => ({ ...prev, REP_ID_FRONT: result.file_hash! }));
     }
 
-    // Treat network error as warning (AI validation offline)  
+    // Treat network error as warning (AI validation offline)
     if (result.networkError) {
       toast.warning("Validation Unavailable", {
-        description: "ID front accepted. Your document will be verified on submission.",
+        description:
+          "ID front accepted. Your document will be verified on submission.",
       });
     } else if (result.details?.face_detection_skipped) {
       // Check if face detection was skipped (CompreFace unavailable) - show warning
@@ -409,7 +412,8 @@ const AgencyKYCPage = () => {
     // Treat network error as warning (AI validation offline)
     if (result.networkError) {
       toast.warning("Validation Unavailable", {
-        description: "ID back accepted. Your document will be verified on submission.",
+        description:
+          "ID back accepted. Your document will be verified on submission.",
       });
     } else if (result.details?.face_detection_skipped) {
       // Check if face detection was skipped (CompreFace unavailable) - show warning
@@ -467,7 +471,8 @@ const AgencyKYCPage = () => {
     // Treat network error as warning (AI validation offline)
     if (result.networkError) {
       toast.warning("Validation Unavailable", {
-        description: "Selfie accepted. Face matching will be verified on submission.",
+        description:
+          "Selfie accepted. Face matching will be verified on submission.",
       });
     } else if (result.details?.face_detection_skipped) {
       toast.warning("Manual Review Required", {

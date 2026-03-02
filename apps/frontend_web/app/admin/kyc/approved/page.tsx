@@ -38,6 +38,7 @@ interface ApprovedKYC {
   reviewedBy: string;
   documentsCount: number;
   processingDays: number;
+  verificationLevel: number;
 }
 
 interface KYCFiles {
@@ -203,6 +204,7 @@ export default function ApprovedKYCPage() {
             reviewedBy: "Admin", // The /kyc/all endpoint doesn't include reviewer info
             documentsCount: filesCount,
             processingDays: isNaN(processingDays) ? 0 : processingDays,
+            verificationLevel: user?.verificationLevel ?? 1,
           };
         });
 
@@ -236,6 +238,7 @@ export default function ApprovedKYCPage() {
             reviewedBy: "Admin",
             documentsCount: filesCount,
             processingDays: isNaN(processingDays) ? 0 : processingDays,
+            verificationLevel: 1, // Agencies get Level 1 by default
           };
         });
 
@@ -513,12 +516,12 @@ export default function ApprovedKYCPage() {
                   </div>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
-                  Workers Approved
+                  Fully Verified (Level 2)
                 </p>
                 <p className="text-3xl font-bold text-teal-600">
-                  {approvedKYC.filter((r) => r.userType === "worker").length}
+                  {approvedKYC.filter((r) => r.verificationLevel >= 2).length}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Service providers</p>
+                <p className="text-xs text-gray-500 mt-1">ID + Clearance verified</p>
               </CardContent>
             </Card>
           </div>
@@ -600,6 +603,15 @@ export default function ApprovedKYCPage() {
                           </span>
                           <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                             Approved
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              record.verificationLevel >= 2
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {record.verificationLevel >= 2 ? "⭐ Level 2 — Fully Verified" : "✅ Level 1 — ID Verified"}
                           </span>
                         </div>
                       </div>

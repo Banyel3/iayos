@@ -105,7 +105,7 @@ export default function KYCUploadScreen() {
       try {
         const response = await fetch(ENDPOINTS.MOBILE_CONFIG);
         if (response.ok) {
-          const config: { testing?: boolean } = await response.json();
+          const config = await response.json() as { testing?: boolean };
           setIsTestingMode(config.testing === true);
         }
       } catch (error) {

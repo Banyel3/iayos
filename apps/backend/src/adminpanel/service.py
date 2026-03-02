@@ -151,6 +151,8 @@ def fetchAll_kyc(request):
             {
                 "accountID": user.accountID,
                 "email": user.email,
+                "KYCVerified": bool(user.KYCVerified),
+                "verificationLevel": getattr(user, 'verification_level', 0),
                 **profile_data.get(user.accountID, {})
             }
             for user in users
@@ -580,6 +582,7 @@ def reject_kyc(request):
             "userEmail": user_account.email,
             "kycStatus": kyc_record.kyc_status,
             "kycVerified": bool(user_account.KYCVerified),
+            "verificationLevel": user_account.verification_level,
             "reason": reason,
         }
         
@@ -838,6 +841,7 @@ def approve_agency_kyc(request):
             "userEmail": account.email,
             "status": agency_record.status,
             "kycVerified": bool(account.KYCVerified),
+            "verificationLevel": account.verification_level,
         }
 
     except AgencyKYC.DoesNotExist:
@@ -951,6 +955,7 @@ def reject_agency_kyc(request):
             "userEmail": account.email,
             "status": agency_record.status,
             "kycVerified": bool(account.KYCVerified),
+            "verificationLevel": account.verification_level,
             "reason": reason,
         }
 
