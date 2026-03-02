@@ -44,7 +44,6 @@ import {
   Menu,
   X,
   Globe,
-  LockKeyhole,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -204,12 +203,6 @@ const navigation: NavItem[] = [
         href: "/admin/payments/withdrawals",
         icon: ArrowDownToLine,
         description: "Process withdrawal requests",
-      },
-      {
-        name: "Escrow",
-        href: "/admin/payments/escrow",
-        icon: LockKeyhole,
-        description: "Escrow deposits & releases",
       },
     ],
   },
