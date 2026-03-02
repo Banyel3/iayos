@@ -13,6 +13,7 @@ interface AgencyShellProps {
 
 export default function AgencyShell({ children, kycVerified }: AgencyShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
 
   // Auto-close drawer when the route changes (user tapped a nav link)
@@ -35,13 +36,17 @@ export default function AgencyShell({ children, kycVerified }: AgencyShellProps)
   return (
     <div
       className={cn(
-        "min-h-screen bg-gray-50 flex flex-col lg:flex-row agency-theme",
+        "min-h-screen bg-gray-50 agency-theme",
         kycVerified ? "agency-verified" : ""
       )}
     >
-      {/* Desktop sidebar — always visible on lg+ */}
-      <div className="hidden lg:flex lg:flex-shrink-0">
-        <AgencySidebar />
+      {/* Desktop sidebar — fixed so it never scrolls with the page */}
+      <div className="hidden lg:block">
+        <AgencySidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+          className="fixed left-0 top-0 h-screen z-40"
+        />
       </div>
 
       {/* Mobile overlay drawer */}
@@ -86,8 +91,11 @@ export default function AgencyShell({ children, kycVerified }: AgencyShellProps)
         </div>
       )}
 
-      {/* Right side: mobile top header + page content */}
-      <div className="flex flex-col flex-1 min-w-0">
+      {/* Right side: mobile top header + page content — offset by sidebar width on desktop */}
+      <div className={cn(
+        "flex flex-col min-w-0",
+        sidebarCollapsed ? "lg:pl-16" : "lg:pl-56"
+      )}>
         {/* Mobile top header */}
         <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
           <button

@@ -817,6 +817,19 @@ export default function JobDetailScreen() {
     total_workers_assigned: job?.total_workers_assigned,
   });
 
+  // Compute accurate team counts from slot status (handles agency assignment where backend totals may lag)
+  const computedWorkersNeeded = isTeamJob && job?.skill_slots?.length
+    ? job.skill_slots.reduce((sum, slot) => sum + (slot.workers_needed || 0), 0)
+    : (job?.total_workers_needed || 0);
+  const computedWorkersAssigned = isTeamJob && job?.skill_slots?.length
+    ? job.skill_slots.reduce((sum, slot) =>
+        sum + (slot.status === 'FILLED' ? slot.workers_needed : (slot.workers_assigned || 0)), 0)
+    : (job?.total_workers_assigned || 0);
+  const computedFillPercentage = computedWorkersNeeded > 0
+    ? (computedWorkersAssigned / computedWorkersNeeded) * 100
+    : (job?.team_fill_percentage || 0);
+  const isTeamFilled = computedFillPercentage >= 100;
+
   // Team job apply mutation
   const applyToSkillSlot = useApplyToSkillSlot();
 
@@ -1236,10 +1249,10 @@ export default function JobDetailScreen() {
               <Text style={styles.teamJobHeaderBadgeText}>Team Job</Text>
               <View style={styles.teamJobHeaderDivider} />
               <Text style={styles.teamJobHeaderCount}>
-                {job.total_workers_assigned || 0}/
-                {job.total_workers_needed || 0} workers filled
+                {computedWorkersAssigned}/
+                {computedWorkersNeeded} workers filled
               </Text>
-              {(job.team_fill_percentage || 0) >= 100 && (
+              {isTeamFilled && (
                 <Ionicons
                   name="checkmark-circle"
                   size={16}
@@ -1474,33 +1487,8 @@ export default function JobDetailScreen() {
             ============================================================================ */}
         {isTeamJob && job.skill_slots && job.skill_slots.length > 0 && (
           <View style={styles.section}>
-            {/* Team Job Header Badge */}
-            <View style={styles.teamJobBadge}>
-              <Ionicons name="people" size={20} color={Colors.white} />
-              <Text style={styles.teamJobBadgeText}>Team Job</Text>
-              <Text style={styles.teamJobBadgeSubtext}>
-                {job.total_workers_assigned || 0}/
-                {job.total_workers_needed || 0} workers assigned
-              </Text>
-            </View>
-
-            {/* Team Fill Progress */}
-            <View style={styles.teamProgressContainer}>
-              <View style={styles.teamProgressBar}>
-                <View
-                  style={[
-                    styles.teamProgressFill,
-                    { width: `${job.team_fill_percentage || 0}%` },
-                  ]}
-                />
-              </View>
-              <Text style={styles.teamProgressText}>
-                {Math.round(job.team_fill_percentage || 0)}% filled
-              </Text>
-            </View>
-
             {/* Conversation Lock Notice - Chat only available when all workers selected */}
-            {(job.team_fill_percentage || 0) < 100 && (
+            {!isTeamFilled && (
               <View style={styles.conversationLockBanner}>
                 <Ionicons
                   name="chatbubbles-outline"
@@ -1513,34 +1501,14 @@ export default function JobDetailScreen() {
                   </Text>
                   <Text style={styles.conversationLockText}>
                     {isClient
-                      ? `Select ${(job.total_workers_needed || 0) - (job.total_workers_assigned || 0)} more worker(s) to start the team conversation`
+                      ? `Select ${computedWorkersNeeded - computedWorkersAssigned} more worker(s) to start the team conversation`
                       : "Team chat will be available once all positions are filled"}
                   </Text>
                 </View>
               </View>
             )}
 
-            {/* Conversation Ready Notice */}
-            {(job.team_fill_percentage || 0) >= 100 &&
-              job.status === "ACTIVE" && (
-                <View style={styles.conversationReadyBanner}>
-                  <Ionicons
-                    name="chatbubbles"
-                    size={20}
-                    color={Colors.success}
-                  />
-                  <View style={styles.conversationLockContent}>
-                    <Text style={styles.conversationReadyTitle}>
-                      Team Ready!
-                    </Text>
-                    <Text style={styles.conversationReadyText}>
-                      All workers selected. Group conversation is now available.
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-            <Text style={styles.sectionTitle}>Skill Slots</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 4 }]}>Skill Slots</Text>
 
             {/* Skill Slot Cards */}
             {job.skill_slots.map((slot) => {
@@ -1587,7 +1555,7 @@ export default function JobDetailScreen() {
                         color={Colors.textSecondary}
                       />
                       <Text style={styles.skillSlotInfoText}>
-                        {slot.workers_assigned}/{slot.workers_needed} workers
+                        {slot.status === 'FILLED' ? slot.workers_needed : slot.workers_assigned}/{slot.workers_needed} workers
                       </Text>
                     </View>
                     <View style={styles.skillSlotInfoItem}>
@@ -1600,80 +1568,6 @@ export default function JobDetailScreen() {
                         ₱{slot.budget_per_worker.toLocaleString()}/worker
                       </Text>
                     </View>
-                  </View>
-
-                  {/* Position Slots with Numbers */}
-                  <View style={styles.positionsContainer}>
-                    <Text style={styles.positionsLabel}>Positions:</Text>
-                    {Array.from({ length: slot.workers_needed }).map(
-                      (_, posIndex) => {
-                        const assignedWorker = assignedWorkers[posIndex];
-                        const isFilled = !!assignedWorker;
-
-                        return (
-                          <View
-                            key={posIndex}
-                            style={[
-                              styles.positionRow,
-                              isFilled
-                                ? styles.positionFilled
-                                : styles.positionOpen,
-                            ]}
-                          >
-                            <View style={styles.positionNumber}>
-                              <Text style={styles.positionNumberText}>
-                                {posIndex + 1}
-                              </Text>
-                            </View>
-                            {isFilled ? (
-                              <>
-                                {assignedWorker.worker_avatar ? (
-                                  <Image
-                                    source={{ uri: assignedWorker.worker_avatar }}
-                                    style={styles.positionAvatar}
-                                  />
-                                ) : (
-                                  <View style={[styles.positionAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                                    <Ionicons name="person" size={16} color={Colors.textSecondary} />
-                                  </View>
-                                )}
-                                <Text style={styles.positionWorkerName}>
-                                  {assignedWorker.worker_name}
-                                </Text>
-                                <Ionicons
-                                  name="checkmark-circle"
-                                  size={18}
-                                  color={Colors.success}
-                                />
-                                {assignedWorker.worker_marked_complete && (
-                                  <View style={styles.completedTag}>
-                                    <Text style={styles.completedTagText}>
-                                      Done
-                                    </Text>
-                                  </View>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <View style={styles.positionEmptyAvatar}>
-                                  <Ionicons
-                                    name="person-outline"
-                                    size={16}
-                                    color={Colors.textSecondary}
-                                  />
-                                </View>
-                                <Text style={styles.positionOpenText}>
-                                  Open Position
-                                </Text>
-                                <View style={styles.openTag}>
-                                  <Text style={styles.openTagText}>Hiring</Text>
-                                </View>
-                              </>
-                            )}
-                          </View>
-                        );
-                      },
-                    )}
                   </View>
 
                   {/* Apply Button for Workers (if slot is open and not already applied to THIS slot) */}
@@ -2248,6 +2142,20 @@ export default function JobDetailScreen() {
                   color={Colors.primary}
                 />
               </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* View Group Chat button for team jobs with full roster - just above Client section */}
+        {isTeamJob && isTeamFilled && (
+          <View style={[styles.section, { paddingTop: 0 }]}>
+            <TouchableOpacity
+              style={styles.viewGroupChatButton}
+              onPress={handleViewChat}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubbles" size={22} color={Colors.white} />
+              <Text style={styles.viewGroupChatButtonText}>View Group Chat</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -4219,5 +4127,21 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
+  },
+  viewGroupChatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: 8,
+    width: "100%",
+  },
+  viewGroupChatButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.md,
+    fontWeight: "700",
   },
 });

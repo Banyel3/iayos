@@ -967,6 +967,9 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
         offset = (page - 1) * limit
         total_pages = (total_count + limit - 1) // limit  # Ceiling division
         
+        # Import Conversation model for conversation lookup
+        from profiles.models import Conversation
+
         # Get jobs with related data
         jobs = Job.objects.filter(query).select_related(
             'clientID',
@@ -1051,6 +1054,12 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
                 },
                 'createdAt': job.createdAt.isoformat(),
                 'updatedAt': job.updatedAt.isoformat(),
+                # Conversation for this job
+                'conversation_id': (
+                    Conversation.objects.filter(relatedJobPosting=job)
+                    .values_list('conversationID', flat=True)
+                    .first()
+                ),
             })
         
         # Get status counts
