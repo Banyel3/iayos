@@ -815,11 +815,13 @@ def approve_agency_kyc(request):
                 request=request
             )
 
-        # Mark the agency account as verified so the verification wall is removed
+        # Mark the agency account as fully verified - agencies have no clearance step
+        # so approval grants Level 2 (Fully Verified) directly
         try:
             account.KYCVerified = True
+            account.verification_level = 2
             account.save()
-            print(f"   âœ… Account KYCVerified set to True for account {account.accountID}")
+            print(f"   ✅ Account KYCVerified set to True (level 2) for account {account.accountID}")
         except Exception as e:
             print(f"   âš ï¸ Warning: Could not set account KYCVerified: {e}")
 
