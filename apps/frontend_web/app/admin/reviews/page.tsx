@@ -17,7 +17,6 @@ import {
   TrendingUp,
   MessageSquare,
   ChevronRight,
-  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -185,12 +184,6 @@ export default function ReviewsPage() {
                     <Button className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white px-4 sm:px-6 h-10 sm:h-12 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all text-sm sm:text-base">
                       <Flag className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                       Flagged Reviews
-                    </Button>
-                  </Link>
-                  <Link href="/admin/reviews/analytics" className="w-full sm:w-auto">
-                    <Button className="w-full sm:w-auto bg-white text-blue-700 hover:bg-blue-50 px-4 sm:px-6 h-10 sm:h-12 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all text-sm sm:text-base">
-                      < BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                      Analytics
                     </Button>
                   </Link>
                 </div>
