@@ -7,9 +7,8 @@ VERSION=$1
 CHANGELOG_FILE="apps/frontend_mobile/iayos_mobile/CHANGELOG.md"
 
 if [ -z "$VERSION" ]; then
-  echo "Error: Version number required"
-  echo "Usage: $0 <version>"
-  exit 1
+  # No version specified — fall through to [Unreleased] extraction below
+  echo "No version specified — will extract [Unreleased] section" >&2
 fi
 
 if [ ! -f "$CHANGELOG_FILE" ]; then
