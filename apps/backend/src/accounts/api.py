@@ -55,6 +55,7 @@ from .review_service import (
 from ninja.responses import Response
 from .authentication import cookie_auth, dual_auth
 from django.conf import settings
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -638,6 +639,96 @@ def upload_kyc(request):
         import traceback
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
+
+
+@router.post("/kyc/upload-clearance", auth=dual_auth)
+def upload_clearance_upgrade(request):
+    """
+    Upload NBI/Police clearance to upgrade from verification Level 1 → Level 2.
+    Only available for already-verified users (KYCVerified=True, verification_level=1).
+    
+    Request: multipart/form-data
+    - clearanceType: "NBI" or "POLICE"
+    - clearance: image file (JPEG/PNG/PDF, max 5 MB)
+    
+    Response:
+    - success: bool
+    - message: str
+    - verification_level: int (updated level)
+    """
+    try:
+        user = request.auth
+        
+        # Must already be ID-verified (Level 1)
+        if not user.KYCVerified or user.verification_level < 1:
+            return JsonResponse({"error": "You must complete basic KYC verification first."}, status=400)
+        
+        if user.verification_level >= 2:
+            return JsonResponse({"success": True, "message": "Already fully verified.", "verification_level": 2}, status=200)
+        
+        clearance_type = request.POST.get("clearanceType")
+        clearance_file = request.FILES.get("clearance")
+        
+        if not clearance_type or clearance_type.upper() not in ['NBI', 'POLICE']:
+            return JsonResponse({"error": "clearanceType must be 'NBI' or 'POLICE'."}, status=400)
+        
+        if not clearance_file:
+            return JsonResponse({"error": "Clearance document file is required."}, status=400)
+        
+        # Validate file
+        allowed_mime = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+        if clearance_file.content_type not in allowed_mime:
+            return JsonResponse({"error": "Invalid file type. Allowed: JPEG, PNG, PDF."}, status=400)
+        if clearance_file.size > 5 * 1024 * 1024:
+            return JsonResponse({"error": "File too large. Maximum 5MB."}, status=400)
+        
+        import uuid, os
+        from iayos_project.utils import upload_kyc_doc
+        from accounts.models import kyc, kycFiles, Notification
+        
+        # Get or create KYC record
+        kyc_record = kyc.objects.filter(accountFK=user).first()
+        if not kyc_record:
+            return JsonResponse({"error": "No KYC record found. Please complete basic KYC first."}, status=400)
+        
+        # Upload clearance file to Supabase
+        ext = os.path.splitext(clearance_file.name)[1]
+        filename = f"clearance_{clearance_type.lower()}_{uuid.uuid4().hex}{ext}"
+        file_url = upload_kyc_doc(file=clearance_file, user_id=user.accountID, file_name=filename)
+        
+        if not file_url:
+            return JsonResponse({"error": "Failed to upload clearance document. Please try again."}, status=500)
+        
+        # Delete any existing clearance files and add new one
+        kycFiles.objects.filter(kycID=kyc_record, idType__in=['NBI', 'POLICE']).delete()
+        kycFiles.objects.create(
+            kycID=kyc_record,
+            idType=clearance_type.upper(),
+            fileURL=file_url,
+            fileName=filename,
+            fileSize=clearance_file.size
+        )
+        
+        # Update verification level to 2
+        user.verification_level = 2
+        user.save(update_fields=['verification_level'])
+        
+        # Notify user
+        Notification.objects.create(
+            accountFK=user,
+            notificationType=Notification.NotificationType.KYC_APPROVED,
+            title='Fully Verified ✅🛡️',
+            message='Your clearance document has been uploaded. You are now Fully Verified (Level 2)!',
+        )
+        
+        print(f"✅ Clearance upgrade: account {user.accountID} upgraded to Level 2 ({clearance_type})")
+        return {"success": True, "message": "Clearance uploaded. You are now Fully Verified!", "verification_level": 2}
+        
+    except Exception as e:
+        print(f"❌ Exception in clearance upgrade: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": "Upload failed. Please try again."}, status=500)
 
 
 @router.post("/kyc/stage-file", auth=dual_auth)

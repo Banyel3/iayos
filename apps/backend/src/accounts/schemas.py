@@ -84,7 +84,7 @@ class SendOTPEmailSchema(Schema):
 class KYCUploadSchema(Schema):
     accountID: int
     IDType: str
-    clearanceType: str
+    clearanceType: Optional[str] = None
 
 class KYCUploadResponse(Schema):
     message: str

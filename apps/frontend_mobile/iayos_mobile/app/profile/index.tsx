@@ -38,6 +38,7 @@ import { useCertifications } from "@/lib/hooks/useCertifications";
 import { useMaterials } from "@/lib/hooks/useMaterials";
 import { useMySkills } from "@/lib/hooks/useSkills";
 import { useWorkerProfileScore } from "@/lib/hooks/useWorkerProfileScore";
+import { VerificationBadge } from "@/components/VerificationBadge";
 import { ProfileSkeleton } from "@/components/ui/SkeletonLoader";
 import ProfileImprovementCard from "@/components/ProfileImprovementCard";
 
@@ -318,10 +319,38 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        {/* Name */}
-        <Text style={styles.name}>
-          {profile.user.firstName} {profile.user.lastName}
-        </Text>
+        {/* Name + Verification Badge */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <Text style={styles.name}>
+            {profile.user.firstName} {profile.user.lastName}
+          </Text>
+          <VerificationBadge
+            level={user?.verificationLevel}
+            variant="badge"
+          />
+        </View>
+
+        {/* Upgrade to Level 2 prompt (for Level 1 workers) */}
+        {user?.verificationLevel === 1 && (
+          <Pressable
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#EFF6FF",
+              borderRadius: BorderRadius.md,
+              padding: Spacing.sm,
+              marginBottom: Spacing.sm,
+              gap: 8,
+            }}
+            onPress={() => router.push("/kyc/upload-clearance" as any)}
+          >
+            <Ionicons name="shield-checkmark-outline" size={20} color="#2563EB" />
+            <Text style={{ flex: 1, fontSize: 13, color: "#1D4ED8" }}>
+              Upload NBI/Police clearance to get the "Fully Verified" badge
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+          </Pressable>
+        )}
 
         {/* Contact Info */}
         <View style={styles.contactInfo}>

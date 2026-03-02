@@ -124,6 +124,9 @@ export default function KYCUploadScreen() {
   const [clearanceFile, setClearanceFile] = useState<ImageFile | null>(null);
   const [selfieFile, setSelfieFile] = useState<ImageFile | null>(null);
 
+  // Track if user chose to skip clearance (Level 1 instead of Level 2)
+  const [skippedClearance, setSkippedClearance] = useState(false);
+
   // Per-step OCR extraction state
   const extractIDMutation = useExtractID();
   const extractClearanceMutation = useExtractClearance();
@@ -729,12 +732,12 @@ export default function KYCUploadScreen() {
       return;
     }
 
-    // Step 4: Clearance type + upload - check file exists (already validated on capture)
+    // Step 4: Clearance type + upload - file required only if not skipping
     if (currentStep === 4) {
       if (!selectedClearanceType || !clearanceFile) {
         Alert.alert(
           "Required",
-          "Please select clearance type and upload the document",
+          "Please select clearance type and upload the document, or tap 'Skip for now' to continue without clearance.",
         );
         return;
       }
@@ -912,10 +915,38 @@ export default function KYCUploadScreen() {
         setClearanceExtractionData(null);
         setClearanceFormValues({});
       }
-      setCurrentStep(currentStep - 1);
+      // If on selfie (step 6) and clearance was skipped, go back to step 4 (not 5)
+      if (currentStep === 6 && skippedClearance) {
+        setCurrentStep(4);
+      } else {
+        setCurrentStep(currentStep - 1);
+      }
     } else {
       safeGoBack(router, "/(tabs)/profile");
     }
+  };
+
+  // Skip clearance and go directly to selfie step (Level 1 verification)
+  const handleSkipClearance = () => {
+    Alert.alert(
+      "Skip Clearance?",
+      "You'll be verified as Level 1 (ID Verified). You can upload your clearance later to upgrade to Level 2 (Fully Verified) for a trust badge and priority in search results.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Skip for Now",
+          onPress: () => {
+            setSkippedClearance(true);
+            setSelectedClearanceType("");
+            setClearanceFile(null);
+            setClearanceExtractionData(null);
+            setClearanceFormValues({});
+            setClearanceError(null);
+            setCurrentStep(6); // Jump to selfie step
+          },
+        },
+      ],
+    );
   };
 
   // Handle field value changes in ID form
@@ -1090,26 +1121,34 @@ export default function KYCUploadScreen() {
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((step) => (
-        <View key={step} style={styles.stepItem}>
-          <View
-            style={[
-              styles.stepCircle,
-              currentStep >= step && styles.stepCircleActive,
-            ]}
-          >
-            <Text
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((step) => {
+        const isSkippedStep = skippedClearance && (step === 4 || step === 5);
+        return (
+          <View key={step} style={styles.stepItem}>
+            <View
               style={[
-                styles.stepNumber,
-                currentStep >= step && styles.stepNumberActive,
+                styles.stepCircle,
+                currentStep >= step && !isSkippedStep && styles.stepCircleActive,
+                isSkippedStep && { backgroundColor: Colors.textSecondary, opacity: 0.4 },
               ]}
             >
-              {step}
-            </Text>
+              {isSkippedStep ? (
+                <Ionicons name="remove" size={14} color={Colors.white} />
+              ) : (
+                <Text
+                  style={[
+                    styles.stepNumber,
+                    currentStep >= step && styles.stepNumberActive,
+                  ]}
+                >
+                  {step}
+                </Text>
+              )}
+            </View>
+            {step < TOTAL_STEPS && <View style={styles.stepLine} />}
           </View>
-          {step < TOTAL_STEPS && <View style={styles.stepLine} />}
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 
@@ -1307,11 +1346,35 @@ export default function KYCUploadScreen() {
     </View>
   );
 
-  // Step 4: Clearance type selection + upload
+  // Step 4: Clearance type selection + upload (SKIPPABLE)
   const renderStep4 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.title}>Clearance Certificate</Text>
-      <Text style={styles.description}>Upload Police or NBI clearance</Text>
+      <Text style={styles.description}>
+        Upload Police or NBI clearance for full verification, or skip to continue with basic ID verification.
+      </Text>
+
+      {/* Skip for now option */}
+      <TouchableOpacity
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 12,
+          paddingHorizontal: 20,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: Colors.warning,
+          backgroundColor: `${Colors.warning}10`,
+          marginBottom: 16,
+        }}
+        onPress={handleSkipClearance}
+      >
+        <Ionicons name="arrow-forward-outline" size={20} color={Colors.warning} />
+        <Text style={{ marginLeft: 8, color: Colors.warning, fontWeight: '600', fontSize: 15 }}>
+          Skip for now — verify with ID only
+        </Text>
+      </TouchableOpacity>
 
       {CLEARANCE_TYPES.map((type) => (
         <TouchableOpacity
@@ -1552,23 +1615,39 @@ export default function KYCUploadScreen() {
             <Ionicons
               name="shield-checkmark-outline"
               size={24}
-              color={Colors.primary}
+              color={skippedClearance ? Colors.textSecondary : Colors.primary}
             />
             <Text style={styles.reviewItemTitle}>Clearance</Text>
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color={Colors.success}
-            />
+            {skippedClearance ? (
+              <Ionicons
+                name="remove-circle-outline"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            ) : (
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={Colors.success}
+              />
+            )}
           </View>
-          <Text style={styles.reviewItemText}>
-            {CLEARANCE_TYPES.find((t) => t.value === selectedClearanceType)
-              ?.label || selectedClearanceType}
-          </Text>
-          {clearanceFormValues.clearance_number && (
-            <Text style={styles.reviewItemDetail}>
-              Clearance #: {clearanceFormValues.clearance_number}
+          {skippedClearance ? (
+            <Text style={[styles.reviewItemText, { color: Colors.textSecondary, fontStyle: 'italic' }]}>
+              Skipped — You'll be verified as Level 1 (ID Verified). You can upgrade later.
             </Text>
+          ) : (
+            <>
+              <Text style={styles.reviewItemText}>
+                {CLEARANCE_TYPES.find((t) => t.value === selectedClearanceType)
+                  ?.label || selectedClearanceType}
+              </Text>
+              {clearanceFormValues.clearance_number && (
+                <Text style={styles.reviewItemDetail}>
+                  Clearance #: {clearanceFormValues.clearance_number}
+                </Text>
+              )}
+            </>
           )}
         </View>
 
@@ -1597,6 +1676,9 @@ export default function KYCUploadScreen() {
           <Text style={styles.infoText}>
             • Your documents will be verified{"\n"}• This usually takes 1-2
             business days{"\n"}• You'll receive a notification once verified
+            {skippedClearance
+              ? `\n• You'll be verified as Level 1 (ID Verified)\n• Upload clearance later to reach Level 2`
+              : `\n• With clearance, you'll be Fully Verified (Level 2)`}
           </Text>
         </View>
       </View>

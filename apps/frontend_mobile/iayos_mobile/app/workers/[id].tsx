@@ -44,6 +44,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useWorkerReviews } from "@/lib/hooks/useReviews";
+import { VerificationBadge } from "@/components/VerificationBadge";
 
 interface Skill {
   id: number; // workerSpecialization ID
@@ -103,6 +104,7 @@ interface WorkerDetail {
   specializations: string[];
   skills: Skill[]; // Changed from string[] to Skill[]
   verified: boolean;
+  verificationLevel?: number; // 0=Unverified, 1=ID Verified, 2=Fully Verified
   joinedDate: string;
   certifications?: WorkerCertification[];
   materials?: WorkerMaterial[];
@@ -412,10 +414,10 @@ export default function WorkerDetailScreen() {
               )}
               {data.verified && (
                 <View style={styles.verifiedBadge}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={28}
-                    color={Colors.success}
+                  <VerificationBadge
+                    level={data.verificationLevel || 1}
+                    variant="badge"
+                    size={20}
                   />
                 </View>
               )}

@@ -6,6 +6,7 @@ export interface User {
   email: string;
   isVerified: boolean;
   kycVerified: boolean; // Lowercase to match backend response
+  verificationLevel?: number; // 0=Unverified, 1=ID Verified, 2=Fully Verified
   accountType?: "INDIVIDUAL" | "AGENCY";
   profile_data?: ProfileData;
 }

@@ -46,6 +46,13 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     password = models.CharField(max_length=128)
     isVerified = models.BooleanField(default=False)
     KYCVerified = models.BooleanField(default=False)
+    
+    # KYC Verification Levels:
+    #   0 = Unverified (no KYC submitted or rejected)
+    #   1 = ID Verified (ID + selfie face match passed, no clearance)
+    #   2 = Fully Verified (ID + selfie + NBI/Police clearance)
+    # KYCVerified remains as backward-compat field: True when verification_level >= 1
+    verification_level = models.IntegerField(default=0, db_index=True)
 
     # Required for Django admin + PermissionsMixin
     is_active = models.BooleanField(default=True)
