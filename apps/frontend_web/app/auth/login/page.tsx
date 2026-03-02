@@ -792,7 +792,7 @@ function VerifiedEmailToast() {
     if (searchParams.get("verified") === "true") {
       showAuthSuccess(
         "Your email has been verified. Please sign in to continue.",
-        "Email Verified!"
+        "Email Verified!",
       );
     }
   }, [searchParams]);

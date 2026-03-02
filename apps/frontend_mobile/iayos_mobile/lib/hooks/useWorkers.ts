@@ -28,6 +28,7 @@ export interface Worker {
   location?: string;
   bio?: string;
   isAvailable: boolean;
+  verificationLevel?: number; // 0=Unverified, 1=ID Verified, 2=Fully Verified
 }
 
 // Backend response interface (API returns data directly, not wrapped)
@@ -54,6 +55,7 @@ interface BackendWorker {
   }>;
   total_earning?: number;
   distance_km?: number;
+  verification_level?: number;
 }
 
 interface BackendWorkersResponse {
@@ -133,6 +135,7 @@ export function useWorkers(
             location: undefined, // Not provided by backend
             bio: worker.bio,
             isAvailable: worker.availability_status === "AVAILABLE",
+            verificationLevel: worker.verification_level,
           };
         }
       );
@@ -235,6 +238,7 @@ export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
             location: undefined, // Not provided by backend
             bio: worker.bio,
             isAvailable: worker.availability_status === "AVAILABLE",
+            verificationLevel: worker.verification_level,
           };
         }
       );

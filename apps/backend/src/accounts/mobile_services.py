@@ -1969,6 +1969,7 @@ def get_user_profile_mobile(user):
             'profile_img': profile.profileImg or '',  # Already a full public URL from upload_file
             'profile_type': profile.profileType,
             'kyc_verified': user.KYCVerified,
+            'verification_level': user.verification_level,
             'is_verified': user.isVerified,
         }
 
@@ -2251,7 +2252,7 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             profileID__accountFK__accountID__in=agency_owner_account_ids
         ).exclude(
             profileID__accountFK=user  # Exclude own worker profile
-        ).order_by('-profileID__accountFK__createdAt')
+        ).order_by('-profileID__accountFK__verification_level', '-profileID__accountFK__createdAt')
 
         # Filter by category (specialization) if provided
         if category:
@@ -2464,6 +2465,7 @@ def get_worker_detail_mobile(user, worker_id):
             'rating': round(avg_rating, 2) if avg_rating else 0.0,
             'review_count': review_count,
             'kyc_verified': account.KYCVerified,
+            'verification_level': account.verification_level,
         }
 
         # Add location if available
@@ -2693,6 +2695,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
             'specializations': specializations,
             'skills': skills_list,  # Changed from skills to skills_list
             'verified': account.KYCVerified or False,
+            'verification_level': account.verification_level,
             'joinedDate': account.createdAt.isoformat() if account.createdAt else timezone.now().isoformat(),
             'certifications': certifications,
             'materials': materials
@@ -2801,6 +2804,7 @@ def get_agency_detail_mobile(user, agency_id):
             'city': agency.city or None,
             'province': agency.province or None,
             'verified': account.KYCVerified or False,
+            'verification_level': account.verification_level,
             'establishedDate': agency.createdAt.isoformat() if agency.createdAt else account.createdAt.isoformat(),
             'workers': workers_list
         }

@@ -567,6 +567,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "role": user_role,
                     "isVerified": account.isVerified,  # Email verification status
                     "kycVerified": account.KYCVerified,
+                    "verificationLevel": account.verification_level,
                     "profile_data": {
                         "profileType": "AGENCY",
                         "businessName": agency.businessName or "",
@@ -680,6 +681,7 @@ def fetch_currentUser(accountID, profile_type=None):
                 "role": user_role,  # <-- systemRole from SystemRoles
                 "isVerified": account.isVerified,  # <-- Email verification status from Accounts
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
+                "verificationLevel": account.verification_level,
                 "profile_data": profile_data,
                 "accountType": "individual",
                 "needs_profile_completion": needs_profile_completion,
@@ -701,6 +703,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "role": user_role,
                     "isVerified": account.isVerified,  # Email verification status
                     "kycVerified": account.KYCVerified,
+                    "verificationLevel": account.verification_level,
                     "profile_data": {
                         "profileType": "AGENCY",
                         "businessName": agency.businessName or "",
@@ -717,6 +720,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     "role": user_role,
                     "isVerified": account.isVerified,  # Email verification status
                     "kycVerified": account.KYCVerified,
+                    "verificationLevel": account.verification_level,
                     "profile_data": None,
                     "user_data": {},
                     "skill_categories": [],
@@ -870,7 +874,7 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
             if key in ['FRONTID', 'BACKID']:
                 type_label = payload.IDType.lower()
             elif key == 'CLEARANCE':
-                type_label = payload.clearanceType.lower()
+                type_label = payload.clearanceType.lower() if payload.clearanceType else 'clearance'
             else:
                 type_label = key.lower()
 
@@ -921,7 +925,7 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                     if key in ['FRONTID', 'BACKID']:
                         _id_type = payload.IDType.upper() if payload.IDType else key
                     elif key == 'CLEARANCE':
-                        _id_type = payload.clearanceType.upper() if payload.clearanceType else key
+                        _id_type = payload.clearanceType.upper() if payload.clearanceType else 'CLEARANCE'
                     else:
                         _id_type = None  # SELFIE has no IDType (field is null=True)
                     kycFiles.objects.create(
@@ -972,8 +976,8 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                 id_type = payload.IDType.upper()
                 document_type_for_verification = payload.IDType.upper()
             elif key == 'CLEARANCE':
-                id_type = payload.clearanceType.upper()
-                document_type_for_verification = payload.clearanceType.upper()
+                id_type = payload.clearanceType.upper() if payload.clearanceType else 'CLEARANCE'
+                document_type_for_verification = payload.clearanceType.upper() if payload.clearanceType else 'CLEARANCE'
             elif key == 'SELFIE':
                 document_type_for_verification = 'SELFIE'
 
@@ -1158,13 +1162,19 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                         # The reject branch correctly wrote REJECTED but APPROVED was never
                         # written — KYC stayed PENDING forever even after a passing face match.
                         try:
-                            from accounts.models import Accounts
+                            from accounts.models import Accounts, kycFiles
                             kyc_rec.kyc_status = 'APPROVED'
                             kyc_rec.notes = f"Auto-approved: Face match passed (similarity: {similarity:.0%})."
                             kyc_rec.save(update_fields=['kyc_status', 'notes'])
                             account = Accounts.objects.get(accountID=account_id)
                             account.KYCVerified = True
-                            account.save(update_fields=['KYCVerified'])
+                            # Set verification_level based on whether clearance was submitted
+                            has_clearance = kycFiles.objects.filter(
+                                kycID=kyc_rec,
+                                idType__in=['NBI', 'POLICE']
+                            ).exists()
+                            account.verification_level = 2 if has_clearance else 1
+                            account.save(update_fields=['KYCVerified', 'verification_level'])
                             Notification.objects.create(
                                 accountFK=account,
                                 notificationType=Notification.NotificationType.KYC_APPROVED,
@@ -1853,6 +1863,7 @@ def get_all_workers(client_latitude: float = None, client_longitude: float = Non
                 "experience": experience_text,
                 "specialization": specialization_name,
                 "isVerified": account.KYCVerified,
+                "verificationLevel": account.verification_level,
                 "distance": distance
             }
             
@@ -1943,7 +1954,7 @@ def get_worker_by_id(user_id, client_latitude: float = None, client_longitude: f
             "experience": experience_text,
             "specialization": specialization_name,
             "isVerified": account.KYCVerified,
-            "distance": distance  # Will be None if location unavailable
+                "verificationLevel": account.verification_level,
         }
         
         print(f"✅ Fetched worker {user_id} (distance: {distance} km)")

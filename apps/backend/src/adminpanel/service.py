@@ -151,6 +151,8 @@ def fetchAll_kyc(request):
             {
                 "accountID": user.accountID,
                 "email": user.email,
+                "KYCVerified": bool(user.KYCVerified),
+                "verificationLevel": getattr(user, 'verification_level', 0),
                 **profile_data.get(user.accountID, {})
             }
             for user in users
@@ -391,9 +393,15 @@ def approve_kyc(request):
         
         kyc_record.save()
         
-        # Update the user's KYCVerified status
+        # Update the user's KYCVerified status and verification level
         user_account = kyc_record.accountFK
         user_account.KYCVerified = True
+        # Determine verification level: check if clearance file was submitted
+        has_clearance = kycFiles.objects.filter(
+            kycID=kyc_record,
+            idType__in=['NBI', 'POLICE']
+        ).exists()
+        user_account.verification_level = 2 if has_clearance else 1
         user_account.save()
         
         # Create audit log entry BEFORE deleting the KYC record
@@ -454,6 +462,7 @@ def approve_kyc(request):
             "userEmail": user_account.email,
             "kycStatus": kyc_record.kyc_status,
             "kycVerified": bool(user_account.KYCVerified),
+            "verificationLevel": user_account.verification_level,
         }
         
     except kyc.DoesNotExist:
@@ -511,9 +520,10 @@ def reject_kyc(request):
         
         kyc_record.save()
         
-        # Make sure user's KYCVerified is False
+        # Make sure user's KYCVerified is False and reset verification level
         user_account = kyc_record.accountFK
         user_account.KYCVerified = False
+        user_account.verification_level = 0
         user_account.save()
         
         # Create audit log entry BEFORE deleting the KYC record
@@ -572,6 +582,7 @@ def reject_kyc(request):
             "userEmail": user_account.email,
             "kycStatus": kyc_record.kyc_status,
             "kycVerified": bool(user_account.KYCVerified),
+            "verificationLevel": user_account.verification_level,
             "reason": reason,
         }
         
@@ -693,6 +704,8 @@ def review_agency_kyc(agency_kyc_id: int, status: str, notes: str, reviewer):
     if status == "APPROVED":
         # Mark account as KYC verified
         account.KYCVerified = True
+        # Agencies always get level 2 (they submit business docs)
+        account.verification_level = 2
         account.save()
         
         Notification.objects.create(
@@ -828,6 +841,7 @@ def approve_agency_kyc(request):
             "userEmail": account.email,
             "status": agency_record.status,
             "kycVerified": bool(account.KYCVerified),
+            "verificationLevel": account.verification_level,
         }
 
     except AgencyKYC.DoesNotExist:
@@ -919,8 +933,9 @@ def reject_agency_kyc(request):
         # can view the rejection reason and resubmit. Mark account as unverified.
         try:
             account.KYCVerified = False
+            account.verification_level = 0
             account.save()
-            print(f"   âœ… Account KYCVerified set to False for account {account.accountID}")
+            print(f"   âœ… Account KYCVerified set to False, verification_level reset to 0 for account {account.accountID}")
         except Exception as e:
             print(f"   âš ï¸ Warning: Could not set account KYCVerified: {e}")
 
@@ -940,6 +955,7 @@ def reject_agency_kyc(request):
             "userEmail": account.email,
             "status": agency_record.status,
             "kycVerified": bool(account.KYCVerified),
+            "verificationLevel": account.verification_level,
             "reason": reason,
         }
 

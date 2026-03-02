@@ -21,8 +21,9 @@ for worker in workers:
     
     if not account.KYCVerified:
         account.KYCVerified = True
+        account.verification_level = 1  # Level 1 = ID Verified (no clearance info available)
         account.save()
-        print(f"✅ Set worker ID {worker.id} ({name}) as KYC verified")
+        print(f"✅ Set worker ID {worker.id} ({name}) as KYC verified (level 1)")
     else:
         print(f"✓  Worker ID {worker.id} ({name}) already KYC verified")
 

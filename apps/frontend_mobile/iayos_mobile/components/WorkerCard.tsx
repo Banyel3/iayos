@@ -27,6 +27,7 @@ import {
 } from "@/constants/theme";
 import type { Worker } from "@/lib/hooks/useWorkers";
 import { getAbsoluteMediaUrl } from "@/lib/api/config";
+import { VerificationBadge } from "@/components/VerificationBadge";
 
 interface WorkerCardProps {
   worker: Worker;
@@ -90,9 +91,16 @@ export default function WorkerCard({ worker, onPress }: WorkerCardProps) {
               <Text style={styles.jobTitle} numberOfLines={1}>
                 {worker.categories?.[0] || "General Worker"}
               </Text>
-              <Text style={styles.name} numberOfLines={1}>
-                {worker.name}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {worker.name}
+                </Text>
+                <VerificationBadge
+                  level={worker.verificationLevel}
+                  variant="icon"
+                  size={16}
+                />
+              </View>
             </View>
             <View style={styles.rightSection}>
               <View style={styles.ratingRow}>
