@@ -18,7 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 
 interface AuditLog {
   id: string;
@@ -101,7 +101,7 @@ export default function AuditLogsPage() {
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: "100",
+        limit: "15",
       });
 
       if (adminFilter !== "all") params.append("admin_id", adminFilter);
@@ -554,36 +554,14 @@ export default function AuditLogsPage() {
             </div>
           </CardContent>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="border-t p-4 flex items-center justify-between bg-gray-50">
-              <Button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                variant="ghost"
-                size="sm"
-                className="gap-2"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <span className="text-sm text-gray-600">
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                }
-                disabled={currentPage === totalPages}
-                variant="ghost"
-                size="sm"
-                className="gap-2"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={total}
+            itemsPerPage={15}
+            itemLabel="audit logs"
+            onPageChange={setCurrentPage}
+          />
         </Card>
 
         {/* Detail Modal */}

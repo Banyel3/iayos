@@ -14,7 +14,7 @@ import {
   ArrowLeft,
   Flag,
 } from "lucide-react";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import Link from "next/link";
 
 interface Review {
@@ -87,7 +87,7 @@ export default function AllReviewsPage() {
   const fetchReviews = async () => {
     try {
       setIsLoading(true);
-      let url = `${API_BASE}/api/adminpanel/reviews/all?page=${page}&page_size=20`;
+      let url = `${API_BASE}/api/adminpanel/reviews/all?page=${page}&page_size=15`;
 
       if (statusFilter && statusFilter !== "ALL") {
         url += `&status=${statusFilter}`;
@@ -413,27 +413,13 @@ export default function AllReviewsPage() {
             </Card>
           )}
 
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-gray-600">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage(page + 1)}
-                disabled={page === totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          )}
+          <AdminPagination
+            currentPage={page}
+            totalPages={totalPages}
+            itemsPerPage={15}
+            itemLabel="reviews"
+            onPageChange={setPage}
+          />
         </div>
       </main>
     </div>

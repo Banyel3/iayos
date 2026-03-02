@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,7 @@ export default function JobApplicationsPage() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        page_size: "20",
+        page_size: "15",
       });
       if (statusFilter !== "all") {
         params.append("status", statusFilter.toUpperCase());
@@ -354,6 +354,13 @@ export default function JobApplicationsPage() {
               </CardContent>
             </Card>
           )}
+          <AdminPagination
+            currentPage={page}
+            totalPages={totalPages}
+            itemsPerPage={15}
+            itemLabel="applications"
+            onPageChange={setPage}
+          />
         </div>
       </main>
     </div>

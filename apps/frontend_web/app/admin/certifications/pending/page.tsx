@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "../../components/sidebar";
-import { useMainContentClass } from "../../components";
+import { useMainContentClass, AdminPagination } from "../../components";
 import { toast } from "sonner";
 
 interface PendingCertification {
@@ -142,7 +142,7 @@ export default function PendingCertificationsPage() {
 
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        page_size: "20",
+        page_size: "15",
       });
 
       if (skillFilter) params.append("skill", skillFilter);
@@ -519,30 +519,13 @@ export default function PendingCertificationsPage() {
               </div>
             )}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-6 border-t">
-                <p className="text-sm text-gray-600">
-                  Page {page} of {totalPages}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
+            <AdminPagination
+              currentPage={page}
+              totalPages={totalPages}
+              itemsPerPage={15}
+              itemLabel="certifications"
+              onPageChange={setPage}
+            />
           </CardContent>
         </Card>
       </main>

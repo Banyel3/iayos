@@ -1093,7 +1093,7 @@ export default function AgencyJobsPage() {
                         className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
                           job.is_team_job
                             ? "bg-purple-600 text-white hover:bg-purple-700"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-[#07bcff] text-white hover:bg-[#06a8e5]"
                         }`}
                       >
                         {loadingSkillSlots ? (
@@ -1200,7 +1200,7 @@ export default function AgencyJobsPage() {
                     </div>
 
                     <div className="flex items-center justify-end">
-                      <span className="text-blue-600 font-medium mr-3">
+                      <span className="text-[#06a8e5] font-medium mr-3">
                         Work in progress...
                       </span>
                       {job.conversation_id && (
@@ -1209,7 +1209,7 @@ export default function AgencyJobsPage() {
                             e.stopPropagation();
                             router.push(`/agency/messages/${job.conversation_id}`);
                           }}
-                          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                          className="flex items-center space-x-2 bg-[#07bcff] hover:bg-[#06a8e5] text-white px-4 py-2 rounded-lg font-medium transition-colors"
                         >
                           <MessageCircle size={16} />
                           <span>View Chat</span>
