@@ -70,7 +70,7 @@ export default function PendingKYCPage() {
   const [priorityFilter, setPriorityFilter] = useState<
     "all" | "high" | "medium" | "low"
   >("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
+  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client" | "agency">(
     "all",
   );
   const [kycFilesMap, setKycFilesMap] = useState<Record<string, KYCFiles>>({});
@@ -905,13 +905,14 @@ export default function PendingKYCPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) =>
-                    setTypeFilter(e.target.value as "all" | "worker" | "client")
+                    setTypeFilter(e.target.value as "all" | "worker" | "client" | "agency")
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
                   <option value="all">All Types</option>
                   <option value="worker">Workers</option>
                   <option value="client">Clients</option>
+                  <option value="agency">Agencies</option>
                 </select>
               </div>
             </CardContent>

@@ -132,12 +132,6 @@ const navigation: NavItem[] = [
         description: "Failed verification",
       },
       {
-        name: "Agency KYC",
-        href: "/admin/agency-kyc",
-        icon: Building2,
-        description: "Agency verification queue",
-      },
-      {
         name: "Certifications",
         href: "/admin/certifications/pending",
         icon: FileCheck,
