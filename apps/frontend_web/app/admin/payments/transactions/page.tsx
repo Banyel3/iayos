@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,7 +68,7 @@ export default function TransactionsPage() {
   const [releasingId, setReleasingId] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 15,
     total: 0,
     pages: 0,
   });
@@ -787,44 +787,14 @@ export default function TransactionsPage() {
             </CardContent>
           </Card>
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                onClick={() =>
-                  setPagination((prev) => ({
-                    ...prev,
-                    page: Math.max(1, prev.page - 1),
-                  }))
-                }
-                disabled={pagination.page === 1}
-                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-2 px-6 h-11 bg-blue-50 border-2 border-blue-200 rounded-xl">
-                <span className="text-sm font-medium text-gray-700">
-                  Page{" "}
-                  <span className="text-blue-600 font-bold">
-                    {pagination.page}
-                  </span>{" "}
-                  of {pagination.pages}
-                </span>
-              </div>
-              <Button
-                onClick={() =>
-                  setPagination((prev) => ({
-                    ...prev,
-                    page: Math.min(prev.pages, prev.page + 1),
-                  }))
-                }
-                disabled={pagination.page === pagination.pages}
-                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </Button>
-            </div>
-          )}
+          <AdminPagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            totalItems={pagination.total}
+            itemsPerPage={15}
+            itemLabel="transactions"
+            onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))}
+          />
         </div>
       </main>
     </div>

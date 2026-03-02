@@ -25,7 +25,7 @@ import {
   XCircle,
   RefreshCw,
 } from "lucide-react";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { toast } from "sonner";
 
 interface TicketData {
@@ -164,7 +164,7 @@ export default function SupportTicketsPage() {
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: "30",
+        limit: "15",
       });
 
       if (statusFilter !== "all") params.append("status", statusFilter);
@@ -824,39 +824,14 @@ export default function SupportTicketsPage() {
             </CardContent>
           </Card>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <Card className="border-0 shadow-lg">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    Showing page {currentPage} of {totalPages} ({total} total
-                    tickets)
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage((p) => p - 1)}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={total}
+            itemsPerPage={15}
+            itemLabel="tickets"
+            onPageChange={setCurrentPage}
+          />
         </div>
       </main>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -56,7 +56,8 @@ export default function DisputesPage() {
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 15;
 
   const fetchDisputes = async () => {
     try {
@@ -76,6 +77,7 @@ export default function DisputesPage() {
 
       const data = await response.json();
       setDisputes(data.disputes || []);
+      setTotalPages(data.total_pages || 1);
     } catch (error) {
       console.error("Error:", error);
     } finally {
@@ -368,35 +370,13 @@ export default function DisputesPage() {
             )}
           </div>
 
-          {/* Pagination */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between gap-4">
-                <Button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  variant="outline"
-                  className="h-10 px-3 sm:px-6 border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 rounded-xl text-xs sm:text-sm font-semibold"
-                >
-                  Previous
-                </Button>
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline text-gray-500 text-sm">Page</span>
-                  <span className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center bg-blue-100 text-blue-700 rounded-lg font-bold text-sm">
-                    {page}
-                  </span>
-                </div>
-                <Button
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={disputes.length < pageSize}
-                  variant="outline"
-                  className="h-10 px-3 sm:px-6 border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 rounded-xl text-xs sm:text-sm font-semibold"
-                >
-                  Next
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <AdminPagination
+            currentPage={page}
+            totalPages={totalPages}
+            itemsPerPage={15}
+            itemLabel="disputes"
+            onPageChange={setPage}
+          />
         </div>
       </main>
     </div>

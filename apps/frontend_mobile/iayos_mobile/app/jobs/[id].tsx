@@ -98,6 +98,13 @@ interface JobDetail {
     rating: number;
     phone: string | null;
   } | null;
+  assignedAgency?: {
+    id: number;
+    name: string;
+    logo: string | null;
+    rating: number;
+    workers_assigned: number;
+  } | null;
   reviews?: JobReviews;
   estimatedCompletion?: EstimatedCompletion | null;
   // Universal job fields for ML
@@ -317,7 +324,17 @@ export default function JobDetailScreen() {
         daily_rate_agreed: jobData.daily_rate_agreed,
         budget: jobData.budget,
         duration_days: jobData.duration_days,
+        assigned_agency: jobData.assigned_agency,
       });
+      
+      // Debug: Log agency data specifically
+      if (__DEV__ && jobData.assigned_agency) {
+        console.log("[JobDetail] Agency data found:", {
+          id: jobData.assigned_agency.id,
+          name: jobData.assigned_agency.name,
+          workers_assigned: jobData.assigned_agency.workers_assigned,
+        });
+      }
 
       const mapReview = (reviewData: any): JobReviewSummary => ({
         rating:
@@ -377,6 +394,15 @@ export default function JobDetailScreen() {
               avatar: jobData.assigned_worker.avatar || null,
               rating: jobData.assigned_worker.rating ?? 0,
               phone: jobData.assigned_worker.phone || null,
+            }
+          : null,
+        assignedAgency: jobData.assigned_agency
+          ? {
+              id: jobData.assigned_agency.id,
+              name: jobData.assigned_agency.name,
+              logo: jobData.assigned_agency.logo || null,
+              rating: jobData.assigned_agency.rating ?? 0,
+              workers_assigned: jobData.assigned_agency.workers_assigned ?? 0,
             }
           : null,
         reviews: jobData.reviews
@@ -504,16 +530,33 @@ export default function JobDetailScreen() {
 
   const handleViewChat = async () => {
     try {
+      console.log('[VIEW CHAT] Button pressed for job:', jobId);
+      console.log('[VIEW CHAT] Calling endpoint:', ENDPOINTS.CONVERSATION_BY_JOB(jobId));
+      
       const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
       const data = await response.json();
+      
+      console.log('[VIEW CHAT] Backend response:', JSON.stringify(data, null, 2));
+      console.log('[VIEW CHAT] Success:', data.success);
+      console.log('[VIEW CHAT] Conversation ID:', data.conversation_id);
+      
       if (data.success && data.conversation_id) {
-        router.push(`/messages/${data.conversation_id}` as any);
+        const route = `/messages/${data.conversation_id}`;
+        console.log('[VIEW CHAT] Navigating to:', route);
+        router.push(route as any);
       } else {
-        Alert.alert("Error", "Could not find conversation for this job.");
+        console.log('[VIEW CHAT] No conversation found - showing alert');
+        Alert.alert(
+          "No Conversation", 
+          `Could not find conversation for this job.\n\nResponse: ${JSON.stringify(data)}`
+        );
       }
     } catch (error) {
-      console.error("Error fetching conversation:", error);
-      Alert.alert("Error", "Failed to connect to chat.");
+      console.error("[VIEW CHAT] Error fetching conversation:", error);
+      Alert.alert(
+        "Connection Error", 
+        `Failed to connect to chat.\n\nError: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   };
 
@@ -2160,6 +2203,20 @@ export default function JobDetailScreen() {
           </View>
         )}
 
+        {/* View Agency Group Chat button for agency jobs with assigned workers */}
+        {isClient && job.assignedAgency && job.assignedAgency.workers_assigned > 0 && (
+          <View style={[styles.section, { paddingTop: 0 }]}>
+            <TouchableOpacity
+              style={styles.viewGroupChatButton}
+              onPress={handleViewChat}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubbles" size={22} color={Colors.white} />
+              <Text style={styles.viewGroupChatButtonText}>View Agency Group Chat</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
           job.status === "IN_PROGRESS" ||
@@ -2249,6 +2306,45 @@ export default function JobDetailScreen() {
                 </View>
               )}
             </View>
+
+            {/* Agency Section - Show if assigned */}
+            {job.assignedAgency && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Agency</Text>
+                <View style={styles.posterCard}>
+                  {job.assignedAgency?.logo ? (
+                    <Image
+                      source={{ uri: job.assignedAgency.logo }}
+                      style={styles.posterAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="business" size={28} color={Colors.textSecondary} />
+                    </View>
+                  )}
+                  <View style={styles.posterInfo}>
+                    <Text style={styles.posterName}>
+                      {job.assignedAgency?.name || "Unknown Agency"}
+                    </Text>
+                    <View style={styles.posterRating}>
+                      {(job.assignedAgency?.rating ?? 0) > 0 ? (
+                        <>
+                          <Ionicons name="star" size={16} color="#F59E0B" />
+                          <Text style={styles.posterRatingText}>
+                            {job.assignedAgency.rating.toFixed(1)} rating
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                      )}
+                    </View>
+                    <Text style={styles.posterRatingText}>
+                      {job.assignedAgency.workers_assigned} worker{job.assignedAgency.workers_assigned !== 1 ? 's' : ''} assigned
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
             {/* Worker Section - Show if assigned, only clickable for clients viewing other workers */}
             {job.assignedWorker && (

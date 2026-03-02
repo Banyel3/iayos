@@ -23,7 +23,7 @@ import {
   AlertCircle,
   Users,
 } from "lucide-react";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -97,7 +97,7 @@ export default function WorkersPage() {
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        page_size: "50",
+        page_size: "15",
       });
 
       if (searchTerm) params.append("search", searchTerm);
@@ -573,7 +573,7 @@ export default function WorkersPage() {
                               </button>
                             </td>
                             <td className="px-4 py-2 text-sm">
-                              {(currentPage - 1) * 50 + index + 1}
+                              {(currentPage - 1) * 15 + index + 1}
                             </td>
                             <td className="px-4 py-2 text-sm font-medium">
                               {worker.first_name} {worker.last_name}
@@ -672,32 +672,14 @@ export default function WorkersPage() {
                     </table>
                   </div>
 
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setCurrentPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
-                        }
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  )}
+                  <AdminPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalWorkers}
+                    itemsPerPage={15}
+                    itemLabel="workers"
+                    onPageChange={setCurrentPage}
+                  />
                 </>
               )}
             </CardContent>
