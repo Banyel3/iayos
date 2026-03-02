@@ -17,7 +17,6 @@ import {
   Receipt,
   Bell,
   Wallet,
-  BarChart3,
   RotateCcw,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -334,20 +333,6 @@ export default function AgencySidebar({
               <BadgePill count={reviewsCount} />
             </span>
           )}
-        </Link>
-
-        <Link
-          href="/agency/analytics"
-          onClick={handleNavClick}
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm",
-            isActive("/agency/analytics")
-              ? "bg-blue-50 text-blue-600"
-              : "text-gray-700 hover:bg-gray-100",
-          )}
-        >
-          <BarChart3 className="h-4 w-4 shrink-0" />{" "}
-          {!collapsed && <span>Analytics</span>}
         </Link>
 
         <Link
