@@ -356,23 +356,23 @@ export default function WithdrawScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Withdraw Funds</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={100}
+        keyboardVerticalOffset={0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => safeGoBack(router, "/(tabs)/profile")}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Withdraw Funds</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.scrollContent}
@@ -412,35 +412,6 @@ export default function WithdrawScreen() {
               />
             </View>
             <Text style={styles.helperText}>Minimum withdrawal: ₱100.00</Text>
-
-            {/* Quick Amount Buttons */}
-            <View style={styles.quickAmounts}>
-              {[500, 1000, 2000, 5000].map((preset) => (
-                <TouchableOpacity
-                  key={preset}
-                  style={[
-                    styles.quickAmountBtn,
-                    preset > balance && styles.quickAmountBtnDisabled,
-                  ]}
-                  onPress={() => {
-                    if (preset <= balance) {
-                      setAmount(preset.toString());
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                  }}
-                  disabled={preset > balance}
-                >
-                  <Text
-                    style={[
-                      styles.quickAmountText,
-                      preset > balance && styles.quickAmountTextDisabled,
-                    ]}
-                  >
-                    ₱{preset.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
 
           {/* Payment Account Selection */}
@@ -585,25 +556,15 @@ export default function WithdrawScreen() {
             <Text style={styles.sectionTitle}>Notes (Optional)</Text>
             <TextInput
               style={styles.notesInput}
-              placeholder="Add a note for this withdrawal..."
+              placeholder="Add a note... (Optional)"
               placeholderTextColor={Colors.textLight}
               value={notes}
               onChangeText={setNotes}
               multiline
-              numberOfLines={3}
+              numberOfLines={2}
               maxLength={200}
             />
             <Text style={styles.charCount}>{notes.length}/200</Text>
-          </View>
-
-          {/* Info Box */}
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color={Colors.info} />
-            <Text style={styles.infoText}>
-              • Withdrawals are processed within 1-3 business days{"\n"}•
-              Minimum withdrawal amount is ₱100{"\n"}• No fees for GCash
-              withdrawals{"\n"}• Balance will be deducted immediately
-            </Text>
           </View>
         </ScrollView>
 
@@ -935,7 +896,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
-    minHeight: 80,
+    minHeight: 50,
     textAlignVertical: "top",
   },
   charCount: {

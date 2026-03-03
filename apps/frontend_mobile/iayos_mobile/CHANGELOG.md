@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Withdrawal Screen Layout Fix**
+  - Moved header outside KeyboardAvoidingView to fix layout issues
+  - Removed vertical offset to eliminate whitespace above keyboard
+  - Removed quick amount buttons and bottom banner to reduce redundancy
+  - **Impact**: Improved user experience and visual layout on withdrawal screen
+
 - **APK Auto-Update Stuck on "Installing" on Real Devices**
   - Added `REQUEST_INSTALL_PACKAGES` permission to AndroidManifest (required by Android 8+ / API 26+)
   - Switched install intent from `ACTION_VIEW` to `ACTION_INSTALL_PACKAGE` for better compatibility
