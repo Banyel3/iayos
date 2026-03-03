@@ -205,6 +205,12 @@ export default function TransactionsPage() {
             🔒 Escrow
           </Badge>
         );
+      case "PAYMENT":
+        return (
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+            💳 Payment
+          </Badge>
+        );
       case "EARNING":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200">
@@ -229,7 +235,14 @@ export default function TransactionsPage() {
             📥 Deposit
           </Badge>
         );
+      case "REFUND":
+        return (
+          <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+            ↩ Refund
+          </Badge>
+        );
       case "PLATFORM_FEE":
+      case "FEE":
         return (
           <Badge className="bg-gray-100 text-gray-700 border-gray-200">
             🏢 Platform Fee

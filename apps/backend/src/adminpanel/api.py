@@ -42,7 +42,7 @@ from .payment_service import (
 )
 from .support_service import (
     get_tickets, get_ticket_detail, create_ticket, reply_to_ticket,
-    update_ticket_status, assign_ticket, get_ticket_stats,
+    update_ticket_status, update_ticket_priority, close_ticket, assign_ticket, get_ticket_stats,
     get_canned_responses, create_canned_response, update_canned_response,
     delete_canned_response, increment_canned_response_usage,
     get_faqs, create_faq, update_faq, delete_faq, increment_faq_view,
@@ -684,6 +684,12 @@ def get_kyc_logs(request, action: str | None = None, limit: int = 100):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/audit-logs", auth=cookie_auth)
+def get_kyc_audit_logs(request, action: str | None = None, limit: int = 100):
+    """Stable alias for KYC logs to avoid path parsing conflicts with dynamic KYC routes."""
+    return get_kyc_logs(request, action=action, limit=limit)
 
 
 @router.get("/users/clients", auth=cookie_auth)
@@ -2827,6 +2833,14 @@ class AssignTicketSchema(Schema):
     admin_id: int
 
 
+class UpdateTicketPrioritySchema(Schema):
+    priority: str
+
+
+class CloseTicketSchema(Schema):
+    resolution_note: str
+
+
 @router.put("/support/tickets/{ticket_id}/assign", auth=cookie_auth)
 def assign_support_ticket(request, ticket_id: int, data: AssignTicketSchema):
     """Assign a ticket to an admin."""
@@ -2834,6 +2848,38 @@ def assign_support_ticket(request, ticket_id: int, data: AssignTicketSchema):
         return assign_ticket(ticket_id=ticket_id, admin_id=data.admin_id)
     except Exception as e:
         print(f"Error in assign_support_ticket: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/support/tickets/{ticket_id}/priority", auth=cookie_auth)
+def update_support_ticket_priority(request, ticket_id: int, data: UpdateTicketPrioritySchema):
+    """Update support ticket priority."""
+    try:
+        return update_ticket_priority(
+            ticket_id=ticket_id,
+            priority=data.priority,
+            admin=request.auth,
+        )
+    except Exception as e:
+        print(f"Error in update_support_ticket_priority: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/support/tickets/{ticket_id}/close", auth=cookie_auth)
+def close_support_ticket(request, ticket_id: int, data: CloseTicketSchema):
+    """Close support ticket with required resolution note."""
+    try:
+        note = (data.resolution_note or "").strip()
+        if len(note) < 10:
+            return {"success": False, "error": "Resolution note must be at least 10 characters"}
+
+        return close_ticket(
+            ticket_id=ticket_id,
+            resolution_note=note,
+            admin=request.auth,
+        )
+    except Exception as e:
+        print(f"Error in close_support_ticket: {str(e)}")
         return {"success": False, "error": str(e)}
 
 
