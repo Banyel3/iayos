@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ViewStyle } from "react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 
 /**
@@ -23,6 +23,7 @@ export type PaymentStatus =
 interface PaymentStatusBadgeProps {
   status: PaymentStatus;
   size?: "small" | "medium" | "large";
+  style?: ViewStyle;
 }
 
 const statusConfig = {
@@ -61,6 +62,7 @@ const statusConfig = {
 export default function PaymentStatusBadge({
   status,
   size = "medium",
+  style,
 }: PaymentStatusBadgeProps) {
   const config = statusConfig[status];
 
@@ -91,6 +93,7 @@ export default function PaymentStatusBadge({
           paddingHorizontal: sizeStyles[size].paddingHorizontal,
           paddingVertical: sizeStyles[size].paddingVertical,
         },
+        style,
       ]}
     >
       <Text

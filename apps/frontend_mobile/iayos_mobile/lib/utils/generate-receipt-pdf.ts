@@ -1,7 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Asset } from 'expo-asset';
-import * as FileSystem from 'expo-file-system';
+import { readAsStringAsync } from 'expo-file-system/legacy'; // Fix for deprecation error
 
 const BRAND_COLOR = '#007AFF';
 
@@ -49,6 +49,7 @@ const DEPOSIT_RECEIPT_STYLES = `
     color: #000;
     max-width: 800px;
     margin: 0 auto;
+    font-size: 14px;
   }
   .header-table {
     width: 100%;
@@ -61,11 +62,11 @@ const DEPOSIT_RECEIPT_STYLES = `
   .address-cell {
     text-align: right;
     vertical-align: top;
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1.4;
   }
   .logo-text {
-    font-size: 32px;
+    font-size: 36px;
     font-weight: bold;
     color: #54B7EC; /* Brand Blue */
     letter-spacing: -1px;
@@ -79,7 +80,7 @@ const DEPOSIT_RECEIPT_STYLES = `
     margin-bottom: 30px;
   }
   .receipt-title {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -90,7 +91,7 @@ const DEPOSIT_RECEIPT_STYLES = `
     border-collapse: collapse;
   }
   .section-header {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
     text-transform: uppercase;
     padding-bottom: 8px;
@@ -100,10 +101,10 @@ const DEPOSIT_RECEIPT_STYLES = `
   .details-row td {
     padding-bottom: 4px;
     vertical-align: top;
-    font-size: 12px;
+    font-size: 14px;
   }
   .details-label {
-    width: 120px;
+    width: 140px;
   }
   .details-value {
     /* value column */
@@ -117,24 +118,24 @@ const DEPOSIT_RECEIPT_STYLES = `
     width: 100%;
   }
   .amount-label {
-    font-size: 18px;
+    font-size: 24px;
   }
   .amount-value {
-    font-size: 18px;
+    font-size: 24px;
     font-weight: bold;
     text-align: right;
   }
   .balance-label {
-    font-size: 12px;
+    font-size: 14px;
   }
   .balance-value {
-    font-size: 12px;
+    font-size: 14px;
     text-align: right;
   }
 
   .payment-method {
     margin-top: 40px;
-    font-size: 12px;
+    font-size: 14px;
     font-family: monospace;
   }
 
@@ -148,7 +149,7 @@ const DEPOSIT_RECEIPT_STYLES = `
     padding-top: 20px;
   }
   .disclaimer {
-    font-size: 8px;
+    font-size: 10px;
     color: #ccc;
     line-height: 1.4;
     margin: 0 auto;
@@ -171,7 +172,7 @@ export interface DepositReceiptData {
 export async function downloadDepositReceiptPdf(transaction: DepositReceiptData): Promise<void> {
   const logoAsset = Asset.fromModule(require('../../assets/logo.png'));
   await logoAsset.downloadAsync();
-  const logoBase64 = await FileSystem.readAsStringAsync(logoAsset.localUri ?? logoAsset.uri, {
+  const logoBase64 = await readAsStringAsync(logoAsset.localUri ?? logoAsset.uri, {
     encoding: 'base64',
   });
   const logoSrc = `data:image/png;base64,${logoBase64}`;

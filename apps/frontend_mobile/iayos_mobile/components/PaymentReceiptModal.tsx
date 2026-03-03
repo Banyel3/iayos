@@ -158,7 +158,11 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
           {/* Status Badge */}
           <View style={styles.statusContainer}>
-            <PaymentStatusBadge status={receipt.status} size="large" />
+            <PaymentStatusBadge
+              status={receipt.status}
+              size="large"
+              style={{ alignSelf: "center" }}
+            />
           </View>
 
           {/* Amount */}
@@ -222,8 +226,12 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Status</Text>
-              <View style={styles.rowValue}>
-                <PaymentStatusBadge status={receipt.status} size="small" />
+              <View style={[styles.rowValue, { alignItems: "flex-end" }]}>
+                <PaymentStatusBadge
+                  status={receipt.status}
+                  size="small"
+                  style={{ alignSelf: "flex-end" }}
+                />
               </View>
             </View>
 
