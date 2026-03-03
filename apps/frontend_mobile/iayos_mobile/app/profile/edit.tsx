@@ -635,7 +635,7 @@ export default function EditProfileScreen() {
                     <Text style={styles.skillChipYears}>{skill.experienceYears}y</Text>
                     <Pressable
                       style={styles.skillChipDelete}
-                      onPress={() => handleRemoveSkill(skill.id, skill.name)}
+                      onPress={() => handleRemoveSkill(skill.specializationId, skill.name)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Ionicons name="close-circle" size={18} color={Colors.error} />
