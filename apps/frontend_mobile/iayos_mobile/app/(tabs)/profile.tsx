@@ -736,12 +736,16 @@ function InfoRow({
 function MenuItem({
   icon,
   label,
+  value,
+  showArrow = true,
   onPress,
   noBorder = false,
 }: {
   icon: string;
   label: string;
-  onPress: () => void;
+  value?: string;
+  showArrow?: boolean;
+  onPress?: () => void;
   noBorder?: boolean;
 }) {
   return (
@@ -749,12 +753,20 @@ function MenuItem({
       style={[styles.menuItem, noBorder && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={!onPress}
     >
       <View style={styles.menuLeft}>
         <Ionicons name={icon as any} size={22} color={Colors.textSecondary} />
         <Text style={styles.menuLabel}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {value ? (
+          <Text style={{ fontSize: 16, color: Colors.textSecondary, fontFamily: "Inter_500Medium" }}>{value}</Text>
+        ) : null}
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
