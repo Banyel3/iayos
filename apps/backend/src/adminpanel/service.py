@@ -1374,6 +1374,9 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
             profileType='WORKER'
         ).exclude(
             accountFK__accountID__in=agency_owner_account_ids
+        ).exclude(
+            accountFK__is_banned=True,
+            accountFK__banned_reason='Account deleted by administrator'
         ).select_related('accountFK')
         
         # Apply search filter
@@ -1387,9 +1390,9 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
         # Apply status filter
         if status_filter and status_filter != 'all':
             if status_filter == 'active':
-                workers_query = workers_query.filter(accountFK__isVerified=True)
+                workers_query = workers_query.filter(accountFK__is_active=True)
             elif status_filter == 'inactive':
-                workers_query = workers_query.filter(accountFK__isVerified=False)
+                workers_query = workers_query.filter(accountFK__is_active=False)
         
         # Order by creation date (newest first)
         workers_query = workers_query.order_by('-accountFK__createdAt')
@@ -1511,7 +1514,7 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
                 'last_name': profile.lastName or '',
                 'phone': profile.contactNum or '',
                 'address': f"{account.city}, {account.province}".strip(', ') if (account.city or account.province) else account.country or 'N/A',
-                'status': 'active' if account.isVerified else 'inactive',
+                'status': 'active' if account.is_active else 'inactive',
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
                 'is_verified': account.isVerified,

@@ -110,6 +110,7 @@ export default function WorkersPage() {
         `${API_BASE}/api/adminpanel/users/workers?${params}`,
         {
           credentials: "include",
+          cache: "no-store",
         },
       );
 

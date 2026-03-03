@@ -318,6 +318,9 @@ def get_workers_list_optimized(
         profileType='WORKER'
     ).exclude(
         accountFK_id__in=agency_owner_ids
+    ).exclude(
+        accountFK__is_banned=True,
+        accountFK__banned_reason='Account deleted by administrator'
     ).select_related(
         'accountFK'
     ).annotate(
@@ -338,9 +341,9 @@ def get_workers_list_optimized(
     
     if status_filter and status_filter != 'all':
         if status_filter == 'active':
-            queryset = queryset.filter(accountFK__isVerified=True)
+            queryset = queryset.filter(accountFK__is_active=True)
         elif status_filter == 'inactive':
-            queryset = queryset.filter(accountFK__isVerified=False)
+            queryset = queryset.filter(accountFK__is_active=False)
     
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)
@@ -385,7 +388,7 @@ def get_workers_list_optimized(
             'first_name': profile.firstName or '',
             'last_name': profile.lastName or '',
             'phone': profile.contactNum or '',
-            'status': 'active' if account.isVerified else 'inactive',
+            'status': 'active' if account.is_active else 'inactive',
             'join_date': account.createdAt.isoformat() if account.createdAt else None,
             'is_verified': account.isVerified,
             'is_suspended': account.is_suspended,
