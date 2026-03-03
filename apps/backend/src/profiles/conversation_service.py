@@ -4,6 +4,7 @@ Handles conversation archiving for both 1:1 and team conversations.
 """
 from profiles.models import Conversation, ConversationParticipant
 from django.db import transaction
+from django.db.models import Q
 
 
 def archive_conversation(conversation: Conversation, requester_profile=None):
@@ -110,15 +111,17 @@ def should_auto_archive(conversation: Conversation) -> bool:
     if not job or job.status != 'COMPLETED':
         return False
     
-    # Check if both parties have reviewed
+    # Check if both sides have reviewed using current JobReview schema
     client_reviewed = JobReview.objects.filter(
-        reviewedJobID=job,
-        reviewerProfile=job.clientID
+        jobID=job,
+        reviewerType=JobReview.ReviewerType.CLIENT,
     ).exists()
-    
-    worker_reviewed = JobReview.objects.filter(
-        reviewedJobID=job,
-        reviewedProfile=job.assignedWorkerID
+
+    counterpart_reviewed = JobReview.objects.filter(
+        jobID=job,
+    ).filter(
+        Q(reviewerType=JobReview.ReviewerType.WORKER) |
+        Q(reviewerType=JobReview.ReviewerType.AGENCY)
     ).exists()
-    
-    return client_reviewed and worker_reviewed
+
+    return client_reviewed and counterpart_reviewed
