@@ -1098,11 +1098,12 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
     try:
         from accounts.models import Job, JobWorkerAssignment
         
-        # Get user's profile
+        # Get user's profile when available.
+        # Agency owners may not have an active Profile context for this endpoint.
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response({"error": "Profile not found"}, status=400)
+            user_profile = None
         
         # Get the job
         try:
@@ -1115,13 +1116,15 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             return Response({"error": "Job not found"}, status=404)
         
         # Check if user is a participant of this job
-        is_client = job.clientID and job.clientID.profileID == user_profile
-        is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile
-        is_team_assigned_worker = JobWorkerAssignment.objects.filter(
-            jobID=job,
-            workerID__profileID=user_profile,
-            assignment_status__in=['ACTIVE', 'COMPLETED']
-        ).exists()
+        is_client = bool(user_profile and job.clientID and job.clientID.profileID == user_profile)
+        is_worker = bool(user_profile and job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile)
+        is_team_assigned_worker = bool(
+            user_profile and JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID=user_profile,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        )
         is_agency_owner = job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         
         if not (is_client or is_worker or is_team_assigned_worker or is_agency_owner):
