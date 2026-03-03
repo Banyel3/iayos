@@ -593,7 +593,7 @@ export default function WithdrawScreen() {
             ) : (
               <>
                 <Ionicons
-                  name="arrow-down-circle"
+                  name={amountNum > balance ? "alert-circle" : "arrow-down-circle"}
                   size={20}
                   color={
                     isWithdrawDisabled ? Colors.textSecondary : Colors.white
@@ -605,7 +605,7 @@ export default function WithdrawScreen() {
                     isWithdrawDisabled && styles.withdrawButtonTextDisabled,
                   ]}
                 >
-                  Withdraw Now
+                  {amountNum > balance ? "Insufficient Funds" : "Withdraw Now"}
                 </Text>
               </>
             )}
@@ -923,6 +923,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     padding: Spacing.lg,
+    paddingBottom: Spacing.xl + 4,
     ...Shadows.medium,
   },
   summaryRow: {
