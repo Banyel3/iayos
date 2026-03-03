@@ -4656,10 +4656,10 @@ export default function ChatScreen() {
             </TouchableOpacity>
 
             {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION or after if admin messages exist */}
-            {(hasActiveNegotiation ||
+            {!hasActiveNegotiation &&
               conversation.messages.some(
                 (m: any) => m.sender_type === "admin",
-              )) && (
+              ) && (
               <View style={styles.negotiationPanel}>
                 <TouchableOpacity
                   style={styles.negotiationPanelHeader}
@@ -4875,13 +4875,7 @@ export default function ChatScreen() {
         {/* Messages List */}
         <FlatList
           ref={flatListRef}
-          data={
-            hasActiveNegotiation
-              ? conversation.messages.filter(
-                  (m: any) => m.sender_type !== "admin",
-                )
-              : conversation.messages
-          }
+          data={conversation.messages}
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
