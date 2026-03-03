@@ -1,5 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system';
 
 const BRAND_COLOR = '#007AFF';
 
@@ -40,6 +42,120 @@ const PDF_STYLES = `
   .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #eee; font-size: 11px; color: #999; text-align: center; }
 `;
 
+const DEPOSIT_RECEIPT_STYLES = `
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    padding: 40px;
+    color: #000;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .header-table {
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  .logo-cell {
+    text-align: left;
+    vertical-align: top;
+  }
+  .address-cell {
+    text-align: right;
+    vertical-align: top;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .logo-text {
+    font-size: 32px;
+    font-weight: bold;
+    color: #54B7EC; /* Brand Blue */
+    letter-spacing: -1px;
+  }
+  .company-name {
+    font-weight: bold;
+  }
+
+  .title-container {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  .receipt-title {
+    font-size: 24px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .content-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .section-header {
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding-bottom: 8px;
+    padding-top: 16px;
+  }
+  
+  .details-row td {
+    padding-bottom: 4px;
+    vertical-align: top;
+    font-size: 12px;
+  }
+  .details-label {
+    width: 120px;
+  }
+  .details-value {
+    /* value column */
+  }
+
+  .amount-section {
+    margin-top: 40px;
+    margin-bottom: 20px;
+  }
+  .amount-table {
+    width: 100%;
+  }
+  .amount-label {
+    font-size: 18px;
+  }
+  .amount-value {
+    font-size: 18px;
+    font-weight: bold;
+    text-align: right;
+  }
+  .balance-label {
+    font-size: 12px;
+  }
+  .balance-value {
+    font-size: 12px;
+    text-align: right;
+  }
+
+  .payment-method {
+    margin-top: 40px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    right: 40px;
+    text-align: center;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+  }
+  .disclaimer {
+    font-size: 8px;
+    color: #ccc;
+    line-height: 1.4;
+    margin: 0 auto;
+    max-width: 80%;
+  }
+`;
+
 export interface DepositReceiptData {
   transaction_id: string;
   amount: number;
@@ -53,35 +169,93 @@ export interface DepositReceiptData {
 }
 
 export async function downloadDepositReceiptPdf(transaction: DepositReceiptData): Promise<void> {
+  const logoAsset = Asset.fromModule(require('../../assets/logo.png'));
+  await logoAsset.downloadAsync();
+  const logoBase64 = await FileSystem.readAsStringAsync(logoAsset.localUri ?? logoAsset.uri, {
+    encoding: 'base64',
+  });
+  const logoSrc = `data:image/png;base64,${logoBase64}`;
+
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8" />
-      <style>${PDF_STYLES}</style>
+      <style>${DEPOSIT_RECEIPT_STYLES}</style>
     </head>
     <body>
-      <div class="header">
-        <div class="brand">iAyos</div>
-        <div class="receipt-title">${transaction.transaction_type_label || 'Transaction Receipt'}</div>
-      </div>
-      <div class="amount-block">
-        <div class="amount-label">Amount</div>
-        <div class="amount">${formatCurrencyPdf(transaction.amount)}</div>
-      </div>
-      <div class="section-header">Transaction Details</div>
-      <table>
-        <tr><td>Transaction ID</td><td>${transaction.transaction_id}</td></tr>
-        ${transaction.reference_number ? `<tr><td>Reference No.</td><td>${transaction.reference_number}</td></tr>` : ''}
-        <tr><td>Payment Method</td><td>${transaction.payment_method.toUpperCase()}</td></tr>
-        <tr><td>Status</td><td class="status-${transaction.status.toLowerCase()}">${transaction.status.toUpperCase()}</td></tr>
-        <tr><td>Date &amp; Time</td><td>${formatDatePdf(transaction.created_at)}</td></tr>
-        ${transaction.balance_after != null ? `<tr><td>Balance After</td><td>${formatCurrencyPdf(transaction.balance_after)}</td></tr>` : ''}
-        ${transaction.job ? `<tr><td>Related Job</td><td>${transaction.job.title}</td></tr>` : ''}
+      <table class="header-table">
+        <tr>
+          <td class="logo-cell">
+            <img src="${logoSrc}" style="width: 150px; height: auto;" />
+          </td>
+          <td class="address-cell">
+            <div class="company-name">iAyos</div>
+            <div>Normal Road, Baliwasan, 7000</div>
+            <div>Zamboanga City, Philippines</div>
+          </td>
+        </tr>
       </table>
+
+      <div class="title-container">
+        <div class="receipt-title">RECEIPT</div>
+      </div>
+
+      <table class="content-table">
+        <tr>
+          <td colspan="2" class="section-header">TRANSACTION DETAILS</td>
+        </tr>
+        <tr class="details-row">
+          <td class="details-label">Transaction ID:</td>
+          <td class="details-value">${transaction.transaction_id}</td>
+        </tr>
+        ${transaction.reference_number ? `
+        <tr class="details-row">
+          <td class="details-label">Reference No.:</td>
+          <td class="details-value">${transaction.reference_number}</td>
+        </tr>` : ''}
+        <tr class="details-row">
+          <td class="details-label">Date & Time:</td>
+          <td class="details-value">${formatDatePdf(transaction.created_at)}</td>
+        </tr>
+
+        ${transaction.job ? `
+        <tr>
+          <td colspan="2" class="section-header">JOB DETAILS</td>
+        </tr>
+        <tr class="details-row">
+          <td class="details-label">Job ID:</td>
+          <td class="details-value">${transaction.job.id}</td>
+        </tr>
+        <tr class="details-row">
+          <td class="details-label">Job Title:</td>
+          <td class="details-value">${transaction.job.title}</td>
+        </tr>
+        ` : ''}
+      </table>
+      
+      <div class="amount-section">
+        <table class="amount-table">
+          <tr>
+            <td class="amount-label">Amount</td>
+            <td class="amount-value">${formatCurrencyPdf(transaction.amount)}</td>
+          </tr>
+          ${transaction.balance_after != null ? `
+          <tr>
+            <td class="balance-label">Balance After</td>
+            <td class="balance-value">${formatCurrencyPdf(transaction.balance_after)}</td>
+          </tr>` : ''}
+        </table>
+      </div>
+
+      <div class="payment-method">
+        Payment Method: ${transaction.payment_method.toUpperCase()}
+      </div>
+
       <div class="footer">
-        This receipt was generated by iAyos. For inquiries, contact support@iayos.com.<br/>
-        iAyos acts as an escrow intermediary. This does not constitute an official BIR receipt.
+        <div class="disclaimer">
+          <!-- Footer text removed as requested -->
+        </div>
       </div>
     </body>
     </html>
