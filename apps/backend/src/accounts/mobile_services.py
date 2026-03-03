@@ -1955,10 +1955,19 @@ def get_user_profile_mobile(user):
     try:
         from .models import Profile
 
-        # Get user's profile
-        try:
-            profile = Profile.objects.select_related('accountFK').get(accountFK=user)
-        except Profile.DoesNotExist:
+        # Get user's profile (supports dual-profile users)
+        profile_type = getattr(user, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.select_related('accountFK').filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.select_related('accountFK').filter(
+                accountFK=user
+            ).first()
+
+        if not profile:
             return {
                 'success': False,
                 'error': 'Profile not found'
