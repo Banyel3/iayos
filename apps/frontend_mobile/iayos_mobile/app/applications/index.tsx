@@ -65,7 +65,30 @@ export default function MyApplicationsScreen() {
       }
 
       const data = await response.json();
-      return data.applications || [];
+      const backendApplications = data.applications || [];
+
+      return backendApplications.map((application: any) => ({
+        id: String(application.application_id ?? application.id ?? ""),
+        job_id: String(application.job_id ?? ""),
+        job_title: application.job_title ?? "Untitled Job",
+        job_category: application.job_category ?? "General",
+        job_budget:
+          typeof application.job_budget === "number"
+            ? `₱${application.job_budget.toLocaleString()}`
+            : (application.job_budget ?? "N/A"),
+        proposed_budget:
+          typeof application.proposed_budget === "number"
+            ? `₱${application.proposed_budget.toLocaleString()}`
+            : (application.proposed_budget ?? "N/A"),
+        status: application.application_status ?? application.status,
+        proposal_message: application.proposal_message ?? "",
+        estimated_duration: application.estimated_duration ?? null,
+        applied_at: application.created_at ?? application.applied_at ?? "",
+        client: {
+          name: application.client_name ?? application.client?.name ?? "Unknown Client",
+          avatar: application.client_img ?? application.client?.avatar ?? "",
+        },
+      }));
     },
     enabled: isWorker,
   });
