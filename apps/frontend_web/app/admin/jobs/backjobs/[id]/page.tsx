@@ -38,6 +38,7 @@ interface DisputeDetail {
   in_negotiation_at: string | null;
   admin_rejection_reason: string | null;
   conversation_id: number | null;
+  can_admin_chat?: boolean;
   evidence: { id: number; image_url: string; description: string | null; uploaded_at: string }[];
   backjob_started: boolean;
   worker_marked_complete: boolean;
@@ -203,6 +204,31 @@ export default function BackjobDetailPage() {
     finally { setActionLoading(false); }
   };
 
+  const handleFinishNegotiation = async () => {
+    if (!dispute) return;
+    if (!confirm("Finish mediation and leave this negotiation chat?")) return;
+
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute.dispute_id}/finish-negotiation`,
+        { method: "POST", credentials: "include" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg("Negotiation mediation finished. Admin chat is now closed.");
+        setMessages([]);
+        fetchDispute();
+      } else {
+        alert(data.error || "Failed to finish negotiation");
+      }
+    } catch {
+      alert("Network error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleRejectSubmit = async () => {
     setRejectError("");
     if (rejectReason.trim().length < 10) {
@@ -280,6 +306,7 @@ export default function BackjobDetailPage() {
 
   const isOpen = dispute.status === "open";
   const isNegotiating = dispute.status === "in_negotiation";
+  const canAdminChat = Boolean(dispute.can_admin_chat && dispute.conversation_id);
   const isFinished = ["resolved", "closed"].includes(dispute.status);
 
   return (
@@ -439,7 +466,7 @@ export default function BackjobDetailPage() {
               </Card>
             )}
 
-            {isNegotiating && dispute.conversation_id && (
+            {isNegotiating && canAdminChat && (
               <Card className="border-0 shadow-xl">
                 <CardHeader className="pb-3 border-b border-gray-100">
                   <CardTitle className="flex items-center gap-2 text-lg text-purple-700">
@@ -518,6 +545,16 @@ export default function BackjobDetailPage() {
                     >
                       <Send className="h-4 w-4" />
                     </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {isNegotiating && !canAdminChat && (
+              <Card className="border-0 shadow-lg">
+                <CardContent className="p-5">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    Negotiation mediation has been finished. Admin chat access is now closed.
                   </div>
                 </CardContent>
               </Card>
@@ -651,8 +688,18 @@ export default function BackjobDetailPage() {
                   {isNegotiating && (
                     <>
                       <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-600">
-                        Negotiation in progress. Use the chat to communicate with the parties.
+                        Negotiation in progress. Use the chat to mediate, then finish negotiation when done.
                       </div>
+                      {canAdminChat && (
+                        <Button
+                          className="w-full bg-gray-700 hover:bg-gray-800 text-white"
+                          disabled={actionLoading}
+                          onClick={handleFinishNegotiation}
+                        >
+                          <Shield className="h-4 w-4 mr-2" />
+                          Finish Negotiation
+                        </Button>
+                      )}
                       <Button
                         className="w-full bg-green-600 hover:bg-green-700 text-white"
                         disabled={actionLoading}
