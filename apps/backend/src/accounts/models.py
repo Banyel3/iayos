@@ -1589,7 +1589,7 @@ class Job(models.Model):
         if not self.has_skill_slots:
             return 1 if self.assignedWorkerID else 0
         return self.worker_assignments.filter(
-            assignment_status='ACTIVE'
+            assignment_status__in=['ACTIVE', 'COMPLETED']
         ).count()
     
     @property

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -102,7 +102,7 @@ export default function WithdrawalsPage() {
   });
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 15,
     total: 0,
     pages: 0,
   });
@@ -714,34 +714,14 @@ export default function WithdrawalsPage() {
             )}
           </div>
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="flex justify-center gap-2">
-              <Button
-                onClick={() =>
-                  setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                }
-                disabled={pagination.page === 1}
-                className="flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <span className="px-4 py-2 text-gray-700">
-                Page {pagination.page} of {pagination.pages}
-              </span>
-              <Button
-                onClick={() =>
-                  setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                }
-                disabled={pagination.page === pagination.pages}
-                className="flex items-center gap-2"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <AdminPagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            totalItems={pagination.total}
+            itemsPerPage={15}
+            itemLabel="withdrawals"
+            onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))}
+          />
         </div>
       </main>
 

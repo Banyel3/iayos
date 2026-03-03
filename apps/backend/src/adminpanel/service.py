@@ -186,6 +186,8 @@ def fetchAll_kyc(request):
                 "reviewedAt": record.reviewedAt.isoformat() if record.reviewedAt else None,
                 "reviewedBy_id": record.reviewedBy.accountID if record.reviewedBy else None,
                 "notes": record.notes,
+                "rejectionReason": record.rejectionReason,
+                "face_similarity_score": record.face_similarity_score,
                 "createdAt": record.createdAt.isoformat() if record.createdAt else None,
                 "updatedAt": record.updatedAt.isoformat() if record.updatedAt else None,
             })

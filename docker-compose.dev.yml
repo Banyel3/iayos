@@ -86,6 +86,7 @@ services:
       dockerfile: Dockerfile
       target: frontend-development
     container_name: iayos-frontend-dev
+    restart: unless-stopped
     env_file:
       - .env.docker
     ports:
@@ -107,7 +108,7 @@ services:
         cd /app && \
         npm i lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu --no-save || true && \
         cd /app/apps/frontend_web && \
-        npx next dev
+        NODE_OPTIONS='--max-old-space-size=2048' npx next dev
       "
 
   # Flutter Mobile Development (optional - for running Flutter in container)

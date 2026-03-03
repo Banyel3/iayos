@@ -3,7 +3,7 @@
 import {
   useState, useEffect
 } from "react";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -71,7 +71,7 @@ export default function CompletedJobsPage() {
     try {
       setIsLoading(true);
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/jobs/listings?page=${page}&page_size=20&status=COMPLETED`,
+        `${API_BASE}/api/adminpanel/jobs/listings?page=${page}&page_size=15&status=COMPLETED`,
         {
           credentials: "include",
         },
@@ -404,32 +404,13 @@ export default function CompletedJobsPage() {
             </Card>
           )}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-2 px-6 h-11 bg-blue-50 border-2 border-blue-200 rounded-xl">
-                <span className="text-sm font-medium text-gray-700">
-                  Page <span className="text-blue-600 font-bold">{page}</span>{" "}
-                  of {totalPages}
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => setPage(page + 1)}
-                disabled={page === totalPages}
-                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </Button>
-            </div>
-          )}
+          <AdminPagination
+            currentPage={page}
+            totalPages={totalPages}
+            itemsPerPage={15}
+            itemLabel="jobs"
+            onPageChange={setPage}
+          />
         </div>
       </main>
     </div>

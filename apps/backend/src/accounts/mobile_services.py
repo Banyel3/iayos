@@ -476,6 +476,34 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             except Exception as e:
                 print(f"   ⚠️ Could not fetch assigned worker: {str(e)}")
 
+        # Get assigned agency info for agency-handled jobs
+        assigned_agency = None
+        if job.assignedAgencyFK:
+            try:
+                from agency.models import Agency
+                agency = job.assignedAgencyFK
+                
+                # Calculate agency average rating
+                agency_reviews = JobReview.objects.filter(
+                    revieweeID=agency.accountFK,
+                    status='ACTIVE'
+                )
+                agency_avg_rating = agency_reviews.aggregate(Avg('rating'))['rating__avg']
+                agency_rating = float(agency_avg_rating) if agency_avg_rating else 0.0
+                
+                assigned_agency = {
+                    'id': agency.agencyId,
+                    'name': agency.businessName or "Unknown Agency",
+                    'logo': agency.logo if agency and agency.logo else None,
+                    'rating': round(agency_rating, 2),
+                    'workers_assigned': job.worker_assignments.filter(
+                        assignment_status__in=['ACTIVE', 'COMPLETED']
+                    ).count() if hasattr(job, 'worker_assignments') else 0,
+                }
+                print(f"   ✓ Assigned agency: {assigned_agency['name']}, Workers: {assigned_agency['workers_assigned']}")
+            except Exception as e:
+                print(f"   ⚠️ Could not fetch assigned agency: {str(e)}")
+
         # Capture completed-job reviews (client ↔ worker)
         reviews_payload = None
         if job.status == 'COMPLETED':
@@ -594,6 +622,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             },
             'client': client_data,
             'assigned_worker': assigned_worker,
+            'assigned_agency': assigned_agency,  # Agency info for agency-handled jobs
             'applications_count': applications_count,
             'is_applied': has_applied,
             'user_application': user_application,

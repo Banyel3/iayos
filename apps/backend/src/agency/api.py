@@ -421,7 +421,7 @@ def validate_agency_document(request):
         if not document_type:
             return Response({"valid": False, "error": "document_type is required"}, status=400)
         
-        valid_types = ['BUSINESS_PERMIT', 'REP_ID_FRONT', 'REP_ID_BACK', 'ADDRESS_PROOF', 'AUTH_LETTER']
+        valid_types = ['BUSINESS_PERMIT', 'REP_ID_FRONT', 'REP_ID_BACK', 'ADDRESS_PROOF', 'AUTH_LETTER', 'REP_SELFIE']
         if document_type not in valid_types:
             return Response({"valid": False, "error": f"Invalid document_type. Must be one of: {', '.join(valid_types)}"}, status=400)
         
@@ -465,8 +465,8 @@ def validate_agency_document(request):
                 "cached": True
             }
         
-        # Determine if face detection is required (front ID only)
-        require_face = document_type in ['REP_ID_FRONT']
+        # Determine if face detection is required (front ID + selfie)
+        require_face = document_type in ['REP_ID_FRONT', 'REP_SELFIE']
         
         # Map to verification service document type
         doc_type_mapping = {
@@ -475,6 +475,7 @@ def validate_agency_document(request):
             'REP_ID_BACK': 'BACKID',
             'ADDRESS_PROOF': 'ADDRESS_PROOF',
             'AUTH_LETTER': 'AUTH_LETTER',
+            'REP_SELFIE': 'SELFIE',
         }
         verification_doc_type = doc_type_mapping.get(document_type, document_type)
         

@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "../../components/sidebar";
-import { useMainContentClass } from "../../components";
+import { useMainContentClass, AdminPagination } from "../../components";
 import { toast } from "sonner";
 
 interface VerificationLog {
@@ -49,7 +49,7 @@ export default function CertificationHistoryPage() {
   const [page, setPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 20;
+  const pageSize = 15;
 
   useEffect(() => {
     fetchLogs();
@@ -440,31 +440,14 @@ export default function CertificationHistoryPage() {
               </div>
             )}
 
-            {totalRecords > 0 && (
-              <div className="flex flex-col md:flex-row items-center justify-between pt-4 mt-6 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Showing {startRecord}-{endRecord} of {totalRecords} records
-                </p>
-                <div className="flex gap-2 mt-4 md:mt-0">
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    disabled={page <= 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      setPage((prev) => Math.min(totalPages, prev + 1))
-                    }
-                    disabled={page >= totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
+            <AdminPagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={totalRecords}
+              itemsPerPage={15}
+              itemLabel="records"
+              onPageChange={setPage}
+            />
           </CardContent>
         </Card>
       </main>

@@ -75,7 +75,7 @@ export default function SearchBar({
       {/* Search Icon */}
       <Ionicons
         name="search-outline"
-        size={20}
+        size={16}
         color={Colors.textHint}
         style={styles.searchIcon}
       />
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border, // Match web's border-gray-200
   },
   searchIcon: {
-    marginRight: Spacing.sm,
+    marginRight: 6,
   },
   input: {
     flex: 1,

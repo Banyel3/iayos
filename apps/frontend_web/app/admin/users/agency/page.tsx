@@ -26,7 +26,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { Sidebar, useMainContentClass } from "../../components";
+import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
 import { toast } from "sonner";
 
 interface Agency {
@@ -114,7 +114,7 @@ export default function AgencyPage() {
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        page_size: "50",
+        page_size: "15",
       });
 
       if (searchTerm) params.append("search", searchTerm);
@@ -586,7 +586,7 @@ export default function AgencyPage() {
                                     <ChevronRight className="h-4 w-4" />
                                   )}
                                   <span>
-                                    {(currentPage - 1) * 50 + index + 1}
+                                    {(currentPage - 1) * 15 + index + 1}
                                   </span>
                                 </button>
                               </td>
@@ -726,32 +726,14 @@ export default function AgencyPage() {
                     </table>
                   </div>
 
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setCurrentPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
-                        }
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  )}
+                  <AdminPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalAgencies}
+                    itemsPerPage={15}
+                    itemLabel="agencies"
+                    onPageChange={setCurrentPage}
+                  />
                 </>
               )}
             </CardContent>

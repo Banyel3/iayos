@@ -21,6 +21,7 @@ import {
   UserPlus,
   CheckCircle,
   Users,
+  MessageCircle,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { JobSkillSlot, SlotAssignment } from "@/types/agency-team-jobs";
@@ -109,6 +110,7 @@ interface Job {
   };
   createdAt: string;
   updatedAt: string;
+  conversation_id?: number | null;
 }
 
 type TabType =
@@ -1091,7 +1093,7 @@ export default function AgencyJobsPage() {
                         className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
                           job.is_team_job
                             ? "bg-purple-600 text-white hover:bg-purple-700"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-[#07bcff] text-white hover:bg-[#06a8e5]"
                         }`}
                       >
                         {loadingSkillSlots ? (
@@ -1197,16 +1199,22 @@ export default function AgencyJobsPage() {
                       </div>
                     </div>
 
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2">
-                        <Loader2
-                          className="text-orange-600 animate-spin"
-                          size={20}
-                        />
-                        <span className="text-orange-800 font-medium">
-                          Work in progress...
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-end">
+                      <span className="text-[#06a8e5] font-medium mr-3">
+                        Work in progress...
+                      </span>
+                      {job.conversation_id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/agency/messages/${job.conversation_id}`);
+                          }}
+                          className="flex items-center space-x-2 bg-[#07bcff] hover:bg-[#06a8e5] text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                        >
+                          <MessageCircle size={16} />
+                          <span>View Chat</span>
+                        </button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

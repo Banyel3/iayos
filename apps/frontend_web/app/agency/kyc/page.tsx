@@ -50,11 +50,13 @@ const AgencyKYCPage = () => {
   const [businessPermit, setBusinessPermit] = useState<File | null>(null);
   const [repIDFront, setRepIDFront] = useState<File | null>(null);
   const [repIDBack, setRepIDBack] = useState<File | null>(null);
+  const [repSelfie, setRepSelfie] = useState<File | null>(null);
 
   // Previews
   const [permitPreview, setPermitPreview] = useState("");
   const [repFrontPreview, setRepFrontPreview] = useState("");
   const [repBackPreview, setRepBackPreview] = useState("");
+  const [repSelfiePreview, setRepSelfiePreview] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false); // Loading state for navigation
@@ -86,6 +88,7 @@ const AgencyKYCPage = () => {
   const [isValidatingRepFront, setIsValidatingRepFront] = useState(false);
   const [isValidatingRepBack, setIsValidatingRepBack] = useState(false);
   const [isValidatingPermit, setIsValidatingPermit] = useState(false);
+  const [isValidatingSelfie, setIsValidatingSelfie] = useState(false);
   const [repFrontValidationError, setRepFrontValidationError] = useState<
     string | null
   >(null);
@@ -93,6 +96,9 @@ const AgencyKYCPage = () => {
     string | null
   >(null);
   const [permitValidationError, setPermitValidationError] = useState<
+    string | null
+  >(null);
+  const [selfieValidationError, setSelfieValidationError] = useState<
     string | null
   >(null);
 
@@ -188,6 +194,7 @@ const AgencyKYCPage = () => {
     documentType: string,
   ): Promise<{
     valid: boolean;
+    networkError?: boolean;
     error?: string;
     warning?: string;
     details?: any;
@@ -218,10 +225,14 @@ const AgencyKYCPage = () => {
       }
       return data;
     } catch (error) {
-      console.error("AI validation error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return { valid: false, error: `Validation failed: ${errorMessage}` };
+      // Network / CORS / connectivity error — treat as non-blocking so the user
+      // can still submit. Backend will perform its own validation on upload.
+      console.warn("AI validation unavailable (network error):", error);
+      return {
+        valid: true,
+        networkError: true,
+        warning: "AI pre-validation unavailable. Document will be verified on submission.",
+      };
     }
   };
 
@@ -275,9 +286,15 @@ const AgencyKYCPage = () => {
       }));
     }
 
-    toast.success("Document Validated", {
-      description: "Business permit validated successfully",
-    });
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "Document accepted. AI pre-validation service is offline; your documents will be verified on submission.",
+      });
+    } else {
+      toast.success("Document Validated", {
+        description: "Business permit validated successfully",
+      });
+    }
   };
 
   const handleRepFrontChange = async (
@@ -328,8 +345,13 @@ const AgencyKYCPage = () => {
       setFileHashes((prev) => ({ ...prev, REP_ID_FRONT: result.file_hash! }));
     }
 
-    // Check if face detection was skipped (CompreFace unavailable) - show warning
-    if (result.details?.face_detection_skipped) {
+    // Treat network error as warning (AI validation offline)  
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "ID front accepted. Your document will be verified on submission.",
+      });
+    } else if (result.details?.face_detection_skipped) {
+      // Check if face detection was skipped (CompreFace unavailable) - show warning
       toast.warning("Manual Review Required", {
         description:
           result.warning ||
@@ -384,8 +406,13 @@ const AgencyKYCPage = () => {
 
     setRepIDBack(f);
 
-    // Check if face detection was skipped (CompreFace unavailable) - show warning
-    if (result.details?.face_detection_skipped) {
+    // Treat network error as warning (AI validation offline)
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "ID back accepted. Your document will be verified on submission.",
+      });
+    } else if (result.details?.face_detection_skipped) {
+      // Check if face detection was skipped (CompreFace unavailable) - show warning
       toast.warning("Manual Review Required", {
         description:
           result.warning ||
@@ -393,6 +420,65 @@ const AgencyKYCPage = () => {
       });
     } else {
       toast.success("ID Back Validated", { description: "Document accepted" });
+    }
+  };
+
+  const handleRepSelfieChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const err = validateFile(f);
+    if (err) return toast.error(err);
+
+    handleFilePreview(f, setRepSelfiePreview);
+    setSelfieValidationError(null);
+
+    if (f.type === "application/pdf") {
+      toast.error("Please upload an image (JPG/PNG) for the selfie");
+      setRepSelfiePreview("");
+      return;
+    }
+
+    setIsValidatingSelfie(true);
+    const result = await validateDocumentWithAI(f, "REP_SELFIE");
+    setIsValidatingSelfie(false);
+
+    if (!result.valid) {
+      const errorMessage =
+        result.error ||
+        result.details?.ai_rejection_message ||
+        (result.details?.ai_rejection_reason === "NO_FACE_DETECTED"
+          ? "No face detected. Please take a clear photo showing your face."
+          : result.details?.ai_rejection_reason === "IMAGE_TOO_BLURRY"
+            ? "Selfie is too blurry. Please retake with better lighting."
+            : "Selfie validation failed. Please try again with a clearer photo.");
+      setSelfieValidationError(errorMessage);
+      toast.error("Selfie Validation Failed", { description: errorMessage });
+      setRepSelfiePreview("");
+      return;
+    }
+
+    setRepSelfie(f);
+    if (result.file_hash) {
+      setFileHashes((prev) => ({ ...prev, REP_SELFIE: result.file_hash! }));
+    }
+
+    // Treat network error as warning (AI validation offline)
+    if (result.networkError) {
+      toast.warning("Validation Unavailable", {
+        description: "Selfie accepted. Face matching will be verified on submission.",
+      });
+    } else if (result.details?.face_detection_skipped) {
+      toast.warning("Manual Review Required", {
+        description:
+          result.warning ||
+          "Face verification unavailable. Selfie will be reviewed manually.",
+      });
+    } else {
+      toast.success("Selfie Validated", {
+        description: "Face detected successfully",
+      });
     }
   };
 
@@ -523,6 +609,9 @@ const AgencyKYCPage = () => {
       formData.append("rep_front", repIDFront as Blob);
       formData.append("rep_back", repIDBack as Blob);
       formData.append("business_permit", businessPermit as Blob);
+      if (repSelfie) {
+        formData.append("rep_selfie", repSelfie as Blob);
+      }
 
       // Add file hashes for optimized upload (skips AI re-validation)
       if (Object.keys(fileHashes).length > 0) {
@@ -691,11 +780,13 @@ const AgencyKYCPage = () => {
     setBusinessPermit(null);
     setRepIDFront(null);
     setRepIDBack(null);
+    setRepSelfie(null);
 
     // Clear all previews
     setPermitPreview("");
     setRepFrontPreview("");
     setRepBackPreview("");
+    setRepSelfiePreview("");
 
     // Clear OCR/confirmation state
     setOcrFields({});
@@ -705,6 +796,7 @@ const AgencyKYCPage = () => {
     // Clear validation states
     setRepFrontValidationError(null);
     setRepBackValidationError(null);
+    setSelfieValidationError(null);
 
     // Go back to step 1
     setCurrentStep(1);
@@ -1077,6 +1169,100 @@ const AgencyKYCPage = () => {
               disabled={isValidatingRepBack}
             />
           </div>
+
+          {/* Representative Selfie — required for face matching */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Representative Selfie <span className="text-red-500">*</span>
+              {isValidatingSelfie && (
+                <span className="text-blue-500 text-xs ml-2">
+                  Validating...
+                </span>
+              )}
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              Take a clear photo of the representative&apos;s face. It must
+              match the face on the ID.
+            </p>
+            <label
+              htmlFor="repSelfie"
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
+                selfieValidationError
+                  ? "border-red-400 bg-red-50"
+                  : repSelfie
+                    ? "border-green-400"
+                    : "border-purple-300 hover:border-purple-500"
+              } ${isValidatingSelfie ? "opacity-60 pointer-events-none" : ""}`}
+            >
+              {isValidatingSelfie ? (
+                <div className="flex flex-col items-center">
+                  <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                  <p className="text-sm text-purple-600">Detecting face...</p>
+                </div>
+              ) : repSelfiePreview ? (
+                <div className="relative">
+                  <Image
+                    src={repSelfiePreview}
+                    alt="Rep selfie"
+                    width={150}
+                    height={150}
+                    className="mx-auto rounded-full object-cover"
+                  />
+                  {repSelfie && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <svg
+                    className="w-10 h-10 text-purple-400 mx-auto mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                  <p className="text-sm font-medium text-gray-700">
+                    Upload representative selfie{" "}
+                    <span className="text-red-500">*</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    JPG, PNG (Max 15MB)
+                  </p>
+                </div>
+              )}
+            </label>
+            {selfieValidationError && (
+              <p className="text-red-500 text-xs mt-1">
+                {selfieValidationError}
+              </p>
+            )}
+            <input
+              id="repSelfie"
+              type="file"
+              accept="image/*"
+              onChange={handleRepSelfieChange}
+              className="hidden"
+              disabled={isValidatingSelfie}
+            />
+          </div>
         </div>
       </div>
 
@@ -1084,7 +1270,11 @@ const AgencyKYCPage = () => {
         <Button
           onClick={handleExtractOCR}
           disabled={
-            isExtractingOCR || !businessPermit || !repIDFront || !repIDBack
+            isExtractingOCR ||
+            !businessPermit ||
+            !repIDFront ||
+            !repIDBack ||
+            !repSelfie
           }
           className="bg-blue-500 text-white"
         >

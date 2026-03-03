@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { Suspense } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Form,
   FormControl,
@@ -782,4 +783,32 @@ const Login = () => {
   );
 };
 
-export default Login;
+// Separate component so useSearchParams is inside a Suspense boundary
+function VerifiedEmailToast() {
+  const searchParams = useSearchParams();
+  const { showAuthSuccess } = useAuthToast();
+
+  useEffect(() => {
+    if (searchParams.get("verified") === "true") {
+      showAuthSuccess(
+        "Your email has been verified. Please sign in to continue.",
+        "Email Verified!"
+      );
+    }
+  }, [searchParams]);
+
+  return null;
+}
+
+function LoginPage() {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <VerifiedEmailToast />
+      </Suspense>
+      <Login />
+    </>
+  );
+}
+
+export default LoginPage;
