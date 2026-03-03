@@ -340,31 +340,33 @@ export default function WalletScreen() {
         {/* Quick Stats */}
         {!walletLoading && !walletError && (
           <View style={styles.statsRow}>
-            <Card style={styles.statCard}>
+            <View style={styles.statCard}>
               <Ionicons
                 name="calendar-outline"
-                size={20}
-                color={Colors.info}
+                size={24}
+                color="#7FC9F1"
                 style={styles.statIcon}
               />
               <Text style={styles.statLabel}>This Month</Text>
-              <Text style={[styles.statValue, { color: Colors.info }]}>
+              <Text style={[styles.statValue, { color: Colors.textSecondary }]}>
                 {formatCurrency(walletData?.this_month || 0)}
               </Text>
-            </Card>
+            </View>
 
-            <Card style={styles.statCard}>
+            <View style={{ width: 1, height: 60, backgroundColor: Colors.border }} />
+
+            <View style={styles.statCard}>
               <Ionicons
                 name="trending-up-outline"
-                size={20}
-                color={Colors.success}
+                size={24}
+                color="#7FC9F1"
                 style={styles.statIcon}
               />
               <Text style={styles.statLabel}>Total Earned</Text>
-              <Text style={[styles.statValue, { color: Colors.success }]}>
+              <Text style={[styles.statValue, { color: Colors.textSecondary }]}>
                 {formatCurrency(walletData?.total_earned || 0)}
               </Text>
-            </Card>
+            </View>
           </View>
         )}
 
@@ -495,12 +497,18 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   scrollContent: {
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
   },
   balanceCard: {
     alignItems: "center",
     padding: Spacing.xl,
     marginBottom: Spacing.md,
+    elevation: 0,
+    shadowColor: "transparent", 
+    shadowOpacity: 0,
+    borderWidth: 1,
+    borderColor: "#7FC9F1",
   },
   balanceLabel: {
     ...Typography.body.medium,
@@ -559,6 +567,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    alignItems: "center",
   },
   statCard: {
     flex: 1,
@@ -593,8 +602,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   filterTab: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -605,7 +614,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   filterTabText: {
-    ...Typography.body.medium,
+    ...Typography.body.small,
     color: Colors.textSecondary,
     fontWeight: "600",
   },
@@ -642,8 +651,8 @@ const styles = StyleSheet.create({
   pendingEarningsCard: {
     padding: Spacing.lg,
     marginBottom: Spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.warning,
+    borderWidth: 1,
+    borderColor: Colors.warning,
   },
   pendingEarningsHeader: {
     flexDirection: "row",

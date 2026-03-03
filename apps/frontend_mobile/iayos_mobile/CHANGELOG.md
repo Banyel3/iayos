@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Withdrawal Screen Layout Fix & Enhancements**
+  - Moved header outside KeyboardAvoidingView to fix layout issues
+  - Removed vertical offset to eliminate whitespace above keyboard
+  - Removed quick amount buttons and bottom banner to reduce redundancy
+  - Added "Insufficient Funds" label to withdrawal button when balance is exceeded
+  - Added bottom padding to footer for better button spacing
+  - **Impact**: Improved user experience, clearer error feedback, and visual layout on withdrawal screen
+
 - **APK Auto-Update Stuck on "Installing" on Real Devices**
   - Added `REQUEST_INSTALL_PACKAGES` permission to AndroidManifest (required by Android 8+ / API 26+)
   - Switched install intent from `ACTION_VIEW` to `ACTION_INSTALL_PACKAGE` for better compatibility

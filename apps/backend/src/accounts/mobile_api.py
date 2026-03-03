@@ -5402,9 +5402,9 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         method_type = payload.type or 'GCASH'
 
         # Validate method type
-        if method_type not in ['GCASH', 'BANK', 'PAYPAL']:
+        if method_type not in ['GCASH', 'BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA']:
             return Response(
-                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL"},
+                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL, MAYA, GRABPAY, VISA"},
                 status=400
             )
         
@@ -5416,12 +5416,12 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             )
 
         # Type-specific validation
-        if method_type == 'GCASH':
-            # Validate and clean GCash number format
+        if method_type in ['GCASH', 'MAYA', 'GRABPAY']:
+            # Validate and clean mobile wallet number format
             clean_number = payload.account_number.replace(' ', '').replace('-', '')
             if not clean_number.startswith('09') or len(clean_number) != 11:
                 return Response(
-                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                    {"error": f"Invalid {method_type} number format (must be 11 digits starting with 09)"},
                     status=400
                 )
         elif method_type == 'BANK':
@@ -5474,7 +5474,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             
             # Create payment method
             # Only GCASH requires verification, BANK and PAYPAL are manually verified by admin
-            is_verified = (method_type in ['BANK', 'PAYPAL'])
+            is_verified = (method_type in ['BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA'])
             
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,

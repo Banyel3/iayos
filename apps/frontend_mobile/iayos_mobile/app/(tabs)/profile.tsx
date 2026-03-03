@@ -38,6 +38,7 @@ import CalendarFAB from "@/components/CalendarFAB";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+
   const router = useRouter();
   const scanLocation = useScanLocation();
 
@@ -633,30 +634,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Account Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Information</Text>
-          <View style={styles.infoCard}>
-            <InfoRow
-              icon="mail-outline"
-              label="Email"
-              value={user?.email || "Not set"}
-            />
-            <InfoRow
-              icon="checkmark-circle-outline"
-              label="Email Verified"
-              value={user?.isVerified ? "Yes" : "No"}
-              valueColor={user?.isVerified ? Colors.success : Colors.warning}
-            />
-            <InfoRow
-              icon="shield-checkmark-outline"
-              label="Account Status"
-              value="Active"
-              valueColor={Colors.success}
-            />
-          </View>
-        </View>
-
         {/* Client Trust Metrics */}
         {!isWorker && (
           <View style={styles.section}>
@@ -668,16 +645,11 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Worker-Specific Info */}
+        {/* Worker Performance Stats (was Worker Info, stripped of Profile Type) */}
         {isWorker && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Worker Information</Text>
+            <Text style={styles.sectionTitle}>Performance</Text>
             <View style={styles.infoCard}>
-              <InfoRow
-                icon="location-outline"
-                label="Profile Type"
-                value={user?.profile_data?.profileType || "Not set"}
-              />
               <InfoRow
                 icon="star-outline"
                 label="Rating"
@@ -703,79 +675,25 @@ export default function ProfileScreen() {
           profileType={isWorker ? "WORKER" : "CLIENT"}
         />
 
-        {/* Worker Certifications */}
-        {isWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Certifications</Text>
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="ribbon"
-                label="Manage Certifications"
-                onPress={() => router.push("/profile/certifications" as any)}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Worker Materials & Products */}
-        {isWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Materials & Products</Text>
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="cube-outline"
-                label="Manage Materials"
-                onPress={() => router.push("/profile/materials" as any)}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Payment Methods Section */}
+        {/* Account & Settings Links */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payments</Text>
+          <Text style={styles.sectionTitle}>General</Text>
           <View style={styles.menuCard}>
             <MenuItem
-              icon="card-outline"
-              label="Payment Methods"
-              onPress={() => router.push("/profile/payment-methods" as any)}
-            />
-          </View>
-        </View>
-
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          <View style={styles.menuCard}>
-            <MenuItem
+<<<<<<< design/dara
+              icon="person-circle-outline"
+              label="Account Information"
+              onPress={() => router.push("/profile/account-info" as any)}
+=======
               icon="notifications-outline"
               label="Notifications"
               onPress={() => router.push("/notifications" as any)}
+>>>>>>> main
             />
             <MenuItem
-              icon="shield-checkmark-outline"
-              label="Privacy Policy"
-              onPress={() => router.push("/legal/privacy" as any)}
-            />
-            <MenuItem
-              icon="document-text-outline"
-              label="Terms of Service"
-              onPress={() => router.push("/legal/terms" as any)}
-            />
-            <MenuItem
-              icon="people-outline"
-              label="Community Guidelines"
-              onPress={() => router.push("/legal/community-guidelines" as any)}
-            />
-            <MenuItem
-              icon="help-circle-outline"
-              label="Help & Support"
-              onPress={() => router.push("/support" as any)}
-            />
-            <MenuItem
-              icon="information-circle-outline"
-              label="About iAyos"
-              onPress={() => router.push("/legal/about" as any)}
+              icon="settings-outline"
+              label="Settings"
+              onPress={() => router.push("/profile/settings" as any)}
             />
           </View>
         </View>
@@ -881,10 +799,134 @@ function TrustMetricCard({
   );
 }
 
+function CollapsibleSection({
+  title,
+  icon,
+  children,
+  isExpanded,
+  onToggle,
+}: {
+  title: string;
+  icon: string;
+  children: React.ReactNode;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <View style={styles.collapsibleContainer}>
+      <TouchableOpacity
+        style={[
+          styles.collapsibleHeader,
+          isExpanded && styles.collapsibleHeaderExpanded,
+        ]}
+        onPress={onToggle}
+        activeOpacity={0.7}
+      >
+        <View style={styles.collapsibleHeaderContent}>
+          <Ionicons name={icon as any} size={24} color={Colors.primary} />
+          <Text
+            style={[
+              styles.collapsibleTitle,
+              isExpanded && styles.collapsibleTitleExpanded,
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
+        <Ionicons
+          name={isExpanded ? "chevron-up" : "chevron-down"}
+          size={24}
+          color={Colors.textSecondary}
+        />
+      </TouchableOpacity>
+      {isExpanded && (
+        <View style={styles.collapsibleContent}>{children}</View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  header: {
+    alignItems: "center",
+    paddingTop: Spacing["4xl"],
+    paddingBottom: Spacing["2xl"],
+    paddingHorizontal: Spacing.xl,
+    backgroundColor: Colors.primaryLight,
+  },
+  headerContent: {
+    alignItems: "center",
+    width: "100%",
+  },
+  avatarContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: Spacing.lg,
+    overflow: "hidden",
+    ...Shadows.md,
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: Colors.primaryDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.error,
+  },
+  collapsibleContainer: {
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.sm,
+  },
+  collapsibleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+  },
+  collapsibleHeaderExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  collapsibleHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  collapsibleTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textPrimary,
+  },
+  collapsibleTitleExpanded: {
+    color: Colors.primary,
+  },
+  collapsibleContent: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    borderBottomLeftRadius: BorderRadius.lg,
+    borderBottomRightRadius: BorderRadius.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+    ...Shadows.sm,
   },
   topActionsContainer: {
     position: "absolute",
@@ -912,42 +954,6 @@ const styles = StyleSheet.create({
   notificationButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    ...Shadows.sm,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#FF3B30",
-    fontSize: 10,
-  },
-  header: {
-    backgroundColor: Colors.primaryLight,
-    paddingVertical: Spacing["3xl"],
-    paddingHorizontal: Spacing["2xl"],
-  },
-  headerContent: {
-    alignItems: "center",
-  },
-  avatarContainer: {
-    marginBottom: Spacing.lg,
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
     ...Shadows.primary,
   },
   avatarText: {
