@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -2176,6 +2176,63 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "You cannot apply to your own job posting"},
                 status=403
             )
+
+        # Block workers from applying while currently working on another active assignment
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS,
+        ).exclude(jobID=job.jobID).first()
+
+        if active_regular_job:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active job in progress",
+                message=(
+                    f"You can't apply right now because you're currently working on "
+                    f"'{active_regular_job.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_regular_job.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active job: '{active_regular_job.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title,
+                },
+                status=400,
+            )
+
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE',
+        ).select_related('jobID').first()
+
+        if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active team assignment",
+                message=(
+                    f"You can't apply right now because you're currently assigned to "
+                    f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_team_assignment.jobID.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title,
+                },
+                status=400,
+            )
         
         # Check if job is still active
         if job.status != JobPosting.JobStatus.ACTIVE:
@@ -2222,6 +2279,22 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "Invalid budget option"},
                 status=400
             )
+
+        if data.budget_option == 'NEGOTIATE' and job.categoryID and job.categoryID.minimumRate and data.proposed_budget is not None:
+            proposed_budget = Decimal(str(data.proposed_budget))
+            minimum_rate = Decimal(str(job.categoryID.minimumRate))
+            if proposed_budget < minimum_rate:
+                return Response(
+                    {
+                        "error": (
+                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
+                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                        ),
+                        "minimum_rate": float(minimum_rate),
+                        "category": job.categoryID.specializationName,
+                    },
+                    status=400,
+                )
         
         # Create the application
         application = JobApplication.objects.create(
@@ -2237,7 +2310,6 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         print(f"✅ Application {application.applicationID} created successfully")
 
         # Create notification for the client
-        from accounts.models import Notification
         worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
@@ -2479,7 +2551,6 @@ def accept_application(request, job_id: int, application_id: int):
                     print(f"✅ Updated fee transaction {pending_fee.transactionID} to COMPLETED")
                 
                 # Create escrow payment notification
-                from accounts.models import Notification
                 Notification.objects.create(
                     accountFK=request.auth,
                     notificationType="ESCROW_PAID",
@@ -2531,7 +2602,6 @@ def accept_application(request, job_id: int, application_id: int):
             ).select_related('workerID__profileID__accountFK')
 
             # Notify rejected workers
-            from accounts.models import Notification
             for other_app in other_applications:
                 Notification.objects.create(
                     accountFK=other_app.workerID.profileID.accountFK,
@@ -4116,6 +4186,31 @@ def client_approve_job_completion(
                 )
                 print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
 
+                if recipient_account:
+                    Notification.objects.create(
+                        accountFK=recipient_account,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Final payment for '{job.title}' is completed by the client. "
+                            f"Funds are now in pending release for {buffer_days} days."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
+                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
+                for admin in admin_accounts:
+                    Notification.objects.create(
+                        accountFK=admin,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Client completed final WALLET payment for job '{job.title}' "
+                            f"(₱{remaining_amount})."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
                 return {
                     "success": True,
                     "message": f"Payment successful! Job completed. Worker payment is pending for {buffer_days} days. Please leave a review.",
@@ -4212,6 +4307,31 @@ def client_approve_job_completion(
                     relatedJobID=job.jobID
                 )
                 print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+
+                if cash_recipient_account:
+                    Notification.objects.create(
+                        accountFK=cash_recipient_account,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Final CASH payment for '{job.title}' is confirmed by the client. "
+                            f"Escrow portion is pending release for {buffer_days} days."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
+                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
+                for admin in admin_accounts:
+                    Notification.objects.create(
+                        accountFK=admin,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Client uploaded final CASH payment proof for job '{job.title}' "
+                            f"(₱{remaining_amount})."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
                 
                 return {
                     "success": True,
@@ -5652,6 +5772,21 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             return Response(
                 {"error": "Only the client who posted this job can request a backjob"},
                 status=403
+            )
+
+        # Anti-abuse guard: limit concurrent active backjob requests per client
+        active_backjob_count = JobDispute.objects.filter(
+            jobID__clientID__profileID__accountFK=request.auth,
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+        ).count()
+        if active_backjob_count >= 3:
+            return Response(
+                {
+                    "error": "Backjob request limit reached. You can only have up to 3 active backjob requests at a time.",
+                    "active_backjob_count": active_backjob_count,
+                    "max_active_backjobs": 3,
+                },
+                status=429,
             )
         
         # Check if a dispute/backjob already exists for this job

@@ -57,7 +57,6 @@ import {
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
-import { AGORA_AVAILABLE } from "../../lib/services/agora";
 import {
   useWorkerCheckIn,
   useWorkerCheckOut,
@@ -78,6 +77,8 @@ import {
   useUploadPurchaseProof,
   useSkipMaterialsStep,
 } from "../../lib/hooks/useJobMaterials";
+
+const AGORA_AVAILABLE = true;
 import type { JobMaterialItem } from "../../lib/hooks/useMessages";
 import {
   Colors,
@@ -157,12 +158,17 @@ export default function ChatScreen() {
   // For team jobs: track current worker being reviewed
   const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
+  // Get current user for role-aware rendering and team assignment identification
+  const { user } = useAuth();
+
+  const messageViewerKey = `${user?.accountID ?? "anon"}:${user?.profile_data?.profileType ?? "UNKNOWN"}`;
+
   // Fetch conversation and messages
   const {
     data: conversation,
     isLoading,
     refetch,
-  } = useMessages(conversationId);
+  } = useMessages(conversationId, messageViewerKey);
 
   // For agency jobs: Auto-set review step based on what's already reviewed
   useEffect(() => {
@@ -264,9 +270,6 @@ export default function ChatScreen() {
   const clientConfirmAttendanceMutation = useClientConfirmAttendance();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
-
-  // Get current user for team job assignment identification
-  const { user } = useAuth();
 
   // Voice calling
   const { initiateCall, callStatus } = useAgoraCall();
@@ -1190,7 +1193,6 @@ export default function ChatScreen() {
         throw new Error(uploadResult?.error || "Failed to send image. Please try again.");
       }
 
-      Alert.alert("Success", "Image sent successfully!");
       resetProgress();
 
       // Refetch conversation to show the new image message
@@ -1202,9 +1204,16 @@ export default function ChatScreen() {
       }, 100);
     } catch (error) {
       console.error("[ChatScreen] Image upload failed:", error);
+      const parsed = getErrorMessage(
+        error,
+        "Failed to send image. Please try again.",
+      );
+      const userMessage = parsed.toLowerCase().includes("network error during upload")
+        ? "Upload failed due to network instability. Please check connection and try again."
+        : parsed;
       Alert.alert(
         "Error",
-        getErrorMessage(error, "Failed to send image. Please try again."),
+        userMessage,
       );
     }
   };
@@ -4876,9 +4885,10 @@ export default function ChatScreen() {
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
-              : `msg_${index}_${item.created_at}`
+              : `msg_${item.created_at}_${item.sender_name || "unknown"}_${item.message_type || "TEXT"}_${item.message_text || ""}`
           }
           renderItem={renderMessage}
+          extraData={messageViewerKey}
           ListFooterComponent={renderTypingIndicator}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}

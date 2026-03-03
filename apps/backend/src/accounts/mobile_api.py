@@ -5,6 +5,7 @@ import os
 from ninja import Router
 from ninja.responses import Response
 from typing import Optional
+from decimal import Decimal
 from .schemas import (
     createAccountSchema,
     logInSchema,
@@ -2574,7 +2575,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     Only workers can apply for jobs
     Supports both Bearer token (mobile) and cookie (web) authentication
     """
-    from .models import Profile, WorkerProfile, Agency, Notification, workerSpecialization
+    from .models import Profile, WorkerProfile, Agency, Notification, JobWorkerAssignment, workerSpecialization
     from jobs.models import JobPosting
     from accounts.models import JobApplication
     
@@ -2627,6 +2628,63 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             return Response(
                 {"error": "You cannot apply to your own job posting"},
                 status=403
+            )
+
+        # Block workers from applying while currently working on another active assignment
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS,
+        ).exclude(jobID=job.jobID).first()
+
+        if active_regular_job:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active job in progress",
+                message=(
+                    f"You can't apply right now because you're currently working on "
+                    f"'{active_regular_job.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_regular_job.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active job: '{active_regular_job.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title,
+                },
+                status=400,
+            )
+
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE',
+        ).select_related('jobID').first()
+
+        if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active team assignment",
+                message=(
+                    f"You can't apply right now because you're currently assigned to "
+                    f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_team_assignment.jobID.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title,
+                },
+                status=400,
             )
         
         # Check if job is still active
@@ -2688,6 +2746,27 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "Proposed budget is required when negotiating"},
                 status=400
             )
+
+        if (
+            payload.budget_option == 'NEGOTIATE'
+            and payload.proposed_budget is not None
+            and job.categoryID
+            and job.categoryID.minimumRate
+        ):
+            proposed_budget = Decimal(str(payload.proposed_budget))
+            minimum_rate = Decimal(str(job.categoryID.minimumRate))
+            if proposed_budget < minimum_rate:
+                return Response(
+                    {
+                        "error": (
+                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
+                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                        ),
+                        "minimum_rate": float(minimum_rate),
+                        "category": job.categoryID.specializationName,
+                    },
+                    status=400,
+                )
         
         # Create the application
         application = JobApplication.objects.create(

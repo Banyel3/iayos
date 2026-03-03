@@ -44,38 +44,33 @@ export function useWorkerSchedule() {
 export function buildMarkedDates(jobs: ScheduledJob[]): Record<string, any> {
   const marked: Record<string, any> = {};
 
+  const parseLocalDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split("-").map(Number);
+    return new Date(year, (month || 1) - 1, day || 1);
+  };
+
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   jobs.forEach((job, idx) => {
     const colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
     const color = colors[idx % colors.length];
 
-    const start = new Date(job.preferred_start_date);
-    const end = new Date(job.scheduled_end_date);
+    const start = parseLocalDate(job.preferred_start_date);
+    const end = parseLocalDate(job.scheduled_end_date);
 
     // Mark every day in the range
     const current = new Date(start);
     while (current <= end) {
-      const dateStr = current.toISOString().split("T")[0];
+      const dateStr = formatLocalDate(current);
       if (!marked[dateStr]) {
         marked[dateStr] = {
           dots: [],
-          periods: [],
-          startingDay: false,
-          endingDay: false,
         };
-      }
-      if (current.getTime() === start.getTime()) {
-        marked[dateStr].startingDay = true;
-        marked[dateStr].color = color;
-        marked[dateStr].textColor = "#ffffff";
-      }
-      if (current.getTime() === end.getTime()) {
-        marked[dateStr].endingDay = true;
-        marked[dateStr].color = color;
-        marked[dateStr].textColor = "#ffffff";
-      }
-      if (current > start && current < end) {
-        marked[dateStr].color = color + "88"; // semi-transparent for range
-        marked[dateStr].textColor = "#ffffff";
       }
       marked[dateStr].dots = marked[dateStr].dots || [];
       const existingDot = marked[dateStr].dots.find((d: any) => d.color === color);
