@@ -26,7 +26,6 @@ import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
 import { useScanLocation } from "@/lib/hooks/useLocation";
-import { ReviewsSection } from "@/components/ReviewsSection";
 import {
   useDualProfileStatus,
   useCreateClientProfile,
@@ -182,7 +181,7 @@ export default function ProfileScreen() {
         />
         <InfoRow
           icon="star-outline"
-          label="Average Rating"
+          label="Rating"
           value={
             ratingValue && ratingValue > 0
               ? `${ratingValue.toFixed(1)} / 5${
@@ -606,7 +605,7 @@ export default function ProfileScreen() {
           <View style={styles.walletActions}>
             {isWorker ? (
               <TouchableOpacity
-                style={styles.withdrawButton}
+                style={[styles.withdrawButton, { backgroundColor: '#54B7EB' }]}
                 activeOpacity={0.8}
                 onPress={() => router.push("/wallet/withdraw" as any)}
               >
@@ -637,58 +636,46 @@ export default function ProfileScreen() {
         {/* Client Trust Metrics */}
         {!isWorker && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trust & Performance</Text>
-            <Text style={styles.sectionDescription}>
-              Workers see these stats when reviewing your job requests.
-            </Text>
+            <Text style={styles.sectionTitle}>Performance</Text>
             {renderTrustMetrics()}
           </View>
         )}
 
-        {/* Worker Performance Stats (was Worker Info, stripped of Profile Type) */}
+        {/* Worker Performance Stats */}
         {isWorker && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Performance</Text>
-            <View style={styles.infoCard}>
-              <InfoRow
+            <View style={styles.menuCard}>
+              <MenuItem
                 icon="star-outline"
                 label="Rating"
                 value={
-                  user?.profile_data?.workerRating &&
+                  user?.profile_data?.workerRating != null &&
                   user.profile_data.workerRating > 0
-                    ? `${user.profile_data.workerRating} / 5`
-                    : "No ratings yet"
+                    ? Number(user.profile_data.workerRating).toFixed(1)
+                    : "0.0"
                 }
+                onPress={() => router.push("/reviews/my-reviews" as any)}
               />
-              <InfoRow
+              <MenuItem
                 icon="briefcase-outline"
                 label="Jobs Completed"
                 value={String(user?.profile_data?.jobsCompleted ?? 0)}
+                hideChevron
+                style={{ borderBottomWidth: 0 }}
               />
             </View>
           </View>
         )}
-
-        {/* Reviews Section - For all users */}
-        <ReviewsSection
-          accountId={user?.accountID || 0}
-          profileType={isWorker ? "WORKER" : "CLIENT"}
-        />
 
         {/* Account & Settings Links */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>General</Text>
           <View style={styles.menuCard}>
             <MenuItem
-<<<<<<< design/dara
               icon="person-circle-outline"
               label="Account Information"
               onPress={() => router.push("/profile/account-info" as any)}
-=======
-              icon="notifications-outline"
-              label="Notifications"
-              onPress={() => router.push("/notifications" as any)}
->>>>>>> main
             />
             <MenuItem
               icon="settings-outline"
@@ -727,14 +714,16 @@ function InfoRow({
   label,
   value,
   valueColor = Colors.textPrimary,
+  style,
 }: {
   icon: string;
   label: string;
   value: string;
   valueColor?: string;
+  style?: any;
 }) {
   return (
-    <View style={styles.infoRow}>
+    <View style={[styles.infoRow, style]}>
       <View style={styles.infoLeft}>
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
@@ -748,24 +737,42 @@ function MenuItem({
   icon,
   label,
   onPress,
+  value,
+  hideChevron = false,
+  style,
 }: {
   icon: string;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
+  value?: string;
+  hideChevron?: boolean;
+  style?: object;
 }) {
-  return (
-    <TouchableOpacity
-      style={styles.menuItem}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
+  const content = (
+    <View style={[styles.menuItem, style]}>
       <View style={styles.menuLeft}>
         <Ionicons name={icon as any} size={22} color={Colors.textSecondary} />
         <Text style={styles.menuLabel}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
-    </TouchableOpacity>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        {value !== undefined && (
+          <Text style={styles.menuValueText}>{value}</Text>
+        )}
+        {!hideChevron && (
+          <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+        )}
+      </View>
+    </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+  return content;
 }
 
 type MetricStatus = "default" | "success" | "warning";
@@ -1097,7 +1104,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.success,
+    backgroundColor: "#00BAF1",  
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
@@ -1214,6 +1221,10 @@ const styles = StyleSheet.create({
   menuLabel: {
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
+  },
+  menuValueText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
   },
   // Profile Switcher Styles
   switchProfileCard: {

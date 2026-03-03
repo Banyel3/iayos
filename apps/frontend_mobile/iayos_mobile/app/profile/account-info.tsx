@@ -46,24 +46,21 @@ export default function AccountInfoScreen() {
             icon="mail-outline"
             label="Email"
             value={user?.email || "Not set"}
-          />
-          <InfoRow
-            icon="checkmark-circle-outline"
-            label="Email Verified"
-            value={user?.isVerified ? "Yes" : "No"}
-            valueColor={user?.isVerified ? Colors.success : Colors.warning}
+            verified={user?.isVerified}
           />
           <InfoRow
             icon="shield-checkmark-outline"
             label="Account Status"
             value="Active"
             valueColor={Colors.success}
+            noBorder={!hasProfileType}
           />
           {hasProfileType && (
             <InfoRow
               icon="location-outline"
               label="Profile Type"
               value={user?.profile_data?.profileType || "Not set"}
+              noBorder
             />
           )}
         </View>
@@ -81,6 +78,7 @@ export default function AccountInfoScreen() {
                 icon="cube-outline"
                 label="Manage Materials"
                 onPress={() => router.push("/profile/materials" as any)}
+                noBorder
               />
             </View>
           </View>
@@ -92,6 +90,7 @@ export default function AccountInfoScreen() {
             <MenuItem
               icon="card-outline"
               label="Payment Methods"
+              noBorder
               onPress={() => router.push("/profile/payment-methods" as any)}
             />
           </View>
@@ -106,19 +105,28 @@ function InfoRow({
   label,
   value,
   valueColor = Colors.textPrimary,
+  verified = false,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
   value: string;
   valueColor?: string;
+  verified?: boolean;
+  noBorder?: boolean;
 }) {
   return (
-    <View style={styles.infoRow}>
+    <View style={[styles.infoRow, noBorder && { borderBottomWidth: 0 }]}>
       <View style={styles.infoLeft}>
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+        {verified && (
+          <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+        )}
+      </View>
     </View>
   );
 }
@@ -127,14 +135,16 @@ function MenuItem({
   icon,
   label,
   onPress,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
   onPress: () => void;
+  noBorder?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, noBorder && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
