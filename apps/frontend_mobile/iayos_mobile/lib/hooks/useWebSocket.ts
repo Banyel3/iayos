@@ -79,6 +79,17 @@ export function useSendMessage() {
       text: string,
       type: "TEXT" | "IMAGE" = "TEXT"
     ): Promise<boolean> => {
+      if (!websocketService.isConnected()) {
+        try {
+          await websocketService.connect();
+        } catch (error) {
+          console.warn(
+            "[useSendMessage] Failed to establish WebSocket before send, using HTTP fallback:",
+            error
+          );
+        }
+      }
+
       // Try WebSocket first
       const sent = websocketService.sendMessage(conversationId, text, type);
 
