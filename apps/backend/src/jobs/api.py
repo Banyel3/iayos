@@ -1534,7 +1534,7 @@ def get_completed_jobs(request):
         )
 
 
-@router.get("/worker-schedule", auth=cookie_auth)
+@router.get("/worker-schedule", auth=dual_auth)
 def get_worker_schedule(request):
     """Get current worker's scheduled/active jobs for calendar display.
     Returns jobs that have both preferredStartDate and scheduled_end_date set.

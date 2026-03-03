@@ -5006,6 +5006,24 @@ def mobile_get_pending_reviews(request):
             status=500
         )
 
+
+@mobile_router.post("/reviews/pending", auth=jwt_auth)
+def mobile_get_pending_reviews_post(request):
+    """
+    Backward-compatible alias for clients that accidentally call POST.
+    Delegates to the GET handler.
+    """
+    return mobile_get_pending_reviews(request)
+
+
+@mobile_router.get("/reviews/pending-jobs", auth=jwt_auth)
+def mobile_get_pending_reviews_alias(request):
+    """
+    Stable alias endpoint for pending reviews.
+    Avoids any potential path ambiguity with /reviews/pending/{job_id}.
+    """
+    return mobile_get_pending_reviews(request)
+
 #endregion
 
 #region PROFILE SWITCHING
