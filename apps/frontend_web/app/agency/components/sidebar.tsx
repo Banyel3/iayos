@@ -142,7 +142,10 @@ export default function AgencySidebar({
         if (msgRes.ok) {
           const data = await msgRes.json();
           const convos = data.conversations ?? [];
-          const count = convos.filter((c: { unread_count?: number }) => (c.unread_count ?? 0) > 0).length;
+          const count = convos.reduce(
+            (sum: number, c: { unread_count?: number }) => sum + (c.unread_count ?? 0),
+            0,
+          );
           setUnreadMessagesCount(count);
         }
       } catch (error) {
