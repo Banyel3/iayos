@@ -1545,10 +1545,13 @@ def get_conversation_messages(request, conversation_id: int):
                 reviewerType="WORKER"
             ).exists()
             
-            # Check if client has reviewed (any workers so far)
+            # Check if client has reviewed THIS specific worker (viewer)
+            # This prevents false-positive reviewed state when the client has only reviewed other team workers.
             client_reviewed = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=client_account
+                reviewerID=client_account,
+                reviewerType="CLIENT",
+                revieweeID=request.auth
             ).exists()
         elif is_team_job and is_client and client_account:
             # Team job - CLIENT view: check if ALL assigned workers have reviewed
@@ -1868,10 +1871,19 @@ def get_conversation_messages(request, conversation_id: int):
         
         if client_reviewed and client_account:
             # Get client's review of worker/employee
-            client_review = JobReview.objects.filter(
+            client_review_qs = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account
-            ).first()
+            )
+
+            # Team job worker view: return the review addressed to the current worker account.
+            if is_team_job and not is_client:
+                client_review_qs = client_review_qs.filter(
+                    reviewerType="CLIENT",
+                    revieweeID=request.auth
+                )
+
+            client_review = client_review_qs.order_by('-createdAt').first()
             
             if client_review:
                 client_review_data = {

@@ -1783,6 +1783,9 @@ def reject_backjob(request, dispute_id: int):
         
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         if conversation:
+            if conversation.status != Conversation.ConversationStatus.COMPLETED:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=['status'])
             if before_state["status"] == "IN_NEGOTIATION":
                 from profiles.models import ConversationParticipant
                 ConversationParticipant.objects.filter(

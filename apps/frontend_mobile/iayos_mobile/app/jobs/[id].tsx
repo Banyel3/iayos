@@ -902,6 +902,11 @@ export default function JobDetailScreen() {
     (assignment) => assignment.worker_id === user?.profile_data?.id,
   );
 
+  const canAccessTeamGroupChat =
+    isTeamJob &&
+    isTeamFilled &&
+    (isClient || !!currentWorkerAssignment);
+
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
 
@@ -920,9 +925,11 @@ export default function JobDetailScreen() {
     }
 
     // Check if worker has the required skill
-    const hasRequiredSkill = mySkills.some(
-      (skill) => skill.specializationId === slot.specialization_id,
-    );
+    const hasRequiredSkill = mySkills.some((skill: any) => {
+      const skillSpecId =
+        skill?.specializationId ?? skill?.specializationID ?? skill?.id;
+      return Number(skillSpecId) === Number(slot.specialization_id);
+    });
 
     if (!hasRequiredSkill) {
       // Show warning but still allow them to proceed
@@ -2191,7 +2198,7 @@ export default function JobDetailScreen() {
         )}
 
         {/* View Group Chat button for team jobs with full roster - just above Client section */}
-        {isTeamJob && isTeamFilled && (
+        {canAccessTeamGroupChat && (
           <View style={[styles.section, { paddingTop: 0 }]}>
             <TouchableOpacity
               style={styles.viewGroupChatButton}
