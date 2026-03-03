@@ -1541,14 +1541,19 @@ def get_worker_schedule(request):
     """
     try:
         from accounts.models import WorkerProfile
-        profile = Profile.objects.filter(accountFK=request.auth).first()
-        if not profile:
-            return Response({"error": "Profile not found"}, status=404)
 
-        try:
-            worker_profile = WorkerProfile.objects.get(profileID=profile)
-        except WorkerProfile.DoesNotExist:
-            return Response({"error": "Worker profile not found"}, status=403)
+        # IMPORTANT: Resolve worker profile by account (not "first profile")
+        # to avoid false 403 for dual-profile users where CLIENT profile may be first.
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).select_related('profileID').first()
+
+        if not worker_profile:
+            return {
+                "success": True,
+                "jobs": [],
+                "message": "No worker profile found for this account"
+            }
 
         jobs = JobPosting.objects.filter(
             assignedWorkerID=worker_profile,
@@ -1563,12 +1568,16 @@ def get_worker_schedule(request):
                 {
                     "id": j.jobID,
                     "title": j.title,
-                    "preferred_start_date": str(j.preferredStartDate),
-                    "scheduled_end_date": str(j.scheduled_end_date),
+                    "preferred_start_date": j.preferredStartDate.isoformat()[:10] if j.preferredStartDate else None,
+                    "scheduled_end_date": j.scheduled_end_date.isoformat()[:10] if j.scheduled_end_date else None,
                     "status": j.status,
                     "client_name": (
                         f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
                     ),
+                    "other_party_name": (
+                        f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
+                    ),
+                    "location": j.location,
                     "budget": float(j.budget),
                 }
                 for j in jobs
