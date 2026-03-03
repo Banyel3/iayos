@@ -212,8 +212,8 @@ const styles = StyleSheet.create({
     borderRadius: 9999, // Fully circular
     overflow: "hidden",
     backgroundColor: Colors.background,
-    borderWidth: 3,
-    borderColor: Colors.border,
+    borderWidth: 2,
+    borderColor: "#00BAF1",
   },
   avatar: {
     borderRadius: 9999,

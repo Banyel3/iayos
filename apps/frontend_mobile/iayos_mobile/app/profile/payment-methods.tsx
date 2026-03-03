@@ -439,7 +439,7 @@ export default function PaymentMethodsScreen() {
             <Ionicons
               name="information-circle"
               size={20}
-              color={Colors.primary}
+              color={Colors.info}
             />
             <Text style={styles.infoText}>
               Add your payment accounts for withdrawals (GCash, Maya, Bank,
@@ -722,7 +722,9 @@ const styles = StyleSheet.create({
   },
   infoBanner: {
     flexDirection: "row",
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#E0F2FE",
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
@@ -731,7 +733,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     ...Typography.body.medium,
-    color: Colors.primary,
+    color: Colors.info,
     flex: 1,
   },
   loadingContainer: {

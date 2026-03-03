@@ -33,7 +33,7 @@ export default function AccountInfoScreen() {
           },
           headerShadowVisible: false,
           headerStyle: {
-            backgroundColor: Colors.white,
+            backgroundColor: Colors.background,
           },
         }}
       />
@@ -65,16 +65,14 @@ export default function AccountInfoScreen() {
           )}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment</Text>
-          <View style={styles.card}>
-            <MenuItem
-              icon="card-outline"
-              label="Payment Methods"
-              noBorder
-              onPress={() => router.push("/profile/payment-methods" as any)}
-            />
-          </View>
+        <Text style={styles.sectionTitle}>Payment</Text>
+        <View style={styles.card}>
+          <MenuItem
+            icon="card-outline"
+            label="Payment Methods"
+            noBorder
+            onPress={() => router.push("/profile/payment-methods" as any)}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -144,32 +142,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
+    gap: Spacing.sm,
   },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    ...Shadows.sm,
-  },
-  section: {
-    marginTop: Spacing.xl,
+    borderRadius: BorderRadius.medium,
+    ...Shadows.small,
+    overflow: "hidden",
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+    ...Typography.body.small,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textTertiary,
     marginLeft: Spacing.xs,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
     textTransform: "uppercase",
+    fontSize: 12,
   },
   infoRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    justifyContent: "space-between",
+    padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
   },
   infoLeft: {
     flexDirection: "row",
@@ -177,20 +177,23 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   infoLabel: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+    fontSize: 16,
+    color: Colors.textPrimary,
   },
   infoValue: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.medium,
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
   menuItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    justifyContent: "space-between",
+    padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
   },
   menuLeft: {
     flexDirection: "row",
@@ -198,7 +201,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   menuLabel: {
-    fontSize: Typography.fontSize.base,
+    fontFamily: "Inter_500Medium",
+    fontSize: 16,
     color: Colors.textPrimary,
   },
 });

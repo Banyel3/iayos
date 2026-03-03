@@ -197,31 +197,29 @@ export default function EditClientProfileScreen() {
         <View style={styles.formSection}>
           {/* First Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name (Read-only)</Text>
+            <Text style={styles.label}>First Name</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.firstName}
               editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>Identity verification prevents name changes</Text>
           </View>
 
           {/* Last Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name (Read-only)</Text>
+            <Text style={styles.label}>Last Name</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.lastName}
               editable={false}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>Identity verification prevents name changes</Text>
           </View>
 
           {/* Email (Read-only) */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address (Read-only)</Text>
+            <Text style={styles.label}>Email Address</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.email}

@@ -624,8 +624,8 @@ export default function ProfileScreen() {
         {isWorker && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Performance</Text>
-            <View style={styles.infoCard}>
-              <InfoRow
+            <View style={styles.menuCard}>
+              <MenuItem
                 icon="star-outline"
                 label="Rating"
                 value={
@@ -637,7 +637,7 @@ export default function ProfileScreen() {
                 showArrow={true}
                 onPress={() => router.push("/profile/reviews" as any)}
               />
-              <InfoRow
+              <MenuItem
                 icon="briefcase-outline"
                 label="Jobs Completed"
                 value={String(user?.profile_data?.jobsCompleted ?? 0)}
@@ -868,6 +868,8 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     marginBottom: Spacing.lg,
     overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#00BAF1",
     ...Shadows.md,
   },
   avatarImage: {
