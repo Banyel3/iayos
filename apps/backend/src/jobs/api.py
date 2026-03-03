@@ -4032,7 +4032,7 @@ def client_approve_job_completion(
             buffer_days = get_payment_buffer_days()
             
             # Handle WALLET payment (instant deduction from client, but pending for worker)
-            if payment_method == 'WALLET':
+            if payment_method_upper == 'WALLET':
                 print(f"💳 Wallet payment selected - checking balance")
                 
                 # Get or create wallet for client

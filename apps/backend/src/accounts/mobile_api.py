@@ -2046,6 +2046,28 @@ def mobile_get_job_applications(request, job_id: int):
                 {"error": "Job posting not found"},
                 status=404
             )
+
+        # DATE OVERLAP CHECK: Workers can apply to multiple jobs as long as dates don't conflict
+        if job.preferredStartDate and job.scheduled_end_date:
+            overlapping_job = JobPosting.objects.filter(
+                assignedWorkerID=worker_profile,
+                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                preferredStartDate__lte=job.scheduled_end_date,
+                scheduled_end_date__gte=job.preferredStartDate,
+            ).exclude(jobID=job.jobID).first()
+            if overlapping_job:
+                return Response(
+                    {
+                        "error": (
+                            f"Schedule conflict: you already have '{overlapping_job.title}' "
+                            f"scheduled on overlapping dates "
+                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
+                        ),
+                        "conflicting_job_id": overlapping_job.jobID,
+                        "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
         
         # Verify this client owns the job
         if job.clientID.profileID.profileID != client_profile.profileID.profileID:
