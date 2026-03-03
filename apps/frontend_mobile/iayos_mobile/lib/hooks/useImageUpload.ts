@@ -5,6 +5,18 @@ import { getAccessToken } from "@/lib/utils/tokenStorage";
 import { compressImage } from "@/lib/utils/image-utils";
 import { API_BASE_URL } from "@/lib/api/config";
 
+const buildUploadUrl = (endpoint: string): string => {
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  if (endpoint.startsWith("/")) {
+    return new URL(endpoint, `${API_BASE_URL}/`).toString();
+  }
+
+  return new URL(endpoint, `${API_BASE_URL}/`).toString();
+};
+
 export interface UploadProgress {
   loaded: number;
   total: number;
@@ -85,12 +97,8 @@ export const useImageUpload = () => {
         // Get auth token from secure storage (before Promise to avoid async issues)
         const token = await getAccessToken();
 
-        // Build full endpoint URL if relative path provided
-        let fullEndpoint = endpoint;
-        if (endpoint.startsWith("/")) {
-          // Relative path - prepend base URL
-          fullEndpoint = `${API_BASE_URL.replace("/api", "")}${endpoint}`;
-        }
+        // Build full endpoint URL safely
+        const fullEndpoint = buildUploadUrl(endpoint);
 
         // Upload with progress tracking
         return new Promise((resolve, reject) => {
@@ -245,11 +253,8 @@ export const useMultiImageUpload = () => {
           // Get auth token before creating Promise
           const token = await getAccessToken();
 
-          // Build full endpoint URL if relative path provided
-          let fullEndpoint = endpoint;
-          if (endpoint.startsWith("/")) {
-            fullEndpoint = `${API_BASE_URL.replace("/api", "")}${endpoint}`;
-          }
+          // Build full endpoint URL safely
+          const fullEndpoint = buildUploadUrl(endpoint);
 
           const result = await new Promise<UploadResult>((resolve) => {
             const xhr = new XMLHttpRequest();

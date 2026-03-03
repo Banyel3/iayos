@@ -1179,12 +1179,16 @@ export default function ChatScreen() {
       const fileName = `message_${Date.now()}.jpg`;
       const endpoint = `/api/profiles/chat/${conversationId}/upload-image`;
 
-      await uploadAsync({
+      const uploadResult = await uploadAsync({
         uri: imageUri,
         endpoint,
         fieldName: "image",
         compress: true,
       });
+
+      if (!uploadResult?.success) {
+        throw new Error(uploadResult?.error || "Failed to send image. Please try again.");
+      }
 
       Alert.alert("Success", "Image sent successfully!");
       resetProgress();
