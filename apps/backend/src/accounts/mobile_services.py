@@ -131,6 +131,11 @@ def get_mobile_job_list(
             print(f"⚠️ [LOCATION] Could not fetch user location: {e}")
             pass
         
+        # Exclude jobs this worker has already applied to
+        applied_job_ids = JobApplication.objects.filter(
+            workerID__profileID__accountFK=user
+        ).values_list('jobID', flat=True)
+
         # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
         queryset = JobPosting.objects.filter(
             status='ACTIVE',
@@ -139,6 +144,8 @@ def get_mobile_job_list(
             assignedAgencyFK__isnull=True,  # Exclude jobs assigned to agencies
         ).exclude(
             clientID__profileID__accountFK=user  # Exclude jobs posted by the same user
+        ).exclude(
+            jobID__in=applied_job_ids  # Exclude jobs the worker has already applied to
         )
 
         # Apply filters
