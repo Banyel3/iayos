@@ -183,7 +183,11 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
-        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
+        payment_method = (
+            getattr(data, "downpayment_method", None)
+            or getattr(data, "payment_method", None)
+            or "WALLET"
+        ).upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
