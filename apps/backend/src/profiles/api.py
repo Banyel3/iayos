@@ -1096,7 +1096,7 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
     - reopen: If True and conversation exists but is closed/completed, reopen it (for backjobs)
     """
     try:
-        from accounts.models import Job
+        from accounts.models import Job, JobWorkerAssignment
         
         # Get user's profile
         try:
@@ -1117,9 +1117,14 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         # Check if user is a participant of this job
         is_client = job.clientID and job.clientID.profileID == user_profile
         is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile
+        is_team_assigned_worker = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            workerID__profileID=user_profile,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        ).exists()
         is_agency_owner = job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         
-        if not (is_client or is_worker or is_agency_owner):
+        if not (is_client or is_worker or is_team_assigned_worker or is_agency_owner):
             return Response({"error": "You are not a participant of this job"}, status=403)
         
         # Try to find existing conversation
