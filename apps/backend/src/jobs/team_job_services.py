@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from accounts.models import (
     Job, JobSkillSlot, JobWorkerAssignment, JobApplication,
-    Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet
+    Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet, workerSpecialization
 )
 from profiles.models import Conversation, ConversationParticipant
 
@@ -337,6 +337,19 @@ def apply_to_skill_slot(
     
     if skill_slot.status not in ['OPEN', 'PARTIALLY_FILLED']:
         return {'success': False, 'error': f'Skill slot is not accepting applications (status: {skill_slot.status})'}
+
+    # Enforce required specialization for this slot
+    has_required_skill = workerSpecialization.objects.filter(
+        workerID=worker_profile,
+        specializationID=skill_slot.specializationID
+    ).exists()
+    if not has_required_skill:
+        return {
+            'success': False,
+            'error': f"You must add the required skill '{skill_slot.specializationID.specializationName}' before applying to this slot.",
+            'required_skill': skill_slot.specializationID.specializationName,
+            'required_specialization_id': skill_slot.specializationID.specializationID,
+        }
     
     # Check if worker already applied to this slot
     existing = JobApplication.objects.filter(
@@ -407,6 +420,21 @@ def accept_team_application(
     
     if application.status != 'PENDING':
         return {'success': False, 'error': f'Application is not pending (status: {application.status})'}
+
+    # Enforce required specialization before acceptance (handles older applications)
+    worker_has_required_skill = workerSpecialization.objects.filter(
+        workerID=application.workerID,
+        specializationID=application.applied_skill_slot.specializationID
+    ).exists()
+    if not worker_has_required_skill:
+        worker_name = f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}".strip()
+        required_skill = application.applied_skill_slot.specializationID.specializationName
+        return {
+            'success': False,
+            'error': f"Cannot accept application: {worker_name} does not have required skill '{required_skill}'.",
+            'required_skill': required_skill,
+            'required_specialization_id': application.applied_skill_slot.specializationID.specializationID,
+        }
     
     skill_slot = application.applied_skill_slot
     if not skill_slot:
