@@ -351,11 +351,16 @@ def apply_to_skill_slot(
             'required_specialization_id': skill_slot.specializationID.specializationID,
         }
     
-    # Check if worker already applied to this slot
+    # Check if worker already has an active application for this slot
+    # (allow re-apply when previous application was REJECTED or WITHDRAWN)
     existing = JobApplication.objects.filter(
         jobID=job,
         workerID=worker_profile,
-        applied_skill_slot=skill_slot
+        applied_skill_slot=skill_slot,
+        status__in=[
+            JobApplication.ApplicationStatus.PENDING,
+            JobApplication.ApplicationStatus.ACCEPTED,
+        ],
     ).exists()
     
     if existing:

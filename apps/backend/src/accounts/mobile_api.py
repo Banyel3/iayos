@@ -2614,12 +2614,16 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 status=400
             )
         
-        # Check if worker already applied
+        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
         existing_application = JobApplication.objects.filter(
             jobID=job,
-            workerID=worker_profile
+            workerID=worker_profile,
+            status__in=[
+                JobApplication.ApplicationStatus.PENDING,
+                JobApplication.ApplicationStatus.ACCEPTED,
+            ],
         ).first()
-        
+
         if existing_application:
             return Response(
                 {"error": "You have already applied for this job"},
