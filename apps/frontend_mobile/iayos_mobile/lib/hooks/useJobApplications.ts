@@ -6,8 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  API_BASE_URL,
-  apiRequest,
+  ENDPOINTS,
   fetchJson,
   getAbsoluteMediaUrl,
 } from "@/lib/api/config";
@@ -45,6 +44,7 @@ interface JobApplicationsResponse {
   job_title: string;
   applications: Application[];
   total_count: number;
+  total?: number;
   estimated_completion?: EstimatedCompletion | null;
 }
 
@@ -55,16 +55,23 @@ export function useJobApplications(jobId: number) {
   return useQuery<JobApplicationsResponse>({
     queryKey: ["job-applications", jobId],
     queryFn: async () => {
-      const url = `${API_BASE_URL}/jobs/${jobId}/applications`;
+      const url = ENDPOINTS.JOB_APPLICATIONS(jobId);
       const data = await fetchJson<JobApplicationsResponse>(url);
       // Transform avatar URLs to absolute URLs for local storage compatibility
       return {
         ...data,
+        total_count:
+          data.total_count ?? data.total ?? data.applications?.length ?? 0,
         applications: data.applications.map((app) => ({
           ...app,
+          proposed_budget: Number(app.proposed_budget ?? 0),
+          estimated_duration: app.estimated_duration || "",
           worker: {
             ...app.worker,
             avatar: getAbsoluteMediaUrl(app.worker.avatar),
+            rating: Number(app.worker?.rating ?? 0),
+            skills: Array.isArray(app.worker?.skills) ? app.worker.skills : [],
+            profile_completion: Number(app.worker?.profile_completion ?? 0),
           },
         })),
       };
@@ -92,11 +99,13 @@ export function useManageApplication() {
       applicationId: number;
       action: "ACCEPTED" | "REJECTED";
     }) => {
-      const url = `${API_BASE_URL}/jobs/${jobId}/application/${applicationId}`;
+      const url =
+        action === "ACCEPTED"
+          ? ENDPOINTS.ACCEPT_APPLICATION(jobId, applicationId)
+          : ENDPOINTS.REJECT_APPLICATION(jobId, applicationId);
       try {
         return await fetchJson<any>(url, {
-          method: "PUT",
-          body: JSON.stringify({ status: action }),
+          method: "POST",
         });
       } catch (e: any) {
         throw new Error(
