@@ -205,6 +205,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const rebindWebSocketSession = async (reason: string) => {
+    try {
+      websocketService.disconnect();
+      await websocketService.connect();
+      console.log(`🔌 [WS] Rebound websocket session after ${reason}`);
+    } catch (error) {
+      console.warn(`⚠️ [WS] Failed to rebind websocket after ${reason}:`, error);
+    }
+  };
+
   // Check authentication with server
   // silent: if true, don't set isLoading (for background refreshes)
   const checkAuth = async (silent = false): Promise<boolean> => {
@@ -267,23 +277,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Login function
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      // Cancel any in-flight queries and clear React Query cache to avoid
-      // cross-user data exposure when starting a new login session.
-      // This prevents a refetch flood because we clear (not invalidate)
-      // the cache after cancelling running queries.
-      try {
-        await queryClient.cancelQueries();
-        queryClient.clear();
-      } catch (e) {
-        console.warn("⚠️ Failed to clear React Query cache on login:", e);
-      }
-
-      // Clear AsyncStorage auth keys for the previous session
-      await AsyncStorage.multiRemove([
-        "access_token",
-        "cached_worker_availability",
-      ]);
-      await removeCachedUser();
+      await clearAllCaches();
       setUser(null);
 
       if (process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true") {
@@ -324,6 +318,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Store access token securely for future API requests
       await setAccessToken(token);
       if (__DEV__) console.log("✅ Access token stored successfully");
+      await rebindWebSocketSession("login");
 
       // Fetch user data after successful login (token now stored)
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
@@ -343,20 +338,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return userData;
       } else {
         setUser(null);
-        await AsyncStorage.multiRemove([
-          "access_token",
-          "cached_worker_availability",
-        ]);
-        await removeCachedUser();
+        await clearAllCaches();
         throw new Error("Failed to fetch user data after login");
       }
     } catch (error) {
       setUser(null);
-      await AsyncStorage.multiRemove([
-        "access_token",
-        "cached_worker_availability",
-      ]);
-      await removeCachedUser();
+      await clearAllCaches();
       throw error;
     }
   };
@@ -443,21 +430,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     profileType: "WORKER" | "CLIENT" = "CLIENT",
   ): Promise<User> => {
     try {
-      // Clear previous session
-      try {
-        await queryClient.cancelQueries();
-        queryClient.clear();
-      } catch (e) {
-        console.warn(
-          "⚠️ Failed to clear React Query cache on Google sign-in:",
-          e,
-        );
-      }
-      await AsyncStorage.multiRemove([
-        "access_token",
-        "cached_worker_availability",
-      ]);
-      await removeCachedUser();
+      await clearAllCaches();
       setUser(null);
 
       await preflightBackendReachability("googleSignIn");
@@ -495,6 +468,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await setAccessToken(token);
       if (__DEV__) console.log("✅ [GOOGLE] Access token stored");
+      await rebindWebSocketSession("googleSignIn");
 
       // Fetch user data
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
@@ -514,20 +488,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return userData;
       } else {
         setUser(null);
-        await AsyncStorage.multiRemove([
-          "access_token",
-          "cached_worker_availability",
-        ]);
-        await removeCachedUser();
+        await clearAllCaches();
         throw new Error("Failed to fetch user data after Google sign-in");
       }
     } catch (error) {
       setUser(null);
-      await AsyncStorage.multiRemove([
-        "access_token",
-        "cached_worker_availability",
-      ]);
-      await removeCachedUser();
+      await clearAllCaches();
       throw error;
     }
   };
@@ -606,6 +572,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (__DEV__)
         console.log(`✅ Switched to ${profileType} profile, new token stored`);
 
+      try {
+        await queryClient.cancelQueries();
+        queryClient.clear();
+      } catch (error) {
+        console.warn("⚠️ Failed to clear query cache during profile switch:", error);
+      }
+
+      await rebindWebSocketSession("switchProfile");
+
       // Fetch updated user data with new profile
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
 
@@ -659,28 +634,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log("🚪 [LOGOUT] Starting logout...");
 
-      // Clear user state first
-      setUser(null);
-
-      // Cancel any in-flight queries and clear React Query cache to prevent
-      // sensitive cached data from remaining accessible post-logout.
-      // Clear after setUser(null) and cancel queries to mitigate refetch storms.
-      try {
-        await queryClient.cancelQueries();
-        queryClient.clear();
-        console.log("🗑️ [LOGOUT] Cleared React Query cache");
-      } catch (e) {
-        console.warn("⚠️ Failed to clear React Query cache on logout:", e);
-      }
-
-      // Clear AsyncStorage auth keys
-      await AsyncStorage.multiRemove([
-        "access_token",
-        "cached_worker_availability",
-      ]);
-      await removeCachedUser();
-      console.log("🗑️ [LOGOUT] Cleared AsyncStorage auth keys");
-
       // Call backend logout endpoint (best effort, don't block on errors)
       try {
         await apiRequest(ENDPOINTS.LOGOUT, {
@@ -694,6 +647,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         );
       }
 
+      setUser(null);
+      await clearAllCaches();
+
       // Navigate to welcome screen
       console.log("🔀 [LOGOUT] Navigating to welcome screen");
       router.replace("/welcome");
@@ -703,11 +659,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("❌ [LOGOUT] Logout error:", error);
       // Even if logout fails, clear state and navigate
       setUser(null);
-      await AsyncStorage.multiRemove([
-        "access_token",
-        "cached_worker_availability",
-      ]);
-      await removeCachedUser();
+      await clearAllCaches();
       router.replace("/welcome");
     }
   };

@@ -1410,11 +1410,14 @@ def get_conversation_messages(request, conversation_id: int):
                 print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
                 # Regular message from a Profile
-                is_mine = msg.sender == user_profile
+                is_mine = (
+                    msg.sender is not None
+                    and msg.sender.accountFK_id == request.auth.id
+                )
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
                 sender_type = "profile"
-                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
+                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {request.auth.id})")
             
             # Get attachments for this message
             attachments = []
