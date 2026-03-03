@@ -65,8 +65,9 @@ interface JobInfo {
   category: string;
   client: {
     id: number;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
     profileImg: string | null;
   } | null;
 }
@@ -160,6 +161,7 @@ function AgencyBackjobDetailContent({
       if (jobResponse.ok) {
         const jobResult = await jobResponse.json();
         const jobData = jobResult.job || jobResult;
+        const clientData = jobData.client || null;
         setJob({
           id: jobData.jobID || jobData.id,
           title: jobData.title,
@@ -167,7 +169,15 @@ function AgencyBackjobDetailContent({
           budget: parseFloat(jobData.budget),
           location: jobData.location,
           category: jobData.category?.name || "Unknown",
-          client: jobData.client || null,
+          client: clientData
+            ? {
+                id: clientData.id,
+                firstName: clientData.firstName,
+                lastName: clientData.lastName,
+                name: clientData.name,
+                profileImg: clientData.profileImg || clientData.avatar || null,
+              }
+            : null,
         });
       }
     } catch (error) {
@@ -522,9 +532,16 @@ function AgencyBackjobDetailContent({
                     </div>
                   )}
                   <div>
-                    <p className="font-semibold text-gray-900">
-                      {job.client.firstName} {job.client.lastName}
-                    </p>
+                    {(() => {
+                      const fullName =
+                        `${job.client.firstName || ""} ${job.client.lastName || ""}`.trim() ||
+                        job.client.name ||
+                        "Unknown Client";
+
+                      return (
+                        <p className="font-semibold text-gray-900">{fullName}</p>
+                      );
+                    })()}
                     <p className="text-sm text-gray-500">Client</p>
                   </div>
                 </div>

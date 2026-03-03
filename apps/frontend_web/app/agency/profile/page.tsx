@@ -124,7 +124,7 @@ export default function AgencyProfilePage() {
     refetch: refetchWallet,
   } = useWalletBalance(true);
   const { data: transactions = [], isLoading: isLoadingTransactions } =
-    useWalletTransactions(activeTab === "transactions");
+    useWalletTransactions(true);
 
   const fetchProfile = async () => {
     try {
