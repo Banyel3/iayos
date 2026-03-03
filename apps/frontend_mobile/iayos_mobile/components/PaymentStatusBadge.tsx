@@ -36,13 +36,13 @@ const statusConfig = {
     label: "Completed",
     backgroundColor: "#D1FAE5",
     textColor: "#065F46",
-    icon: "✓",
+    icon: null,
   },
   failed: {
     label: "Failed",
     backgroundColor: "#FEE2E2",
     textColor: "#991B1B",
-    icon: "✗",
+    icon: null,
   },
   verifying: {
     label: "Verifying",
@@ -102,7 +102,7 @@ export default function PaymentStatusBadge({
           },
         ]}
       >
-        {config.icon} {config.label}
+        {config.icon ? `${config.icon} ` : ""}{config.label}
       </Text>
     </View>
   );
