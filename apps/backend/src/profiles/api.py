@@ -1155,14 +1155,14 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             reopened = False
             system_message_added = False
             
-            # If reopen is requested and conversation is not active, check if we should reopen
-            # Only reopen if there's an APPROVED backjob (UNDER_REVIEW status)
-            # OPEN status means waiting for admin approval - don't reopen yet
+            # If reopen is requested and conversation is not active, check if we should reopen.
+            # Reopen for active backjob phases that require chat coordination.
+            # OPEN status means waiting for admin action - don't reopen yet.
             should_reopen = (
                 reopen and 
                 conversation.status != Conversation.ConversationStatus.ACTIVE and
                 active_dispute and 
-                active_dispute.status == 'UNDER_REVIEW'  # Only if admin approved
+                active_dispute.status in ['UNDER_REVIEW', 'IN_NEGOTIATION']
             )
             
             if should_reopen:
