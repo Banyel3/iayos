@@ -70,6 +70,7 @@ export type ConversationDetail = {
     status: string;
     budget: number;
     location: string;
+    preferred_start_date?: string;
     clientConfirmedWorkStarted: boolean;
     workerMarkedComplete: boolean;
     clientMarkedComplete: boolean;
@@ -218,9 +219,9 @@ export type ConversationDetail = {
  * Auto-marks messages as read on fetch
  * Uses polling as fallback when WebSocket is unavailable
  */
-export function useMessages(conversationId: number) {
+export function useMessages(conversationId: number, viewerKey: string = "default") {
   return useQuery({
-    queryKey: ["messages", conversationId],
+    queryKey: ["messages", conversationId, viewerKey],
     queryFn: async (): Promise<ConversationDetail> => {
       const url = ENDPOINTS.CONVERSATION_MESSAGES(conversationId);
       const response = await apiRequest(url);
@@ -269,8 +270,8 @@ export function useMessages(conversationId: number) {
       };
     },
     enabled: !!conversationId,
-    staleTime: 0, // Always refetch on window focus (critical for job status sync)
-    refetchInterval: 3000, // Poll every 3 seconds as fallback for WebSocket
+    staleTime: 5000,
+    refetchInterval: false,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
