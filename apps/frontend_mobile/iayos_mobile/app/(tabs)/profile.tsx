@@ -26,7 +26,6 @@ import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
 import { useScanLocation } from "@/lib/hooks/useLocation";
-import { ReviewsSection } from "@/components/ReviewsSection";
 import {
   useDualProfileStatus,
   useCreateClientProfile,
@@ -172,13 +171,14 @@ export default function ProfileScreen() {
                     ? ` (${totalReviews} review${totalReviews === 1 ? "" : "s"})`
                     : ""
                 }`
-              : "No reviews yet"
+              : "0.0"
           }
           valueColor={
             ratingValue && ratingValue > 0
               ? Colors.textPrimary
               : Colors.textSecondary
           }
+          showArrow={true}
         />
         <InfoRow
           icon="chatbubbles-outline"
@@ -191,6 +191,7 @@ export default function ProfileScreen() {
           valueColor={
             responseRateValue !== null ? Colors.success : Colors.textSecondary
           }
+          noBorder={true}
         />
       </View>
     );
@@ -648,23 +649,19 @@ export default function ProfileScreen() {
                   user?.profile_data?.workerRating &&
                   user.profile_data.workerRating > 0
                     ? `${user.profile_data.workerRating} / 5`
-                    : "No ratings yet"
+                    : "0.0"
                 }
+                showArrow={true}
               />
               <InfoRow
                 icon="briefcase-outline"
                 label="Jobs Completed"
                 value={String(user?.profile_data?.jobsCompleted ?? 0)}
+                noBorder={true}
               />
             </View>
           </View>
         )}
-
-        {/* Reviews Section - For all users */}
-        <ReviewsSection
-          accountId={user?.accountID || 0}
-          profileType={isWorker ? "WORKER" : "CLIENT"}
-        />
 
         {/* Account & Settings Links */}
         <View style={styles.section}>
@@ -679,6 +676,7 @@ export default function ProfileScreen() {
               icon="settings-outline"
               label="Settings"
               onPress={() => router.push("/profile/settings" as any)}
+              noBorder={true}
             />
           </View>
         </View>
@@ -712,35 +710,58 @@ function InfoRow({
   label,
   value,
   valueColor = Colors.textPrimary,
+  noBorder = false,
+  showArrow = false,
+  onPress,
 }: {
   icon: string;
   label: string;
   value: string;
   valueColor?: string;
+  noBorder?: boolean;
+  showArrow?: boolean;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.infoRow}>
+  const content = (
+    <View style={[styles.infoRow, noBorder && { borderBottomWidth: 0 }]}>
       <View style={styles.infoLeft}>
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
+        )}
+      </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 }
 
 function MenuItem({
   icon,
   label,
   onPress,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
   onPress: () => void;
+  noBorder?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, noBorder && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -1095,14 +1116,14 @@ const styles = StyleSheet.create({
   infoCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
     ...Shadows.sm,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
