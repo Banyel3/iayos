@@ -179,6 +179,7 @@ export default function ProfileScreen() {
               : Colors.textSecondary
           }
           showArrow={true}
+          onPress={() => router.push("/profile/reviews" as any)}
         />
         <InfoRow
           icon="chatbubbles-outline"
@@ -261,7 +262,6 @@ export default function ProfileScreen() {
 
             {/* Name & Email */}
             <Text style={styles.userName}>{fullName}</Text>
-            <Text style={styles.userEmail}>{user?.email || ""}</Text>
 
             {/* Role Badge */}
             <View
@@ -652,6 +652,7 @@ export default function ProfileScreen() {
                     : "0.0"
                 }
                 showArrow={true}
+                onPress={() => router.push("/profile/reviews" as any)}
               />
               <InfoRow
                 icon="briefcase-outline"
