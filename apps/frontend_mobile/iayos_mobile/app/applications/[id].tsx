@@ -55,6 +55,28 @@ interface ApplicationDetail {
   }>;
 }
 
+interface MobileApplicationDetailResponse {
+  success: boolean;
+  application: {
+    application_id: number;
+    job_id: number;
+    job_title: string;
+    job_description: string;
+    job_budget: number;
+    job_location: string;
+    job_category: string;
+    application_status: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+    proposal_message: string;
+    proposed_budget: number | null;
+    estimated_duration: string | null;
+    created_at: string;
+    updated_at: string;
+    client_name: string;
+    client_img: string | null;
+    client_id: number;
+  };
+}
+
 // ===== HELPER FUNCTIONS =====
 
 /**
@@ -148,7 +170,51 @@ export default function ApplicationDetailScreen() {
       if (!response.ok) {
         throw new Error("Failed to fetch application details");
       }
-      return response.json();
+
+      const raw =
+        (await response.json()) as MobileApplicationDetailResponse;
+
+      if (!raw?.application) {
+        throw new Error("Invalid application details response");
+      }
+
+      const mapped: ApplicationDetail = {
+        id: raw.application.application_id,
+        jobId: raw.application.job_id,
+        jobTitle: raw.application.job_title,
+        jobCategory: raw.application.job_category,
+        jobBudget: Number(raw.application.job_budget ?? 0),
+        jobDescription: raw.application.job_description || "",
+        jobLocation: raw.application.job_location || "",
+        proposedBudget: Number(raw.application.proposed_budget ?? 0),
+        proposalMessage: raw.application.proposal_message || "",
+        estimatedDuration: raw.application.estimated_duration,
+        status: raw.application.application_status,
+        appliedAt: raw.application.created_at,
+        respondedAt: raw.application.updated_at || null,
+        client: {
+          id: raw.application.client_id,
+          name: raw.application.client_name || "Client",
+          email: "",
+          avatar: raw.application.client_img || null,
+        },
+        timeline: [
+          {
+            id: 1,
+            action: "Application Submitted",
+            timestamp: raw.application.created_at,
+            description: "You submitted your application for this job.",
+          },
+          {
+            id: 2,
+            action: `Status: ${raw.application.application_status}`,
+            timestamp: raw.application.updated_at || raw.application.created_at,
+            description: "Current application status.",
+          },
+        ],
+      };
+
+      return mapped;
     },
     enabled: !!id,
   });

@@ -80,7 +80,7 @@ export default function JobApplicationsScreen() {
 
   const handleViewProfile = (workerId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/worker/${workerId}` as any);
+    router.push(`/workers/${workerId}` as any);
   };
 
   const handleAccept = (applicationId: number, workerName: string) => {

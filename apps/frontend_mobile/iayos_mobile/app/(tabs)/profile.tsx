@@ -680,9 +680,15 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>General</Text>
           <View style={styles.menuCard}>
             <MenuItem
+<<<<<<< design/dara
               icon="person-circle-outline"
               label="Account Information"
               onPress={() => router.push("/profile/account-info" as any)}
+=======
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => router.push("/notifications" as any)}
+>>>>>>> main
             />
             <MenuItem
               icon="settings-outline"

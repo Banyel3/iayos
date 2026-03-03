@@ -65,8 +65,9 @@ interface JobInfo {
   category: string;
   client: {
     id: number;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
     profileImg: string | null;
   } | null;
 }
@@ -99,7 +100,7 @@ function AgencyBackjobDetailContent({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const jobId = searchParams.get("jobId");
+  const jobId = searchParams.get("jobId") || params.id;
 
   const [backjob, setBackjob] = useState<BackjobDetail | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
@@ -115,6 +116,31 @@ function AgencyBackjobDetailContent({
       fetchBackjobDetails();
     }
   }, [jobId]);
+
+  const handleContactClient = async () => {
+    if (!jobId) {
+      toast.error("Job ID is missing");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/profiles/chat/conversation-by-job/${jobId}?reopen=true`,
+        { credentials: "include" },
+      );
+      const data = await res.json();
+
+      if (res.ok && data?.success && data?.conversation_id) {
+        router.push(`/agency/messages/${data.conversation_id}`);
+        return;
+      }
+
+      toast.error(getErrorMessage(data, "Failed to open chat conversation"));
+    } catch (error) {
+      console.error("Error opening conversation by job:", error);
+      toast.error("Failed to open chat conversation");
+    }
+  };
 
   const fetchBackjobDetails = async () => {
     try {
@@ -135,6 +161,7 @@ function AgencyBackjobDetailContent({
       if (jobResponse.ok) {
         const jobResult = await jobResponse.json();
         const jobData = jobResult.job || jobResult;
+        const clientData = jobData.client || null;
         setJob({
           id: jobData.jobID || jobData.id,
           title: jobData.title,
@@ -142,7 +169,15 @@ function AgencyBackjobDetailContent({
           budget: parseFloat(jobData.budget),
           location: jobData.location,
           category: jobData.category?.name || "Unknown",
-          client: jobData.client || null,
+          client: clientData
+            ? {
+                id: clientData.id,
+                firstName: clientData.firstName,
+                lastName: clientData.lastName,
+                name: clientData.name,
+                profileImg: clientData.profileImg || clientData.avatar || null,
+              }
+            : null,
         });
       }
     } catch (error) {
@@ -497,13 +532,24 @@ function AgencyBackjobDetailContent({
                     </div>
                   )}
                   <div>
-                    <p className="font-semibold text-gray-900">
-                      {job.client.firstName} {job.client.lastName}
-                    </p>
+                    {(() => {
+                      const fullName =
+                        `${job.client.firstName || ""} ${job.client.lastName || ""}`.trim() ||
+                        job.client.name ||
+                        "Unknown Client";
+
+                      return (
+                        <p className="font-semibold text-gray-900">{fullName}</p>
+                      );
+                    })()}
                     <p className="text-sm text-gray-500">Client</p>
                   </div>
                 </div>
-                <Button variant="outline" className="w-full">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleContactClient}
+                >
                   <MessageCircle className="w-4 h-4 mr-2" />
                   Contact Client
                 </Button>
