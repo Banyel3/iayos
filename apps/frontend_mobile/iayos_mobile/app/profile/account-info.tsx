@@ -37,10 +37,10 @@ export default function AccountInfoScreen() {
           },
         }}
       />
-
+      
       <ScrollView contentContainerStyle={styles.content}>
+      <Text style={styles.sectionTitle}>Profile Details</Text>
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Profile Details</Text>
           
           <InfoRow
             icon="mail-outline"
@@ -64,25 +64,6 @@ export default function AccountInfoScreen() {
             />
           )}
         </View>
-
-        {isWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Worker Management</Text>
-            <View style={styles.card}>
-              <MenuItem
-                icon="ribbon-outline"
-                label="Manage Certifications"
-                onPress={() => router.push("/profile/certifications" as any)}
-              />
-              <MenuItem
-                icon="cube-outline"
-                label="Manage Materials"
-                onPress={() => router.push("/profile/materials" as any)}
-                noBorder
-              />
-            </View>
-          </View>
-        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment</Text>
