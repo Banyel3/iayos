@@ -4625,6 +4625,19 @@ export default function ChatScreen() {
         {/* Backjob Banner - shows when there's an active backjob */}
         {conversation.backjob?.has_backjob && (
           <View style={styles.backjobSectionCompact}>
+            {conversation.backjob.status === "OPEN" && (
+              <View style={styles.backjobPendingAdminBanner}>
+                <Ionicons
+                  name="hourglass-outline"
+                  size={14}
+                  color={Colors.warning}
+                />
+                <Text style={styles.backjobPendingAdminText}>
+                  Waiting for admin to approve backjob request
+                </Text>
+              </View>
+            )}
+
             {/* Compact Backjob Banner */}
             <TouchableOpacity
               style={styles.backjobBannerCompact}
@@ -6440,6 +6453,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: "#E65100",
+  },
+  backjobPendingAdminBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.warning + "1A",
+    borderWidth: 1,
+    borderColor: Colors.warning + "40",
+    borderRadius: BorderRadius.small,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+  },
+  backjobPendingAdminText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
   },
   backjobActionButtonsCompact: {
     flexDirection: "row",
