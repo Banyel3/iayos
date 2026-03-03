@@ -6204,8 +6204,10 @@ def complete_backjob(request, job_id: int, notes: str = Form(default="")):
     
     This endpoint is kept for backward compatibility but redirects to mark-complete.
     """
+    if notes:
+        print(f"⚠️ Deprecated complete-backjob endpoint received notes for job {job_id}: {notes}")
     print(f"⚠️ Deprecated complete-backjob endpoint called for job {job_id}. Use new 3-phase workflow.")
-    return mark_backjob_complete(request, job_id, notes)
+    return mark_backjob_complete(request, job_id)
 
 #endregion
 
