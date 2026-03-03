@@ -4898,6 +4898,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             pending_team_workers = []
             all_team_workers_reviewed = False
             reviewed_worker_name = None
+            total_team_workers = job.total_workers_assigned
             
             if job.is_team_job and is_client:
                 from accounts.models import JobWorkerAssignment
@@ -4933,6 +4934,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             "skill": a.skillSlotID.specializationID.specializationName if a.skillSlotID else None,
                         })
                 
+                total_team_workers = len(all_assignments)
                 all_team_workers_reviewed = len(pending_team_workers) == 0
             
             # Check if both parties have now submitted reviews
@@ -4941,12 +4943,21 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             job_completed = False
             # For team jobs: completed when all workers reviewed AND all workers have reviewed client
             if job.is_team_job:
+                from accounts.models import JobWorkerAssignment
+
+                # Use actual assigned workers for this started team run.
+                # This avoids blocking completion when jobs started with partial teams.
+                expected_worker_count = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).values('workerID').distinct().count()
+
                 # Count client reviews (one per worker)
                 client_reviews = JobReview.objects.filter(jobID=job, reviewerType="CLIENT").count()
                 worker_reviews = JobReview.objects.filter(jobID=job, reviewerType="WORKER").count()
-                total_workers = job.total_workers_needed
+                total_workers = expected_worker_count
                 
-                if client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
+                if total_workers > 0 and client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
                     job.status = "COMPLETED"
                     job.completedAt = timezone.now()
                     job.save()
@@ -4993,8 +5004,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     "reviewed_worker_name": reviewed_worker_name,
                     "pending_team_workers": pending_team_workers,
                     "all_team_workers_reviewed": all_team_workers_reviewed,
-                    "total_team_workers": job.total_workers_needed,
-                    "reviewed_count": job.total_workers_needed - len(pending_team_workers)
+                    "total_team_workers": total_team_workers,
+                    "reviewed_count": max(0, total_team_workers - len(pending_team_workers))
                 })
             
             return response
