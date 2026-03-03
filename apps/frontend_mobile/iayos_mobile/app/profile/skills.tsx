@@ -125,7 +125,7 @@ export default function SkillsScreen() {
 
     updateSkill.mutate(
       {
-        skill_id: editingSkill.id,
+        skill_id: editingSkill.specializationId,
         experience_years: years,
       },
       {
@@ -153,7 +153,7 @@ export default function SkillsScreen() {
           text: "Remove",
           style: "destructive",
           onPress: () => {
-            removeSkill.mutate(skill.id, {
+            removeSkill.mutate(skill.specializationId, {
               onSuccess: (data) => {
                 if (data.deletedCertifications > 0) {
                   Alert.alert(
