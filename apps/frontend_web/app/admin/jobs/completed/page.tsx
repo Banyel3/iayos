@@ -240,7 +240,6 @@ export default function CompletedJobsPage() {
             </CardContent>
           </Card>
 
-          {/* Modern Job Cards */}
           <div className="space-y-4">
             {filteredJobs.map((job) => (
               <Card
@@ -371,7 +370,7 @@ export default function CompletedJobsPage() {
                     </div>
 
                     <div className="flex md:flex-col gap-2 sm:gap-3">
-                      <Link href={`/admin/jobs/listings/${job.id}`}>
+                      <Link href={`/admin/jobs/completed/${job.id}`}>
                         <Button
                           size="sm"
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"

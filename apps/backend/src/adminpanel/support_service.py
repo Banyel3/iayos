@@ -313,6 +313,72 @@ def assign_ticket(
     return {'success': True, 'message': f'Ticket assigned to {admin.email}'}
 
 
+def update_ticket_priority(
+    ticket_id: int,
+    priority: str,
+    admin: Optional[Accounts] = None,
+) -> Dict[str, Any]:
+    """
+    Update ticket priority.
+    """
+    try:
+        ticket = SupportTicket.objects.get(ticketID=ticket_id)
+    except SupportTicket.DoesNotExist:
+        return {'success': False, 'error': 'Ticket not found'}
+
+    valid_priorities = ['low', 'medium', 'high', 'urgent']
+    normalized_priority = (priority or '').strip().lower()
+    if normalized_priority not in valid_priorities:
+        return {'success': False, 'error': f'Invalid priority. Valid: {valid_priorities}'}
+
+    with transaction.atomic():
+        previous_priority = ticket.priority
+        ticket.priority = normalized_priority
+        ticket.save()
+
+        SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=admin or ticket.userFK,
+            content=f"Ticket priority changed from {previous_priority} to: {normalized_priority}",
+            isSystemMessage=True,
+        )
+
+    return {'success': True, 'message': f'Ticket priority updated to {normalized_priority}'}
+
+
+def close_ticket(
+    ticket_id: int,
+    resolution_note: str,
+    admin: Optional[Accounts] = None,
+) -> Dict[str, Any]:
+    """
+    Close a ticket with required resolution note.
+    """
+    try:
+        ticket = SupportTicket.objects.get(ticketID=ticket_id)
+    except SupportTicket.DoesNotExist:
+        return {'success': False, 'error': 'Ticket not found'}
+
+    note = (resolution_note or '').strip()
+    if len(note) < 10:
+        return {'success': False, 'error': 'Resolution note must be at least 10 characters'}
+
+    with transaction.atomic():
+        ticket.status = 'closed'
+        if not ticket.resolvedAt:
+            ticket.resolvedAt = timezone.now()
+        ticket.save()
+
+        SupportTicketReply.objects.create(
+            ticketFK=ticket,
+            senderFK=admin or ticket.userFK,
+            content=f"Ticket closed by admin. Resolution: {note}",
+            isSystemMessage=True,
+        )
+
+    return {'success': True, 'message': 'Ticket closed successfully'}
+
+
 def get_ticket_stats() -> Dict[str, Any]:
     """
     Get support ticket statistics.

@@ -135,6 +135,12 @@ const navigation: NavItem[] = [
         description: "Worker certification review",
       },
       {
+        name: "Certification History",
+        href: "/admin/certifications/history",
+        icon: FileText,
+        description: "Verification history and audit trail",
+      },
+      {
         name: "Audit Log",
         href: "/admin/kyc/audit",
         icon: Archive,

@@ -68,6 +68,7 @@ interface TransactionDetail {
     downpayment_amount: number;
     final_payment_amount: number;
     released_at: string | null;
+    can_release?: boolean;
   } | null;
   audit_trail: Array<{
     action: string;
@@ -92,6 +93,7 @@ export default function TransactionDetailPage() {
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [refundTo, setRefundTo] = useState("payer");
+  const [processingAction, setProcessingAction] = useState(false);
 
   const fetchDetail = async () => {
     try {
@@ -119,9 +121,15 @@ export default function TransactionDetailPage() {
   }, [transactionId]);
 
   const handleReleaseEscrow = async () => {
+    if (!detail?.escrow_details?.can_release) {
+      toast.error("Escrow can only be released while transaction is pending");
+      return;
+    }
+
     if (!confirm("Are you sure you want to release this escrow payment?"))
       return;
 
+    setProcessingAction(true);
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/transactions/${transactionId}/release-escrow`,
@@ -141,10 +149,18 @@ export default function TransactionDetailPage() {
     } catch (error) {
       console.error("Error:", error);
       toast.error("Failed to release escrow");
+    } finally {
+      setProcessingAction(false);
     }
   };
 
   const handleRefund = async () => {
+    const alreadyRefunded = (detail?.transaction?.description || "").toLowerCase().includes("refunded:");
+    if (alreadyRefunded) {
+      toast.error("This transaction already has a processed refund");
+      return;
+    }
+
     if (!refundAmount || !refundReason) {
       toast.error("Please fill in all required fields");
       return;
@@ -152,6 +168,7 @@ export default function TransactionDetailPage() {
 
     if (!confirm(`Process refund of ₱${refundAmount}?`)) return;
 
+    setProcessingAction(true);
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/transactions/${transactionId}/refund`,
@@ -175,6 +192,8 @@ export default function TransactionDetailPage() {
     } catch (error) {
       console.error("Error:", error);
       toast.error("Failed to process refund");
+    } finally {
+      setProcessingAction(false);
     }
   };
 
@@ -216,6 +235,10 @@ export default function TransactionDetailPage() {
       </div>
     );
   }
+
+  const canReleaseEscrow = Boolean(detail.escrow_details?.can_release);
+  const alreadyRefunded = (detail.transaction.description || "").toLowerCase().includes("refunded:");
+  const canProcessRefund = detail.transaction.type === "PAYMENT" && !alreadyRefunded;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -537,20 +560,29 @@ export default function TransactionDetailPage() {
                     Actions
                   </h3>
                   <div className="space-y-3">
-                    <Button
-                      onClick={() => setShowReleaseModal(true)}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <Unlock className="h-4 w-4 mr-2" />
-                      Release Escrow
-                    </Button>
-                    <Button
-                      onClick={() => setShowRefundModal(true)}
-                      className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                    >
-                      <RefreshCcw className="h-4 w-4 mr-2" />
-                      Process Refund
-                    </Button>
+                    {canReleaseEscrow && (
+                      <Button
+                        onClick={() => setShowReleaseModal(true)}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Unlock className="h-4 w-4 mr-2" />
+                        Release Escrow
+                      </Button>
+                    )}
+                    {canProcessRefund && (
+                      <Button
+                        onClick={() => setShowRefundModal(true)}
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                      >
+                        <RefreshCcw className="h-4 w-4 mr-2" />
+                        Process Refund
+                      </Button>
+                    )}
+                    {!canReleaseEscrow && !canProcessRefund && (
+                      <div className="p-3 rounded-lg bg-gray-50 border text-sm text-gray-600">
+                        No manual payment actions available for this transaction.
+                      </div>
+                    )}
                     <Button
                       onClick={downloadReceipt}
                       variant="outline"
@@ -587,9 +619,10 @@ export default function TransactionDetailPage() {
                   <div className="flex gap-2">
                     <Button
                       onClick={handleReleaseEscrow}
+                      disabled={processingAction}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     >
-                      Confirm Release
+                      {processingAction ? "Processing..." : "Confirm Release"}
                     </Button>
                     <Button
                       onClick={() => setShowReleaseModal(false)}
@@ -659,9 +692,10 @@ export default function TransactionDetailPage() {
                     <div className="flex gap-2">
                       <Button
                         onClick={handleRefund}
+                        disabled={processingAction}
                         className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
                       >
-                        Process Refund
+                        {processingAction ? "Processing..." : "Process Refund"}
                       </Button>
                       <Button
                         onClick={() => setShowRefundModal(false)}

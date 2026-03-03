@@ -92,6 +92,12 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount);
 }
 
+function withCacheBust(url: string, token: string) {
+  if (!url) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}t=${encodeURIComponent(token)}`;
+}
+
 export default function BackjobDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -412,12 +418,12 @@ export default function BackjobDetailPage() {
                     {dispute.evidence.map((ev) => (
                       <button
                         key={ev.id}
-                        onClick={() => setLightboxUrl(ev.image_url)}
+                        onClick={() => setLightboxUrl(withCacheBust(ev.image_url, dispute.updated_at))}
                         className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square focus:outline-none focus:ring-2 focus:ring-orange-400"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={ev.image_url}
+                          src={withCacheBust(ev.image_url, dispute.updated_at)}
                           alt={ev.description || `Evidence ${ev.id}`}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         />
