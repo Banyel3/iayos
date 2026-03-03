@@ -124,7 +124,7 @@ export default function AgencyProfilePage() {
     refetch: refetchWallet,
   } = useWalletBalance(true);
   const { data: transactions = [], isLoading: isLoadingTransactions } =
-    useWalletTransactions(activeTab === "transactions");
+    useWalletTransactions(true);
 
   const fetchProfile = async () => {
     try {
@@ -155,6 +155,18 @@ export default function AgencyProfilePage() {
     return () => controller.abort();
   }, []);
 
+  // Honor deep-link tab query (e.g. /agency/profile?tab=payment-methods)
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (
+      requestedTab === "overview" ||
+      requestedTab === "transactions" ||
+      requestedTab === "payment-methods"
+    ) {
+      setActiveTab(requestedTab);
+    }
+  }, [searchParams]);
+
   // Handle GCash verification callback from PayMongo
   useEffect(() => {
     const verifyStatus = searchParams.get("verify");
@@ -179,7 +191,7 @@ export default function AgencyProfilePage() {
       router.replace("/agency/profile");
       fetchPaymentMethods();
     }
-  }, [searchParams]);
+  }, [searchParams, router, refetchWallet]);
 
   // Fetch payment methods when tab changes
   useEffect(() => {

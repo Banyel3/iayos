@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -2178,6 +2178,22 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "You have already applied for this job"},
                 status=400
             )
+
+        # Enforce required specialization for this job
+        if job.categoryID:
+            has_required_skill = workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                specializationID=job.categoryID
+            ).exists()
+            if not has_required_skill:
+                return Response(
+                    {
+                        "error": f"You must add the required skill '{job.categoryID.specializationName}' to your profile before applying.",
+                        "required_skill": job.categoryID.specializationName,
+                        "required_specialization_id": job.categoryID.specializationID,
+                    },
+                    status=400
+                )
         
         # Validate budget option
         if data.budget_option not in ['ACCEPT', 'NEGOTIATE']:
@@ -2321,6 +2337,23 @@ def accept_application(request, job_id: int, application_id: int):
                         ),
                         "conflicting_job_id": overlapping_job.jobID,
                         "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
+
+        # Enforce required specialization before assignment (handles older applications)
+        if job.categoryID:
+            has_required_skill = workerSpecialization.objects.filter(
+                workerID=worker,
+                specializationID=job.categoryID
+            ).exists()
+            if not has_required_skill:
+                worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}".strip()
+                return Response(
+                    {
+                        "error": f"Cannot accept application: {worker_name} does not have the required skill '{job.categoryID.specializationName}'.",
+                        "required_skill": job.categoryID.specializationName,
+                        "required_specialization_id": job.categoryID.specializationID,
                     },
                     status=400
                 )
@@ -3033,6 +3066,22 @@ def accept_job_invite_worker(request, job_id: int):
                 {"error": "Cannot accept job - escrow payment is pending"},
                 status=400
             )
+
+        # Enforce required specialization before accepting invite
+        if job.categoryID:
+            has_required_skill = workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                specializationID=job.categoryID
+            ).exists()
+            if not has_required_skill:
+                return Response(
+                    {
+                        "error": f"You must add the required skill '{job.categoryID.specializationName}' to your profile before accepting this invite.",
+                        "required_skill": job.categoryID.specializationName,
+                        "required_specialization_id": job.categoryID.specializationID,
+                    },
+                    status=400
+                )
         
         # Update job status
         job.inviteStatus = "ACCEPTED"

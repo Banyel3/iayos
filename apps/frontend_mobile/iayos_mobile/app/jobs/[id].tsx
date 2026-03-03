@@ -519,7 +519,8 @@ export default function JobDetailScreen() {
       setProposedBudget("");
       setEstimatedDuration("");
       setBudgetOption("ACCEPT");
-      queryClient.invalidateQueries({ queryKey: ["jobs", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
       safeGoBack(router, "/(tabs)/jobs");
     },

@@ -163,8 +163,9 @@ export default function ApplicantCard({
   };
 
   // Visible skills (max 4)
-  const visibleSkills = worker.skills.slice(0, 4);
-  const remainingSkills = worker.skills.length - visibleSkills.length;
+  const workerSkills = Array.isArray(worker.skills) ? worker.skills : [];
+  const visibleSkills = workerSkills.slice(0, 4);
+  const remainingSkills = workerSkills.length - visibleSkills.length;
 
   return (
     <View style={[styles.card, style]}>

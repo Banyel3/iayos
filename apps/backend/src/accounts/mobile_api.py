@@ -1482,7 +1482,7 @@ def mobile_add_skill(request, payload: AddSkillSchema):
 def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
     """
     Update experience years for a worker's skill.
-    skill_id: The specialization ID (not workerSpecialization ID)
+    skill_id: The specialization ID (preferred). Legacy workerSpecialization ID is also accepted.
     Payload: { experience_years: int }
     """
     from .models import WorkerProfile, workerSpecialization
@@ -1512,13 +1512,19 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
                 status=404
             )
         
-        # Get worker's skill
-        try:
-            worker_skill = workerSpecialization.objects.get(
+        # Get worker's skill (prefer specialization ID; allow legacy workerSpecialization ID)
+        worker_skill = workerSpecialization.objects.filter(
+            workerID=worker_profile,
+            specializationID_id=skill_id
+        ).first()
+
+        if not worker_skill:
+            worker_skill = workerSpecialization.objects.filter(
                 workerID=worker_profile,
-                specializationID_id=skill_id
-            )
-        except workerSpecialization.DoesNotExist:
+                id=skill_id
+            ).first()
+
+        if not worker_skill:
             return Response(
                 {"error": "Skill not found in your profile"},
                 status=404
@@ -1554,7 +1560,7 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
 def mobile_remove_skill(request, skill_id: int):
     """
     Remove a skill from worker's profile.
-    skill_id: The specialization ID (not workerSpecialization ID)
+    skill_id: The specialization ID (preferred). Legacy workerSpecialization ID is also accepted.
     Note: This will also cascade delete linked certifications.
     """
     from .models import WorkerProfile, workerSpecialization, WorkerCertification
@@ -1571,13 +1577,19 @@ def mobile_remove_skill(request, skill_id: int):
                 status=404
             )
         
-        # Get worker's skill
-        try:
-            worker_skill = workerSpecialization.objects.get(
+        # Get worker's skill (prefer specialization ID; allow legacy workerSpecialization ID)
+        worker_skill = workerSpecialization.objects.filter(
+            workerID=worker_profile,
+            specializationID_id=skill_id
+        ).first()
+
+        if not worker_skill:
+            worker_skill = workerSpecialization.objects.filter(
                 workerID=worker_profile,
-                specializationID_id=skill_id
-            )
-        except workerSpecialization.DoesNotExist:
+                id=skill_id
+            ).first()
+
+        if not worker_skill:
             return Response(
                 {"error": "Skill not found in your profile"},
                 status=404
@@ -2540,7 +2552,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     Only workers can apply for jobs
     Supports both Bearer token (mobile) and cookie (web) authentication
     """
-    from .models import Profile, WorkerProfile, Agency, Notification
+    from .models import Profile, WorkerProfile, Agency, Notification, workerSpecialization
     from jobs.models import JobPosting
     from accounts.models import JobApplication
     
@@ -2613,6 +2625,22 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "You have already applied for this job"},
                 status=400
             )
+
+        # Enforce required specialization for this job
+        if job.categoryID:
+            has_required_skill = workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                specializationID=job.categoryID
+            ).exists()
+            if not has_required_skill:
+                return Response(
+                    {
+                        "error": f"You must add the required skill '{job.categoryID.specializationName}' to your profile before applying.",
+                        "required_skill": job.categoryID.specializationName,
+                        "required_specialization_id": job.categoryID.specializationID,
+                    },
+                    status=400
+                )
         
         # Validate budget option
         if payload.budget_option not in ['ACCEPT', 'NEGOTIATE']:

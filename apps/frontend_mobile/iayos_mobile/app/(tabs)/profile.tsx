@@ -750,7 +750,7 @@ export default function ProfileScreen() {
             <MenuItem
               icon="notifications-outline"
               label="Notifications"
-              onPress={() => {}}
+              onPress={() => router.push("/notifications" as any)}
             />
             <MenuItem
               icon="shield-checkmark-outline"

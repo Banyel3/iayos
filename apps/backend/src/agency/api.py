@@ -4192,10 +4192,15 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         # Check if ALL employees are complete
         all_assignments = JobEmployeeAssignment.objects.filter(
             job=job,
-            status__in=['ASSIGNED', 'IN_PROGRESS']
+            status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
         )
-        all_complete = all(a.agencyMarkedComplete for a in all_assignments)
-        completed_count = sum(1 for a in all_assignments if a.agencyMarkedComplete)
+        all_complete = all(
+            a.agencyMarkedComplete or a.status == 'COMPLETED'
+            for a in all_assignments
+        )
+        completed_count = sum(
+            1 for a in all_assignments if a.agencyMarkedComplete or a.status == 'COMPLETED'
+        )
         total_count = all_assignments.count()
         
         # Send system message in conversation

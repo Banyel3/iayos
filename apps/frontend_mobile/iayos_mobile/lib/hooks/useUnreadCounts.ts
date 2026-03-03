@@ -12,7 +12,7 @@ export function useUnreadMessageCount() {
           return 0;
         }
         const response = await apiRequest(
-          `${ENDPOINTS.CONVERSATIONS}?unread=true`,
+          `${ENDPOINTS.CONVERSATIONS}?filter=unread`,
           {
             timeout: 120000, // 2 minute timeout (increased for slow networks)
           }
@@ -22,11 +22,22 @@ export function useUnreadMessageCount() {
           return 0;
         }
 
-        const data = await response.json();
-        // Count conversations with unread messages
-        return (
-          data.results?.filter((conv: any) => conv.unreadCount > 0).length || 0
-        );
+        const data: any = await response.json();
+        if (Array.isArray(data)) {
+          return data.filter(
+            (conv: any) =>
+              Number(conv?.unread_count ?? conv?.unreadCount ?? 0) > 0
+          ).length;
+        }
+
+        if (Array.isArray(data?.results)) {
+          return data.results.filter(
+            (conv: any) =>
+              Number(conv?.unread_count ?? conv?.unreadCount ?? 0) > 0
+          ).length;
+        }
+
+        return 0;
       } catch (error) {
         console.error("Failed to fetch unread message count:", error);
         return 0;
@@ -58,8 +69,8 @@ export function useUnreadNotificationCount() {
           return 0;
         }
 
-        const data = await response.json();
-        return data.count || 0;
+        const data: any = await response.json();
+        return Number(data?.unread_count ?? data?.count ?? data?.unreadCount ?? 0);
       } catch (error) {
         console.error("Failed to fetch unread notification count:", error);
         return 0;

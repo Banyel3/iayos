@@ -1179,12 +1179,16 @@ export default function ChatScreen() {
       const fileName = `message_${Date.now()}.jpg`;
       const endpoint = `/api/profiles/chat/${conversationId}/upload-image`;
 
-      await uploadAsync({
+      const uploadResult = await uploadAsync({
         uri: imageUri,
         endpoint,
         fieldName: "image",
         compress: true,
       });
+
+      if (!uploadResult?.success) {
+        throw new Error(uploadResult?.error || "Failed to send image. Please try again.");
+      }
 
       Alert.alert("Success", "Image sent successfully!");
       resetProgress();
@@ -2887,6 +2891,9 @@ export default function ChatScreen() {
                   conversation.assigned_employees &&
                   conversation.assigned_employees.length > 0 &&
                   (() => {
+                    const isEmployeeComplete = (employee: any) =>
+                      employee.agencyMarkedComplete || employee.status === "COMPLETED";
+
                     const allDispatched = conversation.assigned_employees.every(
                       (e) => e.dispatched,
                     );
@@ -2894,7 +2901,7 @@ export default function ChatScreen() {
                       (e) => e.clientConfirmedArrival,
                     );
                     const allComplete = conversation.assigned_employees.every(
-                      (e) => e.agencyMarkedComplete,
+                      (e) => isEmployeeComplete(e),
                     );
 
                     // Show dispatch buttons for employees not yet dispatched
@@ -2907,7 +2914,7 @@ export default function ChatScreen() {
                     const pendingComplete =
                       conversation.assigned_employees.filter(
                         (e) =>
-                          e.clientConfirmedArrival && !e.agencyMarkedComplete,
+                          e.clientConfirmedArrival && !isEmployeeComplete(e),
                       );
 
                     return (
@@ -3083,6 +3090,9 @@ export default function ChatScreen() {
                   conversation.assigned_employees &&
                   conversation.assigned_employees.length > 0 &&
                   (() => {
+                    const isEmployeeComplete = (employee: any) =>
+                      employee.agencyMarkedComplete || employee.status === "COMPLETED";
+
                     const allDispatched = conversation.assigned_employees.every(
                       (e) => e.dispatched,
                     );
@@ -3090,7 +3100,7 @@ export default function ChatScreen() {
                       (e) => e.clientConfirmedArrival,
                     );
                     const allComplete = conversation.assigned_employees.every(
-                      (e) => e.agencyMarkedComplete,
+                      (e) => isEmployeeComplete(e),
                     );
 
                     // Employees dispatched but not arrived yet
@@ -3103,7 +3113,9 @@ export default function ChatScreen() {
                     const onSiteWorking =
                       conversation.assigned_employees.filter(
                         (e) =>
-                          e.clientConfirmedArrival && !e.agencyMarkedComplete,
+                          e.clientConfirmedArrival &&
+                          (e as any).status !== "COMPLETED" &&
+                          !isEmployeeComplete(e),
                       );
 
                     return (
@@ -3244,7 +3256,7 @@ export default function ChatScreen() {
 
                         {/* Per-employee approve & pay buttons */}
                         {conversation.assigned_employees.filter(
-                          (e) => e.agencyMarkedComplete && !e.clientApproved,
+                          (e) => isEmployeeComplete(e) && !e.clientApproved,
                         ).length > 0 &&
                           !conversation.job.clientMarkedComplete && (
                             <View style={styles.employeeActionsSection}>
@@ -3254,7 +3266,7 @@ export default function ChatScreen() {
                               {conversation.assigned_employees
                                 .filter(
                                   (e) =>
-                                    e.agencyMarkedComplete && !e.clientApproved,
+                                    isEmployeeComplete(e) && !e.clientApproved,
                                 )
                                 .map((employee) => (
                                   <TouchableOpacity
