@@ -2552,7 +2552,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     Only workers can apply for jobs
     Supports both Bearer token (mobile) and cookie (web) authentication
     """
-    from .models import Profile, WorkerProfile, Agency, Notification
+    from .models import Profile, WorkerProfile, Agency, Notification, workerSpecialization
     from jobs.models import JobPosting
     from accounts.models import JobApplication
     
@@ -2625,6 +2625,22 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "You have already applied for this job"},
                 status=400
             )
+
+        # Enforce required specialization for this job
+        if job.categoryID:
+            has_required_skill = workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                specializationID=job.categoryID
+            ).exists()
+            if not has_required_skill:
+                return Response(
+                    {
+                        "error": f"You must add the required skill '{job.categoryID.specializationName}' to your profile before applying.",
+                        "required_skill": job.categoryID.specializationName,
+                        "required_specialization_id": job.categoryID.specializationID,
+                    },
+                    status=400
+                )
         
         # Validate budget option
         if payload.budget_option not in ['ACCEPT', 'NEGOTIATE']:
