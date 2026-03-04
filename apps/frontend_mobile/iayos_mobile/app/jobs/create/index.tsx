@@ -144,34 +144,22 @@ const TITLE_SUGGESTIONS: Record<string, string[]> = {
 const CLIENT_PAYMENT_INFO_ITEMS = [
   {
     icon: "wallet-outline" as const,
-    label: "Your wallet is your payment source",
+    label: "Fund your Wallet",
     description:
-      "Top up your wallet anytime via QR PH — pay using any bank or e-wallet.",
+      "Ensure you have enough balance to cover the job.",
   },
   {
     icon: "lock-closed-outline" as const,
-    label: "50% held in escrow upfront",
+    label: "Book with Confidence",
     description:
-      "When a worker is booked, 50% of the job budget plus a 5% platform fee is reserved from your wallet.",
-  },
-  {
-    icon: "cash-outline" as const,
-    label: "Example",
-    description:
-      "For a ₱1,000 job → ₱525 deducted upfront (₱500 escrow + ₱25 platform fee).",
+      "50% (plus a 5% fee) is held in escrow upfront.",
   },
   {
     icon: "checkmark-circle-outline" as const,
-    label: "Remaining 50% on completion",
+    label: "Finish & Pay:",
     description:
-      "The second half is paid when you approve the worker's finished work.",
-  },
-  {
-    icon: "alert-circle-outline" as const,
-    label: "Check your balance first",
-    description:
-      "Make sure your wallet has enough funds before posting. Tap Add Funds on the wallet screen to top up.",
-  },
+      "Once the job is completed, the final 50% is released.",
+  }
 ];
 
 export default function CreateJobScreen() {
@@ -1001,9 +989,12 @@ export default function CreateJobScreen() {
         >
           <View style={styles.content}>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                📋 Job Details <Text style={{ color: Colors.error }}>*</Text>
-              </Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="document-text" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Job Details <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               {/* 1. Job Title */}
               <View style={styles.inputGroup}>
@@ -1013,7 +1004,7 @@ export default function CreateJobScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., Fix leaking pipe in bathroom"
+                  placeholder="What needs fixing?"
                   value={title}
                   onChangeText={setTitle}
                   placeholderTextColor={Colors.textHint}
@@ -1224,9 +1215,12 @@ export default function CreateJobScreen() {
 
             {/* Budget Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                💰 Budget & Payment Model <Text style={{ color: Colors.error }}>*</Text>
-              </Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="card" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Budget & Payment Model <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               {/* Payment Model Selector */}
               <View style={styles.inputGroup}>
@@ -1499,9 +1493,12 @@ export default function CreateJobScreen() {
 
             {/* Location Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                📍 Location <Text style={{ color: Colors.error }}>*</Text>
-              </Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="location" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Location <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               {/* Barangay */}
               <View style={styles.inputGroup}>
@@ -1749,9 +1746,12 @@ export default function CreateJobScreen() {
 
             {/* Timing Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                ⏰ Timing & Urgency{!!agencyId && <Text style={{ color: Colors.error }}> *</Text>}
-              </Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="time" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Timing & Urgency{!!agencyId && <Text style={{ color: Colors.error }}> *</Text>}
+                </Text>
+              </View>
 
               {/* Urgency Level */}
               <View style={styles.inputGroup}>
@@ -1930,7 +1930,10 @@ export default function CreateJobScreen() {
 
             {/* Job Options Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⚙️ Job Options (Optional)</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="settings" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
+              </View>
 
               {/* Skill Level Required */}
               <View style={styles.inputGroup}>
@@ -2033,7 +2036,10 @@ export default function CreateJobScreen() {
 
             {/* Materials Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🧰 Materials Needed (Optional)</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="construct" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
+              </View>
 
               {/* Manual Material Input */}
               <View style={styles.materialInputRow}>
@@ -2157,7 +2163,10 @@ export default function CreateJobScreen() {
 
             {/* Payment Method Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💳 Payment</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="card" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Payment</Text>
+              </View>
 
               {/* Wallet Balance Card */}
               <View
@@ -2318,8 +2327,7 @@ export default function CreateJobScreen() {
       <InfoModal
         visible={showClientPaymentInfo}
         onClose={dismissClientPaymentInfo}
-        title="How Payments Work 💳"
-        subtitle="Here's what happens when you post a job"
+        title="How It Works"
         items={CLIENT_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
@@ -2378,6 +2386,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sectionTitleText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginLeft: 8,
   },
   sectionHint: {
     fontSize: 13,

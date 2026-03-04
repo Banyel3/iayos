@@ -645,7 +645,12 @@ export default function CreateTeamJobScreen() {
           <View style={styles.content}>
             {/* Job Details Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 Job Details <Text style={{ color: Colors.error }}>*</Text></Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="document-text" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Job Details <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Job Title</Text>
@@ -677,7 +682,12 @@ export default function CreateTeamJobScreen() {
             {/* Skill Requirements Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>👥 Team Requirements <Text style={{ color: Colors.error }}>*</Text></Text>
+                <View style={styles.sectionTitle}>
+                  <Ionicons name="people" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitleText}>
+                    Team Requirements <Text style={{ color: Colors.error }}>*</Text>
+                  </Text>
+                </View>
                 <TouchableOpacity
                   style={styles.addSkillButton}
                   onPress={() => setAddSkillModalVisible(true)}
@@ -725,7 +735,12 @@ export default function CreateTeamJobScreen() {
 
             {/* Budget Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 Budget <Text style={{ color: Colors.error }}>*</Text></Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="card" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Budget <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Total Budget (₱)</Text>
@@ -873,7 +888,12 @@ export default function CreateTeamJobScreen() {
 
             {/* Team Start Threshold */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🚀 Team Start Options <Text style={{ color: Colors.error }}>*</Text></Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="rocket" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Team Start Options <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
@@ -912,7 +932,12 @@ export default function CreateTeamJobScreen() {
 
             {/* Location Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📍 Location <Text style={{ color: Colors.error }}>*</Text></Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="location" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Location <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Barangay</Text>
@@ -950,7 +975,10 @@ export default function CreateTeamJobScreen() {
 
             {/* Urgency & Date */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⏰ Timing (Optional)</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="time" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Timing (Optional)</Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Urgency Level</Text>
@@ -1008,9 +1036,10 @@ export default function CreateTeamJobScreen() {
 
             {/* Job Scope & Work Environment (for ML accuracy) */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                📊 Job Details (Optional)
-              </Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="stats-chart" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Job Details (Optional)</Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Job Scope</Text>
@@ -1079,9 +1108,10 @@ export default function CreateTeamJobScreen() {
 
             {/* Materials */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                🧰 Materials Needed (Optional)
-              </Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="construct" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
+              </View>
 
               <View style={styles.materialInputRow}>
                 <TextInput
@@ -1425,10 +1455,15 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   sectionTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  sectionTitleText: {
     ...Typography.body.medium,
     fontWeight: "700",
     color: Colors.textPrimary,
-    marginBottom: Spacing.md,
+    marginLeft: 8,
   },
   sectionHeaderRow: {
     flexDirection: "row",
