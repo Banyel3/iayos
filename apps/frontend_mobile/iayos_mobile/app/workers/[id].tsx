@@ -494,7 +494,7 @@ export default function WorkerDetailScreen() {
             <View style={styles.statItem}>
               <Ionicons name="cash" size={24} color={Colors.primary} />
               <Text style={styles.statValue}>₱{data.hourlyRate || "N/A"}</Text>
-              <Text style={styles.statLabel}>Per Hour</Text>
+              <Text style={styles.statLabel}>Per Day</Text>
             </View>
           </View>
 
@@ -511,7 +511,7 @@ export default function WorkerDetailScreen() {
               >
                 <View style={styles.mlScoreHeader}>
                   <View style={styles.mlScoreLeft}>
-                    <Text style={styles.mlScoreLabel}>🤖 AI Profile Score</Text>
+                    <Text style={styles.mlScoreLabel}>AI Profile Score</Text>
                     <View style={styles.mlScoreRow}>
                       <Text
                         style={[

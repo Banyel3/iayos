@@ -38,6 +38,7 @@ import {
   Notification,
 } from "@/lib/hooks/useNotifications";
 import Swipeable from "react-native-gesture-handler/Swipeable";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function NotificationsScreen() {
@@ -227,7 +228,7 @@ export default function NotificationsScreen() {
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Custom Header */}
@@ -351,7 +352,7 @@ export default function NotificationsScreen() {
           </Dialog>
         </Portal>
       </SafeAreaView>
-    </>
+    </GestureHandlerRootView>
   );
 }
 
@@ -478,7 +479,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     width: 80,
-    marginVertical: 2,
   },
   swipeDeleteText: {
     color: Colors.white,
