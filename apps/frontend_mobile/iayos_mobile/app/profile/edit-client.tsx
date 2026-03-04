@@ -197,26 +197,26 @@ export default function EditClientProfileScreen() {
         <View style={styles.formSection}>
           {/* First Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name (Read-only)</Text>
+            <Text style={styles.label}>First Name</Text>
             <TextInput
-              style={[styles.input, styles.inputReadonly]}
+              style={styles.input}
               value={formData.firstName}
-              editable={false}
+              onChangeText={(value) => handleInputChange("firstName", value)}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>Identity verification prevents name changes</Text>
+            <Text style={styles.helperText}>Must match your Government ID for KYC verification</Text>
           </View>
 
           {/* Last Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name (Read-only)</Text>
+            <Text style={styles.label}>Last Name</Text>
             <TextInput
-              style={[styles.input, styles.inputReadonly]}
+              style={styles.input}
               value={formData.lastName}
-              editable={false}
+              onChangeText={(value) => handleInputChange("lastName", value)}
               placeholderTextColor={Colors.textSecondary}
             />
-            <Text style={styles.helperText}>Identity verification prevents name changes</Text>
+            <Text style={styles.helperText}>Must match your Government ID for KYC verification</Text>
           </View>
 
           {/* Email (Read-only) */}

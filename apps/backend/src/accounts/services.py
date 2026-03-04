@@ -14,11 +14,114 @@ import random
 from datetime import timedelta
 from iayos_project.utils import upload_kyc_doc
 import os
+import re
+from difflib import SequenceMatcher
 
 
 def generate_otp():
     """Generate a random 6-digit OTP code"""
     return ''.join(random.choices('0123456789', k=6))
+
+
+def evaluate_profile_name_match(account, ocr_full_name):
+    """
+    Compare OCR-extracted full name against the authenticated account profile name.
+
+    Matching strategy (flexible):
+    - First and last names are required to match.
+    - Middle name/initial is optional.
+    - Minor OCR noise is tolerated using token similarity.
+
+    Returns:
+        {
+            "can_validate": bool,
+            "is_match": bool,
+            "score": float,
+            "profile_name": str,
+            "ocr_name": str,
+            "reason": str,
+        }
+    """
+
+    def normalize_tokens(name_value):
+        if not name_value:
+            return []
+        cleaned = re.sub(r"[^A-Za-z\s]", " ", str(name_value).upper())
+        return [token for token in cleaned.split() if token]
+
+    def best_token_ratio(target_token, source_tokens):
+        if not target_token or not source_tokens:
+            return 0.0
+        best = 0.0
+        for token in source_tokens:
+            ratio = SequenceMatcher(None, target_token, token).ratio()
+            if ratio > best:
+                best = ratio
+        return best
+
+    profile_type = getattr(account, 'profile_type', None)
+    profile_qs = Profile.objects.filter(accountFK=account)
+    if profile_type:
+        profile_qs = profile_qs.filter(profileType=profile_type)
+    profile = profile_qs.first() or Profile.objects.filter(accountFK=account).first()
+
+    if not profile:
+        return {
+            "can_validate": False,
+            "is_match": False,
+            "score": 0.0,
+            "profile_name": "",
+            "ocr_name": ocr_full_name or "",
+            "reason": "profile_not_found",
+        }
+
+    profile_first = (profile.firstName or "").strip()
+    profile_middle = (profile.middleName or "").strip()
+    profile_last = (profile.lastName or "").strip()
+    profile_name = " ".join(part for part in [profile_first, profile_middle, profile_last] if part)
+
+    if not profile_first or not profile_last:
+        return {
+            "can_validate": False,
+            "is_match": False,
+            "score": 0.0,
+            "profile_name": profile_name,
+            "ocr_name": ocr_full_name or "",
+            "reason": "profile_name_incomplete",
+        }
+
+    ocr_tokens = normalize_tokens(ocr_full_name)
+    if not ocr_tokens:
+        return {
+            "can_validate": False,
+            "is_match": False,
+            "score": 0.0,
+            "profile_name": profile_name,
+            "ocr_name": ocr_full_name or "",
+            "reason": "ocr_name_missing",
+        }
+
+    first_token = normalize_tokens(profile_first)
+    last_token = normalize_tokens(profile_last)
+    first_target = first_token[0] if first_token else ""
+    last_target = last_token[0] if last_token else ""
+
+    first_ratio = best_token_ratio(first_target, ocr_tokens)
+    last_ratio = best_token_ratio(last_target, ocr_tokens)
+
+    # Flexible threshold: tolerate minor OCR noise while enforcing first+last presence
+    threshold = 0.82
+    is_match = first_ratio >= threshold and last_ratio >= threshold
+    score = round(((first_ratio + last_ratio) / 2.0) * 100.0, 2)
+
+    return {
+        "can_validate": True,
+        "is_match": is_match,
+        "score": score,
+        "profile_name": profile_name,
+        "ocr_name": (ocr_full_name or "").strip(),
+        "reason": "matched" if is_match else "first_or_last_mismatch",
+    }
 
 
 def get_full_image_url(image_path):
@@ -1299,6 +1402,25 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                     if isinstance(extracted_id_data, str):
                         import json
                         extracted_id_data = json.loads(extracted_id_data)
+
+                    # Defensive hard-block: ensure submitted ID full name matches account profile name
+                    submitted_full_name = ""
+                    for id_name_key in ["full_name", "fullName", "name", "holder_name"]:
+                        if id_name_key in extracted_id_data:
+                            candidate = extracted_id_data[id_name_key]
+                            if isinstance(candidate, dict) and 'value' in candidate:
+                                candidate = candidate['value']
+                            if isinstance(candidate, str) and candidate.strip():
+                                submitted_full_name = candidate.strip()
+                                break
+
+                    if submitted_full_name:
+                        name_validation = evaluate_profile_name_match(user, submitted_full_name)
+                        if name_validation["can_validate"] and not name_validation["is_match"]:
+                            raise ValueError(
+                                "Name mismatch: Government ID name does not match your account profile name. "
+                                "Please edit your profile name first."
+                            )
                     
                     # Map frontend field names to model fields
                     field_mapping = {
