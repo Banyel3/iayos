@@ -120,10 +120,10 @@ interface JobDetail {
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
   budget_allocation_type?:
-  | "EQUAL_PER_SKILL"
-  | "EQUAL_PER_WORKER"
-  | "MANUAL"
-  | "SKILL_WEIGHTED";
+    | "EQUAL_PER_SKILL"
+    | "EQUAL_PER_WORKER"
+    | "MANUAL"
+    | "SKILL_WEIGHTED";
   team_fill_percentage?: number;
   total_workers_needed?: number;
   total_workers_assigned?: number;
@@ -233,7 +233,8 @@ export default function JobDetailScreen() {
   const queryClient = useQueryClient();
 
   // Debug logging
-  if (__DEV__) console.log("[JobDetail] Loaded with id:", id, "typeof:", typeof id);
+  if (__DEV__)
+    console.log("[JobDetail] Loaded with id:", id, "typeof:", typeof id);
 
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -285,12 +286,13 @@ export default function JobDetailScreen() {
     !isNaN(jobId) && jobId > 0 && id !== "create" && id !== "undefined";
 
   // Debug validation
-  if (__DEV__) console.log(
-    "[JobDetail] Parsed jobId:",
-    jobId,
-    "isValidJobId:",
-    isValidJobId,
-  );
+  if (__DEV__)
+    console.log(
+      "[JobDetail] Parsed jobId:",
+      jobId,
+      "isValidJobId:",
+      isValidJobId,
+    );
 
   // Fetch job details
   const {
@@ -304,7 +306,8 @@ export default function JobDetailScreen() {
         console.error("[JobDetail] Query blocked - invalid job ID:", id);
         throw new Error("Invalid job ID");
       }
-      if (__DEV__) console.log("[JobDetail] Fetching job details for ID:", jobId);
+      if (__DEV__)
+        console.log("[JobDetail] Fetching job details for ID:", jobId);
       const response = await apiRequest(ENDPOINTS.JOB_DETAILS(jobId));
 
       if (!response.ok) {
@@ -315,18 +318,19 @@ export default function JobDetailScreen() {
       const jobData = result.data || result; // Handle both wrapped and unwrapped responses
 
       // Debug: Log team job data from API
-      if (__DEV__) console.log("[JobDetail] Raw API response:", {
-        is_team_job: jobData.is_team_job,
-        skill_slots_count: jobData.skill_slots?.length || 0,
-        total_workers_needed: jobData.total_workers_needed,
-        total_workers_assigned: jobData.total_workers_assigned,
-        payment_model: jobData.payment_model,
-        daily_rate_agreed: jobData.daily_rate_agreed,
-        budget: jobData.budget,
-        duration_days: jobData.duration_days,
-        assigned_agency: jobData.assigned_agency,
-      });
-      
+      if (__DEV__)
+        console.log("[JobDetail] Raw API response:", {
+          is_team_job: jobData.is_team_job,
+          skill_slots_count: jobData.skill_slots?.length || 0,
+          total_workers_needed: jobData.total_workers_needed,
+          total_workers_assigned: jobData.total_workers_assigned,
+          payment_model: jobData.payment_model,
+          daily_rate_agreed: jobData.daily_rate_agreed,
+          budget: jobData.budget,
+          duration_days: jobData.duration_days,
+          assigned_agency: jobData.assigned_agency,
+        });
+
       // Debug: Log agency data specifically
       if (__DEV__ && jobData.assigned_agency) {
         console.log("[JobDetail] Agency data found:", {
@@ -354,7 +358,10 @@ export default function JobDetailScreen() {
         title: jobData.title,
         category: jobData.category, // Already an object {id, name}
         description: jobData.description,
-        budget: jobData.budget != null ? `₱${Number(jobData.budget).toLocaleString()}` : "TBD",
+        budget:
+          jobData.budget != null
+            ? `₱${Number(jobData.budget).toLocaleString()}`
+            : "TBD",
         location: jobData.location,
         distance: jobData.distance ?? null,
         status: jobData.status,
@@ -407,13 +414,13 @@ export default function JobDetailScreen() {
           : null,
         reviews: jobData.reviews
           ? {
-            clientToWorker: jobData.reviews.client_to_worker
-              ? mapReview(jobData.reviews.client_to_worker)
-              : undefined,
-            workerToClient: jobData.reviews.worker_to_client
-              ? mapReview(jobData.reviews.worker_to_client)
-              : undefined,
-          }
+              clientToWorker: jobData.reviews.client_to_worker
+                ? mapReview(jobData.reviews.client_to_worker)
+                : undefined,
+              workerToClient: jobData.reviews.worker_to_client
+                ? mapReview(jobData.reviews.worker_to_client)
+                : undefined,
+            }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
         // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
@@ -440,8 +447,8 @@ export default function JobDetailScreen() {
         daily_rate:
           jobData.daily_rate_agreed ??
           (jobData.payment_model === "DAILY" &&
-            jobData.budget &&
-            jobData.duration_days
+          jobData.budget &&
+          jobData.duration_days
             ? jobData.budget / jobData.duration_days
             : undefined),
         duration_days: jobData.duration_days,
@@ -531,32 +538,38 @@ export default function JobDetailScreen() {
 
   const handleViewChat = async () => {
     try {
-      console.log('[VIEW CHAT] Button pressed for job:', jobId);
-      console.log('[VIEW CHAT] Calling endpoint:', ENDPOINTS.CONVERSATION_BY_JOB(jobId));
-      
+      console.log("[VIEW CHAT] Button pressed for job:", jobId);
+      console.log(
+        "[VIEW CHAT] Calling endpoint:",
+        ENDPOINTS.CONVERSATION_BY_JOB(jobId),
+      );
+
       const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
       const data = await response.json();
-      
-      console.log('[VIEW CHAT] Backend response:', JSON.stringify(data, null, 2));
-      console.log('[VIEW CHAT] Success:', data.success);
-      console.log('[VIEW CHAT] Conversation ID:', data.conversation_id);
-      
+
+      console.log(
+        "[VIEW CHAT] Backend response:",
+        JSON.stringify(data, null, 2),
+      );
+      console.log("[VIEW CHAT] Success:", data.success);
+      console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
+
       if (data.success && data.conversation_id) {
         const route = `/messages/${data.conversation_id}`;
-        console.log('[VIEW CHAT] Navigating to:', route);
+        console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
       } else {
-        console.log('[VIEW CHAT] No conversation found - showing alert');
+        console.log("[VIEW CHAT] No conversation found - showing alert");
         Alert.alert(
-          "No Conversation", 
-          `Could not find conversation for this job.\n\nResponse: ${JSON.stringify(data)}`
+          "No Conversation",
+          `Could not find conversation for this job.\n\nResponse: ${JSON.stringify(data)}`,
         );
       }
     } catch (error) {
       console.error("[VIEW CHAT] Error fetching conversation:", error);
       Alert.alert(
-        "Connection Error", 
-        `Failed to connect to chat.\n\nError: ${error instanceof Error ? error.message : String(error)}`
+        "Connection Error",
+        `Failed to connect to chat.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   };
@@ -768,7 +781,8 @@ export default function JobDetailScreen() {
     setCountdownConfig({
       visible: true,
       title: "Delete Job Request",
-      message: "Are you sure you want to delete this job request? This action cannot be undone.",
+      message:
+        "Are you sure you want to delete this job request? This action cannot be undone.",
       confirmLabel: "Delete",
       confirmStyle: "destructive",
       countdownSeconds: 5,
@@ -825,7 +839,8 @@ export default function JobDetailScreen() {
     setCountdownConfig({
       visible: true,
       title: "Accept Job Invitation",
-      message: "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
+      message:
+        "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
       confirmLabel: "Accept",
       confirmStyle: "default",
       countdownSeconds: 5,
@@ -853,25 +868,38 @@ export default function JobDetailScreen() {
   const isTeamJob = job?.is_team_job === true;
 
   // Debug: Log team job state in render
-  if (__DEV__) console.log("[JobDetail] Team Job State:", {
-    isTeamJob,
-    job_is_team_job: job?.is_team_job,
-    skill_slots_count: job?.skill_slots?.length || 0,
-    total_workers_needed: job?.total_workers_needed,
-    total_workers_assigned: job?.total_workers_assigned,
-  });
+  if (__DEV__)
+    console.log("[JobDetail] Team Job State:", {
+      isTeamJob,
+      job_is_team_job: job?.is_team_job,
+      skill_slots_count: job?.skill_slots?.length || 0,
+      total_workers_needed: job?.total_workers_needed,
+      total_workers_assigned: job?.total_workers_assigned,
+    });
 
   // Compute accurate team counts from slot status (handles agency assignment where backend totals may lag)
-  const computedWorkersNeeded = isTeamJob && job?.skill_slots?.length
-    ? job.skill_slots.reduce((sum, slot) => sum + (slot.workers_needed || 0), 0)
-    : (job?.total_workers_needed || 0);
-  const computedWorkersAssigned = isTeamJob && job?.skill_slots?.length
-    ? job.skill_slots.reduce((sum, slot) =>
-        sum + (slot.status === 'FILLED' ? slot.workers_needed : (slot.workers_assigned || 0)), 0)
-    : (job?.total_workers_assigned || 0);
-  const computedFillPercentage = computedWorkersNeeded > 0
-    ? (computedWorkersAssigned / computedWorkersNeeded) * 100
-    : (job?.team_fill_percentage || 0);
+  const computedWorkersNeeded =
+    isTeamJob && job?.skill_slots?.length
+      ? job.skill_slots.reduce(
+          (sum, slot) => sum + (slot.workers_needed || 0),
+          0,
+        )
+      : job?.total_workers_needed || 0;
+  const computedWorkersAssigned =
+    isTeamJob && job?.skill_slots?.length
+      ? job.skill_slots.reduce(
+          (sum, slot) =>
+            sum +
+            (slot.status === "FILLED"
+              ? slot.workers_needed
+              : slot.workers_assigned || 0),
+          0,
+        )
+      : job?.total_workers_assigned || 0;
+  const computedFillPercentage =
+    computedWorkersNeeded > 0
+      ? (computedWorkersAssigned / computedWorkersNeeded) * 100
+      : job?.team_fill_percentage || 0;
   const isTeamFilled = computedFillPercentage >= 100;
 
   // Team job apply mutation
@@ -884,7 +912,7 @@ export default function JobDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
-    }, [queryClient])
+    }, [queryClient]),
   );
 
   // Team job applications (for clients)
@@ -903,9 +931,7 @@ export default function JobDetailScreen() {
   );
 
   const canAccessTeamGroupChat =
-    isTeamJob &&
-    isTeamFilled &&
-    (isClient || !!currentWorkerAssignment);
+    isTeamJob && isTeamFilled && (isClient || !!currentWorkerAssignment);
 
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
@@ -1300,8 +1326,7 @@ export default function JobDetailScreen() {
               <Text style={styles.teamJobHeaderBadgeText}>Team Job</Text>
               <View style={styles.teamJobHeaderDivider} />
               <Text style={styles.teamJobHeaderCount}>
-                {computedWorkersAssigned}/
-                {computedWorkersNeeded} workers filled
+                {computedWorkersAssigned}/{computedWorkersNeeded} workers filled
               </Text>
               {isTeamFilled && (
                 <Ionicons
@@ -1325,7 +1350,9 @@ export default function JobDetailScreen() {
         <View style={styles.detailsSection}>
           <View style={styles.detailCard}>
             <Ionicons
-              name={job.payment_model === "DAILY" ? "time-outline" : "cash-outline"}
+              name={
+                job.payment_model === "DAILY" ? "time-outline" : "cash-outline"
+              }
               size={24}
               color={Colors.primary}
             />
@@ -1333,12 +1360,39 @@ export default function JobDetailScreen() {
               <Text style={styles.detailLabel}>Budget</Text>
               <Text style={styles.detailValue}>{job.budget}</Text>
               {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
-                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-                  <Text style={{ fontSize: 11, color: Colors.primary }}>📅 Daily Rate: ₱{Number(job.daily_rate_agreed).toLocaleString()}/day</Text>
-                  {job.duration_days ? <Text style={{ fontSize: 11, color: Colors.textSecondary, marginLeft: 4 }}>({job.duration_days}d)</Text> : null}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 2,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: Colors.primary }}>
+                    📅 Daily Rate: ₱
+                    {Number(job.daily_rate_agreed).toLocaleString()}/day
+                  </Text>
+                  {job.duration_days ? (
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: Colors.textSecondary,
+                        marginLeft: 4,
+                      }}
+                    >
+                      ({job.duration_days}d)
+                    </Text>
+                  ) : null}
                 </View>
               ) : (
-                <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 2 }}>💼 Project Based</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: Colors.textSecondary,
+                    marginTop: 2,
+                  }}
+                >
+                  💼 Project Based
+                </Text>
               )}
             </View>
           </View>
@@ -1363,10 +1417,22 @@ export default function JobDetailScreen() {
         {/* Expected Duration */}
         {job.expectedDuration && (
           <View style={[styles.section, { paddingTop: 0 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <Ionicons name="time-outline" size={20} color={Colors.primary} />
-              <Text style={{ fontSize: 14, color: Colors.textSecondary }}>Expected Duration:</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textPrimary }}>{job.expectedDuration}</Text>
+              <Text style={{ fontSize: 14, color: Colors.textSecondary }}>
+                Expected Duration:
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: Colors.textPrimary,
+                }}
+              >
+                {job.expectedDuration}
+              </Text>
             </View>
           </View>
         )}
@@ -1487,13 +1553,13 @@ export default function JobDetailScreen() {
         {/* ML Estimated Completion Time */}
         {(isLoading ||
           (job.estimatedCompletion && job.status !== "COMPLETED")) && (
-            <View style={styles.section}>
-              <EstimatedTimeCard
-                prediction={job?.estimatedCompletion || null}
-                isLoading={isLoading}
-              />
-            </View>
-          )}
+          <View style={styles.section}>
+            <EstimatedTimeCard
+              prediction={job?.estimatedCompletion || null}
+              isLoading={isLoading}
+            />
+          </View>
+        )}
 
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
@@ -1559,7 +1625,9 @@ export default function JobDetailScreen() {
               </View>
             )}
 
-            <Text style={[styles.sectionTitle, { marginTop: 4 }]}>Skill Slots</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 4 }]}>
+              Skill Slots
+            </Text>
 
             {/* Skill Slot Cards */}
             {job.skill_slots.map((slot) => {
@@ -1606,7 +1674,10 @@ export default function JobDetailScreen() {
                         color={Colors.textSecondary}
                       />
                       <Text style={styles.skillSlotInfoText}>
-                        {slot.status === 'FILLED' ? slot.workers_needed : slot.workers_assigned}/{slot.workers_needed} workers
+                        {slot.status === "FILLED"
+                          ? slot.workers_needed
+                          : slot.workers_assigned}
+                        /{slot.workers_needed} workers
                       </Text>
                     </View>
                     <View style={styles.skillSlotInfoItem}>
@@ -1696,16 +1767,32 @@ export default function JobDetailScreen() {
                     </Text>
                   </View>
                 ) : (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 }}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} />
-                    <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: "500" }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      paddingVertical: 8,
+                    }}
+                  >
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={18}
+                      color={Colors.primary}
+                    />
+                    <Text
+                      style={{
+                        color: Colors.primary,
+                        fontSize: 14,
+                        fontWeight: "500",
+                      }}
+                    >
                       Go to conversation to manage job progress
                     </Text>
                   </View>
                 )}
               </View>
             )}
-
           </View>
         )}
 
@@ -1733,8 +1820,21 @@ export default function JobDetailScreen() {
                       style={styles.applicationAvatar}
                     />
                   ) : (
-                    <View style={[styles.applicationAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="person" size={24} color={Colors.textSecondary} />
+                    <View
+                      style={[
+                        styles.applicationAvatar,
+                        {
+                          backgroundColor: Colors.background,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person"
+                        size={24}
+                        color={Colors.textSecondary}
+                      />
                     </View>
                   )}
                   <View style={styles.applicationWorkerDetails}>
@@ -1788,66 +1888,95 @@ export default function JobDetailScreen() {
                   </View>
                 </View>
 
-                {app.status === "PENDING" && !assignedWorkerIds.has(app.worker_id) && (
-                  <View style={styles.applicationActions}>
-                    <TouchableOpacity
-                      style={styles.acceptButton}
-                      onPress={() =>
-                        handleAcceptTeamApplication(
-                          app.application_id,
-                          app.worker_name,
-                        )
-                      }
-                      disabled={acceptTeamApplication.isPending}
-                    >
-                      {acceptTeamApplication.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="checkmark"
-                            size={18}
+                {app.status === "PENDING" &&
+                  !assignedWorkerIds.has(app.worker_id) && (
+                    <View style={styles.applicationActions}>
+                      <TouchableOpacity
+                        style={styles.acceptButton}
+                        onPress={() =>
+                          handleAcceptTeamApplication(
+                            app.application_id,
+                            app.worker_name,
+                          )
+                        }
+                        disabled={acceptTeamApplication.isPending}
+                      >
+                        {acceptTeamApplication.isPending ? (
+                          <ActivityIndicator
+                            size="small"
                             color={Colors.white}
                           />
-                          <Text style={styles.acceptButtonText}>Accept</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.rejectButton}
-                      onPress={() =>
-                        handleRejectTeamApplication(
-                          app.application_id,
-                          app.worker_name,
-                        )
-                      }
-                      disabled={rejectTeamApplication.isPending}
-                    >
-                      {rejectTeamApplication.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.error} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="close"
-                            size={18}
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="checkmark"
+                              size={18}
+                              color={Colors.white}
+                            />
+                            <Text style={styles.acceptButtonText}>Accept</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.rejectButton}
+                        onPress={() =>
+                          handleRejectTeamApplication(
+                            app.application_id,
+                            app.worker_name,
+                          )
+                        }
+                        disabled={rejectTeamApplication.isPending}
+                      >
+                        {rejectTeamApplication.isPending ? (
+                          <ActivityIndicator
+                            size="small"
                             color={Colors.error}
                           />
-                          <Text style={styles.rejectButtonText}>Reject</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
-                {app.status === "PENDING" && assignedWorkerIds.has(app.worker_id) && (
-                  <View style={[styles.applicationActions, { justifyContent: 'center' }]}>
-                    <View style={[styles.applicationStatusBadge, styles.statusAccepted, { paddingHorizontal: 12, paddingVertical: 6 }]}>
-                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} style={{ marginRight: 4 }} />
-                      <Text style={[styles.applicationStatusText, { color: Colors.success }]}>
-                        Already Assigned to Another Slot
-                      </Text>
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="close"
+                              size={18}
+                              color={Colors.error}
+                            />
+                            <Text style={styles.rejectButtonText}>Reject</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                )}
+                  )}
+                {app.status === "PENDING" &&
+                  assignedWorkerIds.has(app.worker_id) && (
+                    <View
+                      style={[
+                        styles.applicationActions,
+                        { justifyContent: "center" },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.applicationStatusBadge,
+                          styles.statusAccepted,
+                          { paddingHorizontal: 12, paddingVertical: 6 },
+                        ]}
+                      >
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color={Colors.success}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          style={[
+                            styles.applicationStatusText,
+                            { color: Colors.success },
+                          ]}
+                        >
+                          Already Assigned to Another Slot
+                        </Text>
+                      </View>
+                    </View>
+                  )}
               </View>
             ))}
           </View>
@@ -1870,8 +1999,8 @@ export default function JobDetailScreen() {
                   <Text style={styles.inviteActionTitle}>Job Invitation</Text>
                 </View>
                 <Text style={styles.inviteActionText}>
-                  You&apos;ve been invited to work on this job. Review the details
-                  and decide whether to accept or decline.
+                  You&apos;ve been invited to work on this job. Review the
+                  details and decide whether to accept or decline.
                 </Text>
                 <View style={styles.inviteActionButtons}>
                   <TouchableOpacity
@@ -1927,7 +2056,9 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   {applications.length > 0 && (
                     <View style={styles.applicationsBadge}>
                       <Text style={styles.applicationsBadgeText}>
@@ -1936,29 +2067,45 @@ export default function JobDetailScreen() {
                     </View>
                   )}
                   {job.status !== "IN_PROGRESS" && (
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: Colors.primary,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 16,
-                      gap: 4,
-                    }}
-                    onPress={() => {
-                      const catId = typeof job.category === 'object' ? job.category.id : undefined;
-                      router.push({
-                        pathname: '/jobs/invite-workers' as any,
-                        params: { jobId: id, categoryId: catId?.toString() || '' },
-                      });
-                    }}
-                  >
-                    <Ionicons name="person-add-outline" size={14} color={Colors.white} />
-                    <Text style={{ color: Colors.white, fontSize: 12, fontWeight: '600' }}>
-                      Invite Workers
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: Colors.primary,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 16,
+                        gap: 4,
+                      }}
+                      onPress={() => {
+                        const catId =
+                          typeof job.category === "object"
+                            ? job.category.id
+                            : undefined;
+                        router.push({
+                          pathname: "/jobs/invite-workers" as any,
+                          params: {
+                            jobId: id,
+                            categoryId: catId?.toString() || "",
+                          },
+                        });
+                      }}
+                    >
+                      <Ionicons
+                        name="person-add-outline"
+                        size={14}
+                        color={Colors.white}
+                      />
+                      <Text
+                        style={{
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Invite Workers
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </View>
@@ -1991,8 +2138,21 @@ export default function JobDetailScreen() {
                             style={styles.applicationAvatar}
                           />
                         ) : (
-                          <View style={[styles.applicationAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                            <Ionicons name="person" size={24} color={Colors.textSecondary} />
+                          <View
+                            style={[
+                              styles.applicationAvatar,
+                              {
+                                backgroundColor: Colors.background,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="person"
+                              size={24}
+                              color={Colors.textSecondary}
+                            />
                           </View>
                         )}
                         <View style={styles.applicationWorkerDetails}>
@@ -2002,13 +2162,24 @@ export default function JobDetailScreen() {
                           <View style={styles.applicationWorkerMeta}>
                             {application.worker.rating > 0 ? (
                               <>
-                                <Ionicons name="star" size={14} color="#F59E0B" />
+                                <Ionicons
+                                  name="star"
+                                  size={14}
+                                  color="#F59E0B"
+                                />
                                 <Text style={styles.applicationWorkerRating}>
                                   {application.worker.rating.toFixed(1)}
                                 </Text>
                               </>
                             ) : (
-                              <Text style={[styles.applicationWorkerRating, { color: Colors.textSecondary }]}>New</Text>
+                              <Text
+                                style={[
+                                  styles.applicationWorkerRating,
+                                  { color: Colors.textSecondary },
+                                ]}
+                              >
+                                New
+                              </Text>
                             )}
                             {application.worker.city && (
                               <>
@@ -2024,11 +2195,11 @@ export default function JobDetailScreen() {
                           style={[
                             styles.applicationStatusBadge,
                             application.status === "PENDING" &&
-                            styles.statusPending,
+                              styles.statusPending,
                             application.status === "ACCEPTED" &&
-                            styles.statusAccepted,
+                              styles.statusAccepted,
                             application.status === "REJECTED" &&
-                            styles.statusRejected,
+                              styles.statusRejected,
                           ]}
                         >
                           <Text style={styles.applicationStatusText}>
@@ -2076,16 +2247,23 @@ export default function JobDetailScreen() {
                       </View>
 
                       {/* View Chat Button for Accepted Applications */}
-                      {application.status === "ACCEPTED" && !job?.is_team_job && (
-                        <TouchableOpacity
-                          style={[styles.viewChatButton, { marginTop: 8 }]}
-                          onPress={handleViewChat}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="chatbubble-outline" size={18} color={Colors.white} />
-                          <Text style={styles.viewChatButtonText}>View Chat</Text>
-                        </TouchableOpacity>
-                      )}
+                      {application.status === "ACCEPTED" &&
+                        !job?.is_team_job && (
+                          <TouchableOpacity
+                            style={[styles.viewChatButton, { marginTop: 8 }]}
+                            onPress={handleViewChat}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons
+                              name="chatbubble-outline"
+                              size={18}
+                              color={Colors.white}
+                            />
+                            <Text style={styles.viewChatButtonText}>
+                              View Chat
+                            </Text>
+                          </TouchableOpacity>
+                        )}
 
                       {/* Action Buttons */}
                       {application.status === "PENDING" && (
@@ -2206,29 +2384,35 @@ export default function JobDetailScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="chatbubbles" size={22} color={Colors.white} />
-              <Text style={styles.viewGroupChatButtonText}>View Group Chat</Text>
+              <Text style={styles.viewGroupChatButtonText}>
+                View Group Chat
+              </Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* View Agency Group Chat button for agency jobs with assigned workers */}
-        {isClient && job.assignedAgency && job.assignedAgency.workers_assigned > 0 && (
-          <View style={[styles.section, { paddingTop: 0 }]}>
-            <TouchableOpacity
-              style={styles.viewGroupChatButton}
-              onPress={handleViewChat}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="chatbubbles" size={22} color={Colors.white} />
-              <Text style={styles.viewGroupChatButtonText}>View Agency Group Chat</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {isClient &&
+          job.assignedAgency &&
+          job.assignedAgency.workers_assigned > 0 && (
+            <View style={[styles.section, { paddingTop: 0 }]}>
+              <TouchableOpacity
+                style={styles.viewGroupChatButton}
+                onPress={handleViewChat}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubbles" size={22} color={Colors.white} />
+                <Text style={styles.viewGroupChatButtonText}>
+                  View Agency Group Chat
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
-          job.status === "IN_PROGRESS" ||
-          job.status === "COMPLETED" ? (
+        job.status === "IN_PROGRESS" ||
+        job.status === "COMPLETED" ? (
           <>
             {/* Client Section - clickable for workers */}
             <View style={styles.section}>
@@ -2248,8 +2432,21 @@ export default function JobDetailScreen() {
                       style={styles.posterAvatar}
                     />
                   ) : (
-                    <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                    <View
+                      style={[
+                        styles.posterAvatar,
+                        {
+                          backgroundColor: Colors.background,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person"
+                        size={28}
+                        color={Colors.textSecondary}
+                      />
                     </View>
                   )}
                   <View style={styles.posterInfo}>
@@ -2265,7 +2462,14 @@ export default function JobDetailScreen() {
                           </Text>
                         </>
                       ) : (
-                        <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                        <Text
+                          style={[
+                            styles.posterRatingText,
+                            { color: Colors.textSecondary },
+                          ]}
+                        >
+                          New
+                        </Text>
                       )}
                     </View>
                     <Text style={styles.tapToViewHint}>
@@ -2287,8 +2491,21 @@ export default function JobDetailScreen() {
                       style={styles.posterAvatar}
                     />
                   ) : (
-                    <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                    <View
+                      style={[
+                        styles.posterAvatar,
+                        {
+                          backgroundColor: Colors.background,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person"
+                        size={28}
+                        color={Colors.textSecondary}
+                      />
                     </View>
                   )}
                   <View style={styles.posterInfo}>
@@ -2307,7 +2524,14 @@ export default function JobDetailScreen() {
                           </Text>
                         </>
                       ) : (
-                        <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                        <Text
+                          style={[
+                            styles.posterRatingText,
+                            { color: Colors.textSecondary },
+                          ]}
+                        >
+                          New
+                        </Text>
                       )}
                     </View>
                   </View>
@@ -2326,8 +2550,21 @@ export default function JobDetailScreen() {
                       style={styles.posterAvatar}
                     />
                   ) : (
-                    <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="business" size={28} color={Colors.textSecondary} />
+                    <View
+                      style={[
+                        styles.posterAvatar,
+                        {
+                          backgroundColor: Colors.background,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="business"
+                        size={28}
+                        color={Colors.textSecondary}
+                      />
                     </View>
                   )}
                   <View style={styles.posterInfo}>
@@ -2343,11 +2580,20 @@ export default function JobDetailScreen() {
                           </Text>
                         </>
                       ) : (
-                        <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                        <Text
+                          style={[
+                            styles.posterRatingText,
+                            { color: Colors.textSecondary },
+                          ]}
+                        >
+                          New
+                        </Text>
                       )}
                     </View>
                     <Text style={styles.posterRatingText}>
-                      {job.assignedAgency.workers_assigned} worker{job.assignedAgency.workers_assigned !== 1 ? 's' : ''} assigned
+                      {job.assignedAgency.workers_assigned} worker
+                      {job.assignedAgency.workers_assigned !== 1 ? "s" : ""}{" "}
+                      assigned
                     </Text>
                   </View>
                 </View>
@@ -2373,8 +2619,21 @@ export default function JobDetailScreen() {
                         style={styles.posterAvatar}
                       />
                     ) : (
-                      <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                      <View
+                        style={[
+                          styles.posterAvatar,
+                          {
+                            backgroundColor: Colors.background,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="person"
+                          size={28}
+                          color={Colors.textSecondary}
+                        />
                       </View>
                     )}
                     <View style={styles.posterInfo}>
@@ -2390,7 +2649,14 @@ export default function JobDetailScreen() {
                             </Text>
                           </>
                         ) : (
-                          <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                          <Text
+                            style={[
+                              styles.posterRatingText,
+                              { color: Colors.textSecondary },
+                            ]}
+                          >
+                            New
+                          </Text>
                         )}
                       </View>
                       <Text style={styles.tapToViewHint}>
@@ -2412,8 +2678,21 @@ export default function JobDetailScreen() {
                         style={styles.posterAvatar}
                       />
                     ) : (
-                      <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                      <View
+                        style={[
+                          styles.posterAvatar,
+                          {
+                            backgroundColor: Colors.background,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="person"
+                          size={28}
+                          color={Colors.textSecondary}
+                        />
                       </View>
                     )}
                     <View style={styles.posterInfo}>
@@ -2430,7 +2709,14 @@ export default function JobDetailScreen() {
                             </Text>
                           </>
                         ) : (
-                          <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                          <Text
+                            style={[
+                              styles.posterRatingText,
+                              { color: Colors.textSecondary },
+                            ]}
+                          >
+                            New
+                          </Text>
                         )}
                       </View>
                     </View>
@@ -2458,8 +2744,21 @@ export default function JobDetailScreen() {
                     style={styles.posterAvatar}
                   />
                 ) : (
-                  <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                    <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                  <View
+                    style={[
+                      styles.posterAvatar,
+                      {
+                        backgroundColor: Colors.background,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={28}
+                      color={Colors.textSecondary}
+                    />
                   </View>
                 )}
                 <View style={styles.posterInfo}>
@@ -2475,7 +2774,14 @@ export default function JobDetailScreen() {
                         </Text>
                       </>
                     ) : (
-                      <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                      <Text
+                        style={[
+                          styles.posterRatingText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        New
+                      </Text>
                     )}
                   </View>
                   <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
@@ -2496,8 +2802,21 @@ export default function JobDetailScreen() {
                     style={styles.posterAvatar}
                   />
                 ) : (
-                  <View style={[styles.posterAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                    <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                  <View
+                    style={[
+                      styles.posterAvatar,
+                      {
+                        backgroundColor: Colors.background,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={28}
+                      color={Colors.textSecondary}
+                    />
                   </View>
                 )}
                 <View style={styles.posterInfo}>
@@ -2516,7 +2835,14 @@ export default function JobDetailScreen() {
                         </Text>
                       </>
                     ) : (
-                      <Text style={[styles.posterRatingText, { color: Colors.textSecondary }]}>New</Text>
+                      <Text
+                        style={[
+                          styles.posterRatingText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        New
+                      </Text>
                     )}
                   </View>
                   <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
@@ -2558,7 +2884,11 @@ export default function JobDetailScreen() {
                   onPress={handleViewChat}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="chatbubble-outline" size={18} color={Colors.white} />
+                  <Ionicons
+                    name="chatbubble-outline"
+                    size={18}
+                    color={Colors.white}
+                  />
                   <Text style={styles.viewChatButtonText}>View Chat</Text>
                 </TouchableOpacity>
               )}
@@ -2568,7 +2898,7 @@ export default function JobDetailScreen() {
               style={[
                 styles.applyButton,
                 (!user?.kycVerified || hasApplied) &&
-                styles.applyButtonDisabled,
+                  styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
@@ -2578,7 +2908,7 @@ export default function JobDetailScreen() {
                 style={[
                   styles.applyButtonText,
                   (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonTextDisabled,
+                    styles.applyButtonTextDisabled,
                 ]}
               >
                 {!user?.kycVerified

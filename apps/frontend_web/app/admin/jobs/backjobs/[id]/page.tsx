@@ -9,8 +9,20 @@ import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, AlertTriangle, CheckCircle, Clock, XCircle, MessageSquare,
-  Send, User, DollarSign, FileText, Shield, ChevronRight, Calendar, RefreshCw,
+  ArrowLeft,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  XCircle,
+  MessageSquare,
+  Send,
+  User,
+  DollarSign,
+  FileText,
+  Shield,
+  ChevronRight,
+  Calendar,
+  RefreshCw,
   Image,
 } from "lucide-react";
 import Link from "next/link";
@@ -39,7 +51,12 @@ interface DisputeDetail {
   admin_rejection_reason: string | null;
   conversation_id: number | null;
   can_admin_chat?: boolean;
-  evidence: { id: number; image_url: string; description: string | null; uploaded_at: string }[];
+  evidence: {
+    id: number;
+    image_url: string;
+    description: string | null;
+    uploaded_at: string;
+  }[];
   backjob_started: boolean;
   worker_marked_complete: boolean;
   client_confirmed: boolean;
@@ -56,15 +73,35 @@ interface ChatMessage {
 function getStatusBadge(status: string) {
   switch (status) {
     case "open":
-      return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">\u23f3 Pending Review</Badge>;
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+          \u23f3 Pending Review
+        </Badge>
+      );
     case "in_negotiation":
-      return <Badge className="bg-purple-100 text-purple-700 border-purple-200">\u2696\ufe0f In Negotiation</Badge>;
+      return (
+        <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+          \u2696\ufe0f In Negotiation
+        </Badge>
+      );
     case "under_review":
-      return <Badge className="bg-blue-100 text-blue-700 border-blue-200">\U0001f50d Under Review</Badge>;
+      return (
+        <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+          \U0001f50d Under Review
+        </Badge>
+      );
     case "resolved":
-      return <Badge className="bg-green-100 text-green-700 border-green-200">\u2705 Resolved</Badge>;
+      return (
+        <Badge className="bg-green-100 text-green-700 border-green-200">
+          \u2705 Resolved
+        </Badge>
+      );
     case "closed":
-      return <Badge className="bg-gray-100 text-gray-700 border-gray-200">\U0001f6ab Closed</Badge>;
+      return (
+        <Badge className="bg-gray-100 text-gray-700 border-gray-200">
+          \U0001f6ab Closed
+        </Badge>
+      );
     default:
       return <Badge className="bg-gray-100 text-gray-600">{status}</Badge>;
   }
@@ -73,24 +110,46 @@ function getStatusBadge(status: string) {
 function getPriorityBadge(priority: string) {
   switch (priority) {
     case "critical":
-      return <Badge className="bg-red-100 text-red-700 border-red-200">\U0001f534 Critical</Badge>;
+      return (
+        <Badge className="bg-red-100 text-red-700 border-red-200">
+          \U0001f534 Critical
+        </Badge>
+      );
     case "high":
-      return <Badge className="bg-orange-100 text-orange-700 border-orange-200">\U0001f7e0 High</Badge>;
+      return (
+        <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+          \U0001f7e0 High
+        </Badge>
+      );
     case "medium":
-      return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">\U0001f7e1 Medium</Badge>;
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+          \U0001f7e1 Medium
+        </Badge>
+      );
     case "low":
-      return <Badge className="bg-green-100 text-green-700 border-green-200">\U0001f7e2 Low</Badge>;
+      return (
+        <Badge className="bg-green-100 text-green-700 border-green-200">
+          \U0001f7e2 Low
+        </Badge>
+      );
     default:
       return <Badge className="bg-gray-100 text-gray-600">{priority}</Badge>;
   }
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount);
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+  }).format(amount);
 }
 
 function withCacheBust(url: string, token: string) {
@@ -125,9 +184,12 @@ export default function BackjobDetailPage() {
 
   const fetchDispute = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}`,
+        {
+          credentials: "include",
+        },
+      );
       const data = await res.json();
       if (data.success) {
         setDispute(data.dispute);
@@ -142,16 +204,23 @@ export default function BackjobDetailPage() {
     }
   }, [disputeId]);
 
-  useEffect(() => { fetchDispute(); }, [fetchDispute]);
+  useEffect(() => {
+    fetchDispute();
+  }, [fetchDispute]);
 
   const fetchMessages = useCallback(async (convId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/adminpanel/conversations/${convId}/messages`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${API_BASE}/api/adminpanel/conversations/${convId}/messages`,
+        {
+          credentials: "include",
+        },
+      );
       const data = await res.json();
       if (data.success && data.messages) setMessages(data.messages);
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }, []);
 
   useEffect(() => {
@@ -160,7 +229,9 @@ export default function BackjobDetailPage() {
       fetchMessages(convId);
       pollRef.current = setInterval(() => fetchMessages(convId), 5000);
     }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [dispute?.status, dispute?.conversation_id, fetchMessages]);
 
   useEffect(() => {
@@ -172,7 +243,7 @@ export default function BackjobDetailPage() {
     try {
       const res = await fetch(
         `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/accept-negotiation`,
-        { method: "POST", credentials: "include" }
+        { method: "POST", credentials: "include" },
       );
       const data = await res.json();
       if (data.success) {
@@ -181,17 +252,21 @@ export default function BackjobDetailPage() {
       } else {
         alert(data.error || "Failed to accept negotiation");
       }
-    } catch { alert("Network error"); }
-    finally { setActionLoading(false); }
+    } catch {
+      alert("Network error");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleApproveBackjob = async () => {
-    if (!confirm("Approve this backjob? Both parties will be notified.")) return;
+    if (!confirm("Approve this backjob? Both parties will be notified."))
+      return;
     setActionLoading(true);
     try {
       const res = await fetch(
         `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/approve-backjob`,
-        { method: "POST", credentials: "include" }
+        { method: "POST", credentials: "include" },
       );
       const data = await res.json();
       if (data.success) {
@@ -200,8 +275,11 @@ export default function BackjobDetailPage() {
       } else {
         alert(data.error || "Failed to approve backjob");
       }
-    } catch { alert("Network error"); }
-    finally { setActionLoading(false); }
+    } catch {
+      alert("Network error");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleFinishNegotiation = async () => {
@@ -212,11 +290,13 @@ export default function BackjobDetailPage() {
     try {
       const res = await fetch(
         `${API_BASE}/api/adminpanel/jobs/disputes/${dispute.dispute_id}/finish-negotiation`,
-        { method: "POST", credentials: "include" }
+        { method: "POST", credentials: "include" },
       );
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg("Negotiation mediation finished. Admin chat is now closed.");
+        setSuccessMsg(
+          "Negotiation mediation finished. Admin chat is now closed.",
+        );
         setMessages([]);
         fetchDispute();
       } else {
@@ -244,19 +324,24 @@ export default function BackjobDetailPage() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reason: rejectReason }),
-        }
+        },
       );
       const data = await res.json();
       if (data.success) {
         setShowRejectModal(false);
         setRejectReason("");
-        setSuccessMsg("Backjob request rejected. The client has been notified.");
+        setSuccessMsg(
+          "Backjob request rejected. The client has been notified.",
+        );
         fetchDispute();
       } else {
         setRejectError(data.error || "Failed to reject");
       }
-    } catch { setRejectError("Network error"); }
-    finally { setActionLoading(false); }
+    } catch {
+      setRejectError("Network error");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleSendChatMessage = async () => {
@@ -265,15 +350,21 @@ export default function BackjobDetailPage() {
     const text = chatMessage.trim();
     setChatMessage("");
     try {
-      await fetch(`${API_BASE}/api/adminpanel/conversations/${dispute.conversation_id}/send-message`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
+      await fetch(
+        `${API_BASE}/api/adminpanel/conversations/${dispute.conversation_id}/send-message`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        },
+      );
       fetchMessages(dispute.conversation_id);
-    } catch { alert("Failed to send message"); }
-    finally { setSendingChat(false); }
+    } catch {
+      alert("Failed to send message");
+    } finally {
+      setSendingChat(false);
+    }
   };
 
   if (loading) {
@@ -296,8 +387,12 @@ export default function BackjobDetailPage() {
         <main className={mainClass}>
           <div className="text-center py-16">
             <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-            <p className="text-red-600 font-medium">{error || "Dispute not found"}</p>
-            <Button className="mt-4" onClick={() => router.back()}>Back</Button>
+            <p className="text-red-600 font-medium">
+              {error || "Dispute not found"}
+            </p>
+            <Button className="mt-4" onClick={() => router.back()}>
+              Back
+            </Button>
           </div>
         </main>
       </div>
@@ -306,7 +401,9 @@ export default function BackjobDetailPage() {
 
   const isOpen = dispute.status === "open";
   const isNegotiating = dispute.status === "in_negotiation";
-  const canAdminChat = Boolean(dispute.can_admin_chat && dispute.conversation_id);
+  const canAdminChat = Boolean(
+    dispute.can_admin_chat && dispute.conversation_id,
+  );
   const isFinished = ["resolved", "closed"].includes(dispute.status);
 
   return (
@@ -342,8 +439,12 @@ export default function BackjobDetailPage() {
                   {getStatusBadge(dispute.status)}
                   {getPriorityBadge(dispute.priority)}
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">{dispute.job_title}</h1>
-                <p className="text-gray-500 text-sm">{dispute.id} &middot; Opened {fmtDate(dispute.opened_date)}</p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">
+                  {dispute.job_title}
+                </h1>
+                <p className="text-gray-500 text-sm">
+                  {dispute.id} &middot; Opened {fmtDate(dispute.opened_date)}
+                </p>
                 {dispute.in_negotiation_at && (
                   <p className="text-purple-600 text-sm mt-1">
                     Negotiation started {fmtDate(dispute.in_negotiation_at)}
@@ -353,12 +454,16 @@ export default function BackjobDetailPage() {
               <div className="flex flex-wrap gap-3">
                 <div className="bg-orange-50 rounded-xl px-4 py-2 text-center min-w-[100px]">
                   <p className="text-xs text-gray-500">Job Amount</p>
-                  <p className="font-bold text-orange-600">{formatCurrency(dispute.job_amount)}</p>
+                  <p className="font-bold text-orange-600">
+                    {formatCurrency(dispute.job_amount)}
+                  </p>
                 </div>
                 {dispute.disputed_amount > 0 && (
                   <div className="bg-red-50 rounded-xl px-4 py-2 text-center min-w-[100px]">
                     <p className="text-xs text-gray-500">Disputed</p>
-                    <p className="font-bold text-red-600">{formatCurrency(dispute.disputed_amount)}</p>
+                    <p className="font-bold text-red-600">
+                      {formatCurrency(dispute.disputed_amount)}
+                    </p>
                   </div>
                 )}
               </div>
@@ -377,55 +482,87 @@ export default function BackjobDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Reason</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    Reason
+                  </p>
                   <p className="text-gray-800 font-medium">{dispute.reason}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Description</p>
-                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{dispute.description}</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    Description
+                  </p>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {dispute.description}
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Disputed By</p>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                      Disputed By
+                    </p>
                     <p className="capitalize font-medium text-gray-800">
                       {dispute.disputed_by === "client" ? "Client" : "Worker"}
                     </p>
                   </div>
                   {dispute.category && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Category</p>
-                      <p className="font-medium text-gray-800">{dispute.category}</p>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                        Category
+                      </p>
+                      <p className="font-medium text-gray-800">
+                        {dispute.category}
+                      </p>
                     </div>
                   )}
                 </div>
                 <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Backjob Progress</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                    Backjob Progress
+                  </p>
                   <div className="flex items-center gap-2 flex-wrap text-sm">
                     {[
                       { label: "Started", done: dispute.backjob_started },
-                      { label: "Worker Done", done: dispute.worker_marked_complete },
-                      { label: "Client Confirmed", done: dispute.client_confirmed },
+                      {
+                        label: "Worker Done",
+                        done: dispute.worker_marked_complete,
+                      },
+                      {
+                        label: "Client Confirmed",
+                        done: dispute.client_confirmed,
+                      },
                     ].map((step, i, arr) => (
                       <div key={step.label} className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                          step.done ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
-                        }`}>
-                          {step.done
-                            ? <CheckCircle className="h-3 w-3" />
-                            : <Clock className="h-3 w-3" />}
+                        <div
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                            step.done
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-400"
+                          }`}
+                        >
+                          {step.done ? (
+                            <CheckCircle className="h-3 w-3" />
+                          ) : (
+                            <Clock className="h-3 w-3" />
+                          )}
                           {step.label}
                         </div>
-                        {i < arr.length - 1 && <ChevronRight className="h-3 w-3 text-gray-300" />}
+                        {i < arr.length - 1 && (
+                          <ChevronRight className="h-3 w-3 text-gray-300" />
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
                 {dispute.resolution && (
                   <div className="pt-2 border-t border-gray-100">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Resolution</p>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                      Resolution
+                    </p>
                     <p className="text-gray-700">{dispute.resolution}</p>
                     {dispute.resolved_date && (
-                      <p className="text-xs text-gray-400 mt-1">{fmtDate(dispute.resolved_date)}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {fmtDate(dispute.resolved_date)}
+                      </p>
                     )}
                   </div>
                 )}
@@ -445,7 +582,11 @@ export default function BackjobDetailPage() {
                     {dispute.evidence.map((ev) => (
                       <button
                         key={ev.id}
-                        onClick={() => setLightboxUrl(withCacheBust(ev.image_url, dispute.updated_at))}
+                        onClick={() =>
+                          setLightboxUrl(
+                            withCacheBust(ev.image_url, dispute.updated_at),
+                          )
+                        }
                         className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square focus:outline-none focus:ring-2 focus:ring-orange-400"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -478,10 +619,14 @@ export default function BackjobDetailPage() {
                     </span>
                   </CardTitle>
                   <p className="text-xs text-gray-400 mt-1">
-                    Visible to client, worker, and admin. Auto-refreshes every 5 seconds.
+                    Visible to client, worker, and admin. Auto-refreshes every 5
+                    seconds.
                   </p>
                 </CardHeader>
-                <CardContent className="p-0 flex flex-col" style={{ height: "420px" }}>
+                <CardContent
+                  className="p-0 flex flex-col"
+                  style={{ height: "420px" }}
+                >
                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {messages.length === 0 ? (
                       <div className="text-center text-gray-400 text-sm py-8">
@@ -501,24 +646,43 @@ export default function BackjobDetailPage() {
                         }
                         const isAdmin = msg.sender_type === "admin";
                         return (
-                          <div key={msg.id} className={`flex gap-2 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                              isAdmin ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"
-                            }`}>
-                              {isAdmin ? <Shield className="h-4 w-4" /> : msg.sender_name.charAt(0).toUpperCase()}
+                          <div
+                            key={msg.id}
+                            className={`flex gap-2 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}
+                          >
+                            <div
+                              className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                isAdmin
+                                  ? "bg-purple-100 text-purple-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              {isAdmin ? (
+                                <Shield className="h-4 w-4" />
+                              ) : (
+                                msg.sender_name.charAt(0).toUpperCase()
+                              )}
                             </div>
-                            <div className={`max-w-[75%] flex flex-col gap-1 ${isAdmin ? "items-end" : "items-start"}`}>
+                            <div
+                              className={`max-w-[75%] flex flex-col gap-1 ${isAdmin ? "items-end" : "items-start"}`}
+                            >
                               <div className="flex items-center gap-1">
-                                <span className={`text-xs font-semibold ${isAdmin ? "text-purple-600" : "text-gray-600"}`}>
+                                <span
+                                  className={`text-xs font-semibold ${isAdmin ? "text-purple-600" : "text-gray-600"}`}
+                                >
                                   {isAdmin ? "Admin" : msg.sender_name}
                                 </span>
-                                <span className="text-xs text-gray-400">{fmtDate(msg.created_at)}</span>
+                                <span className="text-xs text-gray-400">
+                                  {fmtDate(msg.created_at)}
+                                </span>
                               </div>
-                              <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                                isAdmin
-                                  ? "bg-purple-600 text-white rounded-tr-sm"
-                                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
-                              }`}>
+                              <div
+                                className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
+                                  isAdmin
+                                    ? "bg-purple-600 text-white rounded-tr-sm"
+                                    : "bg-gray-100 text-gray-800 rounded-tl-sm"
+                                }`}
+                              >
                                 {msg.text}
                               </div>
                             </div>
@@ -534,7 +698,10 @@ export default function BackjobDetailPage() {
                       value={chatMessage}
                       onChange={(e) => setChatMessage(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChatMessage(); }
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendChatMessage();
+                        }
                       }}
                       className="flex-1 min-h-[60px] max-h-[120px] resize-none rounded-xl border-gray-200 text-sm"
                     />
@@ -554,7 +721,8 @@ export default function BackjobDetailPage() {
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-5">
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    Negotiation mediation has been finished. Admin chat access is now closed.
+                    Negotiation mediation has been finished. Admin chat access
+                    is now closed.
                   </div>
                 </CardContent>
               </Card>
@@ -576,11 +744,17 @@ export default function BackjobDetailPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-400">Client</p>
-                    <p className="font-semibold text-gray-800 truncate">{dispute.client.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{dispute.client.email}</p>
+                    <p className="font-semibold text-gray-800 truncate">
+                      {dispute.client.name}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {dispute.client.email}
+                    </p>
                   </div>
                   <Link href={`/admin/users/clients/${dispute.client.id}`}>
-                    <Badge className="bg-blue-100 text-blue-600 hover:bg-blue-200 cursor-pointer text-xs">View</Badge>
+                    <Badge className="bg-blue-100 text-blue-600 hover:bg-blue-200 cursor-pointer text-xs">
+                      View
+                    </Badge>
                   </Link>
                 </div>
                 {dispute.worker && (
@@ -590,11 +764,17 @@ export default function BackjobDetailPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400">Worker</p>
-                      <p className="font-semibold text-gray-800 truncate">{dispute.worker.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{dispute.worker.email}</p>
+                      <p className="font-semibold text-gray-800 truncate">
+                        {dispute.worker.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {dispute.worker.email}
+                      </p>
                     </div>
                     <Link href={`/admin/users/workers/${dispute.worker.id}`}>
-                      <Badge className="bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer text-xs">View</Badge>
+                      <Badge className="bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer text-xs">
+                        View
+                      </Badge>
                     </Link>
                   </div>
                 )}
@@ -605,10 +785,14 @@ export default function BackjobDetailPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400">Agency</p>
-                      <p className="font-semibold text-gray-800 truncate">{dispute.agency.name}</p>
+                      <p className="font-semibold text-gray-800 truncate">
+                        {dispute.agency.name}
+                      </p>
                     </div>
                     <Link href={`/admin/users/agencies/${dispute.agency.id}`}>
-                      <Badge className="bg-amber-100 text-amber-600 hover:bg-amber-200 cursor-pointer text-xs">View</Badge>
+                      <Badge className="bg-amber-100 text-amber-600 hover:bg-amber-200 cursor-pointer text-xs">
+                        View
+                      </Badge>
                     </Link>
                   </div>
                 )}
@@ -626,23 +810,31 @@ export default function BackjobDetailPage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Opened</span>
-                    <span className="text-gray-800 font-medium">{fmtDate(dispute.opened_date)}</span>
+                    <span className="text-gray-800 font-medium">
+                      {fmtDate(dispute.opened_date)}
+                    </span>
                   </div>
                   {dispute.in_negotiation_at && (
                     <div className="flex justify-between items-center">
                       <span className="text-purple-500">Negotiation</span>
-                      <span className="text-purple-700 font-medium">{fmtDate(dispute.in_negotiation_at)}</span>
+                      <span className="text-purple-700 font-medium">
+                        {fmtDate(dispute.in_negotiation_at)}
+                      </span>
                     </div>
                   )}
                   {dispute.resolved_date && (
                     <div className="flex justify-between items-center">
                       <span className="text-green-500">Resolved</span>
-                      <span className="text-green-700 font-medium">{fmtDate(dispute.resolved_date)}</span>
+                      <span className="text-green-700 font-medium">
+                        {fmtDate(dispute.resolved_date)}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                     <span className="text-gray-400">Last updated</span>
-                    <span className="text-gray-600 text-xs">{fmtDate(dispute.updated_at)}</span>
+                    <span className="text-gray-600 text-xs">
+                      {fmtDate(dispute.updated_at)}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -688,7 +880,8 @@ export default function BackjobDetailPage() {
                   {isNegotiating && (
                     <>
                       <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-600">
-                        Negotiation in progress. Use the chat to mediate, then finish negotiation when done.
+                        Negotiation in progress. Use the chat to mediate, then
+                        finish negotiation when done.
                       </div>
                       {canAdminChat && (
                         <Button
@@ -740,11 +933,13 @@ export default function BackjobDetailPage() {
             {isFinished && (
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-4">
-                  <div className={`p-4 rounded-xl text-center ${
-                    dispute.status === "resolved"
-                      ? "bg-green-50 border border-green-200 text-green-600"
-                      : "bg-gray-50 border border-gray-200 text-gray-500"
-                  }`}>
+                  <div
+                    className={`p-4 rounded-xl text-center ${
+                      dispute.status === "resolved"
+                        ? "bg-green-50 border border-green-200 text-green-600"
+                        : "bg-gray-50 border border-gray-200 text-gray-500"
+                    }`}
+                  >
                     {dispute.status === "resolved" ? (
                       <>
                         <CheckCircle className="h-8 w-8 mx-auto mb-2" />
@@ -755,7 +950,9 @@ export default function BackjobDetailPage() {
                         <XCircle className="h-8 w-8 mx-auto mb-2" />
                         <p className="font-semibold">Request Closed</p>
                         {dispute.admin_rejection_reason && (
-                          <p className="text-xs mt-1 opacity-70">{dispute.admin_rejection_reason}</p>
+                          <p className="text-xs mt-1 opacity-70">
+                            {dispute.admin_rejection_reason}
+                          </p>
                         )}
                       </>
                     )}
@@ -770,7 +967,9 @@ export default function BackjobDetailPage() {
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Reject Backjob Request</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">
+              Reject Backjob Request
+            </h2>
             <p className="text-sm text-gray-500 mb-4">
               Provide a clear reason. The client will be notified.
             </p>
@@ -781,16 +980,24 @@ export default function BackjobDetailPage() {
               className="w-full min-h-[100px] rounded-xl border-gray-200 text-sm mb-2"
             />
             <div className="flex justify-between items-center mb-4">
-              <span className={`text-xs ${rejectReason.length < 10 ? "text-red-400" : "text-green-500"}`}>
+              <span
+                className={`text-xs ${rejectReason.length < 10 ? "text-red-400" : "text-green-500"}`}
+              >
                 {rejectReason.length} / 10 min characters
               </span>
-              {rejectError && <span className="text-xs text-red-500">{rejectError}</span>}
+              {rejectError && (
+                <span className="text-xs text-red-500">{rejectError}</span>
+              )}
             </div>
             <div className="flex gap-3">
               <Button
                 className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200"
                 disabled={actionLoading}
-                onClick={() => { setShowRejectModal(false); setRejectReason(""); setRejectError(""); }}
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                  setRejectError("");
+                }}
               >
                 Cancel
               </Button>

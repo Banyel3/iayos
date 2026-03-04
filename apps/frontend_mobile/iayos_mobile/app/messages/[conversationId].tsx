@@ -103,7 +103,8 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
-  const [negotiationPanelExpanded, setNegotiationPanelExpanded] = useState(false);
+  const [negotiationPanelExpanded, setNegotiationPanelExpanded] =
+    useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
@@ -1190,7 +1191,9 @@ export default function ChatScreen() {
       });
 
       if (!uploadResult?.success) {
-        throw new Error(uploadResult?.error || "Failed to send image. Please try again.");
+        throw new Error(
+          uploadResult?.error || "Failed to send image. Please try again.",
+        );
       }
 
       resetProgress();
@@ -1208,13 +1211,12 @@ export default function ChatScreen() {
         error,
         "Failed to send image. Please try again.",
       );
-      const userMessage = parsed.toLowerCase().includes("network error during upload")
+      const userMessage = parsed
+        .toLowerCase()
+        .includes("network error during upload")
         ? "Upload failed due to network instability. Please check connection and try again."
         : parsed;
-      Alert.alert(
-        "Error",
-        userMessage,
-      );
+      Alert.alert("Error", userMessage);
     }
   };
 
@@ -2709,7 +2711,14 @@ export default function ChatScreen() {
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
                   conversation.job?.preferred_start_date &&
-                  new Date() < (() => { const d = new Date(conversation.job!.preferred_start_date!); d.setHours(0,0,0,0); return d; })() && (
+                  new Date() <
+                    (() => {
+                      const d = new Date(
+                        conversation.job!.preferred_start_date!,
+                      );
+                      d.setHours(0, 0, 0, 0);
+                      return d;
+                    })() && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
                         name="lock-closed-outline"
@@ -2719,11 +2728,15 @@ export default function ChatScreen() {
                       <View style={{ flex: 1, marginLeft: 4 }}>
                         <Text style={styles.waitingButtonText}>
                           Job starts on{" "}
-                          {new Date(conversation.job.preferred_start_date).toLocaleDateString(
-                            undefined,
-                            { weekday: "short", month: "short", day: "numeric", year: "numeric" }
-                          )}
-                          {" "}— action buttons will unlock on that date.
+                          {new Date(
+                            conversation.job.preferred_start_date,
+                          ).toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}{" "}
+                          — action buttons will unlock on that date.
                         </Text>
                       </View>
                     </View>
@@ -2735,7 +2748,14 @@ export default function ChatScreen() {
                   conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
                   (!conversation.job?.preferred_start_date ||
-                    new Date() >= (() => { const d = new Date(conversation.job.preferred_start_date!); d.setHours(0,0,0,0); return d; })()) &&
+                    new Date() >=
+                      (() => {
+                        const d = new Date(
+                          conversation.job.preferred_start_date!,
+                        );
+                        d.setHours(0, 0, 0, 0);
+                        return d;
+                      })()) &&
                   !conversation.job.clientConfirmedWorkStarted &&
                   (conversation.job.materials_status === "NONE" ||
                     conversation.job.materials_status === "APPROVED" ||
@@ -2901,7 +2921,8 @@ export default function ChatScreen() {
                   conversation.assigned_employees.length > 0 &&
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
-                      employee.agencyMarkedComplete || employee.status === "COMPLETED";
+                      employee.agencyMarkedComplete ||
+                      employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
                       (e) => e.dispatched,
@@ -3100,7 +3121,8 @@ export default function ChatScreen() {
                   conversation.assigned_employees.length > 0 &&
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
-                      employee.agencyMarkedComplete || employee.status === "COMPLETED";
+                      employee.agencyMarkedComplete ||
+                      employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
                       (e) => e.dispatched,
@@ -4673,77 +4695,79 @@ export default function ChatScreen() {
               conversation.messages.some(
                 (m: any) => m.sender_type === "admin",
               ) && (
-              <View style={styles.negotiationPanel}>
-                <TouchableOpacity
-                  style={styles.negotiationPanelHeader}
-                  onPress={() =>
-                    setNegotiationPanelExpanded(!negotiationPanelExpanded)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="shield-half-outline"
-                    size={13}
-                    color="#7C3AED"
-                  />
-                  <Text style={styles.negotiationPanelHeaderText}>
-                    {hasActiveNegotiation
-                      ? "Negotiation Chat"
-                      : "Negotiation History"}
-                  </Text>
-                  {hasActiveNegotiation && (
-                    <View style={styles.negotiationLiveBadge}>
-                      <Text style={styles.negotiationLiveBadgeText}>LIVE</Text>
+                <View style={styles.negotiationPanel}>
+                  <TouchableOpacity
+                    style={styles.negotiationPanelHeader}
+                    onPress={() =>
+                      setNegotiationPanelExpanded(!negotiationPanelExpanded)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="shield-half-outline"
+                      size={13}
+                      color="#7C3AED"
+                    />
+                    <Text style={styles.negotiationPanelHeaderText}>
+                      {hasActiveNegotiation
+                        ? "Negotiation Chat"
+                        : "Negotiation History"}
+                    </Text>
+                    {hasActiveNegotiation && (
+                      <View style={styles.negotiationLiveBadge}>
+                        <Text style={styles.negotiationLiveBadgeText}>
+                          LIVE
+                        </Text>
+                      </View>
+                    )}
+                    <Ionicons
+                      name={
+                        negotiationPanelExpanded ? "chevron-up" : "chevron-down"
+                      }
+                      size={13}
+                      color="#7C3AED"
+                    />
+                  </TouchableOpacity>
+
+                  {negotiationPanelExpanded && (
+                    <View style={styles.negotiationPanelBody}>
+                      {conversation.messages.filter(
+                        (m: any) => m.sender_type === "admin",
+                      ).length === 0 ? (
+                        <Text style={styles.negotiationEmptyText}>
+                          Waiting for admin to join the negotiation…
+                        </Text>
+                      ) : (
+                        conversation.messages
+                          .filter((m: any) => m.sender_type === "admin")
+                          .map((msg: any, idx: number) => (
+                            <View
+                              key={msg.message_id || idx}
+                              style={styles.negotiationMessage}
+                            >
+                              <Ionicons
+                                name="shield-checkmark-outline"
+                                size={12}
+                                color="#7C3AED"
+                              />
+                              <View style={styles.negotiationMessageContent}>
+                                <Text style={styles.negotiationMessageSender}>
+                                  Admin
+                                </Text>
+                                <Text style={styles.negotiationMessageText}>
+                                  {msg.message_text}
+                                </Text>
+                                <Text style={styles.negotiationMessageTime}>
+                                  {format(new Date(msg.created_at), "h:mm a")}
+                                </Text>
+                              </View>
+                            </View>
+                          ))
+                      )}
                     </View>
                   )}
-                  <Ionicons
-                    name={
-                      negotiationPanelExpanded ? "chevron-up" : "chevron-down"
-                    }
-                    size={13}
-                    color="#7C3AED"
-                  />
-                </TouchableOpacity>
-
-                {negotiationPanelExpanded && (
-                  <View style={styles.negotiationPanelBody}>
-                    {conversation.messages.filter(
-                      (m: any) => m.sender_type === "admin",
-                    ).length === 0 ? (
-                      <Text style={styles.negotiationEmptyText}>
-                        Waiting for admin to join the negotiation…
-                      </Text>
-                    ) : (
-                      conversation.messages
-                        .filter((m: any) => m.sender_type === "admin")
-                        .map((msg: any, idx: number) => (
-                          <View
-                            key={msg.message_id || idx}
-                            style={styles.negotiationMessage}
-                          >
-                            <Ionicons
-                              name="shield-checkmark-outline"
-                              size={12}
-                              color="#7C3AED"
-                            />
-                            <View style={styles.negotiationMessageContent}>
-                              <Text style={styles.negotiationMessageSender}>
-                                Admin
-                              </Text>
-                              <Text style={styles.negotiationMessageText}>
-                                {msg.message_text}
-                              </Text>
-                              <Text style={styles.negotiationMessageTime}>
-                                {format(new Date(msg.created_at), "h:mm a")}
-                              </Text>
-                            </View>
-                          </View>
-                        ))
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
+                </View>
+              )}
 
             {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
             {hasApprovedBackjob && (

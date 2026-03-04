@@ -26,7 +26,8 @@ from .services import (
     _verify_account, forgot_password_request, reset_password_verify, 
     logout_account, refresh_token, fetch_currentUser, generateCookie, 
     assign_role, upload_kyc_document, get_kyc_status, get_pending_kyc_submissions,
-    update_user_location, toggle_location_sharing, get_user_location, find_nearby_workers
+    update_user_location, toggle_location_sharing, get_user_location, find_nearby_workers,
+    evaluate_profile_name_match
 )
 # Worker Phase 1 service imports
 from .worker_profile_service import (
@@ -1125,6 +1126,8 @@ def extract_id_from_ocr(request):
             }
             
             print(f"✅ [EXTRACT-ID] Extracted: name='{fields['full_name']['value'][:30]}...', id={fields['id_number']['value']}")
+
+            name_validation = evaluate_profile_name_match(user, fields["full_name"]["value"])
             
             return {
                 "success": True,
@@ -1132,7 +1135,13 @@ def extract_id_from_ocr(request):
                 "fields": fields,
                 "confidence": parsed_data.overall_confidence,
                 "id_type": id_type,
-                "extracted_at": timezone.now().isoformat()
+                "extracted_at": timezone.now().isoformat(),
+                "name_match": name_validation["is_match"] if name_validation["can_validate"] else None,
+                "name_match_score": name_validation["score"],
+                "name_match_reason": name_validation["reason"],
+                "profile_name": name_validation["profile_name"],
+                "ocr_name": name_validation["ocr_name"],
+                "name_match_required": name_validation["can_validate"],
             }
         except Exception as parse_error:
             print(f"   ⚠️ [EXTRACT-ID] Parser failed: {parse_error}")
@@ -1562,6 +1571,22 @@ def confirm_kyc_extracted_data(request, payload: dict = Body(...)):
             kycID=kyc_record,
             defaults={"extraction_status": "PENDING"}
         )
+
+        # Defensive hard-block: confirmed name must match account profile name
+        confirmed_full_name = (payload.get("full_name") or "").strip()
+        if confirmed_full_name:
+            name_validation = evaluate_profile_name_match(user, confirmed_full_name)
+            if name_validation["can_validate"] and not name_validation["is_match"]:
+                return {
+                    "success": False,
+                    "error": "Name on Government ID does not match your account profile name.",
+                    "error_code": "NAME_MISMATCH",
+                    "name_match": False,
+                    "name_match_score": name_validation["score"],
+                    "profile_name": name_validation["profile_name"],
+                    "ocr_name": name_validation["ocr_name"],
+                    "name_match_reason": name_validation["reason"],
+                }
         
         # Track which fields were edited by user
         edited_fields = []

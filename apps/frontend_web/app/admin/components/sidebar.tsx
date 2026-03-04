@@ -240,9 +240,9 @@ const navigation: NavItem[] = [
   },
 ];
 
-
 export default function Sidebar({ className }: SidebarProps) {
-  const { collapsed, setCollapsed, mobileOpen, setMobileOpen, isMobile } = useSidebar();
+  const { collapsed, setCollapsed, mobileOpen, setMobileOpen, isMobile } =
+    useSidebar();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
@@ -250,7 +250,11 @@ export default function Sidebar({ className }: SidebarProps) {
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] =
     useState<number>(0);
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [adminUser, setAdminUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [adminUser, setAdminUser] = useState<{
+    name: string;
+    email: string;
+    role: string;
+  } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
@@ -261,7 +265,7 @@ export default function Sidebar({ className }: SidebarProps) {
     navigation.forEach((item) => {
       if (item.children) {
         const hasActiveChild = item.children.some((child) =>
-          pathname.startsWith(child.href)
+          pathname.startsWith(child.href),
         );
         if (hasActiveChild) {
           activeParents.push(item.name);
@@ -379,11 +383,12 @@ export default function Sidebar({ className }: SidebarProps) {
           const data = await response.json();
           if (data.user) {
             setAdminUser({
-              name: data.user.first_name && data.user.last_name
-                ? `${data.user.first_name} ${data.user.last_name}`
-                : data.user.email?.split('@')[0] || 'Admin',
-              email: data.user.email || '',
-              role: data.user.is_superuser ? 'Super Admin' : 'Administrator',
+              name:
+                data.user.first_name && data.user.last_name
+                  ? `${data.user.first_name} ${data.user.last_name}`
+                  : data.user.email?.split("@")[0] || "Admin",
+              email: data.user.email || "",
+              role: data.user.is_superuser ? "Super Admin" : "Administrator",
             });
           }
         }
@@ -413,7 +418,6 @@ export default function Sidebar({ className }: SidebarProps) {
     }
     return item;
   });
-
 
   const toggleExpanded = (name: string) => {
     setExpandedItems((prev) =>
@@ -455,7 +459,8 @@ export default function Sidebar({ className }: SidebarProps) {
   }, [pathname, isMobile, setMobileOpen]);
 
   // Total badge count for mobile top bar
-  const totalBadge = pendingKYCCount + pendingCertsCount + pendingWithdrawalsCount;
+  const totalBadge =
+    pendingKYCCount + pendingCertsCount + pendingWithdrawalsCount;
 
   // On mobile, sidebar drawer is always expanded (never collapsed)
   const showExpanded = isMobile || !collapsed;
@@ -485,7 +490,14 @@ export default function Sidebar({ className }: SidebarProps) {
             onClick={() => setMobileOpen(true)}
             className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-semibold"
           >
-            {adminUser?.name ? adminUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
+            {adminUser?.name
+              ? adminUser.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()
+              : "AD"}
           </button>
         </div>
       </div>
@@ -517,14 +529,18 @@ export default function Sidebar({ className }: SidebarProps) {
         <div
           className={cn(
             "flex items-center justify-between p-4 border-b border-sidebar-border",
-            !collapsed && "md:cursor-pointer md:hover:bg-gray-50 transition-colors"
+            !collapsed &&
+              "md:cursor-pointer md:hover:bg-gray-50 transition-colors",
           )}
           onClick={() => !collapsed && !isMobile && setCollapsed(true)}
         >
           {/* Mobile close button */}
           {isMobile && (
             <button
-              onClick={(e) => { e.stopPropagation(); setMobileOpen(false); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMobileOpen(false);
+              }}
               className="p-1 rounded-lg hover:bg-gray-100 transition-colors md:hidden"
               aria-label="Close menu"
             >
@@ -541,7 +557,7 @@ export default function Sidebar({ className }: SidebarProps) {
               />
             </div>
           )}
-          {(collapsed && !isMobile) && (
+          {collapsed && !isMobile && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -584,7 +600,7 @@ export default function Sidebar({ className }: SidebarProps) {
               </button>
             </div>
           )}
-          {(collapsed && !isMobile) && (
+          {collapsed && !isMobile && (
             <div className="mb-4">
               <button
                 onClick={() => setShowSearchModal(true)}
@@ -599,7 +615,10 @@ export default function Sidebar({ className }: SidebarProps) {
             const Icon = item.icon;
             const isItemActive = isActive(item.href);
             const isExpanded = expandedItems.includes(item.name);
-            const hasActiveChild = isChildActive(item.href, item.children || []);
+            const hasActiveChild = isChildActive(
+              item.href,
+              item.children || [],
+            );
 
             return (
               <div key={item.name} className="mb-1">
@@ -629,7 +648,9 @@ export default function Sidebar({ className }: SidebarProps) {
                           )}
                         />
                         {showExpanded && (
-                          <span className="font-semibold animate-in fade-in duration-500 delay-150">{item.name}</span>
+                          <span className="font-semibold animate-in fade-in duration-500 delay-150">
+                            {item.name}
+                          </span>
                         )}
                       </div>
                       {showExpanded && (
@@ -673,7 +694,11 @@ export default function Sidebar({ className }: SidebarProps) {
                             isItemActive ? "text-blue-600" : "text-gray-400",
                           )}
                         />
-                        {showExpanded && <span className="animate-in fade-in duration-500 delay-150">{item.name}</span>}
+                        {showExpanded && (
+                          <span className="animate-in fade-in duration-500 delay-150">
+                            {item.name}
+                          </span>
+                        )}
                       </div>
                       {showExpanded &&
                         item.count !== undefined &&
@@ -691,9 +716,11 @@ export default function Sidebar({ className }: SidebarProps) {
                 {item.children && isExpanded && showExpanded && (
                   <div className="mt-1 ml-6 space-y-1 animate-in slide-in-from-top-2 fade-in duration-300">
                     {item.children.map((child) => {
-                      const isChildActiveItem = child.href === item.children![0]?.href && item.children!.length > 1
-                        ? pathname === child.href
-                        : pathname.startsWith(child.href);
+                      const isChildActiveItem =
+                        child.href === item.children![0]?.href &&
+                        item.children!.length > 1
+                          ? pathname === child.href
+                          : pathname.startsWith(child.href);
                       const ChildIcon = child.icon;
 
                       return (
@@ -716,7 +743,9 @@ export default function Sidebar({ className }: SidebarProps) {
                                 : "text-gray-400 group-hover:text-gray-600",
                             )}
                           />
-                          <span className="flex-1 animate-in fade-in duration-500 delay-200">{child.name}</span>
+                          <span className="flex-1 animate-in fade-in duration-500 delay-200">
+                            {child.name}
+                          </span>
                           {/* Optional: Add count badges here if needed */}
                         </Link>
                       );
@@ -739,14 +768,23 @@ export default function Sidebar({ className }: SidebarProps) {
           >
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-                {adminUser?.name ? adminUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
+                {adminUser?.name
+                  ? adminUser.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()
+                  : "AD"}
               </div>
               {showExpanded && (
                 <div className="text-left">
                   <div className="text-sm font-medium text-gray-700">
-                    {adminUser?.name || 'Admin User'}
+                    {adminUser?.name || "Admin User"}
                   </div>
-                  <div className="text-xs text-gray-500">{adminUser?.role || 'Administrator'}</div>
+                  <div className="text-xs text-gray-500">
+                    {adminUser?.role || "Administrator"}
+                  </div>
                 </div>
               )}
             </div>

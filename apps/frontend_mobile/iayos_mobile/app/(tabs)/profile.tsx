@@ -833,9 +833,7 @@ function CollapsibleSection({
           color={Colors.textSecondary}
         />
       </TouchableOpacity>
-      {isExpanded && (
-        <View style={styles.collapsibleContent}>{children}</View>
-      )}
+      {isExpanded && <View style={styles.collapsibleContent}>{children}</View>}
     </View>
   );
 }
