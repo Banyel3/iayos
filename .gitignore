@@ -296,3 +296,29 @@ test_email.txt
 !render.yaml
 !docker-compose*.yml
 !Dockerfile*
+
+# =============================================================================
+# SCRIPTS DIRECTORY (deployment scripts — local-only, not shared via git)
+# =============================================================================
+scripts/
+
+# =============================================================================
+# HTTP TEST FILES (may contain plaintext credentials / JWT tokens)
+# =============================================================================
+tests/*.http
+tests/**/*.http
+
+# =============================================================================
+# ROOT-LEVEL ONE-OFF DEBUG / CONVENIENCE SCRIPTS
+# =============================================================================
+debug_apps.py
+debug_token.py
+final_check.py
+check_screenshot_jobs.py
+create_dummy_job_flow.py
+create_dummy_worker_test.py
+create_dummy_worker_test3.py
+create_dummy_worker_test4.py
+maestro-install.sh
+start-web.sh
+fix_card_payment_check.patch
