@@ -197,18 +197,18 @@ export default function JobsScreen() {
 
   const jobs =
     activeTab === "inProgress" ? inProgressJobsList
-    : activeTab === "past" ? pastJobsList
-    : activeJobs;
+      : activeTab === "past" ? pastJobsList
+        : activeJobs;
 
   const isLoading =
     activeTab === "inProgress" ? inProgressLoading
-    : activeTab === "past" ? pastLoading
-    : activeJobsLoading;
+      : activeTab === "past" ? pastLoading
+        : activeJobsLoading;
 
   const error =
     activeTab === "inProgress" ? inProgressError
-    : activeTab === "past" ? pastError
-    : activeJobsError;
+      : activeTab === "past" ? pastError
+        : activeJobsError;
 
   const refetch = async () => {
     if (activeTab === "inProgress") await refetchInProgress();
@@ -401,12 +401,12 @@ export default function JobsScreen() {
       return true;
     }).length;
 
-  const openCount       = countForTab("open",       activeJobs);
-  const pendingCount    = countForTab("pending",    activeJobs);
-  const requestsCount   = countForTab("requests",  activeJobs);
+  const openCount = countForTab("open", activeJobs);
+  const pendingCount = countForTab("pending", activeJobs);
+  const requestsCount = countForTab("requests", activeJobs);
   const applicationsCount = filteredApplications.length;
   const inProgressCount = inProgressJobsList.length;
-  const pastCount       = pastJobsList.length;
+  const pastCount = pastJobsList.length;
 
   // Returns display pieces for a tab: count number string + label
   const tabParts = (count: number, loading: boolean, label: string) => ({
@@ -827,7 +827,13 @@ export default function JobsScreen() {
             {isClient && (
               <TouchableOpacity
                 style={styles.postJobButton}
-                onPress={() => setShowJobTypeModal(true)}
+                onPress={() => {
+                  if (!user?.kycVerified) {
+                    Alert.alert("Verification Required", "Please complete KYC verification to post a job.");
+                    return;
+                  }
+                  setShowJobTypeModal(true);
+                }}
                 activeOpacity={0.7}
                 testID="jobs-post-job-button"
               >
@@ -1107,7 +1113,13 @@ export default function JobsScreen() {
               {activeTab === "open" && isClient && (
                 <TouchableOpacity
                   style={styles.createJobButton}
-                  onPress={() => setShowJobTypeModal(true)}
+                  onPress={() => {
+                    if (!user?.kycVerified) {
+                      Alert.alert("Verification Required", "Please complete KYC verification to post a job.");
+                      return;
+                    }
+                    setShowJobTypeModal(true);
+                  }}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="add-circle" size={20} color={Colors.white} />
@@ -1556,11 +1568,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
   },
-  avatarPlaceholder: {
-    backgroundColor: Colors.backgroundSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+
   createJobButton: {
     flexDirection: "row",
     alignItems: "center",

@@ -1389,14 +1389,6 @@ export default function WorkerDetailScreen() {
           ) : (
             // Show Hire Worker button when viewing someone else's profile
             <>
-              {!user?.kycVerified && (
-                <View style={styles.kycWarningBanner}>
-                  <Ionicons name="warning" size={20} color={Colors.warning} />
-                  <Text style={styles.kycWarningText}>
-                    Complete KYC verification to hire workers
-                  </Text>
-                </View>
-              )}
               <TouchableOpacity
                 style={[
                   styles.hireButton,
