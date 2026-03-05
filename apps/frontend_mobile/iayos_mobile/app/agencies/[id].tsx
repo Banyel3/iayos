@@ -17,16 +17,20 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
   FlatList,
+  Alert,
+  TouchableOpacity,
+  Platform,
+  ActionSheetIOS,
+  ScrollView,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
   Typography,
@@ -36,6 +40,7 @@ import {
 } from "@/constants/theme";
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS } from "@/lib/api/config";
+import { useSubmitReport } from "@/lib/hooks/useReports";
 
 interface AgencyWorker {
   id: number;
@@ -69,6 +74,8 @@ interface AgencyDetail {
 export default function AgencyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
+  const submitReportMutation = useSubmitReport();
 
   // Fetch agency details
   const { data, isLoading, error } = useQuery({
@@ -129,6 +136,65 @@ export default function AgencyDetailScreen() {
       </SafeAreaView>
     );
   }
+
+  const isClient = user?.profile_data?.profileType === "CLIENT";
+
+  const submitAgencyReport = (reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other") => {
+    submitReportMutation.mutate(
+      {
+        report_type: "user",
+        reason,
+        // Since we don't have accountId for agency directly in the same way, we rely on the agency ID
+        // Note: You might need to adjust reported_user_id depending on your backend schema for reporting agencies
+        reported_user_id: data.id,
+        related_content_id: data.id,
+        description: `Reported agency profile: ${data.name}. Reason: ${reason}`,
+      },
+      {
+        onSuccess: () => {
+          Alert.alert("Report Submitted", "Thank you. Your report has been submitted for admin review.");
+        },
+        onError: (error) => {
+          Alert.alert("Report Failed", error instanceof Error ? error.message : "Failed to submit report");
+        },
+      },
+    );
+  };
+
+  const openAgencyReportMenu = () => {
+    const options = ["Cancel", "Spam", "Harassment", "Fraud/Scam", "Inappropriate", "Fake Profile"];
+
+    const onSelect = (index: number) => {
+      if (index === 1) submitAgencyReport("spam");
+      if (index === 2) submitAgencyReport("harassment");
+      if (index === 3) submitAgencyReport("fraud");
+      if (index === 4) submitAgencyReport("inappropriate");
+      if (index === 5) submitAgencyReport("fake_profile");
+    };
+
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 1,
+          title: "Report Agency",
+          message: "Select a reason for reporting this agency profile.",
+        },
+        onSelect,
+      );
+      return;
+    }
+
+    Alert.alert("Report Agency", "Select a reason", [
+      { text: "Spam", onPress: () => submitAgencyReport("spam") },
+      { text: "Harassment", onPress: () => submitAgencyReport("harassment") },
+      { text: "Fraud/Scam", onPress: () => submitAgencyReport("fraud") },
+      { text: "Inappropriate", onPress: () => submitAgencyReport("inappropriate") },
+      { text: "Fake Profile", onPress: () => submitAgencyReport("fake_profile") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
 
   const renderWorkerCard = ({ item }: { item: AgencyWorker }) => {
     const fullName = `${item.firstName} ${item.lastName}`;
@@ -200,13 +266,25 @@ export default function AgencyDetailScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Agency Profile</Text>
-          <TouchableOpacity style={styles.shareButton}>
-            <Ionicons
-              name="share-outline"
-              size={22}
-              color={Colors.textPrimary}
-            />
-          </TouchableOpacity>
+          {isClient && user?.kycVerified ? (
+            <TouchableOpacity
+              style={styles.shareButton} // Reusing shareButton styles for the circle look
+              onPress={openAgencyReportMenu}
+              disabled={submitReportMutation.isPending}
+            >
+              {submitReportMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <Ionicons
+                  name="flag-outline"
+                  size={22}
+                  color={Colors.error}
+                />
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
         </View>
 
         <ScrollView
@@ -342,11 +420,32 @@ export default function AgencyDetailScreen() {
         {/* Bottom Action Button */}
         <View style={styles.bottomActions}>
           <TouchableOpacity
-            style={styles.hireButton}
-            onPress={() => router.push(`/jobs/create?agencyId=${id}` as any)}
+            style={[
+              styles.hireButton,
+              !user?.kycVerified && styles.hireButtonDisabled,
+            ]}
+            onPress={() => {
+              if (!user?.kycVerified) {
+                Alert.alert(
+                  "Verification Required",
+                  "Please complete KYC verification to hire an agency."
+                );
+                return;
+              }
+              router.push(`/jobs/create?agencyId=${id}` as any);
+            }}
           >
-            <Text style={styles.hireButtonText}>Hire Agency</Text>
-            <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+            <Text
+              style={[
+                styles.hireButtonText,
+                !user?.kycVerified && styles.hireButtonTextDisabled,
+              ]}
+            >
+              {user?.kycVerified ? "Hire Agency" : "KYC Verification Required"}
+            </Text>
+            {user?.kycVerified && (
+              <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+            )}
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -669,5 +768,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.white,
+  },
+  hireButtonDisabled: {
+    backgroundColor: Colors.backgroundSecondary,
+    opacity: 0.6,
+  },
+  hireButtonTextDisabled: {
+    color: Colors.textHint,
   },
 });
