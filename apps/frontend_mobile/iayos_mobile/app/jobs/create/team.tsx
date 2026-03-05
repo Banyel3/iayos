@@ -152,7 +152,7 @@ export default function CreateTeamJobScreen() {
     (walletData as { balance?: number } | undefined)?.balance || 0;
 
   // Fetch specializations (all available skills for team jobs)
-  const { data: specializations, isLoading: specsLoading } = useQuery<
+  const { data: specializations, isLoading: specsLoading, isError: specsError } = useQuery<
     Specialization[]
   >({
     queryKey: ["specializations"],
@@ -177,6 +177,7 @@ export default function CreateTeamJobScreen() {
           skill.category_name ?? skill.categoryName ?? skill.category ?? "",
       }));
     },
+    retry: 2,
   });
 
   // Fetch barangays
@@ -1230,7 +1231,11 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <Text style={styles.label}>Select Specialization</Text>
-              {filteredSpecs.length === 0 ? (
+              {specsError ? (
+                <Text style={styles.emptyListText}>
+                  ⚠️ Failed to load specializations. Please try again.
+                </Text>
+              ) : filteredSpecs.length === 0 ? (
                 <Text style={styles.emptyListText}>
                   {specsLoading ? "Loading..." : "No specializations found"}
                 </Text>

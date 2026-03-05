@@ -1374,44 +1374,6 @@ def mobile_my_skills(request):
         )
 
 
-@mobile_router.get("/skills/available", auth=jwt_auth)
-def mobile_available_skills(request):
-    """
-    Get all available specializations that workers can add to their profile.
-    Returns: List of all specializations with id, name, description, rates
-    """
-    from .models import Specializations
-
-    try:
-        specializations = Specializations.objects.all().order_by('specializationName')
-        
-        skills_data = [
-            {
-                'id': spec.specializationID,
-                'name': spec.specializationName,
-                'description': spec.description or '',
-                'minimumRate': float(spec.minimumRate),
-                'rateType': spec.rateType,
-                'skillLevel': spec.skillLevel,
-            }
-            for spec in specializations
-        ]
-        
-        return {
-            'success': True,
-            'data': skills_data,
-            'count': len(skills_data)
-        }
-    except Exception as e:
-        print(f"[ERROR] Mobile available skills error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch available skills"},
-            status=500
-        )
-
-
 @mobile_router.post("/skills/add", auth=jwt_auth)
 @require_kyc
 def mobile_add_skill(request, payload: AddSkillSchema):

@@ -411,7 +411,7 @@ export default function CreateJobScreen() {
   }, [effectiveCategoryId, fetchSuggestions]);
 
   // Fetch categories
-  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+  const { data: categoriesData, isLoading: categoriesLoading, error: categoriesError } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
       const response = await fetchJson<{ categories: Category[] }>(
@@ -419,6 +419,7 @@ export default function CreateJobScreen() {
       );
       return response.categories || [];
     },
+    retry: 2,
   });
 
   const categories = categoriesData || [];
@@ -1015,7 +1016,13 @@ export default function CreateJobScreen() {
                   style={{ marginBottom: Spacing.md, backgroundColor: Colors.white }}
                 />
 
-                {categoriesLoading ? (
+                {categoriesError ? (
+                  <View style={styles.emptyStateContainer}>
+                    <Text style={styles.emptyStateText}>
+                      ⚠️ Failed to load categories. Pull down to retry.
+                    </Text>
+                  </View>
+                ) : categoriesLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.loadingText}>Loading categories...</Text>
@@ -1363,7 +1370,13 @@ export default function CreateJobScreen() {
                     {/* Specialization Selection */}
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Specialization</Text>
-                      {categoriesLoading ? (
+                      {categoriesError ? (
+                        <View style={styles.emptyStateContainer}>
+                          <Text style={styles.emptyStateText}>
+                            ⚠️ Failed to load specializations.
+                          </Text>
+                        </View>
+                      ) : categoriesLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator
                             size="small"
