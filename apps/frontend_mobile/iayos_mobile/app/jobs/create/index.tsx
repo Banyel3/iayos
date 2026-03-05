@@ -210,6 +210,7 @@ export default function CreateJobScreen() {
   const [durationDays, setDurationDays] = useState("");
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
   const [materialInput, setMaterialInput] = useState("");
+  const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
 
   // Skill slots for worker requirements (unified model for all job types)
@@ -1638,13 +1639,27 @@ export default function CreateJobScreen() {
                 </View>
               )}
             </View>
-
             {/* Job Options Section */}
             <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="settings" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
-              </View>
+              <TouchableOpacity 
+                style={[styles.sectionTitle, { justifyContent: 'space-between' }]}
+                onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="settings" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
+                </View>
+                <Ionicons 
+                  name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color={Colors.primary} 
+                />
+              </TouchableOpacity>
+
+              {isJobOptionsExpanded && (
+                <View>
+
 
               {/* Skill Level Required */}
               <View style={styles.inputGroup}>
@@ -1743,10 +1758,9 @@ export default function CreateJobScreen() {
                   ))}
                 </View>
               </View>
-            </View>
 
             {/* Materials Section */}
-            <View style={styles.section}>
+            <View style={{marginTop: 16}}>
               <View style={styles.sectionTitle}>
                 <Ionicons name="construct" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
@@ -1871,8 +1885,11 @@ export default function CreateJobScreen() {
                 </View>
               )}
             </View>
+          </View>
+        )}
+      </View>
 
-            {/* Budget Section */}
+      {/* Budget Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
                 <Ionicons name="card" size={20} color={Colors.primary} />

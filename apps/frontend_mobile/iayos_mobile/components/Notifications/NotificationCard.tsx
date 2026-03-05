@@ -22,7 +22,7 @@ export default function NotificationCard({
   });
 
   const isRead = notification.isRead;
-  
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -32,6 +32,11 @@ export default function NotificationCard({
         !isRead && styles.unreadContainer
       ]}
     >
+      {!isRead && (
+        <View style={styles.indicatorContainer}>
+          <View style={styles.unreadDot} />
+        </View>
+      )}
       <View style={styles.textContainer}>
         <View style={styles.titleRow}>
           <Text
@@ -45,21 +50,21 @@ export default function NotificationCard({
           </Text>
         </View>
 
-        <Text 
+        <Text
           style={[
             styles.message,
             isRead ? styles.readText : styles.unreadText,
             { marginTop: 4 }
-          ]} 
+          ]}
           numberOfLines={2}
         >
           {notification.message}
         </Text>
 
         <Text style={[
-          styles.timestamp, 
-          isRead ? styles.readText : styles.unreadText, 
-          { opacity: 0.7, marginTop: 6 }
+          styles.timestamp,
+          isRead ? styles.readText : styles.unreadText,
+          { opacity: 0.6, marginTop: 6 }
         ]}>
           {relativeTime}
         </Text>
@@ -70,15 +75,35 @@ export default function NotificationCard({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    padding: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
+    borderRadius: 12,
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    // Card styling
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
   },
   unreadContainer: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#00BAF133', // Subtle blue border for unread
+  },
+  indicatorContainer: {
+    marginTop: 6, // Align with title text
+    paddingRight: 12,
+  },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#00BAF1',
   },
   textContainer: {
     flex: 1,
@@ -95,10 +120,10 @@ const styles = StyleSheet.create({
   },
   unreadText: {
     color: '#000000',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   readText: {
-    color: '#8A8A8E',
+    color: '#666',
     fontWeight: '400',
   },
   message: {
