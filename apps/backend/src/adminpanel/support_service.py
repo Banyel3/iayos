@@ -674,6 +674,22 @@ def get_reports(
     
     offset = (page - 1) * limit
     reports = queryset[offset:offset + limit]
+
+    reporter_ids = {r.reporterFK_id for r in reports if r.reporterFK_id}
+    reported_ids = {r.reportedUserFK_id for r in reports if r.reportedUserFK_id}
+
+    reporter_counts = {
+        row['reporterFK']: row['count']
+        for row in UserReport.objects.filter(reporterFK_id__in=reporter_ids)
+        .values('reporterFK')
+        .annotate(count=Count('reportID'))
+    }
+    reported_user_counts = {
+        row['reportedUserFK']: row['count']
+        for row in UserReport.objects.filter(reportedUserFK_id__in=reported_ids)
+        .values('reportedUserFK')
+        .annotate(count=Count('reportID'))
+    }
     
     return {
         'success': True,
@@ -685,12 +701,16 @@ def get_reports(
                 'reported_user_id': str(r.reportedUserFK_id) if r.reportedUserFK else None,
                 'reported_user_name': r.reportedUserFK.email.split('@')[0] if r.reportedUserFK else None,
                 'report_type': r.reportType,
+                'reported_content_type': r.reportType,
+                'reported_content_id': str(r.relatedContentID) if r.relatedContentID is not None else None,
                 'reason': r.reason,
                 'description': r.description[:200] + '...' if len(r.description) > 200 else r.description,
                 'status': r.status,
                 'action_taken': r.actionTaken,
                 'created_at': r.createdAt.isoformat(),
                 'reviewed_by': r.reviewedBy.email.split('@')[0] if r.reviewedBy else None,
+                'reporter_total_reports': reporter_counts.get(r.reporterFK_id, 0),
+                'reported_user_total_reports': reported_user_counts.get(r.reportedUserFK_id, 0),
             }
             for r in reports
         ],
@@ -722,9 +742,12 @@ def get_report_detail(report_id: int) -> Dict[str, Any]:
             'reported_user_name': report.reportedUserFK.email.split('@')[0] if report.reportedUserFK else None,
             'reported_user_email': report.reportedUserFK.email if report.reportedUserFK else None,
             'report_type': report.reportType,
+            'reported_content_type': report.reportType,
+            'reported_content_id': str(report.relatedContentID) if report.relatedContentID is not None else None,
             'reason': report.reason,
             'description': report.description,
             'related_content_id': report.relatedContentID,
+            'reported_content': f"{report.reportType}:{report.relatedContentID}" if report.relatedContentID is not None else report.reportType,
             'status': report.status,
             'action_taken': report.actionTaken,
             'admin_notes': report.adminNotes,
@@ -732,6 +755,8 @@ def get_report_detail(report_id: int) -> Dict[str, Any]:
             'updated_at': report.updatedAt.isoformat(),
             'resolved_at': report.resolvedAt.isoformat() if report.resolvedAt else None,
             'reviewed_by': report.reviewedBy.email.split('@')[0] if report.reviewedBy else None,
+            'reporter_total_reports': UserReport.objects.filter(reporterFK=report.reporterFK).count(),
+            'reported_user_total_reports': UserReport.objects.filter(reportedUserFK=report.reportedUserFK).count() if report.reportedUserFK else 0,
         },
     }
 

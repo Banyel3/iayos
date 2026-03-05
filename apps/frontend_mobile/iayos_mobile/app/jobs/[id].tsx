@@ -11,6 +11,8 @@ import {
   Dimensions,
   TextInput,
   Alert,
+  Platform,
+  ActionSheetIOS,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -45,6 +47,7 @@ import {
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
 import { useMySkills } from "@/lib/hooks/useSkills";
+import { useSubmitReport } from "@/lib/hooks/useReports";
 import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
@@ -254,6 +257,7 @@ export default function JobDetailScreen() {
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const submitReportMutation = useSubmitReport();
 
   // Application form state
   const [proposalMessage, setProposalMessage] = useState("");
@@ -1219,6 +1223,95 @@ export default function JobDetailScreen() {
     job.status === "COMPLETED" &&
     (job.reviews?.clientToWorker || job.reviews?.workerToClient);
 
+  const submitJobReport = (
+    type: "job" | "user",
+    reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other",
+  ) => {
+    const isUserReport = type === "user";
+    const reportedUserId = isUserReport ? job.postedBy?.id : undefined;
+
+    submitReportMutation.mutate(
+      {
+        report_type: type,
+        reason,
+        reported_user_id: reportedUserId,
+        related_content_id: Number(job.id),
+        description: isUserReport
+          ? `Reported user from job ${job.id}: ${job.title}. Reason: ${reason}`
+          : `Reported job ${job.id}: ${job.title}. Reason: ${reason}`,
+      },
+      {
+        onSuccess: () => {
+          Alert.alert("Report Submitted", "Thank you. Your report has been submitted for admin review.");
+        },
+        onError: (error) => {
+          Alert.alert("Report Failed", error instanceof Error ? error.message : "Failed to submit report");
+        },
+      },
+    );
+  };
+
+  const openJobReportMenu = () => {
+    const reportUserAvailable = !!job.postedBy?.id && job.postedBy.id !== user?.accountID;
+
+    const openReasonMenu = (type: "job" | "user") => {
+      if (Platform.OS === "ios") {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: ["Cancel", "Spam", "Harassment", "Fraud/Scam", "Inappropriate", "Fake Profile"],
+            cancelButtonIndex: 0,
+            destructiveButtonIndex: 1,
+            title: type === "job" ? "Report Job" : "Report User",
+          },
+          (index) => {
+            if (index === 1) submitJobReport(type, "spam");
+            if (index === 2) submitJobReport(type, "harassment");
+            if (index === 3) submitJobReport(type, "fraud");
+            if (index === 4) submitJobReport(type, "inappropriate");
+            if (index === 5) submitJobReport(type, "fake_profile");
+          },
+        );
+        return;
+      }
+
+      Alert.alert(
+        type === "job" ? "Report Job" : "Report User",
+        "Select a reason",
+        [
+          { text: "Spam", onPress: () => submitJobReport(type, "spam") },
+          { text: "Harassment", onPress: () => submitJobReport(type, "harassment") },
+          { text: "Fraud/Scam", onPress: () => submitJobReport(type, "fraud") },
+          { text: "Inappropriate", onPress: () => submitJobReport(type, "inappropriate") },
+          { text: "Fake Profile", onPress: () => submitJobReport(type, "fake_profile") },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+    };
+
+    if (Platform.OS === "ios") {
+      const options = ["Cancel", "Report Job", ...(reportUserAvailable ? ["Report User"] : [])];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 1,
+          title: "Report",
+        },
+        (index) => {
+          if (index === 1) openReasonMenu("job");
+          if (index === 2 && reportUserAvailable) openReasonMenu("user");
+        },
+      );
+      return;
+    }
+
+    Alert.alert("Report", "Choose what to report", [
+      { text: "Report Job", onPress: () => openReasonMenu("job") },
+      ...(reportUserAvailable ? [{ text: "Report User", onPress: () => openReasonMenu("user") }] : []),
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
@@ -1271,6 +1364,19 @@ export default function JobDetailScreen() {
               size={24}
               onToggle={setIsSaved}
             />
+          )}
+          {user?.accountID !== job.postedBy?.id && (
+            <TouchableOpacity
+              onPress={openJobReportMenu}
+              style={styles.deleteButton}
+              disabled={submitReportMutation.isPending}
+            >
+              {submitReportMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <Ionicons name="flag-outline" size={22} color={Colors.error} />
+              )}
+            </TouchableOpacity>
           )}
         </View>
       </View>
