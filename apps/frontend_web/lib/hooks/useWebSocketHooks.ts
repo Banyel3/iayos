@@ -160,6 +160,21 @@ export function useMessageListener(conversationId?: number) {
           });
         }
       }
+
+      // Handle job status updates (worker marked complete, client approved, etc.)
+      if (data.type === "job_status_update") {
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
+        if (conversationId) {
+          queryClient.invalidateQueries({
+            queryKey: ["messages", conversationId],
+          });
+          queryClient.invalidateQueries({
+            queryKey: ["agency-messages", conversationId],
+          });
+        }
+      }
     });
 
     return () => {
