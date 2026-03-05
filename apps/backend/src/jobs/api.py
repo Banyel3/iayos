@@ -989,7 +989,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             print(f"💳 Creating {provider_name.upper()} invoice for escrow payment...")
             
             payment_result = payment_provider.create_gcash_payment(
-                amount=float(total_to_charge),  # Include 5% platform fee
+                amount=float(total_to_charge),  # Include platform fee (10% as per settings)
                 user_email=request.auth.email,
                 user_name=user_name,
                 transaction_id=escrow_transaction.transactionID

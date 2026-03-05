@@ -2070,16 +2070,16 @@ export default function CreateJobScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>
-                      Platform Fee (10% of escrow)
+                      Platform Fee (10% of total)
                     </Text>
                     <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(budget) * 0.5 * 0.05).toFixed(2)}
+                      ₱{(parseFloat(budget) * 0.10).toFixed(2)}
                     </Text>
                   </View>
                   <View style={[styles.summaryRow, styles.summaryRowTotal]}>
                     <Text style={styles.summaryLabelTotal}>Due Now</Text>
                     <Text style={styles.summaryValueTotal}>
-                      ₱{(parseFloat(budget) * 0.5 * 1.05).toFixed(2)}
+                      ₱{(parseFloat(budget) * 0.5 + parseFloat(budget) * 0.10).toFixed(2)}
                     </Text>
                   </View>
                   <View style={styles.walletBalanceRow}>
@@ -2136,13 +2136,13 @@ export default function CreateJobScreen() {
                       Platform Fee (10% of total)
                     </Text>
                     <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.05).toFixed(2)}
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.10).toFixed(2)}
                     </Text>
                   </View>
                   <View style={[styles.summaryRow, styles.summaryRowTotal]}>
                     <Text style={styles.summaryLabelTotal}>Due Now (100% Escrow)</Text>
                     <Text style={styles.summaryValueTotal}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 1.05).toFixed(2)}
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 1.10).toFixed(2)}
                     </Text>
                   </View>
                   <View style={styles.walletBalanceRow}>
