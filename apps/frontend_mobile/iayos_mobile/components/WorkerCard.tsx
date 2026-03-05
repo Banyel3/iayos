@@ -112,7 +112,7 @@ export default function WorkerCard({ worker, onPress }: WorkerCardProps) {
                 </Text>
               </View>
               {typeof worker.hourlyRate === "number" && worker.hourlyRate > 0 && (
-                <Text style={styles.rightRate}>₱{worker.hourlyRate}/hr</Text>
+                <Text style={styles.rightRate}>₱{worker.hourlyRate}/day</Text>
               )}
             </View>
           </View>

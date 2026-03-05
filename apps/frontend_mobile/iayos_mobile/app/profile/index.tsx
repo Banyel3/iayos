@@ -389,14 +389,14 @@ export default function ProfileScreen() {
               Alert.alert(
                 "Profile Checklist",
                 `Complete your profile to attract more clients:\n\n` +
-                  `${profile.hasAvatar ? "✓" : "○"} Profile Photo\n` +
-                  `${profile.bio && profile.bio.length >= 50 ? "✓" : "○"} Bio (50+ characters)\n` +
-                  `${profile.hourlyRate && profile.hourlyRate > 0 ? "✓" : "○"} Hourly Rate\n` +
-                  `${profile.skills.length >= 3 || profile.categories.length >= 2 ? "✓" : "○"} Skills/Categories\n` +
-                  `${profile.isPhoneVerified ? "✓" : "○"} Phone Verified\n` +
-                  `${profile.serviceAreas.length >= 1 ? "✓" : "○"} Service Areas\n` +
-                  `${profile.hasCertifications ? "✓" : "○"} Certifications\n` +
-                  `${profile.hasPortfolio ? "✓" : "○"} Portfolio`,
+                `${profile.hasAvatar ? "✓" : "○"} Profile Photo\n` +
+                `${profile.bio && profile.bio.length >= 50 ? "✓" : "○"} Bio (50+ characters)\n` +
+                `${profile.hourlyRate && profile.hourlyRate > 0 ? "✓" : "○"} Hourly Rate\n` +
+                `${profile.skills.length >= 3 || profile.categories.length >= 2 ? "✓" : "○"} Skills/Categories\n` +
+                `${profile.isPhoneVerified ? "✓" : "○"} Phone Verified\n` +
+                `${profile.serviceAreas.length >= 1 ? "✓" : "○"} Service Areas\n` +
+                `${profile.hasCertifications ? "✓" : "○"} Certifications\n` +
+                `${profile.hasPortfolio ? "✓" : "○"} Portfolio`,
                 [{ text: "OK" }],
               );
             }}
@@ -505,17 +505,12 @@ export default function ProfileScreen() {
       </View>
 
       {/* Bio Section */}
-      {profile.bio ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About Me</Text>
-          <Text style={styles.bioText}>{profile.bio}</Text>
-        </View>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About Me</Text>
-          <Text style={styles.emptyText}>
-            Add a bio to tell clients about your experience and skills
-          </Text>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>About Me</Text>
+        <Text style={styles.bioText}>
+          {profile.bio || "I’m hardworking and always ready to lend a hand."}
+        </Text>
+        {!profile.bio && (
           <Pressable
             style={styles.addButton}
             onPress={() => router.push("/profile/edit" as any)}
@@ -525,10 +520,10 @@ export default function ProfileScreen() {
               size={20}
               color={Colors.primary}
             />
-            <Text style={styles.addButtonText}>Add Bio</Text>
+            <Text style={styles.addButtonText}>Add Custom Bio</Text>
           </Pressable>
-        </View>
-      )}
+        )}
+      </View>
 
       {/* Hourly Rate Section */}
       {profile.hourlyRate && profile.hourlyRate > 0 ? (
@@ -585,20 +580,17 @@ export default function ProfileScreen() {
               <Text style={styles.editText}>Manage Skills</Text>
             </Pressable>
           </View>
-          <Text style={styles.sectionDescription}>
-            Tap a skill to view certifications
-          </Text>
 
           {(freshSkills.length > 0
             ? freshSkills.map((s) => ({
-                id: s.id,
-                specializationId: s.specializationId,
-                name: s.name,
-                experienceYears: s.experienceYears,
-                certificationCount: certifications.filter(
-                  (c) => c.specializationId === s.id,
-                ).length,
-              }))
+              id: s.id,
+              specializationId: s.specializationId,
+              name: s.name,
+              experienceYears: s.experienceYears,
+              certificationCount: certifications.filter(
+                (c) => c.specializationId === s.id,
+              ).length,
+            }))
             : profile.skills
           ).map((skill) => {
             const isExpanded = expandedSkills.has(skill.id);
@@ -654,7 +646,7 @@ export default function ProfileScreen() {
                         style={[
                           styles.certBadgeText,
                           skill.certificationCount > 0 &&
-                            styles.certBadgeTextActive,
+                          styles.certBadgeTextActive,
                         ]}
                       >
                         {skill.certificationCount}

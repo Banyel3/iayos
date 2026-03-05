@@ -152,7 +152,7 @@ const CLIENT_PAYMENT_INFO_ITEMS = [
     icon: "lock-closed-outline" as const,
     label: "Book with Confidence",
     description:
-      "50% (plus a 5% fee) is held in escrow upfront.",
+      "50% (plus a 10% fee) is held in escrow upfront.",
   },
   {
     icon: "checkmark-circle-outline" as const,
@@ -248,7 +248,7 @@ export default function CreateJobScreen() {
   // Payment methods are no longer required - deposits use QR PH (any bank/e-wallet)
 
   // Calculate required downpayment based on payment model
-  // PROJECT: 50% of budget + 5% platform fee
+  // PROJECT: 50% of budget + 10% platform fee
   // DAILY: 100% of (daily_rate * duration_days) + 10% platform fee
   const requiredDownpayment = React.useMemo(() => {
     if (paymentModel === "PROJECT") {
