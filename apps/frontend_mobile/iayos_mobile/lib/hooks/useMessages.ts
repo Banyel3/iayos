@@ -191,6 +191,17 @@ export type ConversationDetail = {
     client_confirmed: boolean;
     payment_processed: boolean;
   }>;
+  daily_skip_requests_today?: Array<{
+    skip_request_id: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    request_date?: string;
+    requested_count?: number;
+    total_required?: number;
+    requires_all_team_workers?: boolean;
+    all_workers_requested?: boolean;
+    my_worker_requested?: boolean;
+    client_rejection_reason?: string | null;
+  }>;
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
