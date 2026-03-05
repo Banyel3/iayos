@@ -125,6 +125,17 @@ export type AgencyConversationDetail = {
   messages: AgencyMessage[];
   total_messages: number;
   status: string;
+  daily_skip_requests_today?: Array<{
+    skip_request_id: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    request_date?: string;
+    requested_count?: number;
+    total_required?: number;
+    requires_all_team_workers?: boolean;
+    all_workers_requested?: boolean;
+    my_worker_requested?: boolean;
+    client_rejection_reason?: string | null;
+  }>;
   backjob?: BackjobInfo; // Optional backjob info
   my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
 };

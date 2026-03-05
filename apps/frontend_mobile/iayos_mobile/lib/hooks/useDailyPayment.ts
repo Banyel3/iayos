@@ -889,3 +889,110 @@ export const useClientMarkCheckout = () => {
     },
   });
 };
+
+// ============================================================================
+// Skip Day Workflow
+// ============================================================================
+
+export interface RequestDailySkipDayPayload {
+  jobId: number;
+  request_date: string;
+}
+
+export interface ClientReviewDailySkipDayPayload {
+  jobId: number;
+  skipRequestId: number;
+  approve: boolean;
+  reason?: string;
+}
+
+export const useRequestDailySkipDay = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId, request_date }: RequestDailySkipDayPayload) => {
+      const response = await apiRequest(ENDPOINTS.DAILY_SKIP_DAY_REQUEST(jobId), {
+        method: "POST",
+        body: JSON.stringify({ request_date }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to request skip day"));
+      }
+
+      return response.json() as Promise<{ success: boolean; message?: string }>;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", variables.jobId] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Skip Day Requested",
+        text2: data.message || "Request submitted to client",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Request Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+export const useClientReviewDailySkipDay = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      skipRequestId,
+      approve,
+      reason,
+    }: ClientReviewDailySkipDayPayload) => {
+      const response = await apiRequest(
+        ENDPOINTS.DAILY_SKIP_DAY_REVIEW(jobId, skipRequestId),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: approve ? "approve" : "reject",
+            reason,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to review skip day request"));
+      }
+
+      return response.json() as Promise<{ success: boolean; message?: string }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Request Updated",
+        text2: data.message || "Skip day request reviewed",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Review Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
