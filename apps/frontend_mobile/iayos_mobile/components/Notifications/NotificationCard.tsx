@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Text } from 'react-native-paper';
 import { formatDistanceToNow } from 'date-fns';
 import { Notification } from '@/lib/hooks/useNotifications';
+import { Colors } from '@/constants/theme';
 
 interface NotificationCardProps {
   notification: Notification;
@@ -30,15 +32,12 @@ export default function NotificationCard({
         !isRead && styles.unreadContainer
       ]}
     >
-      {!isRead && (
-        <View style={styles.unreadDot} />
-      )}
       <View style={styles.textContainer}>
         <View style={styles.titleRow}>
           <Text
             style={[
               styles.title,
-              isRead ? styles.readText : styles.unreadTitleText,
+              isRead ? styles.readText : styles.unreadText,
             ]}
             numberOfLines={1}
           >
@@ -49,7 +48,7 @@ export default function NotificationCard({
         <Text 
           style={[
             styles.message,
-            isRead ? styles.readText : styles.unreadMessageText,
+            isRead ? styles.readText : styles.unreadText,
             { marginTop: 4 }
           ]} 
           numberOfLines={2}
@@ -59,7 +58,8 @@ export default function NotificationCard({
 
         <Text style={[
           styles.timestamp, 
-          { marginTop: 6 }
+          isRead ? styles.readText : styles.unreadText, 
+          { opacity: 0.7, marginTop: 6 }
         ]}>
           {relativeTime}
         </Text>
@@ -79,15 +79,6 @@ const styles = StyleSheet.create({
   },
   unreadContainer: {
     backgroundColor: '#FAFAFA',
-    paddingLeft: 12,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#00BAF1',
-    marginRight: 12,
-    marginTop: 6,
   },
   textContainer: {
     flex: 1,
@@ -102,13 +93,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 8,
   },
-  unreadTitleText: {
+  unreadText: {
     color: '#000000',
     fontWeight: '600',
-  },
-  unreadMessageText: {
-    color: '#000000',
-    fontWeight: '400',
   },
   readText: {
     color: '#8A8A8E',
@@ -120,7 +107,5 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 12,
-    color: '#8A8A8E',
-    fontWeight: '400',
   },
 });

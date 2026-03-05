@@ -630,9 +630,6 @@ export default function CreateTeamJobScreen() {
           </TouchableOpacity>
           <View style={styles.pageHeaderText}>
             <Text style={styles.pageTitle}>Create Team Job</Text>
-            <Text style={styles.pageSubtitle}>
-              Post a multi-skill request in one form
-            </Text>
           </View>
           <View style={{ width: 40 }} />
         </View>

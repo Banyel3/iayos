@@ -1496,6 +1496,9 @@ def get_user_notifications(user_account_id, limit=50, unread_only=False, profile
             notifications.append({
                 "notificationID": notif.notificationID,
                 "type": notif.notificationType,
+                "notificationType": notif.notificationType,
+                "relatedJobID": notif.relatedJobID,
+                "relatedApplicationID": notif.relatedApplicationID,
                 "title": notif.title,
                 "message": notif.message,
                 "isRead": notif.isRead,

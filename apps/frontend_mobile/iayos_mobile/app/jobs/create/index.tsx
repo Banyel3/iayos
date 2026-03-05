@@ -1788,7 +1788,7 @@ export default function CreateJobScreen() {
                 {/* Start Date */}
                 <View style={!!agencyId ? [styles.inputGroup, styles.dateHalf] : styles.inputGroup}>
                   <Text style={styles.label}>
-                    Start Date <Text style={{ color: Colors.error }}>*</Text>
+                    Start Date
                   </Text>
                   <TouchableOpacity
                     style={[styles.dateButton, !startDate && { borderColor: Colors.error }]}
@@ -1830,7 +1830,7 @@ export default function CreateJobScreen() {
                     End Date{" "}
                     {isOneDayJob
                       ? <Text style={{ color: Colors.textHint }}>(N/A)</Text>
-                      : <Text style={{ color: Colors.error }}>*</Text>}
+                      : <Text style={{ color: Colors.error }}></Text>}
                   </Text>
                   <TouchableOpacity
                     style={[
