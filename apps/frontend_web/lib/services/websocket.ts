@@ -20,7 +20,7 @@ export type ChatMessage = {
 };
 
 export type WebSocketMessage = {
-  type: "chat_message" | "typing_indicator" | "user_status" | "error";
+  type: "chat_message" | "typing_indicator" | "user_status" | "error" | "job_status_update";
   message?: ChatMessage;
   conversation_id?: number;
   user_id?: number;
@@ -28,6 +28,7 @@ export type WebSocketMessage = {
   is_typing?: boolean;
   is_online?: boolean;
   error?: string;
+  data?: Record<string, unknown>;
 };
 
 type EventCallback = (data: any) => void;
