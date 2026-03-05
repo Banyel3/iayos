@@ -48,15 +48,8 @@ def get_user_profile(request):
 
 
 def is_testing_mode_enabled() -> bool:
-    """Return True only for TESTING mode in non-production environments."""
-    if not bool(getattr(settings, 'TESTING', False)):
-        return False
-
-    environment = str(getattr(settings, 'ENVIRONMENT', '')).strip().lower()
-    if environment in ['production', 'prod', 'live']:
-        return False
-
-    return True
+    """Return True when TESTING mode is enabled."""
+    return bool(getattr(settings, 'TESTING', False))
 
 
 def get_effective_work_date(job: Job):

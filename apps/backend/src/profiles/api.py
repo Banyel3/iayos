@@ -42,14 +42,7 @@ def _get_user_profile(request) -> Profile:
 
 
 def _is_testing_mode_enabled() -> bool:
-    if not bool(getattr(settings, "TESTING", False)):
-        return False
-
-    environment = str(getattr(settings, "ENVIRONMENT", "")).strip().lower()
-    if environment in ["production", "prod", "live"]:
-        return False
-
-    return True
+    return bool(getattr(settings, "TESTING", False))
 
 
 def _get_effective_work_date(job):
@@ -771,7 +764,7 @@ def get_conversations(request, filter: str = "all"):
         # This ensures agency users only see conversations for their agency, not personal conversations
         if user_agency:
             one_on_one_filters |= Q(agency=user_agency)
-            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyID})")
+            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyId})")
         
         one_on_one_query = Conversation.objects.filter(
             one_on_one_filters,
