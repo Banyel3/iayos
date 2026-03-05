@@ -1474,7 +1474,7 @@ export default function JobDetailScreen() {
                   }}
                 >
                   <Text style={{ fontSize: 11, color: Colors.primary }}>
-                    📅 Daily Rate: ₱
+                    Daily Rate: ₱
                     {Number(job.daily_rate_agreed).toLocaleString()}/day
                   </Text>
                   {job.duration_days ? (
@@ -1497,7 +1497,7 @@ export default function JobDetailScreen() {
                     marginTop: 2,
                   }}
                 >
-                  💼 Project Based
+                  Project Based
                 </Text>
               )}
             </View>
