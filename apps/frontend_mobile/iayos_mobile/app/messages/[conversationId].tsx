@@ -63,6 +63,8 @@ import {
   useClientConfirmAttendance,
   useClientVerifyArrival,
   useClientMarkCheckout,
+  useRequestDailySkipDay,
+  useClientReviewDailySkipDay,
 } from "../../lib/hooks/useDailyPayment";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
@@ -271,6 +273,8 @@ export default function ChatScreen() {
   const clientConfirmAttendanceMutation = useClientConfirmAttendance();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
+  const requestDailySkipDayMutation = useRequestDailySkipDay();
+  const clientReviewDailySkipDayMutation = useClientReviewDailySkipDay();
 
   // Voice calling
   const { initiateCall, callStatus } = useAgoraCall();
@@ -1997,6 +2001,278 @@ export default function ChatScreen() {
                         })()}
                       </View>
                     )}
+
+                    {/* Worker View: Skip Day Request */}
+                    {conversation.my_role === "WORKER" && (
+                      <View style={styles.skipDayContainer}>
+                        <View style={styles.skipDayWarningCard}>
+                          <Text style={styles.skipDayWarningText}>
+                            Client approval is not guaranteed. If your skip-day
+                            request is rejected, repeated abuse may lead to
+                            reports and possible admin action.
+                          </Text>
+                        </View>
+                        {(() => {
+                          const todaySkipRequest =
+                            conversation.daily_skip_requests_today?.[0];
+                          const requestToday = new Date()
+                            .toISOString()
+                            .split("T")[0];
+
+                          if (!todaySkipRequest) {
+                            return (
+                              <TouchableOpacity
+                                style={styles.skipDayButton}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Request Skip Day",
+                                    "Send a skip-day request to the client for today?",
+                                    [
+                                      { text: "Cancel", style: "cancel" },
+                                      {
+                                        text: "Request",
+                                        onPress: () =>
+                                          requestDailySkipDayMutation.mutate({
+                                            jobId: conversation.job.id,
+                                            request_date: requestToday,
+                                          }),
+                                      },
+                                    ],
+                                  )
+                                }
+                                disabled={requestDailySkipDayMutation.isPending}
+                              >
+                                {requestDailySkipDayMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="calendar-outline"
+                                      size={16}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.skipDayButtonText}>
+                                      Request Skip Day
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          }
+
+                          if (todaySkipRequest.status === "PENDING") {
+                            if (todaySkipRequest.my_worker_requested) {
+                              return (
+                                <View style={styles.skipDayStatusPending}>
+                                  <Text style={styles.skipDayStatusTitle}>
+                                    Skip request sent
+                                  </Text>
+                                  <Text style={styles.skipDayStatusText}>
+                                    {todaySkipRequest.requires_all_team_workers
+                                      ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} workers requested`
+                                      : "Waiting for client approval"}
+                                  </Text>
+                                </View>
+                              );
+                            }
+
+                            return (
+                              <TouchableOpacity
+                                style={styles.skipDayButton}
+                                onPress={() =>
+                                  requestDailySkipDayMutation.mutate({
+                                    jobId: conversation.job.id,
+                                    request_date: requestToday,
+                                  })
+                                }
+                                disabled={requestDailySkipDayMutation.isPending}
+                              >
+                                {requestDailySkipDayMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="people-outline"
+                                      size={16}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.skipDayButtonText}>
+                                      Join Skip Request
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          }
+
+                          if (todaySkipRequest.status === "APPROVED") {
+                            return (
+                              <View style={styles.skipDayStatusApproved}>
+                                <Text style={styles.skipDayStatusTitle}>
+                                  Skip day approved
+                                </Text>
+                                <Text style={styles.skipDayStatusText}>
+                                  Client approved today's skip request.
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          if (todaySkipRequest.status === "REJECTED") {
+                            return (
+                              <View style={styles.skipDayStatusRejected}>
+                                <Text style={styles.skipDayStatusTitle}>
+                                  Skip day rejected
+                                </Text>
+                                <Text style={styles.skipDayStatusText}>
+                                  {todaySkipRequest.client_rejection_reason ||
+                                    "Client declined the skip request."}
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          return null;
+                        })()}
+                      </View>
+                    )}
+
+                    {/* Client View: Skip Day Request Review */}
+                    {conversation.my_role === "CLIENT" &&
+                      (() => {
+                        const todaySkipRequest =
+                          conversation.daily_skip_requests_today?.[0];
+
+                        if (!todaySkipRequest) return null;
+
+                        const waitingForTeam =
+                          todaySkipRequest.requires_all_team_workers &&
+                          !todaySkipRequest.all_workers_requested;
+
+                        if (todaySkipRequest.status === "PENDING") {
+                          return (
+                            <View style={styles.clientSkipDayCard}>
+                              <Text style={styles.clientSkipDayTitle}>
+                                Skip Day Request
+                              </Text>
+                              <Text style={styles.clientSkipDayText}>
+                                {todaySkipRequest.requires_all_team_workers
+                                  ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} team workers requested`
+                                  : "Worker requested to skip today"}
+                              </Text>
+
+                              {waitingForTeam ? (
+                                <Text style={styles.clientSkipDayWaitingText}>
+                                  Waiting for all ACTIVE team workers to request
+                                </Text>
+                              ) : (
+                                <View style={styles.clientSkipDayActions}>
+                                  <TouchableOpacity
+                                    style={styles.clientSkipApproveButton}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Approve Skip Day",
+                                        "Approve this skip-day request?",
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Approve",
+                                            onPress: () =>
+                                              clientReviewDailySkipDayMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  skipRequestId:
+                                                    todaySkipRequest.skip_request_id,
+                                                  approve: true,
+                                                },
+                                              ),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientReviewDailySkipDayMutation.isPending
+                                    }
+                                  >
+                                    <Text style={styles.clientSkipApproveText}>
+                                      Approve
+                                    </Text>
+                                  </TouchableOpacity>
+
+                                  <TouchableOpacity
+                                    style={styles.clientSkipRejectButton}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Reject Skip Day",
+                                        "Reject this skip-day request?",
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Reject",
+                                            style: "destructive",
+                                            onPress: () =>
+                                              clientReviewDailySkipDayMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  skipRequestId:
+                                                    todaySkipRequest.skip_request_id,
+                                                  approve: false,
+                                                  reason:
+                                                    "Client declined skip day request.",
+                                                },
+                                              ),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientReviewDailySkipDayMutation.isPending
+                                    }
+                                  >
+                                    <Text style={styles.clientSkipRejectText}>
+                                      Reject
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <View
+                            style={
+                              todaySkipRequest.status === "APPROVED"
+                                ? styles.skipDayStatusApproved
+                                : styles.skipDayStatusRejected
+                            }
+                          >
+                            <Text style={styles.skipDayStatusTitle}>
+                              {todaySkipRequest.status === "APPROVED"
+                                ? "Skip day approved"
+                                : "Skip day rejected"}
+                            </Text>
+                            {todaySkipRequest.status === "REJECTED" && (
+                              <Text style={styles.skipDayStatusText}>
+                                {todaySkipRequest.client_rejection_reason ||
+                                  "Request was declined."}
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })()}
 
                     {/* Client View: Confirm attendance for each worker */}
                     {conversation.my_role === "CLIENT" && (
@@ -5615,6 +5891,120 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     fontWeight: "600",
     color: Colors.primary,
+  },
+  skipDayContainer: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  skipDayButton: {
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+  },
+  skipDayButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  skipDayWarningCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+  },
+  skipDayWarningText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
+  skipDayStatusPending: {
+    backgroundColor: "#FFF3E0",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  skipDayStatusApproved: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  skipDayStatusRejected: {
+    backgroundColor: "#FFEBEE",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  skipDayStatusTitle: {
+    ...Typography.body.small,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  skipDayStatusText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  clientSkipDayCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  clientSkipDayTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  clientSkipDayText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  clientSkipDayWaitingText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    marginTop: Spacing.xs,
+    fontWeight: "600",
+  },
+  clientSkipDayActions: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  clientSkipApproveButton: {
+    flex: 1,
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    alignItems: "center",
+  },
+  clientSkipApproveText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+  },
+  clientSkipRejectButton: {
+    flex: 1,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    alignItems: "center",
+  },
+  clientSkipRejectText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
   },
   // Legacy team styles - keeping for reference
   teamWorkerCard: {
