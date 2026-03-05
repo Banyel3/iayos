@@ -11,9 +11,28 @@ from accounts.material_service import (
 )
 from accounts.models import Accounts, Agency
 import logging
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+
+def _is_testing_mode_enabled() -> bool:
+    return bool(getattr(settings, "TESTING", False))
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
@@ -2166,6 +2185,33 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "is_mine": is_mine,
                 "sent_by_agency": sent_by_agency
             })
+
+        # DAILY skip-day request state for today (if applicable)
+        daily_skip_requests_today = []
+        effective_work_date = timezone.now().date()
+        qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+        if getattr(job, 'payment_model', 'PROJECT') == 'DAILY' and job.status == 'IN_PROGRESS':
+            from accounts.models import DailySkipDayRequest
+            today = _get_effective_work_date(job)
+            effective_work_date = today
+            skip_request = DailySkipDayRequest.objects.filter(
+                jobID=job,
+                request_date=today
+            ).order_by('-createdAt').first()
+
+            if skip_request:
+                requested_ids = list(skip_request.requested_account_ids or [])
+                daily_skip_requests_today.append({
+                    "skip_request_id": skip_request.skipRequestID,
+                    "request_date": skip_request.request_date.isoformat(),
+                    "status": skip_request.status,
+                    "requested_count": skip_request.requested_count,
+                    "total_required": skip_request.total_required,
+                    "requires_all_team_workers": skip_request.requires_all_team_workers,
+                    "all_workers_requested": skip_request.all_workers_requested,
+                    "my_worker_requested": int(account.accountID) in requested_ids,
+                    "client_rejection_reason": skip_request.client_rejection_reason,
+                })
         
         return Response({
             "conversation_id": conv.conversationID,
@@ -2193,6 +2239,10 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "client": client_info,
             "assigned_employee": assigned_employee,
             "assigned_employees": assigned_employees,  # Multi-employee support
+            "daily_skip_requests_today": daily_skip_requests_today,
+            "effective_work_date": effective_work_date.isoformat(),
+            "qa_day_offset": qa_day_offset,
+            "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "messages": messages_list,
             "total_messages": len(messages_list),
             "status": conv.status

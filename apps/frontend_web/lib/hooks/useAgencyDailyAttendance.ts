@@ -35,6 +35,11 @@ interface MarkAttendanceResponse {
   status: string;
 }
 
+interface SkipDayRequestResponse {
+  success: boolean;
+  message: string;
+}
+
 /**
  * Fetch daily attendance records for a job
  */
@@ -181,6 +186,55 @@ export function useMarkEmployeeCheckout() {
         queryKey: ["agency-daily-attendance", variables.jobId],
       });
       toast.success(data.message);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+/**
+ * Request skip day for DAILY jobs (agency/worker side)
+ */
+export function useAgencyRequestSkipDay() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    SkipDayRequestResponse,
+    Error,
+    { jobId: number; request_date: string; conversationId?: number }
+  >({
+    mutationFn: async ({ jobId, request_date }) => {
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${jobId}/daily/skip-day/request`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request_date }),
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || error.message || "Failed to request skip day");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["agency-daily-attendance", variables.jobId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+
+      if (variables.conversationId) {
+        queryClient.invalidateQueries({
+          queryKey: ["agency-messages", variables.conversationId],
+        });
+      }
+
+      toast.success(data.message || "Skip day request submitted");
     },
     onError: (error) => {
       toast.error(error.message);

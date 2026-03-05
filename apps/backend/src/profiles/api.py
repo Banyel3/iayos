@@ -15,6 +15,8 @@ from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
+from datetime import timedelta
 
 
 router = Router()
@@ -37,6 +39,22 @@ def _get_user_profile(request) -> Profile:
         return profile
 
     raise Profile.DoesNotExist
+
+
+def _is_testing_mode_enabled() -> bool:
+    return bool(getattr(settings, "TESTING", False))
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 # ============================================================
 # DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
@@ -746,7 +764,7 @@ def get_conversations(request, filter: str = "all"):
         # This ensures agency users only see conversations for their agency, not personal conversations
         if user_agency:
             one_on_one_filters |= Q(agency=user_agency)
-            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyID})")
+            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyId})")
         
         one_on_one_query = Conversation.objects.filter(
             one_on_one_filters,
@@ -1809,9 +1827,13 @@ def get_conversation_messages(request, conversation_id: int):
 
         # Get today's attendance for daily-rate jobs (DAILY payment model)
         attendance_today = []
+        daily_skip_requests_today = []
+        effective_work_date = timezone.now().date()
+        qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
         if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
-            from accounts.models import DailyAttendance
-            today = timezone.now().date()
+            from accounts.models import DailyAttendance, DailySkipDayRequest
+            today = _get_effective_work_date(job)
+            effective_work_date = today
             
             # Query attendance records for today
             attendance_records = DailyAttendance.objects.filter(
@@ -1864,6 +1886,25 @@ def get_conversation_messages(request, conversation_id: int):
                 })
             
             print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
+
+            skip_request = DailySkipDayRequest.objects.filter(
+                jobID=job,
+                request_date=today
+            ).order_by('-createdAt').first()
+
+            if skip_request:
+                requested_ids = list(skip_request.requested_account_ids or [])
+                daily_skip_requests_today.append({
+                    "skip_request_id": skip_request.skipRequestID,
+                    "request_date": skip_request.request_date.isoformat(),
+                    "status": skip_request.status,
+                    "requested_count": skip_request.requested_count,
+                    "total_required": skip_request.total_required,
+                    "requires_all_team_workers": skip_request.requires_all_team_workers,
+                    "all_workers_requested": skip_request.all_workers_requested,
+                    "my_worker_requested": int(request.auth.accountID) in requested_ids,
+                    "client_rejection_reason": skip_request.client_rejection_reason,
+                })
 
         # Fetch actual review data (ratings and comments) for both parties
         client_review_data = None
@@ -1979,6 +2020,10 @@ def get_conversation_messages(request, conversation_id: int):
             "total_messages": len(formatted_messages),
             "backjob": backjob_info,
             "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
+            "daily_skip_requests_today": daily_skip_requests_today,
+            "effective_work_date": effective_work_date.isoformat(),
+            "qa_day_offset": qa_day_offset,
+            "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
             "job_materials": job_materials_list,

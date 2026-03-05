@@ -66,7 +66,9 @@ import {
   useClientMarkCheckout,
   useRequestDailySkipDay,
   useClientReviewDailySkipDay,
+  useClientQASkipNextDay,
 } from "../../lib/hooks/useDailyPayment";
+import { ENDPOINTS } from "../../lib/api/config";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
@@ -277,6 +279,7 @@ export default function ChatScreen() {
   const clientMarkCheckoutMutation = useClientMarkCheckout();
   const requestDailySkipDayMutation = useRequestDailySkipDay();
   const clientReviewDailySkipDayMutation = useClientReviewDailySkipDay();
+  const clientQASkipNextDayMutation = useClientQASkipNextDay();
 
   // Voice calling
   const { initiateCall, callStatus } = useAgoraCall();
@@ -300,6 +303,7 @@ export default function ChatScreen() {
   const [isNetworkOnline, setIsNetworkOnline] = useState(true);
   const [hasAttemptedWsConnection, setHasAttemptedWsConnection] =
     useState(false);
+  const [isTestingModeEnabled, setIsTestingModeEnabled] = useState(false);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -308,6 +312,28 @@ export default function ChatScreen() {
       );
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchMobileConfig = async () => {
+      try {
+        const response = await fetch(ENDPOINTS.MOBILE_CONFIG, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const config = (await response.json()) as { testing?: boolean };
+        setIsTestingModeEnabled(Boolean(config.testing));
+      } catch {
+        setIsTestingModeEnabled(false);
+      }
+    };
+
+    fetchMobileConfig();
   }, []);
 
   useEffect(() => {
@@ -2001,7 +2027,12 @@ export default function ChatScreen() {
                         📅 Daily Attendance
                       </Text>
                       <Text style={styles.teamArrivalProgress}>
-                        {format(new Date(), "MMM d, yyyy")}
+                        {format(
+                          new Date(
+                            conversation.effective_work_date || new Date(),
+                          ),
+                          "MMM d, yyyy",
+                        )}
                       </Text>
                     </View>
 
@@ -2172,9 +2203,9 @@ export default function ChatScreen() {
                         {(() => {
                           const todaySkipRequest =
                             conversation.daily_skip_requests_today?.[0];
-                          const requestToday = new Date()
-                            .toISOString()
-                            .split("T")[0];
+                          const requestToday =
+                            conversation.effective_work_date ||
+                            new Date().toISOString().split("T")[0];
 
                           if (!todaySkipRequest) {
                             return (
@@ -2427,6 +2458,68 @@ export default function ChatScreen() {
                                   "Request was declined."}
                               </Text>
                             )}
+                          </View>
+                        );
+                      })()}
+
+                    {conversation.my_role === "CLIENT" &&
+                      isTestingModeEnabled &&
+                      conversation.job?.status === "IN_PROGRESS" &&
+                      (() => {
+                        const qaDayOffset = conversation.qa_day_offset || 0;
+                        const effectiveDate =
+                          conversation.effective_work_date ||
+                          new Date().toISOString().split("T")[0];
+
+                        return (
+                          <View style={styles.qaTestingCard}>
+                            <Text style={styles.qaTestingLabel}>
+                              QA TESTING ONLY
+                            </Text>
+                            <Text style={styles.qaTestingText}>
+                              Effective day: {effectiveDate} (offset +
+                              {qaDayOffset})
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.qaSkipNextDayButton}
+                              onPress={() =>
+                                Alert.alert(
+                                  "[QA] Skip To Next Day",
+                                  "Advance this DAILY job by 1 effective day for testing? This action is TESTING-only.",
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Advance +1 Day",
+                                      onPress: () =>
+                                        clientQASkipNextDayMutation.mutate({
+                                          jobId: conversation.job.id,
+                                          reason:
+                                            "QA client-triggered fast-forward",
+                                        }),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={clientQASkipNextDayMutation.isPending}
+                            >
+                              {clientQASkipNextDayMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="play-forward"
+                                    size={16}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.qaSkipNextDayButtonText}>
+                                    [QA] Skip To Next Day
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
                           </View>
                         );
                       })()}
@@ -6159,6 +6252,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   clientSkipRejectText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+  },
+  qaTestingCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+  },
+  qaTestingLabel: {
+    ...Typography.body.small,
+    fontWeight: "800",
+    color: Colors.warning,
+  },
+  qaTestingText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    marginBottom: Spacing.xs,
+  },
+  qaSkipNextDayButton: {
+    backgroundColor: Colors.warning,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  qaSkipNextDayButtonText: {
     ...Typography.body.small,
     color: Colors.white,
     fontWeight: "700",

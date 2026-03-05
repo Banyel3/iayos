@@ -35,6 +35,9 @@ from .schemas import (
 )
 from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
@@ -53,6 +56,22 @@ def _log_mobile(event: str, **details):
     except Exception:
         # Avoid breaking handlers due to logging errors
         print(f"[MOBILE] {event}: <logging failed>")
+
+
+def _is_testing_mode_enabled() -> bool:
+    return bool(getattr(settings, "TESTING", False))
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 #region MOBILE AUTH ENDPOINTS
 
@@ -7058,7 +7077,6 @@ def worker_check_in(request, job_id: int):
     - Only for IN_PROGRESS daily-rate jobs
     - Only once per day per worker
     """
-    from django.utils import timezone
     from datetime import time as dt_time
     from .models import Job, DailyAttendance, WorkerProfile, Profile
     from jobs.daily_payment_service import DailyPaymentService
@@ -7118,7 +7136,7 @@ def worker_check_in(request, job_id: int):
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
         
-        today = now.date()
+        today = _get_effective_work_date(job)
         
         # Check if already checked in today
         existing_attendance = DailyAttendance.objects.filter(
@@ -7178,7 +7196,6 @@ def worker_check_out(request, job_id: int):
     - Must have checked in today first
     - Only once per day
     """
-    from django.utils import timezone
     from datetime import time as dt_time
     from .models import Job, DailyAttendance, WorkerProfile, Profile
     
@@ -7228,7 +7245,7 @@ def worker_check_out(request, job_id: int):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
         
-        today = now.date()
+        today = _get_effective_work_date(job)
         
         # Get today's attendance record
         try:

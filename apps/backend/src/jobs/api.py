@@ -10,9 +10,10 @@ from .models import JobPosting
 from .schemas import (
     CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, 
     JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema,
-    LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema
+    LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema,
+    RequestSkipDaySchema, ReviewSkipDaySchema, QASkipNextDaySchema
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
 from django.db import transaction as db_transaction
@@ -44,6 +45,25 @@ def get_user_profile(request):
     else:
         # Fallback for single profile users
         return Profile.objects.filter(accountFK=request.auth).first()
+
+
+def is_testing_mode_enabled() -> bool:
+    """Return True when TESTING mode is enabled."""
+    return bool(getattr(settings, 'TESTING', False))
+
+
+def get_effective_work_date(job: Job):
+    """Get effective work date with TESTING-only QA offset applied."""
+    base_date = timezone.now().date()
+
+    if not is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 
 def broadcast_job_status_update(job_id, update_data):
@@ -7820,6 +7840,245 @@ def get_rate_changes(request, job_id: int):
         'job_id': job_id,
         'rate_changes': records,
         'total': len(records)
+    }
+
+
+@router.post("/{job_id}/daily/skip-day/request", auth=dual_auth)
+@require_kyc
+def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
+    """
+    Worker/agency requests a skip day for a DAILY job.
+    """
+    from datetime import date
+    from accounts.models import DailySkipDayRequest
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    # Block clients from requesting skip day
+    if job.clientID and job.clientID.profileID.accountFK == request.auth:
+        return Response({"error": "Only worker/agency can request skip day"}, status=403)
+
+    # Verify user is assigned to this job as worker or agency
+    is_agency = bool(job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth)
+    is_worker = bool(job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth)
+
+    if not is_agency and not is_worker:
+        # Team worker fallback
+        is_worker = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            workerID__profileID__accountFK=request.auth,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        ).exists()
+
+    if not is_agency and not is_worker:
+        return Response({"error": "You are not assigned to this job"}, status=403)
+
+    request_date = data.request_date
+    if not request_date:
+        return Response({"error": "request_date is required"}, status=400)
+
+    try:
+        parsed_date = date.fromisoformat(request_date)
+    except ValueError:
+        return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+
+    requester_account_id = int(request.auth.accountID)
+
+    requires_all_team_workers = bool(getattr(job, 'is_team_job', False) and not is_agency)
+    total_required = 1
+    if requires_all_team_workers:
+        total_required = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        ).count() or 1
+
+    with db_transaction.atomic():
+        skip_request, created = DailySkipDayRequest.objects.get_or_create(
+            jobID=job,
+            request_date=parsed_date,
+            defaults={
+                'requested_by': 'AGENCY' if is_agency else 'WORKER',
+                'requestedByUser': request.auth,
+                'requested_account_ids': [requester_account_id],
+                'requested_count': 1,
+                'total_required': total_required,
+                'requires_all_team_workers': requires_all_team_workers,
+                'all_workers_requested': (not requires_all_team_workers) or total_required <= 1,
+            }
+        )
+
+        if not created:
+            if skip_request.status != 'PENDING':
+                return Response({
+                    "error": f"Skip day request already {skip_request.status.lower()} for this date"
+                }, status=400)
+
+            requested_ids = list(skip_request.requested_account_ids or [])
+            if requester_account_id not in requested_ids:
+                requested_ids.append(requester_account_id)
+
+            skip_request.requested_account_ids = requested_ids
+            skip_request.requested_count = len(requested_ids)
+            skip_request.total_required = max(skip_request.total_required or 1, total_required)
+            skip_request.requires_all_team_workers = requires_all_team_workers
+            skip_request.all_workers_requested = (
+                (not requires_all_team_workers)
+                or skip_request.requested_count >= skip_request.total_required
+            )
+            if not skip_request.requestedByUser:
+                skip_request.requestedByUser = request.auth
+            skip_request.save()
+
+    return {
+        "success": True,
+        "message": "Skip day request submitted",
+        "skip_request": {
+            "skip_request_id": skip_request.skipRequestID,
+            "request_date": skip_request.request_date.isoformat(),
+            "status": skip_request.status,
+            "requested_count": skip_request.requested_count,
+            "total_required": skip_request.total_required,
+            "requires_all_team_workers": skip_request.requires_all_team_workers,
+            "all_workers_requested": skip_request.all_workers_requested,
+            "my_worker_requested": requester_account_id in (skip_request.requested_account_ids or []),
+            "client_rejection_reason": skip_request.client_rejection_reason,
+        }
+    }
+
+
+@router.post("/{job_id}/daily/skip-day/{skip_request_id}/review", auth=dual_auth)
+@require_kyc
+def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: ReviewSkipDaySchema):
+    """
+    Client approves/rejects a DAILY skip-day request.
+    """
+    from accounts.models import DailySkipDayRequest
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can review skip-day requests"}, status=403)
+
+    try:
+        skip_request = DailySkipDayRequest.objects.get(
+            skipRequestID=skip_request_id,
+            jobID=job
+        )
+    except DailySkipDayRequest.DoesNotExist:
+        return Response({"error": "Skip-day request not found"}, status=404)
+
+    if skip_request.status != 'PENDING':
+        return Response({"error": "Skip-day request is already reviewed"}, status=400)
+
+    action = (data.action or '').strip().lower()
+    if action not in ['approve', 'reject']:
+        return Response({"error": "action must be 'approve' or 'reject'"}, status=400)
+
+    if action == 'approve':
+        skip_request.status = 'APPROVED'
+        skip_request.client_rejection_reason = None
+        message = 'Skip-day request approved'
+    else:
+        skip_request.status = 'REJECTED'
+        skip_request.client_rejection_reason = (data.reason or 'Client declined skip day request.').strip()
+        message = 'Skip-day request rejected'
+
+    skip_request.reviewedByUser = request.auth
+    skip_request.reviewedAt = timezone.now()
+    skip_request.save(update_fields=[
+        'status',
+        'client_rejection_reason',
+        'reviewedByUser',
+        'reviewedAt',
+        'updatedAt',
+    ])
+
+    return {
+        "success": True,
+        "message": message,
+        "skip_request": {
+            "skip_request_id": skip_request.skipRequestID,
+            "status": skip_request.status,
+            "client_rejection_reason": skip_request.client_rejection_reason,
+            "reviewed_at": skip_request.reviewedAt.isoformat() if skip_request.reviewedAt else None,
+        }
+    }
+
+
+@router.post("/{job_id}/daily/qa/skip-next-day", auth=dual_auth)
+@require_kyc
+def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
+    """
+    TESTING-only endpoint: client advances DAILY job by one effective day.
+    This does not change server time and is blocked in production.
+    """
+    if not is_testing_mode_enabled():
+        return Response({
+            "error": "QA skip-next-day is disabled outside TESTING non-production environments"
+        }, status=403)
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can advance QA day"}, status=403)
+
+    old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    new_offset = old_offset + 1
+
+    old_effective_date = timezone.now().date() + timedelta(days=old_offset)
+    new_effective_date = timezone.now().date() + timedelta(days=new_offset)
+
+    with db_transaction.atomic():
+        job.qa_day_offset = new_offset
+        job.save(update_fields=['qa_day_offset', 'updatedAt'])
+
+        JobLog.objects.create(
+            jobID=job,
+            actionType=JobLog.ActionType.JOB_EDITED,
+            oldStatus=job.status,
+            newStatus=job.status,
+            changedBy=request.auth,
+            notes="[QA][TESTING] Advanced effective daily work date by +1 day",
+            metadata={
+                "event": "qa_skip_next_day",
+                "testing": True,
+                "old_offset": old_offset,
+                "new_offset": new_offset,
+                "old_effective_date": old_effective_date.isoformat(),
+                "new_effective_date": new_effective_date.isoformat(),
+                "reason": (data.reason or "").strip() or "QA fast-forward",
+            }
+        )
+
+    return {
+        "success": True,
+        "message": "[QA][TESTING] Effective day advanced by 1",
+        "qa": {
+            "enabled": True,
+            "day_offset": new_offset,
+            "effective_work_date": new_effective_date.isoformat(),
+        }
     }
 
 
