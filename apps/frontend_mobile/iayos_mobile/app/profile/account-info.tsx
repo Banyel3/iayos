@@ -33,68 +33,46 @@ export default function AccountInfoScreen() {
           },
           headerShadowVisible: false,
           headerStyle: {
-            backgroundColor: Colors.white,
+            backgroundColor: Colors.background,
           },
         }}
       />
-
+      
       <ScrollView contentContainerStyle={styles.content}>
+      <Text style={styles.sectionTitle}>Profile Details</Text>
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Profile Details</Text>
           
           <InfoRow
             icon="mail-outline"
             label="Email"
             value={user?.email || "Not set"}
-          />
-          <InfoRow
-            icon="checkmark-circle-outline"
-            label="Email Verified"
-            value={user?.isVerified ? "Yes" : "No"}
-            valueColor={user?.isVerified ? Colors.success : Colors.warning}
+            verified={user?.isVerified}
           />
           <InfoRow
             icon="shield-checkmark-outline"
             label="Account Status"
             value="Active"
             valueColor={Colors.success}
+            noBorder={!hasProfileType}
           />
           {hasProfileType && (
             <InfoRow
               icon="location-outline"
               label="Profile Type"
               value={user?.profile_data?.profileType || "Not set"}
+              noBorder
             />
           )}
         </View>
 
-        {isWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Worker Management</Text>
-            <View style={styles.card}>
-              <MenuItem
-                icon="ribbon-outline"
-                label="Manage Certifications"
-                onPress={() => router.push("/profile/certifications" as any)}
-              />
-              <MenuItem
-                icon="cube-outline"
-                label="Manage Materials"
-                onPress={() => router.push("/profile/materials" as any)}
-              />
-            </View>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment</Text>
-          <View style={styles.card}>
-            <MenuItem
-              icon="card-outline"
-              label="Payment Methods"
-              onPress={() => router.push("/profile/payment-methods" as any)}
-            />
-          </View>
+        <Text style={styles.sectionTitle}>Payment</Text>
+        <View style={styles.card}>
+          <MenuItem
+            icon="card-outline"
+            label="Payment Methods"
+            noBorder
+            onPress={() => router.push("/profile/payment-methods" as any)}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -106,19 +84,28 @@ function InfoRow({
   label,
   value,
   valueColor = Colors.textPrimary,
+  verified = false,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
   value: string;
   valueColor?: string;
+  verified?: boolean;
+  noBorder?: boolean;
 }) {
   return (
-    <View style={styles.infoRow}>
+    <View style={[styles.infoRow, noBorder && { borderBottomWidth: 0 }]}>
       <View style={styles.infoLeft}>
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+        {verified && (
+          <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+        )}
+      </View>
     </View>
   );
 }
@@ -127,14 +114,16 @@ function MenuItem({
   icon,
   label,
   onPress,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
   onPress: () => void;
+  noBorder?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, noBorder && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -153,32 +142,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
+    gap: Spacing.sm,
   },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    ...Shadows.sm,
-  },
-  section: {
-    marginTop: Spacing.xl,
+    borderRadius: BorderRadius.medium,
+    ...Shadows.small,
+    overflow: "hidden",
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+    ...Typography.body.small,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textTertiary,
     marginLeft: Spacing.xs,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
     textTransform: "uppercase",
+    fontSize: 12,
   },
   infoRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    justifyContent: "space-between",
+    padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
   },
   infoLeft: {
     flexDirection: "row",
@@ -186,20 +177,23 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   infoLabel: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+    fontSize: 16,
+    color: Colors.textPrimary,
   },
   infoValue: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.medium,
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
   menuItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    justifyContent: "space-between",
+    padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
   },
   menuLeft: {
     flexDirection: "row",
@@ -207,7 +201,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   menuLabel: {
-    fontSize: Typography.fontSize.base,
+    fontFamily: "Inter_500Medium",
+    fontSize: 16,
     color: Colors.textPrimary,
   },
 });

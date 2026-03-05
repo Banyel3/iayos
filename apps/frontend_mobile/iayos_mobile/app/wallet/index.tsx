@@ -344,7 +344,7 @@ export default function WalletScreen() {
               <Ionicons
                 name="calendar-outline"
                 size={24}
-                color="#7FC9F1"
+                color="#54B7EB"
                 style={styles.statIcon}
               />
               <Text style={styles.statLabel}>This Month</Text>
@@ -359,7 +359,7 @@ export default function WalletScreen() {
               <Ionicons
                 name="trending-up-outline"
                 size={24}
-                color="#7FC9F1"
+                color="#54B7EB"
                 style={styles.statIcon}
               />
               <Text style={styles.statLabel}>Total Earned</Text>
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     shadowColor: "transparent", 
     shadowOpacity: 0,
     borderWidth: 1,
-    borderColor: "#7FC9F1",
+    borderColor: "#54B7EB",
   },
   balanceLabel: {
     ...Typography.body.medium,

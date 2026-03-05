@@ -31,7 +31,7 @@ const statusConfig = {
     label: "Pending",
     backgroundColor: "#FEF3C7",
     textColor: "#92400E",
-    icon: "⏳",
+    icon: null,
   },
   completed: {
     label: "Completed",

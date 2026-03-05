@@ -1,13 +1,6 @@
 /**
  * My Reviews Screen
- * Phase 8: Reviews & Ratings System
- *
- * Shows reviews given and received by the current user
- * Features:
- * - Tab view (Given / Received)
- * - Review statistics
- * - Edit/delete own reviews (within 24 hours)
- * - Report inappropriate reviews
+ * Shows reviews given and received by the current user in a single scroll view.
  */
 
 import React, { useState } from "react";
@@ -22,83 +15,31 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-} from "react-native";
-import {
   Text,
-  SegmentedButtons,
-  ActivityIndicator,
-  Card,
-  Divider,
-} from "react-native-paper";
-import { ReviewCard, StarRating, RatingBreakdown } from "@/components/Reviews";
+} from "react-native";
+import { ActivityIndicator } from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { ReviewCard, StarRating } from "@/components/Reviews";
 import {
   useMyReviews,
-  useReportReview,
   useEditReview,
 } from "@/lib/hooks/useReviews";
 import { router } from "expo-router";
-
-type TabType = "given" | "received";
+import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 
 export default function MyReviewsScreen() {
-  const [activeTab, setActiveTab] = useState<TabType>("given");
-
   const [editingReview, setEditingReview] = useState<any>(null);
   const [editComment, setEditComment] = useState("");
   const [editRating, setEditRating] = useState(0);
 
   const { data, isLoading, error, refetch, isRefetching } = useMyReviews();
-  const reportReview = useReportReview();
   const editReview = useEditReview();
 
-  const handleReport = (reviewId: number) => {
-    Alert.alert(
-      "Report Review",
-      "Why are you reporting this review?",
-      [
-        {
-          text: "Spam",
-          onPress: () => submitReport(reviewId, "spam"),
-        },
-        {
-          text: "Offensive",
-          onPress: () => submitReport(reviewId, "offensive"),
-        },
-        {
-          text: "Misleading",
-          onPress: () => submitReport(reviewId, "misleading"),
-        },
-        {
-          text: "Other",
-          onPress: () => submitReport(reviewId, "other"),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ],
-      { cancelable: true }
+  const openEdit = (reviewId: number) => {
+    const review = (data?.reviews_given || []).find(
+      (r) => r.review_id === reviewId
     );
-  };
-
-  const submitReport = (reviewId: number, reason: string) => {
-    reportReview.mutate(
-      { reviewId, reason: reason as any, details: "" },
-      {
-        onSuccess: () => {
-          Alert.alert("Review Reported", "Thank you for your feedback");
-          refetch();
-        },
-        onError: (error: Error) => {
-          Alert.alert("Error", error.message);
-        },
-      }
-    );
-  };
-
-  const handleEdit = (reviewId: number) => {
-    const allReviews = data?.reviews_given || [];
-    const review = allReviews.find((r) => r.review_id === reviewId);
     if (!review) return;
     setEditingReview(review);
     setEditComment(review.comment || "");
@@ -115,130 +56,111 @@ export default function MyReviewsScreen() {
       },
       {
         onSuccess: () => {
-          Alert.alert("Success", "Review updated successfully");
+          Alert.alert("Updated", "Your review has been updated.");
           setEditingReview(null);
           refetch();
         },
-        onError: (error: Error) => {
-          Alert.alert("Error", error.message);
-        },
+        onError: (err: Error) => Alert.alert("Error", err.message),
       }
     );
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading your reviews...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Error: {error.message}</Text>
-      </View>
-    );
-  }
-
-  const reviewsToShow =
-    activeTab === "given" ? data?.reviews_given : data?.reviews_received;
+  const reviewsGiven = data?.reviews_given || [];
+  const reviewsReceived = data?.reviews_received || [];
 
   return (
-    <View style={styles.container}>
-      {/* Tab Selector */}
-      <View style={styles.tabContainer}>
-        <SegmentedButtons
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as TabType)}
-          buttons={[
-            {
-              value: "given",
-              label: `Given (${data?.reviews_given.length || 0})`,
-            },
-            {
-              value: "received",
-              label: `Received (${data?.reviews_received.length || 0})`,
-            },
-          ]}
-        />
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Reviews</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-        }
-      >
-        {/* Statistics (only show for received reviews) */}
-        {activeTab === "received" && data?.stats && (
-          <>
-            <Card style={styles.statsCard}>
-              <Card.Content>
-                <View style={styles.statsHeader}>
-                  <View style={styles.averageRating}>
-                    <Text style={styles.ratingNumber}>
-                      {data.stats.average_rating.toFixed(1)}
-                    </Text>
-                    <StarRating
-                      rating={data.stats.average_rating}
-                      size={24}
-                      interactive={false}
-                    />
-                    <Text style={styles.totalReviews}>
-                      {data.stats.total_reviews} reviews
-                    </Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </Card>
-
-            {data.stats.total_reviews > 0 && (
-              <RatingBreakdown
-                breakdown={data.stats.rating_breakdown}
-                totalReviews={data.stats.total_reviews}
-              />
-            )}
-
-            <Divider style={styles.divider} />
-          </>
-        )}
-
-        {/* Reviews List */}
-        {reviewsToShow && reviewsToShow.length > 0 ? (
-          <>
+      {/* Body */}
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading reviews...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color="#EF5350" />
+          <Text style={styles.errorText}>Failed to load reviews.</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+            <Text style={styles.retryText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Reviews Received ── */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionPill} />
             <Text style={styles.sectionTitle}>
-              {activeTab === "given"
-                ? "Reviews you've written"
-                : "Reviews about you"}
+              Reviews Received
+              {reviewsReceived.length > 0 && (
+                <Text style={styles.countSuffix}>
+                  {"  "}({reviewsReceived.length})
+                </Text>
+              )}
             </Text>
-            {reviewsToShow.map((review) => (
+          </View>
+
+          {reviewsReceived.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Ionicons name="star-outline" size={28} color={Colors.border} />
+              <Text style={styles.emptyText}>No reviews yet</Text>
+            </View>
+          ) : (
+            reviewsReceived.map((review) => (
+              <ReviewCard key={review.review_id} review={review} />
+            ))
+          )}
+
+          <View style={styles.divider} />
+
+          {/* ── Reviews Given ── */}
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionPill, { backgroundColor: "#A78BFA" }]} />
+            <Text style={styles.sectionTitle}>
+              Reviews Given
+              {reviewsGiven.length > 0 && (
+                <Text style={styles.countSuffix}>
+                  {"  "}({reviewsGiven.length})
+                </Text>
+              )}
+            </Text>
+          </View>
+
+          {reviewsGiven.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Ionicons name="create-outline" size={28} color={Colors.border} />
+              <Text style={styles.emptyText}>No reviews yet</Text>
+            </View>
+          ) : (
+            reviewsGiven.map((review) => (
               <ReviewCard
                 key={review.review_id}
                 review={review}
-                onReport={activeTab === "received" ? handleReport : undefined}
-                onEdit={activeTab === "given" ? handleEdit : undefined}
-                showActions={true}
+                onEdit={openEdit}
+                showActions
               />
-            ))}
-          </>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {activeTab === "given"
-                ? "You haven't written any reviews yet"
-                : "You haven't received any reviews yet"}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {activeTab === "given"
-                ? "Complete jobs to leave reviews for clients"
-                : "Complete more jobs to receive reviews"}
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+            ))
+          )}
+        </ScrollView>
+      )}
 
       {/* Edit Review Modal */}
       <Modal
@@ -252,17 +174,21 @@ export default function MyReviewsScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Review</Text>
+            <View style={styles.dragHandle} />
+            <View style={styles.modalTopRow}>
+              <Text style={styles.modalTitle}>Edit Review</Text>
+              <TouchableOpacity onPress={() => setEditingReview(null)}>
+                <Ionicons name="close" size={22} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.modalLabel}>Rating</Text>
             <StarRating
               rating={editRating}
               onChange={(r) => setEditRating(r)}
-              size={32}
+              size={36}
               interactive
             />
 
-            <Text style={[styles.modalLabel, { marginTop: 16 }]}>Comment</Text>
             <TextInput
               style={styles.editInput}
               value={editComment}
@@ -270,6 +196,7 @@ export default function MyReviewsScreen() {
               multiline
               numberOfLines={4}
               placeholder="Update your review..."
+              placeholderTextColor={Colors.textSecondary}
               textAlignVertical="top"
             />
 
@@ -281,10 +208,7 @@ export default function MyReviewsScreen() {
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  editReview.isPending && { opacity: 0.6 },
-                ]}
+                style={[styles.saveButton, editReview.isPending && { opacity: 0.6 }]}
                 onPress={submitEdit}
                 disabled={editReview.isPending}
               >
@@ -296,143 +220,180 @@ export default function MyReviewsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: "#F5F5F5",
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
+  header: {
+    flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#666",
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#F44336",
-    textAlign: "center",
-  },
-  tabContainer: {
-    padding: 16,
-    backgroundColor: "#FFF",
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  statsCard: {
-    margin: 16,
-    marginBottom: 0,
-  },
-  statsHeader: {
-    alignItems: "center",
-  },
-  averageRating: {
-    alignItems: "center",
-  },
-  ratingNumber: {
-    fontSize: 48,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  totalReviews: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 15,
+    color: Colors.textSecondary,
     marginTop: 8,
   },
-  divider: {
-    marginVertical: 16,
+  errorText: {
+    fontSize: 15,
+    color: "#EF5350",
+    textAlign: "center",
+  },
+  retryBtn: {
+    marginTop: 4,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  retryText: {
+    color: "#FFF",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  scroll: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionPill: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+    marginRight: 10,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
   },
-  emptyContainer: {
-    padding: 32,
+  countSuffix: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: Colors.textSecondary,
+  },
+  emptyBox: {
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 28,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
   },
   emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  emptySubtext: {
     fontSize: 14,
-    color: "#999",
-    textAlign: "center",
+    color: Colors.textSecondary,
   },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 24,
+  },
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 24,
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    gap: 16,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: "center",
+  },
+  modalTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
-    marginBottom: 8,
+    color: Colors.textPrimary,
   },
   editInput: {
     borderWidth: 1,
-    borderColor: "#DDD",
-    borderRadius: 8,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
     padding: 12,
     fontSize: 15,
     minHeight: 100,
     backgroundColor: "#F9F9F9",
+    color: Colors.textPrimary,
   },
   modalButtons: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 20,
   },
   cancelButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.md,
     backgroundColor: "#F0F0F0",
     alignItems: "center",
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#666",
+    color: Colors.textSecondary,
   },
   saveButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: "#4CAF50",
+    paddingVertical: 14,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
     alignItems: "center",
   },
   saveButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#FFF",
+    color: Colors.white,
   },
 });

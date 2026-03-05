@@ -699,7 +699,11 @@ export const apiRequest = async (
   const requestBody = (rest as any)?.body;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  let isTimeout = false;
+  const timeoutId = setTimeout(() => {
+    isTimeout = true;
+    controller.abort();
+  }, timeout);
 
   // If consumer passed a signal, forward aborts
   if (userSignal) {
@@ -797,6 +801,12 @@ export const apiRequest = async (
     return resp;
   } catch (err: any) {
     const elapsedMs = Date.now() - startedAt;
+
+    // If deliberately aborted (e.g. React Query unmount), rethrow silently
+    if (err.name === "AbortError" && !isTimeout) {
+      throw err;
+    }
+
     // Enhanced error logging for debugging network issues
     console.error(`[API] ❌ Request failed: ${url}`);
     console.error(`[API] Error name: ${err.name}`);
@@ -808,7 +818,7 @@ export const apiRequest = async (
       );
     }
 
-    if (err.name === "AbortError") {
+    if (err.name === "AbortError" && isTimeout) {
       // Provide clearer error for timeouts
       throw new Error(
         `Network request timed out after ${timeout}ms. Please check your internet connection.`,

@@ -399,7 +399,7 @@ export default function CertificationForm({
                   setName(text);
                   if (errors.name) setErrors({ ...errors, name: undefined });
                 }}
-                placeholder="e.g., Certified Electrician"
+                placeholder="Certified Electrician"
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />
@@ -421,7 +421,7 @@ export default function CertificationForm({
                   if (errors.organization)
                     setErrors({ ...errors, organization: undefined });
                 }}
-                placeholder="e.g., National Electrical Association"
+                placeholder="National Electrical Association"
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />
@@ -459,7 +459,7 @@ export default function CertificationForm({
                   ]}
                 >
                   {selectedSkillId === -1
-                    ? "-- Select a skill --"
+                    ? "Select a skill"
                     : skills.find((s) => s.id === selectedSkillId)?.name ||
                       "Select a skill"}
                 </Text>

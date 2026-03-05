@@ -221,7 +221,7 @@ export default function EditClientProfileScreen() {
 
           {/* Email (Read-only) */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address (Read-only)</Text>
+            <Text style={styles.label}>Email Address</Text>
             <TextInput
               style={[styles.input, styles.inputReadonly]}
               value={formData.email}

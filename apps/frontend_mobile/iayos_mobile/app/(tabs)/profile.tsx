@@ -20,13 +20,10 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { Badge } from "react-native-paper";
-import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
 import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
 import { useScanLocation } from "@/lib/hooks/useLocation";
-import { ReviewsSection } from "@/components/ReviewsSection";
 import {
   useDualProfileStatus,
   useCreateClientProfile,
@@ -49,10 +46,6 @@ export default function ProfileScreen() {
   const createWorker = useCreateWorkerProfile();
   const switchProfile = useSwitchProfile();
 
-  // Get unread notifications count (scoped to current profile type so cache is separate per profile)
-  const { data: unreadCount = 0 } = useUnreadNotificationsCount(
-    user?.profile_data?.profileType ?? undefined,
-  );
   const {
     data: walletData,
     isLoading: walletLoading,
@@ -163,10 +156,24 @@ export default function ProfileScreen() {
     return (
       <View style={styles.infoCard}>
         <InfoRow
-          icon="card-outline"
-          label="Payment Method"
-          value={paymentVerified ? "Verified" : "Not Verified"}
-          valueColor={paymentVerified ? Colors.success : Colors.textSecondary}
+          icon="star-outline"
+          label="Rating"
+          value={
+            ratingValue && ratingValue > 0
+              ? `${ratingValue.toFixed(1)} / 5${
+                  totalReviews > 0
+                    ? ` (${totalReviews} review${totalReviews === 1 ? "" : "s"})`
+                    : ""
+                }`
+              : "0.0"
+          }
+          valueColor={
+            ratingValue && ratingValue > 0
+              ? Colors.textPrimary
+              : Colors.textSecondary
+          }
+          showArrow={true}
+          onPress={() => router.push("/profile/reviews" as any)}
         />
         <InfoRow
           icon="chatbubbles-outline"
@@ -179,24 +186,7 @@ export default function ProfileScreen() {
           valueColor={
             responseRateValue !== null ? Colors.success : Colors.textSecondary
           }
-        />
-        <InfoRow
-          icon="star-outline"
-          label="Average Rating"
-          value={
-            ratingValue && ratingValue > 0
-              ? `${ratingValue.toFixed(1)} / 5${
-                  totalReviews > 0
-                    ? ` (${totalReviews} review${totalReviews === 1 ? "" : "s"})`
-                    : ""
-                }`
-              : "No reviews yet"
-          }
-          valueColor={
-            ratingValue && ratingValue > 0
-              ? Colors.textPrimary
-              : Colors.textSecondary
-          }
+          noBorder={true}
         />
       </View>
     );
@@ -224,24 +214,12 @@ export default function ProfileScreen() {
             <Ionicons name="location" size={26} color="#54B7EC" />
           )}
         </TouchableOpacity>
-
-        {/* Notification Bell */}
-        <TouchableOpacity
-          onPress={() => router.push("/notifications" as any)}
-          style={styles.actionButton}
-        >
-          <Ionicons name="notifications-outline" size={26} color="#54B7EC" />
-          {unreadCount > 0 && (
-            <Badge style={styles.notificationBadge} size={18}>
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </Badge>
-          )}
-        </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 120, flexGrow: 1, backgroundColor: Colors.backgroundSecondary }}
+        style={{ backgroundColor: Colors.primaryLight }}
       >
         {/* Header with Profile Info */}
         <View style={styles.header}>
@@ -266,7 +244,6 @@ export default function ProfileScreen() {
 
             {/* Name & Email */}
             <Text style={styles.userName}>{fullName}</Text>
-            <Text style={styles.userEmail}>{user?.email || ""}</Text>
 
             {/* Role Badge */}
             <View
@@ -332,9 +309,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Profile Switcher Section */}
-        {!isDualStatusLoading && dualStatus && (
-          <View style={styles.section}>
+        <View style={styles.contentContainer}>
+          {/* Profile Switcher Section */}
+          {!isDualStatusLoading && dualStatus && (
+            <View style={styles.section}>
             {isWorker ? (
               // Worker account - show client profile option
               dualStatus.has_client_profile ? (
@@ -606,7 +584,7 @@ export default function ProfileScreen() {
           <View style={styles.walletActions}>
             {isWorker ? (
               <TouchableOpacity
-                style={styles.withdrawButton}
+                style={[styles.withdrawButton, { backgroundColor: '#54B7EB' }]}
                 activeOpacity={0.8}
                 onPress={() => router.push("/wallet/withdraw" as any)}
               >
@@ -637,10 +615,7 @@ export default function ProfileScreen() {
         {/* Client Trust Metrics */}
         {!isWorker && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trust & Performance</Text>
-            <Text style={styles.sectionDescription}>
-              Workers see these stats when reviewing your job requests.
-            </Text>
+            <Text style={styles.sectionTitle}>Performance</Text>
             {renderTrustMetrics()}
           </View>
         )}
@@ -649,36 +624,38 @@ export default function ProfileScreen() {
         {isWorker && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Performance</Text>
-            <View style={styles.infoCard}>
-              <InfoRow
+            <View style={styles.menuCard}>
+              <MenuItem
                 icon="star-outline"
                 label="Rating"
                 value={
                   user?.profile_data?.workerRating &&
                   user.profile_data.workerRating > 0
                     ? `${user.profile_data.workerRating} / 5`
-                    : "No ratings yet"
+                    : "0.0"
                 }
+                showArrow={true}
+                onPress={() => router.push("/profile/reviews" as any)}
               />
-              <InfoRow
+              <MenuItem
                 icon="briefcase-outline"
                 label="Jobs Completed"
                 value={String(user?.profile_data?.jobsCompleted ?? 0)}
+                noBorder={true}
               />
             </View>
           </View>
         )}
 
-        {/* Reviews Section - For all users */}
-        <ReviewsSection
-          accountId={user?.accountID || 0}
-          profileType={isWorker ? "WORKER" : "CLIENT"}
-        />
-
         {/* Account & Settings Links */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>General</Text>
           <View style={styles.menuCard}>
+            <MenuItem
+              icon="person-circle-outline"
+              label="Account Information"
+              onPress={() => router.push("/profile/account-info" as any)}
+            />
             <MenuItem
               icon="notifications-outline"
               label="Notifications"
@@ -688,6 +665,7 @@ export default function ProfileScreen() {
               icon="settings-outline"
               label="Settings"
               onPress={() => router.push("/profile/settings" as any)}
+              noBorder={true}
             />
           </View>
         </View>
@@ -709,6 +687,7 @@ export default function ProfileScreen() {
           <Text style={styles.footerText}>iAyos v1.0.0</Text>
           <Text style={styles.footerSubtext}>May sira? May iAyos.</Text>
         </View>
+        </View>
       </ScrollView>
       <CalendarFAB />
     </SafeAreaView>
@@ -721,43 +700,78 @@ function InfoRow({
   label,
   value,
   valueColor = Colors.textPrimary,
+  noBorder = false,
+  showArrow = false,
+  onPress,
 }: {
   icon: string;
   label: string;
   value: string;
   valueColor?: string;
+  noBorder?: boolean;
+  showArrow?: boolean;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.infoRow}>
+  const content = (
+    <View style={[styles.infoRow, noBorder && { borderBottomWidth: 0 }]}>
       <View style={styles.infoLeft}>
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
+        )}
+      </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 }
 
 function MenuItem({
   icon,
   label,
+  value,
+  showArrow = true,
   onPress,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
-  onPress: () => void;
+  value?: string;
+  showArrow?: boolean;
+  onPress?: () => void;
+  noBorder?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, noBorder && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={!onPress}
     >
       <View style={styles.menuLeft}>
         <Ionicons name={icon as any} size={22} color={Colors.textSecondary} />
         <Text style={styles.menuLabel}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {value ? (
+          <Text style={{ fontSize: 16, color: Colors.textSecondary, fontFamily: "Inter_500Medium" }}>{value}</Text>
+        ) : null}
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -841,12 +855,21 @@ function CollapsibleSection({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.primaryLight,
+  },
+  contentContainer: {
+    flex: 1,
     backgroundColor: Colors.backgroundSecondary,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    marginTop: -32,
+    paddingTop: Spacing.md,
+    minHeight: 500,
   },
   header: {
     alignItems: "center",
     paddingTop: Spacing["4xl"],
-    paddingBottom: Spacing["2xl"],
+    paddingBottom: Spacing["2xl"] + 32,
     paddingHorizontal: Spacing.xl,
     backgroundColor: Colors.primaryLight,
   },
@@ -860,6 +883,8 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     marginBottom: Spacing.lg,
     overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#00BAF1",
     ...Shadows.md,
   },
   avatarImage: {
@@ -1102,14 +1127,14 @@ const styles = StyleSheet.create({
   infoCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
     ...Shadows.sm,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
