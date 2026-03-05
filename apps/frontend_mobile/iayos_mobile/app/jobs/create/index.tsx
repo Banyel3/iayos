@@ -996,63 +996,6 @@ export default function CreateJobScreen() {
                 </Text>
               </View>
 
-              {/* 1. Job Title */}
-              <View style={styles.inputGroup}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={[styles.label, { marginBottom: 0 }]}>Job Title</Text>
-                  <Text style={styles.charCount}>{title.length}/100</Text>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="What needs fixing?"
-                  value={title}
-                  onChangeText={setTitle}
-                  placeholderTextColor={Colors.textHint}
-                  maxLength={100}
-                />
-
-                {/* Title Suggestions - Database-driven */}
-                <SuggestionBubbles
-                  suggestions={titleSuggestions.length > 0
-                    ? titleSuggestions
-                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
-                  onSelect={setTitle}
-                  isLoading={loadingSuggestionFields.has('title')}
-                  label="Suggestions"
-                  icon="sparkles-outline"
-                  showFrequency
-                />
-              </View>
-
-              {/* 2. Description */}
-              <View style={styles.inputGroup}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={[styles.label, { marginBottom: 0 }]}>Description</Text>
-                  <Text style={styles.charCount}>{description.length}/500</Text>
-                </View>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Describe the job in detail..."
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  placeholderTextColor={Colors.textHint}
-                  maxLength={500}
-                />
-
-                {!agencyId && (
-                  <SuggestionBubbles
-                    suggestions={descriptionSuggestions}
-                    onSelect={(text) => setDescription(text)}
-                    isLoading={loadingSuggestionFields.has('description')}
-                    label="Common descriptions"
-                    icon="document-text-outline"
-                  />
-                )}
-              </View>
-
               {/* 3. Job Category (moved below description) */}
               <View style={[styles.inputGroup, { marginBottom: 0 }]}>
                 <View style={styles.labelRow}>
@@ -1065,7 +1008,7 @@ export default function CreateJobScreen() {
                   value={categorySearch}
                   onChangeText={setCategorySearch}
                   placeholder={agencyId ? "Search specializations" : "Search categories"}
-                  style={{ marginBottom: Spacing.md, ...(agencyId ? { backgroundColor: Colors.white } : {}) }}
+                  style={{ marginBottom: Spacing.md, backgroundColor: Colors.white }}
                 />
 
                 {categoriesLoading ? (
@@ -1210,6 +1153,54 @@ export default function CreateJobScreen() {
                   ))}
                 </View>
               )}
+
+
+              {/* 1. Job Title */}
+              <View style={[styles.inputGroup, { marginTop: Spacing.md }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.label, { marginBottom: 0 }]}>Job Title</Text>
+                  <Text style={styles.charCount}>{title.length}/100</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="What needs fixing?"
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholderTextColor={Colors.textHint}
+                  maxLength={100}
+                />
+
+                {/* Title Suggestions - Database-driven */}
+                <SuggestionBubbles
+                  suggestions={titleSuggestions.length > 0
+                    ? titleSuggestions
+                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
+                  onSelect={setTitle}
+                  isLoading={false}
+                  label="Suggestions"
+                  icon="sparkles-outline"
+                  showFrequency
+                />
+              </View>
+
+              {/* 2. Description */}
+              <View style={styles.inputGroup}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.label, { marginBottom: 0 }]}>Description</Text>
+                  <Text style={styles.charCount}>{description.length}/500</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Describe the job in detail..."
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  placeholderTextColor={Colors.textHint}
+                  maxLength={500}
+                />
+              </View>
             </View>
 
 
@@ -1749,13 +1740,13 @@ export default function CreateJobScreen() {
               <View style={styles.sectionTitle}>
                 <Ionicons name="time" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>
-                  Timing & Urgency{!!agencyId && <Text style={{ color: Colors.error }}> *</Text>}
+                  Timing & Urgency<Text style={{ color: Colors.error }}> *</Text>
                 </Text>
               </View>
 
               {/* Urgency Level */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Urgency Level (Optional)</Text>
+                <Text style={styles.label}>Urgency Level</Text>
                 <View style={styles.urgencyRow}>
                   {(["LOW", "MEDIUM", "HIGH"] as const).map((level) => (
                     <TouchableOpacity
@@ -1784,22 +1775,22 @@ export default function CreateJobScreen() {
               </View>
 
               {/* Job Dates */}
-              <View style={!!agencyId ? styles.datesRow : undefined}>
+              <View style={styles.datesRow}>
                 {/* Start Date */}
-                <View style={!!agencyId ? [styles.inputGroup, styles.dateHalf] : styles.inputGroup}>
+                <View style={[styles.inputGroup, styles.dateHalf]}>
                   <Text style={styles.label}>
                     Start Date
                   </Text>
                   <TouchableOpacity
-                    style={[styles.dateButton, !startDate && { borderColor: Colors.error }]}
+                    style={[styles.dateButton, !startDate && { borderColor: Colors.border }]}
                     onPress={() => setShowDatePicker(true)}
                   >
                     <Ionicons
                       name="calendar"
                       size={18}
-                      color={startDate ? Colors.textSecondary : Colors.error}
+                      color={startDate ? Colors.textSecondary : Colors.textHint}
                     />
-                    <Text style={[styles.dateButtonText, styles.dateButtonTextSmall, !startDate && { color: Colors.error }]}>
+                    <Text style={[styles.dateButtonText, styles.dateButtonTextSmall, !startDate && { color: Colors.textHint }]}>
                       {startDate
                         ? startDate.toLocaleDateString()
                         : "Select date"}
@@ -1825,17 +1816,17 @@ export default function CreateJobScreen() {
                 </View>
 
                 {/* End Date */}
-                <View style={!!agencyId ? [styles.inputGroup, styles.dateHalf] : styles.inputGroup}>
+                <View style={[styles.inputGroup, styles.dateHalf]}>
                   <Text style={[styles.label, isOneDayJob && { color: Colors.textHint }]}>
                     End Date{" "}
                     {isOneDayJob
                       ? <Text style={{ color: Colors.textHint }}>(N/A)</Text>
-                      : <Text style={{ color: Colors.error }}></Text>}
+                      : <Text style={{ color: Colors.textHint }}></Text>}
                   </Text>
                   <TouchableOpacity
                     style={[
                       styles.dateButton,
-                      !isOneDayJob && !scheduledEndDate && { borderColor: Colors.error },
+                      !isOneDayJob && !scheduledEndDate && { borderColor: Colors.border },
                       isOneDayJob && styles.dateButtonDisabled,
                     ]}
                     onPress={() => !isOneDayJob && setShowEndDatePicker(true)}
@@ -1849,14 +1840,14 @@ export default function CreateJobScreen() {
                           ? Colors.textHint
                           : scheduledEndDate
                             ? Colors.textSecondary
-                            : Colors.error
+                            : Colors.textHint
                       }
                     />
                     <Text
                       style={[
                         styles.dateButtonText,
                         styles.dateButtonTextSmall,
-                        !isOneDayJob && !scheduledEndDate && { color: Colors.error },
+                        !isOneDayJob && !scheduledEndDate && { color: Colors.textHint },
                         isOneDayJob && { color: Colors.textHint },
                       ]}
                     >
@@ -1885,29 +1876,28 @@ export default function CreateJobScreen() {
               </View>
 
               {/* One day or less checkbox - agency only */}
-              {!!agencyId && (
-                <TouchableOpacity
-                  style={styles.checkboxRow}
-                  onPress={() => {
-                    const next = !isOneDayJob;
-                    setIsOneDayJob(next);
-                    if (next) {
-                      setScheduledEndDate(null);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.checkbox, isOneDayJob && styles.checkboxChecked]}>
-                    {isOneDayJob && (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    )}
-                  </View>
-                  <Text style={styles.checkboxLabel}>This job is one day or less</Text>
-                </TouchableOpacity>
-              )}
+              {/* Checkbox for one day job */}
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => {
+                  const next = !isOneDayJob;
+                  setIsOneDayJob(next);
+                  if (next) {
+                    setScheduledEndDate(null);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, isOneDayJob && styles.checkboxChecked]}>
+                  {isOneDayJob && (
+                    <Ionicons name="checkmark" size={14} color="#fff" />
+                  )}
+                </View>
+                <Text style={styles.checkboxLabel}>This job is one day or less</Text>
+              </TouchableOpacity>
 
               {/* Expected Duration - always visible for regular jobs; agency shows only for one-day */}
-              {(!agencyId || isOneDayJob) && (
+              {isOneDayJob && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Expected Duration (Optional)</Text>
                   <TextInput
