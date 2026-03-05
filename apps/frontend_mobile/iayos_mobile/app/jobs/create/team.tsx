@@ -854,7 +854,7 @@ export default function CreateTeamJobScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>
-                      Platform Fee (10% of escrow)
+                      Platform Fee (10% of total budget)
                     </Text>
                     <Text style={styles.summaryValue}>
                       ₱{platformFee.toFixed(2)}

@@ -411,7 +411,12 @@ export default function CreateJobScreen() {
   }, [effectiveCategoryId, fetchSuggestions]);
 
   // Fetch categories
-  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading,
+    isError: categoriesLoadError,
+    error: categoriesError,
+  } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
       const response = await fetchJson<{ categories: Category[] }>(
@@ -1019,6 +1024,17 @@ export default function CreateJobScreen() {
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.loadingText}>Loading categories...</Text>
+                  </View>
+                ) : categoriesLoadError ? (
+                  <View style={styles.emptyStateContainer}>
+                    <Text style={styles.emptyStateText}>
+                      ⚠️ Failed to load categories
+                    </Text>
+                    {categoriesError instanceof Error && (
+                      <Text style={styles.emptyStateText}>
+                        {categoriesError.message}
+                      </Text>
+                    )}
                   </View>
                 ) : filteredCategories.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
