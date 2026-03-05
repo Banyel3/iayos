@@ -11,9 +11,9 @@ from .schemas import (
     CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, 
     JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema,
     LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema,
-    RequestSkipDaySchema, ReviewSkipDaySchema
+    RequestSkipDaySchema, ReviewSkipDaySchema, QASkipNextDaySchema
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
 from django.db import transaction as db_transaction
@@ -45,6 +45,32 @@ def get_user_profile(request):
     else:
         # Fallback for single profile users
         return Profile.objects.filter(accountFK=request.auth).first()
+
+
+def is_testing_mode_enabled() -> bool:
+    """Return True only for TESTING mode in non-production environments."""
+    if not bool(getattr(settings, 'TESTING', False)):
+        return False
+
+    environment = str(getattr(settings, 'ENVIRONMENT', '')).strip().lower()
+    if environment in ['production', 'prod', 'live']:
+        return False
+
+    return True
+
+
+def get_effective_work_date(job: Job):
+    """Get effective work date with TESTING-only QA offset applied."""
+    base_date = timezone.now().date()
+
+    if not is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 
 def broadcast_job_status_update(job_id, update_data):
@@ -7994,6 +8020,71 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
             "status": skip_request.status,
             "client_rejection_reason": skip_request.client_rejection_reason,
             "reviewed_at": skip_request.reviewedAt.isoformat() if skip_request.reviewedAt else None,
+        }
+    }
+
+
+@router.post("/{job_id}/daily/qa/skip-next-day", auth=dual_auth)
+@require_kyc
+def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
+    """
+    TESTING-only endpoint: client advances DAILY job by one effective day.
+    This does not change server time and is blocked in production.
+    """
+    if not is_testing_mode_enabled():
+        return Response({
+            "error": "QA skip-next-day is disabled outside TESTING non-production environments"
+        }, status=403)
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can advance QA day"}, status=403)
+
+    old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    new_offset = old_offset + 1
+
+    old_effective_date = timezone.now().date() + timedelta(days=old_offset)
+    new_effective_date = timezone.now().date() + timedelta(days=new_offset)
+
+    with db_transaction.atomic():
+        job.qa_day_offset = new_offset
+        job.save(update_fields=['qa_day_offset', 'updatedAt'])
+
+        JobLog.objects.create(
+            jobID=job,
+            actionType=JobLog.ActionType.JOB_EDITED,
+            oldStatus=job.status,
+            newStatus=job.status,
+            changedBy=request.auth,
+            notes="[QA][TESTING] Advanced effective daily work date by +1 day",
+            metadata={
+                "event": "qa_skip_next_day",
+                "testing": True,
+                "old_offset": old_offset,
+                "new_offset": new_offset,
+                "old_effective_date": old_effective_date.isoformat(),
+                "new_effective_date": new_effective_date.isoformat(),
+                "reason": (data.reason or "").strip() or "QA fast-forward",
+            }
+        )
+
+    return {
+        "success": True,
+        "message": "[QA][TESTING] Effective day advanced by 1",
+        "qa": {
+            "enabled": True,
+            "day_offset": new_offset,
+            "effective_work_date": new_effective_date.isoformat(),
         }
     }
 

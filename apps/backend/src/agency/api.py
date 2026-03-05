@@ -11,9 +11,35 @@ from accounts.material_service import (
 )
 from accounts.models import Accounts, Agency
 import logging
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+
+def _is_testing_mode_enabled() -> bool:
+    if not bool(getattr(settings, "TESTING", False)):
+        return False
+
+    environment = str(getattr(settings, "ENVIRONMENT", "")).strip().lower()
+    if environment in ["production", "prod", "live"]:
+        return False
+
+    return True
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
@@ -2169,10 +2195,12 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
         # DAILY skip-day request state for today (if applicable)
         daily_skip_requests_today = []
+        effective_work_date = timezone.now().date()
+        qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
         if getattr(job, 'payment_model', 'PROJECT') == 'DAILY' and job.status == 'IN_PROGRESS':
             from accounts.models import DailySkipDayRequest
-            from django.utils import timezone
-            today = timezone.now().date()
+            today = _get_effective_work_date(job)
+            effective_work_date = today
             skip_request = DailySkipDayRequest.objects.filter(
                 jobID=job,
                 request_date=today
@@ -2219,6 +2247,9 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "assigned_employee": assigned_employee,
             "assigned_employees": assigned_employees,  # Multi-employee support
             "daily_skip_requests_today": daily_skip_requests_today,
+            "effective_work_date": effective_work_date.isoformat(),
+            "qa_day_offset": qa_day_offset,
+            "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "messages": messages_list,
             "total_messages": len(messages_list),
             "status": conv.status

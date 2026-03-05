@@ -906,6 +906,11 @@ export interface ClientReviewDailySkipDayPayload {
   reason?: string;
 }
 
+export interface ClientQASkipNextDayPayload {
+  jobId: number;
+  reason?: string;
+}
+
 export const useRequestDailySkipDay = () => {
   const queryClient = useQueryClient();
 
@@ -990,6 +995,46 @@ export const useClientReviewDailySkipDay = () => {
       Toast.show({
         type: "error",
         text1: "Review Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+export const useClientQASkipNextDay = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId, reason }: ClientQASkipNextDayPayload) => {
+      const response = await apiRequest(ENDPOINTS.DAILY_QA_SKIP_NEXT_DAY(jobId), {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to advance QA day"));
+      }
+
+      return response.json() as Promise<{ success: boolean; message?: string }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "QA Day Advanced",
+        text2: data.message || "Moved to next effective day",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "QA Advance Failed",
         text2: error.message,
         position: "top",
       });
