@@ -20,14 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_testing_mode_enabled() -> bool:
-    if not bool(getattr(settings, "TESTING", False)):
-        return False
-
-    environment = str(getattr(settings, "ENVIRONMENT", "")).strip().lower()
-    if environment in ["production", "prod", "live"]:
-        return False
-
-    return True
+    return bool(getattr(settings, "TESTING", False))
 
 
 def _get_effective_work_date(job):
