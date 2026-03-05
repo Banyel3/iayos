@@ -23,6 +23,9 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  Alert,
+  Platform,
+  ActionSheetIOS,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -44,6 +47,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useWorkerReviews } from "@/lib/hooks/useReviews";
+import { useSubmitReport } from "@/lib/hooks/useReports";
 import { VerificationBadge } from "@/components/VerificationBadge";
 
 interface Skill {
@@ -282,6 +286,7 @@ export default function WorkerDetailScreen() {
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
+  const submitReportMutation = useSubmitReport();
 
   // Lightbox state for certificate images
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -358,6 +363,61 @@ export default function WorkerDetailScreen() {
     user?.accountID === data.accountId ||
     user?.profile_data?.workerProfileId === Number(id);
 
+  const submitWorkerReport = (reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other") => {
+    submitReportMutation.mutate(
+      {
+        report_type: "user",
+        reason,
+        reported_user_id: data.accountId,
+        related_content_id: data.id,
+        description: `Reported worker profile: ${fullName}. Reason: ${reason}`,
+      },
+      {
+        onSuccess: () => {
+          Alert.alert("Report Submitted", "Thank you. Your report has been submitted for admin review.");
+        },
+        onError: (error) => {
+          Alert.alert("Report Failed", error instanceof Error ? error.message : "Failed to submit report");
+        },
+      },
+    );
+  };
+
+  const openWorkerReportMenu = () => {
+    const options = ["Cancel", "Spam", "Harassment", "Fraud/Scam", "Inappropriate", "Fake Profile"];
+
+    const onSelect = (index: number) => {
+      if (index === 1) submitWorkerReport("spam");
+      if (index === 2) submitWorkerReport("harassment");
+      if (index === 3) submitWorkerReport("fraud");
+      if (index === 4) submitWorkerReport("inappropriate");
+      if (index === 5) submitWorkerReport("fake_profile");
+    };
+
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 1,
+          title: "Report User",
+          message: "Select a reason for reporting this worker profile.",
+        },
+        onSelect,
+      );
+      return;
+    }
+
+    Alert.alert("Report User", "Select a reason", [
+      { text: "Spam", onPress: () => submitWorkerReport("spam") },
+      { text: "Harassment", onPress: () => submitWorkerReport("harassment") },
+      { text: "Fraud/Scam", onPress: () => submitWorkerReport("fraud") },
+      { text: "Inappropriate", onPress: () => submitWorkerReport("inappropriate") },
+      { text: "Fake Profile", onPress: () => submitWorkerReport("fake_profile") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -373,13 +433,31 @@ export default function WorkerDetailScreen() {
           <Text style={styles.headerTitle}>
             {isOwnProfile ? "My Public Profile" : "Worker Profile"}
           </Text>
-          <TouchableOpacity style={styles.shareButton}>
-            <Ionicons
-              name="share-outline"
-              size={22}
-              color={Colors.textPrimary}
-            />
-          </TouchableOpacity>
+          {isOwnProfile ? (
+            <TouchableOpacity style={styles.shareButton}>
+              <Ionicons
+                name="share-outline"
+                size={22}
+                color={Colors.textPrimary}
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={openWorkerReportMenu}
+              disabled={submitReportMutation.isPending}
+            >
+              {submitReportMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <Ionicons
+                  name="flag-outline"
+                  size={22}
+                  color={Colors.error}
+                />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView
@@ -494,7 +572,7 @@ export default function WorkerDetailScreen() {
             <View style={styles.statItem}>
               <Ionicons name="cash" size={24} color={Colors.primary} />
               <Text style={styles.statValue}>₱{data.hourlyRate || "N/A"}</Text>
-              <Text style={styles.statLabel}>Per Hour</Text>
+              <Text style={styles.statLabel}>Per Day</Text>
             </View>
           </View>
 
@@ -511,7 +589,7 @@ export default function WorkerDetailScreen() {
               >
                 <View style={styles.mlScoreHeader}>
                   <View style={styles.mlScoreLeft}>
-                    <Text style={styles.mlScoreLabel}>🤖 AI Profile Score</Text>
+                    <Text style={styles.mlScoreLabel}>AI Profile Score</Text>
                     <View style={styles.mlScoreRow}>
                       <Text
                         style={[

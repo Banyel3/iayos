@@ -388,7 +388,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name="logo-google"
                   size={20}
-                  color="#4da9ff"
+                  color="#909497"
                   style={{ marginRight: Spacing.sm }}
                 />
               )}

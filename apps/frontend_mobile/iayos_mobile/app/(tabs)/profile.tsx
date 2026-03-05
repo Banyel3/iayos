@@ -20,13 +20,10 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { Badge } from "react-native-paper";
-import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
 import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
 import { useScanLocation } from "@/lib/hooks/useLocation";
-import { ReviewsSection } from "@/components/ReviewsSection";
 import {
   useDualProfileStatus,
   useCreateClientProfile,
@@ -38,6 +35,7 @@ import CalendarFAB from "@/components/CalendarFAB";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+
   const router = useRouter();
   const scanLocation = useScanLocation();
 
@@ -48,10 +46,6 @@ export default function ProfileScreen() {
   const createWorker = useCreateWorkerProfile();
   const switchProfile = useSwitchProfile();
 
-  // Get unread notifications count (scoped to current profile type so cache is separate per profile)
-  const { data: unreadCount = 0 } = useUnreadNotificationsCount(
-    user?.profile_data?.profileType ?? undefined,
-  );
   const {
     data: walletData,
     isLoading: walletLoading,
@@ -162,10 +156,24 @@ export default function ProfileScreen() {
     return (
       <View style={styles.infoCard}>
         <InfoRow
-          icon="card-outline"
-          label="Payment Method"
-          value={paymentVerified ? "Verified" : "Not Verified"}
-          valueColor={paymentVerified ? Colors.success : Colors.textSecondary}
+          icon="star-outline"
+          label="Rating"
+          value={
+            ratingValue && ratingValue > 0
+              ? `${ratingValue.toFixed(1)} / 5${
+                  totalReviews > 0
+                    ? ` (${totalReviews} review${totalReviews === 1 ? "" : "s"})`
+                    : ""
+                }`
+              : "0.0"
+          }
+          valueColor={
+            ratingValue && ratingValue > 0
+              ? Colors.textPrimary
+              : Colors.textSecondary
+          }
+          showArrow={true}
+          onPress={() => router.push("/profile/reviews" as any)}
         />
         <InfoRow
           icon="chatbubbles-outline"
@@ -178,24 +186,7 @@ export default function ProfileScreen() {
           valueColor={
             responseRateValue !== null ? Colors.success : Colors.textSecondary
           }
-        />
-        <InfoRow
-          icon="star-outline"
-          label="Average Rating"
-          value={
-            ratingValue && ratingValue > 0
-              ? `${ratingValue.toFixed(1)} / 5${
-                  totalReviews > 0
-                    ? ` (${totalReviews} review${totalReviews === 1 ? "" : "s"})`
-                    : ""
-                }`
-              : "No reviews yet"
-          }
-          valueColor={
-            ratingValue && ratingValue > 0
-              ? Colors.textPrimary
-              : Colors.textSecondary
-          }
+          noBorder={true}
         />
       </View>
     );
@@ -223,24 +214,12 @@ export default function ProfileScreen() {
             <Ionicons name="location" size={26} color="#54B7EC" />
           )}
         </TouchableOpacity>
-
-        {/* Notification Bell */}
-        <TouchableOpacity
-          onPress={() => router.push("/notifications" as any)}
-          style={styles.actionButton}
-        >
-          <Ionicons name="notifications-outline" size={26} color="#54B7EC" />
-          {unreadCount > 0 && (
-            <Badge style={styles.notificationBadge} size={18}>
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </Badge>
-          )}
-        </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 120, flexGrow: 1, backgroundColor: Colors.backgroundSecondary }}
+        style={{ backgroundColor: Colors.primaryLight }}
       >
         {/* Header with Profile Info */}
         <View style={styles.header}>
@@ -265,7 +244,6 @@ export default function ProfileScreen() {
 
             {/* Name & Email */}
             <Text style={styles.userName}>{fullName}</Text>
-            <Text style={styles.userEmail}>{user?.email || ""}</Text>
 
             {/* Role Badge */}
             <View
@@ -331,9 +309,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Profile Switcher Section */}
-        {!isDualStatusLoading && dualStatus && (
-          <View style={styles.section}>
+        <View style={styles.contentContainer}>
+          {/* Profile Switcher Section */}
+          {!isDualStatusLoading && dualStatus && (
+            <View style={styles.section}>
             {isWorker ? (
               // Worker account - show client profile option
               dualStatus.has_client_profile ? (
@@ -605,7 +584,7 @@ export default function ProfileScreen() {
           <View style={styles.walletActions}>
             {isWorker ? (
               <TouchableOpacity
-                style={styles.withdrawButton}
+                style={[styles.withdrawButton, { backgroundColor: '#54B7EB' }]}
                 activeOpacity={0.8}
                 onPress={() => router.push("/wallet/withdraw" as any)}
               >
@@ -633,149 +612,60 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Account Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Information</Text>
-          <View style={styles.infoCard}>
-            <InfoRow
-              icon="mail-outline"
-              label="Email"
-              value={user?.email || "Not set"}
-            />
-            <InfoRow
-              icon="checkmark-circle-outline"
-              label="Email Verified"
-              value={user?.isVerified ? "Yes" : "No"}
-              valueColor={user?.isVerified ? Colors.success : Colors.warning}
-            />
-            <InfoRow
-              icon="shield-checkmark-outline"
-              label="Account Status"
-              value="Active"
-              valueColor={Colors.success}
-            />
-          </View>
-        </View>
-
         {/* Client Trust Metrics */}
         {!isWorker && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trust & Performance</Text>
-            <Text style={styles.sectionDescription}>
-              Workers see these stats when reviewing your job requests.
-            </Text>
+            <Text style={styles.sectionTitle}>Performance</Text>
             {renderTrustMetrics()}
           </View>
         )}
 
-        {/* Worker-Specific Info */}
+        {/* Worker Performance Stats (was Worker Info, stripped of Profile Type) */}
         {isWorker && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Worker Information</Text>
-            <View style={styles.infoCard}>
-              <InfoRow
-                icon="location-outline"
-                label="Profile Type"
-                value={user?.profile_data?.profileType || "Not set"}
-              />
-              <InfoRow
+            <Text style={styles.sectionTitle}>Performance</Text>
+            <View style={styles.menuCard}>
+              <MenuItem
                 icon="star-outline"
                 label="Rating"
                 value={
                   user?.profile_data?.workerRating &&
                   user.profile_data.workerRating > 0
                     ? `${user.profile_data.workerRating} / 5`
-                    : "No ratings yet"
+                    : "0.0"
                 }
+                showArrow={true}
+                onPress={() => router.push("/profile/reviews" as any)}
               />
-              <InfoRow
+              <MenuItem
                 icon="briefcase-outline"
                 label="Jobs Completed"
                 value={String(user?.profile_data?.jobsCompleted ?? 0)}
+                noBorder={true}
               />
             </View>
           </View>
         )}
 
-        {/* Reviews Section - For all users */}
-        <ReviewsSection
-          accountId={user?.accountID || 0}
-          profileType={isWorker ? "WORKER" : "CLIENT"}
-        />
-
-        {/* Worker Certifications */}
-        {isWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Certifications</Text>
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="ribbon"
-                label="Manage Certifications"
-                onPress={() => router.push("/profile/certifications" as any)}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Worker Materials & Products */}
-        {isWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Materials & Products</Text>
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="cube-outline"
-                label="Manage Materials"
-                onPress={() => router.push("/profile/materials" as any)}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Payment Methods Section */}
+        {/* Account & Settings Links */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payments</Text>
+          <Text style={styles.sectionTitle}>General</Text>
           <View style={styles.menuCard}>
             <MenuItem
-              icon="card-outline"
-              label="Payment Methods"
-              onPress={() => router.push("/profile/payment-methods" as any)}
+              icon="person-circle-outline"
+              label="Account Information"
+              onPress={() => router.push("/profile/account-info" as any)}
             />
-          </View>
-        </View>
-
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          <View style={styles.menuCard}>
             <MenuItem
               icon="notifications-outline"
               label="Notifications"
               onPress={() => router.push("/notifications" as any)}
             />
             <MenuItem
-              icon="shield-checkmark-outline"
-              label="Privacy Policy"
-              onPress={() => router.push("/legal/privacy" as any)}
-            />
-            <MenuItem
-              icon="document-text-outline"
-              label="Terms of Service"
-              onPress={() => router.push("/legal/terms" as any)}
-            />
-            <MenuItem
-              icon="people-outline"
-              label="Community Guidelines"
-              onPress={() => router.push("/legal/community-guidelines" as any)}
-            />
-            <MenuItem
-              icon="help-circle-outline"
-              label="Help & Support"
-              onPress={() => router.push("/support" as any)}
-            />
-            <MenuItem
-              icon="information-circle-outline"
-              label="About iAyos"
-              onPress={() => router.push("/legal/about" as any)}
+              icon="settings-outline"
+              label="Settings"
+              onPress={() => router.push("/profile/settings" as any)}
+              noBorder={true}
             />
           </View>
         </View>
@@ -797,6 +687,7 @@ export default function ProfileScreen() {
           <Text style={styles.footerText}>iAyos v1.0.0</Text>
           <Text style={styles.footerSubtext}>May sira? May iAyos.</Text>
         </View>
+        </View>
       </ScrollView>
       <CalendarFAB />
     </SafeAreaView>
@@ -809,43 +700,78 @@ function InfoRow({
   label,
   value,
   valueColor = Colors.textPrimary,
+  noBorder = false,
+  showArrow = false,
+  onPress,
 }: {
   icon: string;
   label: string;
   value: string;
   valueColor?: string;
+  noBorder?: boolean;
+  showArrow?: boolean;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.infoRow}>
+  const content = (
+    <View style={[styles.infoRow, noBorder && { borderBottomWidth: 0 }]}>
       <View style={styles.infoLeft}>
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
+        )}
+      </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 }
 
 function MenuItem({
   icon,
   label,
+  value,
+  showArrow = true,
   onPress,
+  noBorder = false,
 }: {
   icon: string;
   label: string;
-  onPress: () => void;
+  value?: string;
+  showArrow?: boolean;
+  onPress?: () => void;
+  noBorder?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, noBorder && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={!onPress}
     >
       <View style={styles.menuLeft}>
         <Ionicons name={icon as any} size={22} color={Colors.textSecondary} />
         <Text style={styles.menuLabel}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {value ? (
+          <Text style={{ fontSize: 16, color: Colors.textSecondary, fontFamily: "Inter_500Medium" }}>{value}</Text>
+        ) : null}
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -881,10 +807,143 @@ function TrustMetricCard({
   );
 }
 
+function CollapsibleSection({
+  title,
+  icon,
+  children,
+  isExpanded,
+  onToggle,
+}: {
+  title: string;
+  icon: string;
+  children: React.ReactNode;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <View style={styles.collapsibleContainer}>
+      <TouchableOpacity
+        style={[
+          styles.collapsibleHeader,
+          isExpanded && styles.collapsibleHeaderExpanded,
+        ]}
+        onPress={onToggle}
+        activeOpacity={0.7}
+      >
+        <View style={styles.collapsibleHeaderContent}>
+          <Ionicons name={icon as any} size={24} color={Colors.primary} />
+          <Text
+            style={[
+              styles.collapsibleTitle,
+              isExpanded && styles.collapsibleTitleExpanded,
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
+        <Ionicons
+          name={isExpanded ? "chevron-up" : "chevron-down"}
+          size={24}
+          color={Colors.textSecondary}
+        />
+      </TouchableOpacity>
+      {isExpanded && <View style={styles.collapsibleContent}>{children}</View>}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primaryLight,
+  },
+  contentContainer: {
+    flex: 1,
+    backgroundColor: Colors.backgroundSecondary,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    marginTop: -32,
+    paddingTop: Spacing.md,
+    minHeight: 500,
+  },
+  header: {
+    alignItems: "center",
+    paddingTop: Spacing["4xl"],
+    paddingBottom: Spacing["2xl"] + 32,
+    paddingHorizontal: Spacing.xl,
+    backgroundColor: Colors.primaryLight,
+  },
+  headerContent: {
+    alignItems: "center",
+    width: "100%",
+  },
+  avatarContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: Spacing.lg,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#00BAF1",
+    ...Shadows.md,
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: Colors.primaryDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.error,
+  },
+  collapsibleContainer: {
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.sm,
+  },
+  collapsibleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+  },
+  collapsibleHeaderExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  collapsibleHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  collapsibleTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textPrimary,
+  },
+  collapsibleTitleExpanded: {
+    color: Colors.primary,
+  },
+  collapsibleContent: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    borderBottomLeftRadius: BorderRadius.lg,
+    borderBottomRightRadius: BorderRadius.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+    ...Shadows.sm,
   },
   topActionsContainer: {
     position: "absolute",
@@ -912,42 +971,6 @@ const styles = StyleSheet.create({
   notificationButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    ...Shadows.sm,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#FF3B30",
-    fontSize: 10,
-  },
-  header: {
-    backgroundColor: Colors.primaryLight,
-    paddingVertical: Spacing["3xl"],
-    paddingHorizontal: Spacing["2xl"],
-  },
-  headerContent: {
-    alignItems: "center",
-  },
-  avatarContainer: {
-    marginBottom: Spacing.lg,
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
     ...Shadows.primary,
   },
   avatarText: {
@@ -1104,14 +1127,14 @@ const styles = StyleSheet.create({
   infoCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
     ...Shadows.sm,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },

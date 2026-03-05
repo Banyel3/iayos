@@ -70,6 +70,7 @@ export type ConversationDetail = {
     status: string;
     budget: number;
     location: string;
+    preferred_start_date?: string;
     clientConfirmedWorkStarted: boolean;
     workerMarkedComplete: boolean;
     clientMarkedComplete: boolean;
@@ -190,6 +191,20 @@ export type ConversationDetail = {
     client_confirmed: boolean;
     payment_processed: boolean;
   }>;
+  daily_skip_requests_today?: Array<{
+    skip_request_id: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    request_date?: string;
+    requested_count?: number;
+    total_required?: number;
+    requires_all_team_workers?: boolean;
+    all_workers_requested?: boolean;
+    my_worker_requested?: boolean;
+    client_rejection_reason?: string | null;
+  }>;
+  effective_work_date?: string;
+  qa_day_offset?: number;
+  qa_testing_mode?: boolean;
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
@@ -218,9 +233,9 @@ export type ConversationDetail = {
  * Auto-marks messages as read on fetch
  * Uses polling as fallback when WebSocket is unavailable
  */
-export function useMessages(conversationId: number) {
+export function useMessages(conversationId: number, viewerKey: string = "default") {
   return useQuery({
-    queryKey: ["messages", conversationId],
+    queryKey: ["messages", conversationId, viewerKey],
     queryFn: async (): Promise<ConversationDetail> => {
       const url = ENDPOINTS.CONVERSATION_MESSAGES(conversationId);
       const response = await apiRequest(url);
@@ -269,8 +284,8 @@ export function useMessages(conversationId: number) {
       };
     },
     enabled: !!conversationId,
-    staleTime: 0, // Always refetch on window focus (critical for job status sync)
-    refetchInterval: 3000, // Poll every 3 seconds as fallback for WebSocket
+    staleTime: 5000,
+    refetchInterval: false,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });

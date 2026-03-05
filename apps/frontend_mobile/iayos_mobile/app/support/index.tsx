@@ -16,7 +16,7 @@ const FAQ_CATEGORIES = [
   {
     title: "Getting Started",
     icon: "rocket-outline",
-    color: "#3B82F6",
+    color: Colors.primary,
     items: [
       {
         question: "How do I create a job posting?",
@@ -38,7 +38,7 @@ const FAQ_CATEGORIES = [
   {
     title: "Payments",
     icon: "card-outline",
-    color: "#10B981",
+    color: Colors.primary,
     items: [
       {
         question: "How does the payment system work?",
@@ -60,7 +60,7 @@ const FAQ_CATEGORIES = [
   {
     title: "Jobs & Work",
     icon: "briefcase-outline",
-    color: "#8B5CF6",
+    color: Colors.primary,
     items: [
       {
         question: "What happens after a job is completed?",
@@ -82,7 +82,7 @@ const FAQ_CATEGORIES = [
   {
     title: "Account & Profile",
     icon: "person-outline",
-    color: "#F59E0B",
+    color: Colors.primary,
     items: [
       {
         question: "How do I update my profile?",
@@ -132,22 +132,22 @@ export default function SupportHubScreen() {
         {/* Quick Actions */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={[styles.actionCard, { backgroundColor: "#3B82F6" }]}
+            style={styles.actionCard}
             onPress={() => router.push("/support/create" as any)}
           >
             <View style={styles.actionIconContainer}>
-              <Ionicons name="create-outline" size={28} color="#FFFFFF" />
+              <Ionicons name="create-outline" size={28} color="#00BAF1" />
             </View>
             <Text style={styles.actionTitle}>Create Ticket</Text>
             <Text style={styles.actionSubtitle}>Get help from our team</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionCard, { backgroundColor: "#8B5CF6" }]}
+            style={styles.actionCard}
             onPress={() => router.push("/support/tickets" as any)}
           >
             <View style={styles.actionIconContainer}>
-              <Ionicons name="list-outline" size={28} color="#FFFFFF" />
+              <Ionicons name="list-outline" size={28} color="#00BAF1" />
             </View>
             <Text style={styles.actionTitle}>My Tickets</Text>
             <Text style={styles.actionSubtitle}>View your requests</Text>
@@ -294,24 +294,27 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     minHeight: 130,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: "#00BAF1",
   },
   actionIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(0, 186, 241, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.sm,
   },
   actionTitle: {
     ...Typography.heading.h4,
-    color: "#FFFFFF",
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   actionSubtitle: {
     ...Typography.body.small,
-    color: "rgba(255,255,255,0.8)",
+    color: Colors.textSecondary,
   },
   faqSection: {
     marginBottom: Spacing.lg,
@@ -386,12 +389,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   contactSection: {
-    backgroundColor: Colors.primary + "10",
+    backgroundColor: '#F0F9FF',
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.primary + "30",
+    borderColor: '#E0F2FE',
   },
   contactTitle: {
     ...Typography.heading.h4,
@@ -408,9 +411,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: "#00BAF1",
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
   },
   contactButtonText: {

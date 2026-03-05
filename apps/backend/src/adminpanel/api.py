@@ -42,7 +42,7 @@ from .payment_service import (
 )
 from .support_service import (
     get_tickets, get_ticket_detail, create_ticket, reply_to_ticket,
-    update_ticket_status, assign_ticket, get_ticket_stats,
+    update_ticket_status, update_ticket_priority, close_ticket, assign_ticket, get_ticket_stats,
     get_canned_responses, create_canned_response, update_canned_response,
     delete_canned_response, increment_canned_response_usage,
     get_faqs, create_faq, update_faq, delete_faq, increment_faq_view,
@@ -686,6 +686,12 @@ def get_kyc_logs(request, action: str | None = None, limit: int = 100):
         return {"success": False, "error": str(e)}
 
 
+@router.get("/kyc/audit-logs", auth=cookie_auth)
+def get_kyc_audit_logs(request, action: str | None = None, limit: int = 100):
+    """Stable alias for KYC logs to avoid path parsing conflicts with dynamic KYC routes."""
+    return get_kyc_logs(request, action=action, limit=limit)
+
+
 @router.get("/users/clients", auth=cookie_auth)
 def get_clients(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
@@ -1075,10 +1081,10 @@ def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None
 def get_dispute_detail_endpoint(request, dispute_id: int):
     """
     Get full details of a single dispute.
-    Returns dispute info, evidence images, and conversation_id.
+    Returns dispute info, evidence images, and negotiation chat metadata.
     """
     from accounts.models import JobDispute
-    from profiles.models import Conversation
+    from profiles.models import Conversation, ConversationParticipant
     try:
         dispute = JobDispute.objects.select_related(
             'jobID',
@@ -1097,10 +1103,20 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
         worker = job.assignedWorkerID
         agency = getattr(job, 'assignedAgencyFK', None)
 
-        # Get most recent conversation for this job
+        # Negotiation chat should only be exposed while dispute is actively in negotiation
         conversation = Conversation.objects.filter(
             relatedJobPosting=job
         ).order_by('-conversationID').first()
+        can_admin_chat = False
+        negotiation_conversation_id = None
+        if dispute.status == 'IN_NEGOTIATION' and conversation:
+            can_admin_chat = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                admin_account=request.auth,
+                participant_type='ADMIN'
+            ).exists()
+            if can_admin_chat:
+                negotiation_conversation_id = conversation.conversationID
 
         # Evidence images
         evidence = [
@@ -1148,7 +1164,8 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
                 'resolved_date': dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
                 'in_negotiation_at': dispute.in_negotiation_at.isoformat() if dispute.in_negotiation_at else None,
                 'admin_rejection_reason': dispute.adminRejectionReason,
-                'conversation_id': conversation.conversationID if conversation else None,
+                'conversation_id': negotiation_conversation_id,
+                'can_admin_chat': can_admin_chat,
                 'evidence': evidence,
                 'backjob_started': dispute.backjobStarted,
                 'worker_marked_complete': dispute.workerMarkedBackjobComplete,
@@ -1293,12 +1310,28 @@ def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_s
     """
     Admin: fetch paginated message history for a conversation (for backjob negotiation panel).
     """
-    from profiles.models import Conversation, Message
+    from profiles.models import Conversation, Message, ConversationParticipant
+    from accounts.models import JobDispute
 
     try:
         conversation = Conversation.objects.get(conversationID=conv_id)
     except Conversation.DoesNotExist:
         return {"success": False, "error": "Conversation not found"}
+
+    active_dispute = JobDispute.objects.filter(
+        jobID=conversation.relatedJobPosting,
+        status='IN_NEGOTIATION'
+    ).first()
+    if not active_dispute:
+        return {"success": False, "error": "Negotiation chat is no longer active"}
+
+    is_admin_participant = ConversationParticipant.objects.filter(
+        conversation=conversation,
+        admin_account=request.auth,
+        participant_type='ADMIN'
+    ).exists()
+    if not is_admin_participant:
+        return {"success": False, "error": "You are no longer a participant in this negotiation"}
 
     messages_qs = Message.objects.filter(conversationID=conversation).select_related(
         'sender', 'senderAgency', 'sender_admin'
@@ -1350,7 +1383,8 @@ def admin_send_message(request, conv_id: int):
     """
     Admin sends a message into a conversation (for backjob negotiation).
     """
-    from profiles.models import Conversation, Message
+    from profiles.models import Conversation, Message, ConversationParticipant
+    from accounts.models import JobDispute
 
     try:
         body = json.loads(request.body.decode('utf-8')) if request.body else {}
@@ -1362,6 +1396,21 @@ def admin_send_message(request, conv_id: int):
             conversation = Conversation.objects.get(conversationID=conv_id)
         except Conversation.DoesNotExist:
             return {"success": False, "error": "Conversation not found"}
+
+        active_dispute = JobDispute.objects.filter(
+            jobID=conversation.relatedJobPosting,
+            status='IN_NEGOTIATION'
+        ).first()
+        if not active_dispute:
+            return {"success": False, "error": "Negotiation chat is no longer active"}
+
+        is_admin_participant = ConversationParticipant.objects.filter(
+            conversation=conversation,
+            admin_account=request.auth,
+            participant_type='ADMIN'
+        ).exists()
+        if not is_admin_participant:
+            return {"success": False, "error": "You are no longer a participant in this negotiation"}
 
         msg = Message.objects.create(
             conversationID=conversation,
@@ -1386,6 +1435,73 @@ def admin_send_message(request, conv_id: int):
 
     except Exception as e:
         print(f"❌ Error sending admin message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/jobs/disputes/{dispute_id}/finish-negotiation", auth=cookie_auth)
+def finish_negotiation(request, dispute_id: int):
+    """
+    Admin explicitly finishes mediation.
+    Keeps dispute state as IN_NEGOTIATION but removes admin from negotiation chat.
+    """
+    from accounts.models import JobDispute, JobLog
+    from profiles.models import Conversation, ConversationParticipant, Message
+    from django.db import transaction
+
+    try:
+        dispute = JobDispute.objects.select_related('jobID').get(disputeID=dispute_id)
+
+        if dispute.status != 'IN_NEGOTIATION':
+            return {"success": False, "error": "Dispute must be IN_NEGOTIATION to finish mediation"}
+
+        conversation = Conversation.objects.filter(relatedJobPosting=dispute.jobID).first()
+        if not conversation:
+            return {"success": False, "error": "Negotiation conversation not found"}
+
+        with transaction.atomic():
+            deleted_count, _ = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                participant_type='ADMIN'
+            ).delete()
+
+            Message.create_system_message(
+                conversation,
+                "ℹ️ Negotiation mediation finished — admin has left this negotiation chat."
+            )
+
+            JobLog.objects.create(
+                jobID=dispute.jobID,
+                oldStatus=dispute.jobID.status,
+                newStatus="BACKJOB_NEGO_FINISHED",
+                changedBy=request.auth,
+                notes="Admin finished negotiation mediation and left the chat"
+            )
+
+            log_action(
+                admin=request.auth,
+                action="backjob_finish_negotiation",
+                entity_type="job",
+                entity_id=str(dispute_id),
+                details={"job_id": dispute.jobID.jobID, "job_title": dispute.jobID.title},
+                before_value={"admin_chat_active": True},
+                after_value={"admin_chat_active": False},
+                request=request
+            )
+
+        return {
+            "success": True,
+            "message": "Negotiation mediation finished. Admin can no longer chat in this dispute.",
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "admin_participants_removed": deleted_count,
+        }
+
+    except JobDispute.DoesNotExist:
+        return {"success": False, "error": "Dispute not found"}
+    except Exception as e:
+        print(f"❌ Error finishing negotiation: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1594,7 +1710,7 @@ def reject_backjob(request, dispute_id: int):
             'jobID__clientID__profileID__accountFK'
         ).get(disputeID=dispute_id)
         
-        if dispute.status != 'OPEN':
+        if dispute.status not in ('OPEN', 'IN_NEGOTIATION'):
             return {"success": False, "error": "This backjob has already been processed"}
         
         # Store before state for audit
@@ -1667,6 +1783,19 @@ def reject_backjob(request, dispute_id: int):
         
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         if conversation:
+            if conversation.status != Conversation.ConversationStatus.COMPLETED:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=['status'])
+            if before_state["status"] == "IN_NEGOTIATION":
+                from profiles.models import ConversationParticipant
+                ConversationParticipant.objects.filter(
+                    conversation=conversation,
+                    participant_type='ADMIN'
+                ).delete()
+                Message.create_system_message(
+                    conversation,
+                    "ℹ️ Negotiation mediation ended — admin has left the chat."
+                )
             Message.objects.create(
                 conversationID=conversation,
                 sender=None,  # System message has no sender
@@ -2827,6 +2956,14 @@ class AssignTicketSchema(Schema):
     admin_id: int
 
 
+class UpdateTicketPrioritySchema(Schema):
+    priority: str
+
+
+class CloseTicketSchema(Schema):
+    resolution_note: str
+
+
 @router.put("/support/tickets/{ticket_id}/assign", auth=cookie_auth)
 def assign_support_ticket(request, ticket_id: int, data: AssignTicketSchema):
     """Assign a ticket to an admin."""
@@ -2834,6 +2971,38 @@ def assign_support_ticket(request, ticket_id: int, data: AssignTicketSchema):
         return assign_ticket(ticket_id=ticket_id, admin_id=data.admin_id)
     except Exception as e:
         print(f"Error in assign_support_ticket: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/support/tickets/{ticket_id}/priority", auth=cookie_auth)
+def update_support_ticket_priority(request, ticket_id: int, data: UpdateTicketPrioritySchema):
+    """Update support ticket priority."""
+    try:
+        return update_ticket_priority(
+            ticket_id=ticket_id,
+            priority=data.priority,
+            admin=request.auth,
+        )
+    except Exception as e:
+        print(f"Error in update_support_ticket_priority: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/support/tickets/{ticket_id}/close", auth=cookie_auth)
+def close_support_ticket(request, ticket_id: int, data: CloseTicketSchema):
+    """Close support ticket with required resolution note."""
+    try:
+        note = (data.resolution_note or "").strip()
+        if len(note) < 10:
+            return {"success": False, "error": "Resolution note must be at least 10 characters"}
+
+        return close_ticket(
+            ticket_id=ticket_id,
+            resolution_note=note,
+            admin=request.auth,
+        )
+    except Exception as e:
+        print(f"Error in close_support_ticket: {str(e)}")
         return {"success": False, "error": str(e)}
 
 

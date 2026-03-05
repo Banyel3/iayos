@@ -329,6 +329,57 @@ def apply_to_skill_slot(
     
     if job.status != 'ACTIVE':
         return {'success': False, 'error': f'Job is not accepting applications (status: {job.status})'}
+
+    # Block workers from applying while currently working on another active assignment
+    active_regular_job = Job.objects.filter(
+        assignedWorkerID=worker_profile,
+        status=Job.JobStatus.IN_PROGRESS,
+    ).exclude(jobID=job.jobID).first()
+    if active_regular_job:
+        Notification.objects.create(
+            accountFK=worker_profile.profileID.accountFK,
+            notificationType="JOB_APPLICATION_BLOCKED",
+            title="Application blocked: active job in progress",
+            message=(
+                f"You can't apply right now because you're currently working on "
+                f"'{active_regular_job.title}'. Complete it first, then apply again."
+            ),
+            relatedJobID=active_regular_job.jobID,
+        )
+        return {
+            'success': False,
+            'error': (
+                f"You already have an active job: '{active_regular_job.title}'. "
+                "Complete it before applying to another job."
+            ),
+            'active_job_id': active_regular_job.jobID,
+            'active_job_title': active_regular_job.title,
+        }
+
+    active_team_assignment = JobWorkerAssignment.objects.filter(
+        workerID=worker_profile,
+        assignment_status='ACTIVE',
+    ).select_related('jobID').first()
+    if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+        Notification.objects.create(
+            accountFK=worker_profile.profileID.accountFK,
+            notificationType="JOB_APPLICATION_BLOCKED",
+            title="Application blocked: active team assignment",
+            message=(
+                f"You can't apply right now because you're currently assigned to "
+                f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
+            ),
+            relatedJobID=active_team_assignment.jobID.jobID,
+        )
+        return {
+            'success': False,
+            'error': (
+                f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
+                "Complete it before applying to another job."
+            ),
+            'active_job_id': active_team_assignment.jobID.jobID,
+            'active_job_title': active_team_assignment.jobID.title,
+        }
     
     try:
         skill_slot = JobSkillSlot.objects.get(skillSlotID=skill_slot_id, jobID=job)
@@ -350,12 +401,33 @@ def apply_to_skill_slot(
             'required_skill': skill_slot.specializationID.specializationName,
             'required_specialization_id': skill_slot.specializationID.specializationID,
         }
+
+    if (
+        budget_option == 'NEGOTIATE'
+        and skill_slot.specializationID.minimumRate
+        and proposed_budget < skill_slot.specializationID.minimumRate
+    ):
+        minimum_rate = skill_slot.specializationID.minimumRate
+        return {
+            'success': False,
+            'error': (
+                f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
+                f"(DOLE minimum rate for {skill_slot.specializationID.specializationName})."
+            ),
+            'minimum_rate': float(minimum_rate),
+            'category': skill_slot.specializationID.specializationName,
+        }
     
-    # Check if worker already applied to this slot
+    # Check if worker already has an active application for this slot
+    # (allow re-apply when previous application was REJECTED or WITHDRAWN)
     existing = JobApplication.objects.filter(
         jobID=job,
         workerID=worker_profile,
-        applied_skill_slot=skill_slot
+        applied_skill_slot=skill_slot,
+        status__in=[
+            JobApplication.ApplicationStatus.PENDING,
+            JobApplication.ApplicationStatus.ACCEPTED,
+        ],
     ).exists()
     
     if existing:

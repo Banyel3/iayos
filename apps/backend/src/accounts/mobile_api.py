@@ -5,6 +5,7 @@ import os
 from ninja import Router
 from ninja.responses import Response
 from typing import Optional
+from decimal import Decimal
 from .schemas import (
     createAccountSchema,
     logInSchema,
@@ -30,9 +31,13 @@ from .schemas import (
     UpdateSkillSchema,
     UpdateProfileMobileSchema,
     GoogleIdTokenSchema,
+    MobileCreateReportSchema,
 )
 from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
@@ -51,6 +56,22 @@ def _log_mobile(event: str, **details):
     except Exception:
         # Avoid breaking handlers due to logging errors
         print(f"[MOBILE] {event}: <logging failed>")
+
+
+def _is_testing_mode_enabled() -> bool:
+    return bool(getattr(settings, "TESTING", False))
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 #region MOBILE AUTH ENDPOINTS
 
@@ -2046,6 +2067,28 @@ def mobile_get_job_applications(request, job_id: int):
                 {"error": "Job posting not found"},
                 status=404
             )
+
+        # DATE OVERLAP CHECK: Workers can apply to multiple jobs as long as dates don't conflict
+        if job.preferredStartDate and job.scheduled_end_date:
+            overlapping_job = JobPosting.objects.filter(
+                assignedWorkerID=worker_profile,
+                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                preferredStartDate__lte=job.scheduled_end_date,
+                scheduled_end_date__gte=job.preferredStartDate,
+            ).exclude(jobID=job.jobID).first()
+            if overlapping_job:
+                return Response(
+                    {
+                        "error": (
+                            f"Schedule conflict: you already have '{overlapping_job.title}' "
+                            f"scheduled on overlapping dates "
+                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
+                        ),
+                        "conflicting_job_id": overlapping_job.jobID,
+                        "conflicting_job_title": overlapping_job.title,
+                    },
+                    status=400
+                )
         
         # Verify this client owns the job
         if job.clientID.profileID.profileID != client_profile.profileID.profileID:
@@ -2552,7 +2595,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     Only workers can apply for jobs
     Supports both Bearer token (mobile) and cookie (web) authentication
     """
-    from .models import Profile, WorkerProfile, Agency, Notification, workerSpecialization
+    from .models import Profile, WorkerProfile, Agency, Notification, JobWorkerAssignment, workerSpecialization
     from jobs.models import JobPosting
     from accounts.models import JobApplication
     
@@ -2606,6 +2649,63 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "You cannot apply to your own job posting"},
                 status=403
             )
+
+        # Block workers from applying while currently working on another active assignment
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS,
+        ).exclude(jobID=job.jobID).first()
+
+        if active_regular_job:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active job in progress",
+                message=(
+                    f"You can't apply right now because you're currently working on "
+                    f"'{active_regular_job.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_regular_job.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active job: '{active_regular_job.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title,
+                },
+                status=400,
+            )
+
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE',
+        ).select_related('jobID').first()
+
+        if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active team assignment",
+                message=(
+                    f"You can't apply right now because you're currently assigned to "
+                    f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_team_assignment.jobID.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title,
+                },
+                status=400,
+            )
         
         # Check if job is still active
         if job.status != JobPosting.JobStatus.ACTIVE:
@@ -2614,12 +2714,16 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 status=400
             )
         
-        # Check if worker already applied
+        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
         existing_application = JobApplication.objects.filter(
             jobID=job,
-            workerID=worker_profile
+            workerID=worker_profile,
+            status__in=[
+                JobApplication.ApplicationStatus.PENDING,
+                JobApplication.ApplicationStatus.ACCEPTED,
+            ],
         ).first()
-        
+
         if existing_application:
             return Response(
                 {"error": "You have already applied for this job"},
@@ -2662,6 +2766,27 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "Proposed budget is required when negotiating"},
                 status=400
             )
+
+        if (
+            payload.budget_option == 'NEGOTIATE'
+            and payload.proposed_budget is not None
+            and job.categoryID
+            and job.categoryID.minimumRate
+        ):
+            proposed_budget = Decimal(str(payload.proposed_budget))
+            minimum_rate = Decimal(str(job.categoryID.minimumRate))
+            if proposed_budget < minimum_rate:
+                return Response(
+                    {
+                        "error": (
+                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
+                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                        ),
+                        "minimum_rate": float(minimum_rate),
+                        "category": job.categoryID.specializationName,
+                    },
+                    status=400,
+                )
         
         # Create the application
         application = JobApplication.objects.create(
@@ -4978,6 +5103,73 @@ def mobile_report_review(request, review_id: int, reason: str):
         )
 
 
+@mobile_router.post("/reports", auth=jwt_auth)
+@require_kyc
+def mobile_create_report(request, payload: MobileCreateReportSchema):
+    from .mobile_services import create_user_report_mobile
+
+    try:
+        result = create_user_report_mobile(
+            user=request.auth,
+            report_type=payload.report_type,
+            reason=payload.reason,
+            description=payload.description,
+            reported_user_id=payload.reported_user_id,
+            related_content_id=payload.related_content_id,
+        )
+
+        if result['success']:
+            return result['data']
+
+        return Response(
+            {"error": result.get('error', 'Failed to submit report')},
+            status=400,
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] Create report error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to submit report"},
+            status=500,
+        )
+
+
+@mobile_router.get("/reports/my", auth=jwt_auth)
+@require_kyc
+def mobile_get_my_reports(
+    request,
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+):
+    from .mobile_services import get_my_reports_mobile
+
+    try:
+        result = get_my_reports_mobile(
+            user=request.auth,
+            status=status,
+            page=page,
+            limit=limit,
+        )
+
+        if result['success']:
+            return result['data']
+
+        return Response(
+            {"error": result.get('error', 'Failed to fetch reports')},
+            status=400,
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] My reports error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch reports"},
+            status=500,
+        )
+
+
 @mobile_router.get("/reviews/pending", auth=jwt_auth)
 def mobile_get_pending_reviews(request):
     """
@@ -5005,6 +5197,24 @@ def mobile_get_pending_reviews(request):
             {"error": "Failed to fetch pending reviews"},
             status=500
         )
+
+
+@mobile_router.post("/reviews/pending", auth=jwt_auth)
+def mobile_get_pending_reviews_post(request):
+    """
+    Backward-compatible alias for clients that accidentally call POST.
+    Delegates to the GET handler.
+    """
+    return mobile_get_pending_reviews(request)
+
+
+@mobile_router.get("/reviews/pending-jobs", auth=jwt_auth)
+def mobile_get_pending_reviews_alias(request):
+    """
+    Stable alias endpoint for pending reviews.
+    Avoids any potential path ambiguity with /reviews/pending/{job_id}.
+    """
+    return mobile_get_pending_reviews(request)
 
 #endregion
 
@@ -5402,9 +5612,9 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         method_type = payload.type or 'GCASH'
 
         # Validate method type
-        if method_type not in ['GCASH', 'BANK', 'PAYPAL']:
+        if method_type not in ['GCASH', 'BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA']:
             return Response(
-                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL"},
+                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL, MAYA, GRABPAY, VISA"},
                 status=400
             )
         
@@ -5416,12 +5626,12 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             )
 
         # Type-specific validation
-        if method_type == 'GCASH':
-            # Validate and clean GCash number format
+        if method_type in ['GCASH', 'MAYA', 'GRABPAY']:
+            # Validate and clean mobile wallet number format
             clean_number = payload.account_number.replace(' ', '').replace('-', '')
             if not clean_number.startswith('09') or len(clean_number) != 11:
                 return Response(
-                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                    {"error": f"Invalid {method_type} number format (must be 11 digits starting with 09)"},
                     status=400
                 )
         elif method_type == 'BANK':
@@ -5474,7 +5684,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             
             # Create payment method
             # Only GCASH requires verification, BANK and PAYPAL are manually verified by admin
-            is_verified = (method_type in ['BANK', 'PAYPAL'])
+            is_verified = (method_type in ['BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA'])
             
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
@@ -6867,7 +7077,6 @@ def worker_check_in(request, job_id: int):
     - Only for IN_PROGRESS daily-rate jobs
     - Only once per day per worker
     """
-    from django.utils import timezone
     from datetime import time as dt_time
     from .models import Job, DailyAttendance, WorkerProfile, Profile
     from jobs.daily_payment_service import DailyPaymentService
@@ -6927,7 +7136,7 @@ def worker_check_in(request, job_id: int):
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
         
-        today = now.date()
+        today = _get_effective_work_date(job)
         
         # Check if already checked in today
         existing_attendance = DailyAttendance.objects.filter(
@@ -6987,7 +7196,6 @@ def worker_check_out(request, job_id: int):
     - Must have checked in today first
     - Only once per day
     """
-    from django.utils import timezone
     from datetime import time as dt_time
     from .models import Job, DailyAttendance, WorkerProfile, Profile
     
@@ -7037,7 +7245,7 @@ def worker_check_out(request, job_id: int):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
         
-        today = now.date()
+        today = _get_effective_work_date(job)
         
         # Get today's attendance record
         try:

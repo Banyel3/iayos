@@ -15,6 +15,8 @@ from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
+from datetime import timedelta
 
 
 router = Router()
@@ -37,6 +39,22 @@ def _get_user_profile(request) -> Profile:
         return profile
 
     raise Profile.DoesNotExist
+
+
+def _is_testing_mode_enabled() -> bool:
+    return bool(getattr(settings, "TESTING", False))
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 # ============================================================
 # DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
@@ -746,7 +764,7 @@ def get_conversations(request, filter: str = "all"):
         # This ensures agency users only see conversations for their agency, not personal conversations
         if user_agency:
             one_on_one_filters |= Q(agency=user_agency)
-            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyID})")
+            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyId})")
         
         one_on_one_query = Conversation.objects.filter(
             one_on_one_filters,
@@ -1096,13 +1114,14 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
     - reopen: If True and conversation exists but is closed/completed, reopen it (for backjobs)
     """
     try:
-        from accounts.models import Job
+        from accounts.models import Job, JobWorkerAssignment
         
-        # Get user's profile
+        # Get user's profile when available.
+        # Agency owners may not have an active Profile context for this endpoint.
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response({"error": "Profile not found"}, status=400)
+            user_profile = None
         
         # Get the job
         try:
@@ -1115,11 +1134,18 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             return Response({"error": "Job not found"}, status=404)
         
         # Check if user is a participant of this job
-        is_client = job.clientID and job.clientID.profileID == user_profile
-        is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile
+        is_client = bool(user_profile and job.clientID and job.clientID.profileID == user_profile)
+        is_worker = bool(user_profile and job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile)
+        is_team_assigned_worker = bool(
+            user_profile and JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID=user_profile,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        )
         is_agency_owner = job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         
-        if not (is_client or is_worker or is_agency_owner):
+        if not (is_client or is_worker or is_team_assigned_worker or is_agency_owner):
             return Response({"error": "You are not a participant of this job"}, status=403)
         
         # Try to find existing conversation
@@ -1155,14 +1181,14 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             reopened = False
             system_message_added = False
             
-            # If reopen is requested and conversation is not active, check if we should reopen
-            # Only reopen if there's an APPROVED backjob (UNDER_REVIEW status)
-            # OPEN status means waiting for admin approval - don't reopen yet
+            # If reopen is requested and conversation is not active, check if we should reopen.
+            # Reopen for active backjob phases that require chat coordination.
+            # OPEN status means waiting for admin action - don't reopen yet.
             should_reopen = (
                 reopen and 
                 conversation.status != Conversation.ConversationStatus.ACTIVE and
                 active_dispute and 
-                active_dispute.status == 'UNDER_REVIEW'  # Only if admin approved
+                active_dispute.status in ['UNDER_REVIEW', 'IN_NEGOTIATION']
             )
             
             if should_reopen:
@@ -1410,11 +1436,14 @@ def get_conversation_messages(request, conversation_id: int):
                 print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
                 # Regular message from a Profile
-                is_mine = msg.sender == user_profile
+                is_mine = (
+                    msg.sender is not None
+                    and msg.sender.accountFK_id == request.auth.id
+                )
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
                 sender_type = "profile"
-                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
+                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {request.auth.id})")
             
             # Get attachments for this message
             attachments = []
@@ -1534,10 +1563,13 @@ def get_conversation_messages(request, conversation_id: int):
                 reviewerType="WORKER"
             ).exists()
             
-            # Check if client has reviewed (any workers so far)
+            # Check if client has reviewed THIS specific worker (viewer)
+            # This prevents false-positive reviewed state when the client has only reviewed other team workers.
             client_reviewed = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=client_account
+                reviewerID=client_account,
+                reviewerType="CLIENT",
+                revieweeID=request.auth
             ).exists()
         elif is_team_job and is_client and client_account:
             # Team job - CLIENT view: check if ALL assigned workers have reviewed
@@ -1795,9 +1827,13 @@ def get_conversation_messages(request, conversation_id: int):
 
         # Get today's attendance for daily-rate jobs (DAILY payment model)
         attendance_today = []
+        daily_skip_requests_today = []
+        effective_work_date = timezone.now().date()
+        qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
         if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
-            from accounts.models import DailyAttendance
-            today = timezone.now().date()
+            from accounts.models import DailyAttendance, DailySkipDayRequest
+            today = _get_effective_work_date(job)
+            effective_work_date = today
             
             # Query attendance records for today
             attendance_records = DailyAttendance.objects.filter(
@@ -1851,16 +1887,44 @@ def get_conversation_messages(request, conversation_id: int):
             
             print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
 
+            skip_request = DailySkipDayRequest.objects.filter(
+                jobID=job,
+                request_date=today
+            ).order_by('-createdAt').first()
+
+            if skip_request:
+                requested_ids = list(skip_request.requested_account_ids or [])
+                daily_skip_requests_today.append({
+                    "skip_request_id": skip_request.skipRequestID,
+                    "request_date": skip_request.request_date.isoformat(),
+                    "status": skip_request.status,
+                    "requested_count": skip_request.requested_count,
+                    "total_required": skip_request.total_required,
+                    "requires_all_team_workers": skip_request.requires_all_team_workers,
+                    "all_workers_requested": skip_request.all_workers_requested,
+                    "my_worker_requested": int(request.auth.accountID) in requested_ids,
+                    "client_rejection_reason": skip_request.client_rejection_reason,
+                })
+
         # Fetch actual review data (ratings and comments) for both parties
         client_review_data = None
         worker_review_data = None
         
         if client_reviewed and client_account:
             # Get client's review of worker/employee
-            client_review = JobReview.objects.filter(
+            client_review_qs = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account
-            ).first()
+            )
+
+            # Team job worker view: return the review addressed to the current worker account.
+            if is_team_job and not is_client:
+                client_review_qs = client_review_qs.filter(
+                    reviewerType="CLIENT",
+                    revieweeID=request.auth
+                )
+
+            client_review = client_review_qs.order_by('-createdAt').first()
             
             if client_review:
                 client_review_data = {
@@ -1956,6 +2020,10 @@ def get_conversation_messages(request, conversation_id: int):
             "total_messages": len(formatted_messages),
             "backjob": backjob_info,
             "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
+            "daily_skip_requests_today": daily_skip_requests_today,
+            "effective_work_date": effective_work_date.isoformat(),
+            "qa_day_offset": qa_day_offset,
+            "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
             "job_materials": job_materials_list,

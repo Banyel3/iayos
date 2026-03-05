@@ -1955,10 +1955,19 @@ def get_user_profile_mobile(user):
     try:
         from .models import Profile
 
-        # Get user's profile
-        try:
-            profile = Profile.objects.select_related('accountFK').get(accountFK=user)
-        except Profile.DoesNotExist:
+        # Get user's profile (supports dual-profile users)
+        profile_type = getattr(user, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.select_related('accountFK').filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.select_related('accountFK').filter(
+                accountFK=user
+            ).first()
+
+        if not profile:
             return {
                 'success': False,
                 'error': 'Profile not found'
@@ -3563,60 +3572,73 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
 
 def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int = 1, limit: int = 20) -> Dict[str, Any]:
     """
-    Get reviews given or received by current user
-
-    Args:
-        user: Current authenticated user
-        review_type: 'given' or 'received'
-        page: Page number
-        limit: Reviews per page
-
-    Returns:
-        Paginated list of reviews
+    Get reviews given AND received by current user (for MyReviews screen)
+    Ignores review_type param as it returns both sets
     """
     try:
-        if review_type == 'given':
-            reviews_qs = JobReview.objects.filter(
-                reviewerID=user,
-                status='ACTIVE'
-            ).select_related('revieweeID__profile', 'jobID')
-        else:  # received
-            reviews_qs = JobReview.objects.filter(
-                revieweeID=user,
-                status='ACTIVE'
-            ).select_related('reviewerID__profile', 'jobID')
+        from django.db.models import Avg
 
-        reviews_qs = reviews_qs.order_by('-createdAt')
+        # 1. Get reviews GIVEN by user
+        given_reviews_qs = JobReview.objects.filter(
+            reviewerID=user,
+            status='ACTIVE'
+        ).select_related('revieweeID', 'jobID').order_by('-createdAt')
 
-        total_count = reviews_qs.count()
-
-        # Pagination
-        offset = (page - 1) * limit
-        reviews = reviews_qs[offset:offset + limit]
-
-        # Format reviews
-        review_list = []
-        for review in reviews:
-            if review_type == 'given':
-                # Show reviewee info
-                profile = review.revieweeID.profile if hasattr(review.revieweeID, 'profile') else None
-                profile_name = "Anonymous"
-                profile_img = None
-                if profile:
-                    profile_name = f"{profile.firstName} {profile.lastName}".strip()
-                    profile_img = profile.profileImg
-            else:
-                # Show reviewer info
-                profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
-                profile_name = "Anonymous"
-                profile_img = None
-                if profile:
-                    profile_name = f"{profile.firstName} {profile.lastName}".strip()
-                    profile_img = profile.profileImg
+        # Format given reviews
+        given_list = []
+        for review in given_reviews_qs[:50]:
+            # Show reviewee info
+            reviewee_profile = Profile.objects.filter(accountFK=review.revieweeID).first()
+            profile_name = "Anonymous"
+            profile_img = None
+            if reviewee_profile:
+                profile_name = f"{reviewee_profile.firstName} {reviewee_profile.lastName}".strip()
+                profile_img = reviewee_profile.profileImg
 
             can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
-            review_list.append({
+            given_list.append({
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID,
+                'reviewer_id': review.reviewerID.accountID,
+                'reviewer_name': "You", # Or user.email
+                'reviewer_profile_img': None, # User's own image
+                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_name': profile_name,
+                'reviewee_profile_img': profile_img,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': can_edit,
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
+            })
+
+        # 2. Get reviews RECEIVED by user
+        received_reviews_qs = JobReview.objects.filter(
+            revieweeID=user,
+            status='ACTIVE'
+        ).select_related('reviewerID', 'jobID').order_by('-createdAt')
+
+        # Format received reviews
+        received_list = []
+        for review in received_reviews_qs[:50]:
+            # Show reviewer info
+            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+            profile_name = "Anonymous"
+            profile_img = None
+            if reviewer_profile:
+                profile_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                profile_img = reviewer_profile.profileImg
+
+            received_list.append({
                 'review_id': review.reviewID,
                 'job_id': review.jobID.jobID,
                 'reviewer_id': review.reviewerID.accountID,
@@ -3631,22 +3653,42 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'helpful_count': review.helpfulCount,
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
-                'can_edit': can_edit and review_type == 'given',  # Can only edit own reviews
-                # Multi-criteria category ratings (default 0 for old reviews)
+                'can_edit': False, # Cannot edit received reviews
                 'rating_quality': float(review.rating_quality or 0),
                 'rating_communication': float(review.rating_communication or 0),
                 'rating_punctuality': float(review.rating_punctuality or 0),
                 'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
+        # 3. Calculate stats from RECEIVED reviews (use unsliced queryset)
+        avg_rating = received_reviews_qs.aggregate(Avg('rating'))['rating__avg'] or 0.0
+        total_reviews = received_reviews_qs.count()
+
+        breakdown = {
+            'five_star': received_reviews_qs.filter(rating__gte=4.5).count(),
+            'four_star': received_reviews_qs.filter(rating__gte=3.5, rating__lt=4.5).count(),
+            'three_star': received_reviews_qs.filter(rating__gte=2.5, rating__lt=3.5).count(),
+            'two_star': received_reviews_qs.filter(rating__gte=1.5, rating__lt=2.5).count(),
+            'one_star': received_reviews_qs.filter(rating__lt=1.5).count(),
+        }
+
+        stats = {
+            'average_rating': float(avg_rating),
+            'total_reviews': total_reviews,
+            'rating_breakdown': breakdown,
+            'recent_reviews': received_list[:5],
+        }
+
+        # 4. Return combined response
         return {
             'success': True,
             'data': {
-                'reviews': review_list,
-                'total_count': total_count,
+                'reviews_given': given_list,
+                'reviews_received': received_list,
+                'stats': stats,
                 'page': page,
                 'limit': limit,
-                'total_pages': (total_count + limit - 1) // limit
+                'total_pages': 1 # Simplified for now
             }
         }
 
@@ -3896,6 +3938,119 @@ def report_review_mobile(user: Accounts, review_id: int, reason: str) -> Dict[st
     except Exception as e:
         print(f"❌ [Mobile] Report review error: {str(e)}")
         return {'success': False, 'error': f'Failed to report review: {str(e)}'}
+
+
+def create_user_report_mobile(
+    user: Accounts,
+    report_type: str,
+    reason: str,
+    description: str,
+    reported_user_id: Optional[int] = None,
+    related_content_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    try:
+        from adminpanel.models import UserReport
+
+        valid_report_types = {choice[0] for choice in UserReport.ReportType.choices}
+        valid_reasons = {choice[0] for choice in UserReport.Reason.choices}
+
+        normalized_reason = 'fraud' if reason == 'scam' else reason
+
+        if report_type not in valid_report_types:
+            return {'success': False, 'error': 'Invalid report type'}
+
+        if normalized_reason not in valid_reasons:
+            return {'success': False, 'error': 'Invalid report reason'}
+
+        if not description or len(description.strip()) < 10:
+            return {'success': False, 'error': 'Description must be at least 10 characters'}
+
+        if report_type == 'user' and not reported_user_id:
+            return {'success': False, 'error': 'reported_user_id is required for user reports'}
+
+        if report_type in {'job', 'review', 'message'} and not related_content_id:
+            return {'success': False, 'error': 'related_content_id is required for this report type'}
+
+        reported_user = None
+        if reported_user_id:
+            try:
+                reported_user = Accounts.objects.get(accountID=reported_user_id)
+            except Accounts.DoesNotExist:
+                return {'success': False, 'error': 'Reported user not found'}
+
+            if reported_user.accountID == user.accountID:
+                return {'success': False, 'error': 'You cannot report your own account'}
+
+        report = UserReport.objects.create(
+            reporterFK=user,
+            reportedUserFK=reported_user,
+            reportType=report_type,
+            reason=normalized_reason,
+            description=description.strip(),
+            relatedContentID=related_content_id,
+        )
+
+        return {
+            'success': True,
+            'data': {
+                'report_id': int(report.reportID),
+                'message': 'Report submitted successfully',
+                'status': report.status,
+            },
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Create report error: {str(e)}")
+        return {'success': False, 'error': f'Failed to submit report: {str(e)}'}
+
+
+def get_my_reports_mobile(
+    user: Accounts,
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    try:
+        from adminpanel.models import UserReport
+
+        queryset = UserReport.objects.filter(reporterFK=user).select_related('reportedUserFK')
+
+        if status and status != 'all':
+            queryset = queryset.filter(status=status)
+
+        total = queryset.count()
+        total_pages = (total + limit - 1) // limit if limit > 0 else 1
+        offset = max((page - 1) * limit, 0)
+        reports = queryset[offset:offset + limit]
+
+        return {
+            'success': True,
+            'data': {
+                'reports': [
+                    {
+                        'id': int(r.reportID),
+                        'report_type': r.reportType,
+                        'reason': r.reason,
+                        'description': r.description,
+                        'status': r.status,
+                        'action_taken': r.actionTaken,
+                        'related_content_id': r.relatedContentID,
+                        'reported_user_id': int(r.reportedUserFK_id) if r.reportedUserFK_id else None,
+                        'created_at': r.createdAt.isoformat(),
+                        'updated_at': r.updatedAt.isoformat(),
+                    }
+                    for r in reports
+                ],
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total': total,
+                    'total_pages': total_pages,
+                },
+            },
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Get my reports error: {str(e)}")
+        return {'success': False, 'error': f'Failed to fetch reports: {str(e)}'}
 
 
 def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:

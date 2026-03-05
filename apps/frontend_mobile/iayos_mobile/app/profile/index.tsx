@@ -947,6 +947,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#00BAF1",
+    overflow: "hidden",
   },
   avatarPlaceholder: {
     borderWidth: 2,

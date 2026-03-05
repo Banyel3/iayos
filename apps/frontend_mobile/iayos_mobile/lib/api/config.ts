@@ -612,7 +612,9 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/reviews/${reviewId}`,
   REPORT_REVIEW: (reviewId: number) =>
     `${API_URL}/api/mobile/reviews/${reviewId}/report`,
-  PENDING_REVIEWS: `${API_URL}/api/mobile/reviews/pending`,
+  REPORTS_CREATE: `${API_URL}/api/mobile/reports`,
+  MY_REPORTS: `${API_URL}/api/mobile/reports/my`,
+  PENDING_REVIEWS: `${API_URL}/api/mobile/reviews/pending-jobs`,
 
   // Backjobs / Disputes
   REQUEST_BACKJOB: (jobId: number) =>
@@ -665,6 +667,13 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/rate-change`,
   DAILY_RATE_CHANGE_APPROVE: (jobId: number, changeId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/rate-change/${changeId}/approve`,
+  // Skip day workflow
+  DAILY_SKIP_DAY_REQUEST: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/skip-day/request`,
+  DAILY_SKIP_DAY_REVIEW: (jobId: number, skipRequestId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/skip-day/${skipRequestId}/review`,
+  DAILY_QA_SKIP_NEXT_DAY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/qa/skip-next-day`,
   // Cancellation
   DAILY_CANCEL: (jobId: number) => `${API_URL}/api/jobs/${jobId}/daily/cancel`,
 };
@@ -692,7 +701,11 @@ export const apiRequest = async (
   const requestBody = (rest as any)?.body;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  let isTimeout = false;
+  const timeoutId = setTimeout(() => {
+    isTimeout = true;
+    controller.abort();
+  }, timeout);
 
   // If consumer passed a signal, forward aborts
   if (userSignal) {
@@ -790,6 +803,12 @@ export const apiRequest = async (
     return resp;
   } catch (err: any) {
     const elapsedMs = Date.now() - startedAt;
+
+    // If deliberately aborted (e.g. React Query unmount), rethrow silently
+    if (err.name === "AbortError" && !isTimeout) {
+      throw err;
+    }
+
     // Enhanced error logging for debugging network issues
     console.error(`[API] ❌ Request failed: ${url}`);
     console.error(`[API] Error name: ${err.name}`);
@@ -801,7 +820,7 @@ export const apiRequest = async (
       );
     }
 
-    if (err.name === "AbortError") {
+    if (err.name === "AbortError" && isTimeout) {
       // Provide clearer error for timeouts
       throw new Error(
         `Network request timed out after ${timeout}ms. Please check your internet connection.`,

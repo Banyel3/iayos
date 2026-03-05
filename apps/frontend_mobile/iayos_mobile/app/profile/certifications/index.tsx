@@ -100,13 +100,7 @@ export default function CertificationsScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>Certifications</Text>
-        <Pressable
-          onPress={handleAdd}
-          style={styles.addButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="add-circle" size={28} color={Colors.primary} />
-        </Pressable>
+        <View style={styles.addButton} />
       </View>
 
       <ScrollView
@@ -123,7 +117,7 @@ export default function CertificationsScreen() {
       >
         {/* Info Card */}
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={20} color={Colors.info} />
+          <Ionicons name="information-circle" size={20} color={Colors.primary} />
           <Text style={styles.infoText}>
             All certifications must be linked to a specific skill. Add skills
             first if you haven't already.
@@ -133,7 +127,7 @@ export default function CertificationsScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="ribbon" size={24} color={Colors.success} />
+            <Ionicons name="ribbon" size={24} color={Colors.primary} />
             <Text style={styles.statValue}>{certifications.length}</Text>
             <Text style={styles.statLabel}>Total</Text>
           </View>
@@ -149,7 +143,7 @@ export default function CertificationsScreen() {
             <Text style={styles.statLabel}>Verified</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="time" size={24} color={Colors.warning} />
+            <Ionicons name="time" size={24} color={Colors.primary} />
             <Text style={styles.statValue}>
               {certifications.filter((c) => !c.isVerified).length}
             </Text>
@@ -277,7 +271,7 @@ const styles = StyleSheet.create({
   infoCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.info + "15",
+    backgroundColor: Colors.primary + "15",
     padding: 16,
     borderRadius: BorderRadius.medium,
     marginBottom: 20,
@@ -285,7 +279,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     ...Typography.body.small,
-    color: Colors.info,
+    color: Colors.primary,
     flex: 1,
   },
   statsRow: {
@@ -359,7 +353,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.medium,
     marginTop: 24,
     gap: 8,
   },

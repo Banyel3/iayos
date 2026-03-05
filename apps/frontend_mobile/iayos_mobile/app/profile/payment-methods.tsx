@@ -24,7 +24,7 @@ import * as WebBrowser from "expo-web-browser";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA";
+  type: "GCASH" | "BANK" | "VISA" | "GRABPAY" | "MAYA";
   account_name: string;
   account_number: string;
   bank_name?: string;
@@ -43,7 +43,7 @@ export default function PaymentMethodsScreen() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedType, setSelectedType] = useState<
-    "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA"
+    "GCASH" | "BANK" | "VISA" | "GRABPAY" | "MAYA"
   >("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -232,11 +232,16 @@ export default function PaymentMethodsScreen() {
       return;
     }
 
+    let cleanAccountNumber = accountNumber.trim();
+
     // Type-specific validation
-    if (selectedType === "GCASH") {
-      // Validate GCash number format (11 digits starting with 09)
-      if (!/^09\d{9}$/.test(accountNumber.replace(/\s/g, ""))) {
-        Alert.alert("Error", "Invalid GCash number format (e.g., 09123456789)");
+    if (selectedType === "GCASH" || selectedType === "MAYA") {
+      // Remove spaces/dashes
+      cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
+      
+      // Validate PH mobile number format (11 digits starting with 09)
+      if (!/^09\d{9}$/.test(cleanAccountNumber)) {
+        Alert.alert("Error", `Invalid ${selectedType === "GCASH" ? "GCash" : "Maya"} number format (e.g., 09123456789)`);
         return;
       }
     } else if (selectedType === "BANK") {
@@ -249,18 +254,12 @@ export default function PaymentMethodsScreen() {
         Alert.alert("Error", "Invalid bank account number (5-20 digits)");
         return;
       }
-    } else if (selectedType === "PAYPAL") {
-      // Validate email format for PayPal
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountNumber)) {
-        Alert.alert("Error", "Invalid PayPal email format");
-        return;
-      }
     }
 
     addMethodMutation.mutate({
       type: selectedType,
       account_name: accountName,
-      account_number: accountNumber,
+      account_number: cleanAccountNumber,
       bank_name: selectedType === "BANK" ? bankName : undefined,
     });
   };
@@ -269,16 +268,14 @@ export default function PaymentMethodsScreen() {
     switch (type) {
       case "GCASH":
         return "GCash account";
+      case "MAYA":
+        return "Maya account";
       case "BANK":
         return "bank account";
-      case "PAYPAL":
-        return "PayPal account";
       case "VISA":
         return "Visa/card account";
       case "GRABPAY":
         return "GrabPay account";
-      case "MAYA":
-        return "Maya account";
       default:
         return "account";
     }
@@ -320,16 +317,14 @@ export default function PaymentMethodsScreen() {
     switch (type) {
       case "GCASH":
         return "phone-portrait";
+      case "MAYA":
+        return "wallet";
       case "BANK":
         return "business";
-      case "PAYPAL":
-        return "logo-paypal";
       case "VISA":
         return "card";
       case "GRABPAY":
         return "phone-portrait";
-      case "MAYA":
-        return "wallet";
       default:
         return "card";
     }
@@ -339,16 +334,14 @@ export default function PaymentMethodsScreen() {
     switch (type) {
       case "GCASH":
         return "GCash";
+      case "MAYA":
+        return "Maya";
       case "BANK":
         return "Bank Account";
-      case "PAYPAL":
-        return "PayPal";
       case "VISA":
         return "Visa/Card";
       case "GRABPAY":
         return "GrabPay";
-      case "MAYA":
-        return "Maya";
       default:
         return type;
     }
@@ -446,11 +439,11 @@ export default function PaymentMethodsScreen() {
             <Ionicons
               name="information-circle"
               size={20}
-              color={Colors.primary}
+              color={Colors.info}
             />
             <Text style={styles.infoText}>
-              Add your payment accounts for withdrawals (GCash, Bank, PayPal,
-              Visa, GrabPay, or Maya). Your primary method will be used by
+              Add your payment accounts for withdrawals (GCash, Maya, Bank,
+              or Visa). Your primary method will be used by
               default.
             </Text>
           </View>
@@ -585,32 +578,6 @@ export default function PaymentMethodsScreen() {
                       Bank
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      selectedType === "PAYPAL" && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setSelectedType("PAYPAL")}
-                  >
-                    <Ionicons
-                      name="logo-paypal"
-                      size={20}
-                      color={
-                        selectedType === "PAYPAL"
-                          ? Colors.white
-                          : Colors.primary
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.typeButtonText,
-                        selectedType === "PAYPAL" &&
-                          styles.typeButtonTextActive,
-                      ]}
-                    >
-                      PayPal
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -647,9 +614,7 @@ export default function PaymentMethodsScreen() {
                     ? "Mobile Number"
                     : selectedType === "BANK"
                       ? "Account Number"
-                      : selectedType === "VISA"
-                        ? "Card Number (last 4 digits)"
-                        : "PayPal Email"}
+                      : "Card Number (last 4 digits)"}
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -660,15 +625,11 @@ export default function PaymentMethodsScreen() {
                       ? "09123456789"
                       : selectedType === "BANK"
                         ? "1234567890"
-                        : selectedType === "VISA"
-                          ? "1234"
-                          : "email@example.com"
+                        : "1234"
                   }
                   value={accountNumber}
                   onChangeText={setAccountNumber}
-                  keyboardType={
-                    selectedType === "PAYPAL" ? "email-address" : "numeric"
-                  }
+                  keyboardType="numeric"
                   maxLength={
                     selectedType === "GCASH" ||
                     selectedType === "MAYA" ||
@@ -676,9 +637,7 @@ export default function PaymentMethodsScreen() {
                       ? 11
                       : selectedType === "BANK"
                         ? 20
-                        : selectedType === "VISA"
-                          ? 4
-                          : undefined
+                        : 4
                   }
                   autoCapitalize="none"
                 />
@@ -763,7 +722,9 @@ const styles = StyleSheet.create({
   },
   infoBanner: {
     flexDirection: "row",
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#E0F2FE",
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
@@ -772,7 +733,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     ...Typography.body.medium,
-    color: Colors.primary,
+    color: Colors.info,
     flex: 1,
   },
   loadingContainer: {

@@ -374,7 +374,7 @@ export default function BrowseJobsScreen() {
         <View style={styles.heroSection}>
           <View style={styles.heroContent}>
             <Text style={styles.heroGreeting}>
-              {isWorker ? "🔨 Find Your Next Gig" : "👋 Welcome Back"}
+              {isWorker ? "🔨 Find Your Next Gig" : "Welcome Back"}
             </Text>
             <Text style={styles.heroSubtitle}>
               {isWorker

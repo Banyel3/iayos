@@ -61,6 +61,19 @@ export default function NotificationTemplatesPage() {
     fetchTemplates();
   }, []);
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!showEditModal || !hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [showEditModal, hasUnsavedChanges]);
+
   const fetchTemplates = async () => {
     setLoading(true);
     try {
@@ -166,6 +179,11 @@ export default function NotificationTemplatesPage() {
         );
       }, 0);
     }
+  };
+
+  const handleCloseEditModal = () => {
+    if (hasUnsavedChanges && !confirm("Discard unsaved changes?")) return;
+    setShowEditModal(false);
   };
 
   const getTemplateIcon = (type: string) => {
@@ -466,14 +484,7 @@ export default function NotificationTemplatesPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    if (
-                      hasUnsavedChanges &&
-                      !confirm("Discard unsaved changes?")
-                    )
-                      return;
-                    setShowEditModal(false);
-                  }}
+                  onClick={handleCloseEditModal}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="h-5 w-5 text-gray-500" />
@@ -596,14 +607,7 @@ export default function NotificationTemplatesPage() {
                 </Button>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => {
-                      if (
-                        hasUnsavedChanges &&
-                        !confirm("Discard unsaved changes?")
-                      )
-                        return;
-                      setShowEditModal(false);
-                    }}
+                    onClick={handleCloseEditModal}
                     variant="secondary"
                   >
                     Cancel

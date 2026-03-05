@@ -539,9 +539,6 @@ export default function WalletDepositScreen() {
         {isTestingMode && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Method</Text>
-            <Text style={styles.sectionSubtitle}>
-              🔬 Testing Mode - Choose payment method
-            </Text>
 
             <View style={styles.paymentMethodContainer}>
               <TouchableOpacity
@@ -638,7 +635,7 @@ export default function WalletDepositScreen() {
           {selectedPaymentMethod === "gcash" ? (
             <>
               <Text style={styles.infoText}>
-                🔬 <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
+                <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
                 Funds will be added to your wallet instantly without any payment
                 gateway. No real money is involved.
               </Text>
