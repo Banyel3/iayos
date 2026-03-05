@@ -56,10 +56,12 @@ import { useInfiniteWorkers, Worker } from "@/lib/hooks/useWorkers";
 import { useInfiniteAgencies, Agency } from "@/lib/hooks/useAgencies";
 import { useCategories } from "@/lib/hooks/useCategories";
 import { useMyLocation } from "@/lib/hooks/useLocation";
+import { useUnreadCounts } from "@/lib/hooks/useUnreadCounts";
 
 export default function BrowseJobsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { notifications: unreadCount = 0 } = useUnreadCounts();
 
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -389,7 +391,7 @@ export default function BrowseJobsScreen() {
             <View style={styles.notificationIconWrapper}>
               <Ionicons name="notifications" size={20} color={Colors.primary} />
               {/* Notification badge */}
-              <View style={styles.notificationBadge} />
+              {unreadCount > 0 && <View style={styles.notificationBadge} />}
             </View>
           </TouchableOpacity>
         </View>
@@ -470,7 +472,7 @@ export default function BrowseJobsScreen() {
                     (item.id === 0
                       ? !selectedCategory
                       : selectedCategory === item.id) &&
-                      styles.categoryCardSelected,
+                    styles.categoryCardSelected,
                   ]}
                   onPress={() =>
                     item.id === 0
@@ -498,8 +500,8 @@ export default function BrowseJobsScreen() {
                         item.id === 0
                           ? "apps"
                           : getCategoryIcon(
-                              item.specializationName || item.name,
-                            )
+                            item.specializationName || item.name,
+                          )
                       }
                       size={24}
                       color={
@@ -519,7 +521,7 @@ export default function BrowseJobsScreen() {
                       (item.id === 0
                         ? !selectedCategory
                         : selectedCategory === item.id) &&
-                        styles.categoryNameSelected,
+                      styles.categoryNameSelected,
                     ]}
                     numberOfLines={2}
                   >
@@ -873,7 +875,7 @@ export default function BrowseJobsScreen() {
                         style={[
                           styles.sortOptionText,
                           sortBy === "distance_asc" &&
-                            styles.sortOptionTextSelected,
+                          styles.sortOptionTextSelected,
                         ]}
                       >
                         Nearest First
@@ -899,7 +901,7 @@ export default function BrowseJobsScreen() {
                         style={[
                           styles.sortOptionText,
                           sortBy === "distance_desc" &&
-                            styles.sortOptionTextSelected,
+                          styles.sortOptionTextSelected,
                         ]}
                       >
                         Farthest First
