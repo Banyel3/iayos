@@ -2166,6 +2166,31 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "is_mine": is_mine,
                 "sent_by_agency": sent_by_agency
             })
+
+        # DAILY skip-day request state for today (if applicable)
+        daily_skip_requests_today = []
+        if getattr(job, 'payment_model', 'PROJECT') == 'DAILY' and job.status == 'IN_PROGRESS':
+            from accounts.models import DailySkipDayRequest
+            from django.utils import timezone
+            today = timezone.now().date()
+            skip_request = DailySkipDayRequest.objects.filter(
+                jobID=job,
+                request_date=today
+            ).order_by('-createdAt').first()
+
+            if skip_request:
+                requested_ids = list(skip_request.requested_account_ids or [])
+                daily_skip_requests_today.append({
+                    "skip_request_id": skip_request.skipRequestID,
+                    "request_date": skip_request.request_date.isoformat(),
+                    "status": skip_request.status,
+                    "requested_count": skip_request.requested_count,
+                    "total_required": skip_request.total_required,
+                    "requires_all_team_workers": skip_request.requires_all_team_workers,
+                    "all_workers_requested": skip_request.all_workers_requested,
+                    "my_worker_requested": int(account.accountID) in requested_ids,
+                    "client_rejection_reason": skip_request.client_rejection_reason,
+                })
         
         return Response({
             "conversation_id": conv.conversationID,
@@ -2193,6 +2218,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "client": client_info,
             "assigned_employee": assigned_employee,
             "assigned_employees": assigned_employees,  # Multi-employee support
+            "daily_skip_requests_today": daily_skip_requests_today,
             "messages": messages_list,
             "total_messages": len(messages_list),
             "status": conv.status

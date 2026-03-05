@@ -3300,6 +3300,92 @@ class DailyRateChange(models.Model):
         return f"Rate change ₱{self.old_rate}→₱{self.new_rate} for Job #{self.jobID_id} ({self.status})"
 
 
+class DailySkipDayRequest(models.Model):
+    """
+    Tracks skip-day requests for DAILY jobs.
+    Worker/agency can request a skip day and the client can approve/reject.
+    """
+    skipRequestID = models.BigAutoField(primary_key=True)
+
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='daily_skip_requests'
+    )
+
+    request_date = models.DateField(help_text='Date being requested to skip')
+
+    class SkipStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending review"
+        APPROVED = "APPROVED", "Approved by client"
+        REJECTED = "REJECTED", "Rejected by client"
+
+    status = models.CharField(
+        max_length=15,
+        choices=SkipStatus.choices,
+        default="PENDING"
+    )
+
+    class RequestedBy(models.TextChoices):
+        WORKER = "WORKER", "Worker"
+        AGENCY = "AGENCY", "Agency"
+
+    requested_by = models.CharField(
+        max_length=10,
+        choices=RequestedBy.choices,
+        default="WORKER"
+    )
+
+    requestedByUser = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='daily_skip_requests_created'
+    )
+
+    requested_account_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Account IDs that requested/joined this skip-day request'
+    )
+
+    requested_count = models.PositiveIntegerField(default=1)
+    total_required = models.PositiveIntegerField(default=1)
+    requires_all_team_workers = models.BooleanField(default=False)
+    all_workers_requested = models.BooleanField(default=True)
+
+    reviewedByUser = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='daily_skip_requests_reviewed'
+    )
+    reviewedAt = models.DateTimeField(null=True, blank=True)
+    client_rejection_reason = models.TextField(null=True, blank=True)
+
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'daily_skip_day_requests'
+        ordering = ['-request_date', '-createdAt']
+        indexes = [
+            models.Index(fields=['jobID', 'request_date'], name='skip_req_job_date_idx'),
+            models.Index(fields=['status'], name='skip_req_status_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['jobID', 'request_date'],
+                name='unique_daily_skip_request_per_job_date'
+            )
+        ]
+
+    def __str__(self):
+        return f"Skip request Job #{self.jobID_id} on {self.request_date} ({self.status})"
+
+
 # ============================================================
 # JOB MATERIALS - Materials Purchasing Workflow
 # ============================================================

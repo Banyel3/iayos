@@ -1809,8 +1809,9 @@ def get_conversation_messages(request, conversation_id: int):
 
         # Get today's attendance for daily-rate jobs (DAILY payment model)
         attendance_today = []
+        daily_skip_requests_today = []
         if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
-            from accounts.models import DailyAttendance
+            from accounts.models import DailyAttendance, DailySkipDayRequest
             today = timezone.now().date()
             
             # Query attendance records for today
@@ -1864,6 +1865,25 @@ def get_conversation_messages(request, conversation_id: int):
                 })
             
             print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
+
+            skip_request = DailySkipDayRequest.objects.filter(
+                jobID=job,
+                request_date=today
+            ).order_by('-createdAt').first()
+
+            if skip_request:
+                requested_ids = list(skip_request.requested_account_ids or [])
+                daily_skip_requests_today.append({
+                    "skip_request_id": skip_request.skipRequestID,
+                    "request_date": skip_request.request_date.isoformat(),
+                    "status": skip_request.status,
+                    "requested_count": skip_request.requested_count,
+                    "total_required": skip_request.total_required,
+                    "requires_all_team_workers": skip_request.requires_all_team_workers,
+                    "all_workers_requested": skip_request.all_workers_requested,
+                    "my_worker_requested": int(request.auth.accountID) in requested_ids,
+                    "client_rejection_reason": skip_request.client_rejection_reason,
+                })
 
         # Fetch actual review data (ratings and comments) for both parties
         client_review_data = None
@@ -1979,6 +1999,7 @@ def get_conversation_messages(request, conversation_id: int):
             "total_messages": len(formatted_messages),
             "backjob": backjob_info,
             "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
+            "daily_skip_requests_today": daily_skip_requests_today,
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
             "job_materials": job_materials_list,
