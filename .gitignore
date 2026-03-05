@@ -35,6 +35,7 @@ CLAUDE.md
 AGENTS.md
 REPO_STRUCTURE.md
 .claude/
+.agent/
 .playwright-mcp/
 .mcp.json
 
@@ -305,6 +306,7 @@ scripts/
 # =============================================================================
 # HTTP TEST FILES (may contain plaintext credentials / JWT tokens)
 # =============================================================================
+tests/
 tests/*.http
 tests/**/*.http
 
