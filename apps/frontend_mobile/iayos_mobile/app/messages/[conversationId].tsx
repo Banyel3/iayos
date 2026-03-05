@@ -56,6 +56,7 @@ import {
   useApproveBackjobCompletion,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
+import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import {
   useWorkerCheckIn,
@@ -123,6 +124,7 @@ export default function ChatScreen() {
     "submit",
   );
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const submitReportMutation = useSubmitReport();
   const [countdownConfig, setCountdownConfig] = useState<{
     visible: boolean;
     title: string;
@@ -1121,6 +1123,146 @@ export default function ChatScreen() {
     }
   }, [conversationId]);
 
+  const submitConversationReport = useCallback(
+    (
+      type: "user" | "job" | "message",
+      reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other",
+      reportedUserId?: number,
+    ) => {
+      const jobId = conversation?.job?.id;
+      if (!jobId) {
+        Alert.alert("Report Failed", "Job context is not available yet.");
+        return;
+      }
+
+      const descriptionByType: Record<"user" | "job" | "message", string> = {
+        user: `Reported user from conversation ${conversationId}. Reason: ${reason}`,
+        job: `Reported job ${jobId} from conversation ${conversationId}. Reason: ${reason}`,
+        message: `Reported abusive conversation/messages in conversation ${conversationId}. Reason: ${reason}`,
+      };
+
+      submitReportMutation.mutate(
+        {
+          report_type: type,
+          reason,
+          description: descriptionByType[type],
+          reported_user_id: reportedUserId,
+          related_content_id: type === "job" ? jobId : conversationId,
+        },
+        {
+          onSuccess: () => {
+            Alert.alert(
+              "Report Submitted",
+              "Thank you. Your report has been submitted for admin review.",
+            );
+          },
+          onError: (error) => {
+            Alert.alert(
+              "Report Failed",
+              error instanceof Error ? error.message : "Failed to submit report",
+            );
+          },
+        },
+      );
+    },
+    [conversationId, conversation?.job?.id, submitReportMutation],
+  );
+
+  const openReportReasonPicker = useCallback(
+    (type: "user" | "job" | "message", reportedUserId?: number) => {
+      if (Platform.OS === "ios") {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [
+              "Cancel",
+              "Spam",
+              "Harassment",
+              "Fraud/Scam",
+              "Inappropriate",
+              "Fake Profile",
+            ],
+            cancelButtonIndex: 0,
+            destructiveButtonIndex: 1,
+            title:
+              type === "user"
+                ? "Report User"
+                : type === "job"
+                  ? "Report Job"
+                  : "Report Conversation",
+          },
+          (index) => {
+            if (index === 1) submitConversationReport(type, "spam", reportedUserId);
+            if (index === 2) submitConversationReport(type, "harassment", reportedUserId);
+            if (index === 3) submitConversationReport(type, "fraud", reportedUserId);
+            if (index === 4) submitConversationReport(type, "inappropriate", reportedUserId);
+            if (index === 5) submitConversationReport(type, "fake_profile", reportedUserId);
+          },
+        );
+        return;
+      }
+
+      Alert.alert("Select report reason", "Choose a reason", [
+        { text: "Spam", onPress: () => submitConversationReport(type, "spam", reportedUserId) },
+        { text: "Harassment", onPress: () => submitConversationReport(type, "harassment", reportedUserId) },
+        { text: "Fraud/Scam", onPress: () => submitConversationReport(type, "fraud", reportedUserId) },
+        { text: "Inappropriate", onPress: () => submitConversationReport(type, "inappropriate", reportedUserId) },
+        { text: "Fake Profile", onPress: () => submitConversationReport(type, "fake_profile", reportedUserId) },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    },
+    [submitConversationReport],
+  );
+
+  const openConversationReportMenu = useCallback(() => {
+    if (!conversation?.job) {
+      Alert.alert("Report", "Conversation context is still loading.");
+      return;
+    }
+
+    const reportUserTargetId =
+      conversation.my_role === "CLIENT"
+        ? conversation.job?.assignedWorkerId
+        : conversation.job?.clientId;
+
+    if (Platform.OS === "ios") {
+      const options = [
+        "Cancel",
+        ...(reportUserTargetId ? ["Report User"] : []),
+        "Report Job",
+        "Report Conversation",
+      ];
+
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 1,
+          title: "Report",
+        },
+        (index) => {
+          if (reportUserTargetId) {
+            if (index === 1) openReportReasonPicker("user", reportUserTargetId);
+            if (index === 2) openReportReasonPicker("job");
+            if (index === 3) openReportReasonPicker("message");
+          } else {
+            if (index === 1) openReportReasonPicker("job");
+            if (index === 2) openReportReasonPicker("message");
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert("Report", "Choose what to report", [
+      ...(reportUserTargetId
+        ? [{ text: "Report User", onPress: () => openReportReasonPicker("user", reportUserTargetId) }]
+        : []),
+      { text: "Report Job", onPress: () => openReportReasonPicker("job") },
+      { text: "Report Conversation", onPress: () => openReportReasonPicker("message") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }, [conversation, openReportReasonPicker]);
+
   // Pick image from camera
   const pickImageFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -1528,6 +1670,21 @@ export default function ChatScreen() {
               size={24}
               color={Colors.primary}
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openConversationReportMenu}
+            style={styles.infoButton}
+            disabled={submitReportMutation.isPending}
+          >
+            {submitReportMutation.isPending ? (
+              <ActivityIndicator size="small" color={Colors.error} />
+            ) : (
+              <Ionicons
+                name="flag-outline"
+                size={22}
+                color={Colors.error}
+              />
+            )}
           </TouchableOpacity>
         </View>
       </View>

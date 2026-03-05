@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile Reporting Actions (User / Job / Conversation)**
+  - Added report actions in worker profile, client profile, job detail, and conversation header
+  - Added reason picker flow (spam, harassment, fraud/scam, inappropriate, fake profile)
+  - Added mobile reporting hook and endpoints integration for direct submission from app UI
+  - **Impact**: Workers and clients can now report users/jobs/conversations in-context without leaving the screen
+
 - **Countdown Confirmation Timer for Critical Actions**
   - Added 5-second countdown timer on standard confirmations (job creation, accept/reject application, withdraw application, delete job, accept invite)
   - Added 7-second countdown timer on financial confirmations (approve completion & pay, approve team job & pay, confirm daily attendance & pay, wallet withdrawal)

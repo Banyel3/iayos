@@ -31,6 +31,7 @@ from .schemas import (
     UpdateSkillSchema,
     UpdateProfileMobileSchema,
     GoogleIdTokenSchema,
+    MobileCreateReportSchema,
 )
 from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -5080,6 +5081,73 @@ def mobile_report_review(request, review_id: int, reason: str):
         return Response(
             {"error": "Failed to report review"},
             status=500
+        )
+
+
+@mobile_router.post("/reports", auth=jwt_auth)
+@require_kyc
+def mobile_create_report(request, payload: MobileCreateReportSchema):
+    from .mobile_services import create_user_report_mobile
+
+    try:
+        result = create_user_report_mobile(
+            user=request.auth,
+            report_type=payload.report_type,
+            reason=payload.reason,
+            description=payload.description,
+            reported_user_id=payload.reported_user_id,
+            related_content_id=payload.related_content_id,
+        )
+
+        if result['success']:
+            return result['data']
+
+        return Response(
+            {"error": result.get('error', 'Failed to submit report')},
+            status=400,
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] Create report error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to submit report"},
+            status=500,
+        )
+
+
+@mobile_router.get("/reports/my", auth=jwt_auth)
+@require_kyc
+def mobile_get_my_reports(
+    request,
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+):
+    from .mobile_services import get_my_reports_mobile
+
+    try:
+        result = get_my_reports_mobile(
+            user=request.auth,
+            status=status,
+            page=page,
+            limit=limit,
+        )
+
+        if result['success']:
+            return result['data']
+
+        return Response(
+            {"error": result.get('error', 'Failed to fetch reports')},
+            status=400,
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] My reports error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch reports"},
+            status=500,
         )
 
 

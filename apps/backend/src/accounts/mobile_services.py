@@ -3907,6 +3907,119 @@ def report_review_mobile(user: Accounts, review_id: int, reason: str) -> Dict[st
         return {'success': False, 'error': f'Failed to report review: {str(e)}'}
 
 
+def create_user_report_mobile(
+    user: Accounts,
+    report_type: str,
+    reason: str,
+    description: str,
+    reported_user_id: Optional[int] = None,
+    related_content_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    try:
+        from adminpanel.models import UserReport
+
+        valid_report_types = {choice[0] for choice in UserReport.ReportType.choices}
+        valid_reasons = {choice[0] for choice in UserReport.Reason.choices}
+
+        normalized_reason = 'fraud' if reason == 'scam' else reason
+
+        if report_type not in valid_report_types:
+            return {'success': False, 'error': 'Invalid report type'}
+
+        if normalized_reason not in valid_reasons:
+            return {'success': False, 'error': 'Invalid report reason'}
+
+        if not description or len(description.strip()) < 10:
+            return {'success': False, 'error': 'Description must be at least 10 characters'}
+
+        if report_type == 'user' and not reported_user_id:
+            return {'success': False, 'error': 'reported_user_id is required for user reports'}
+
+        if report_type in {'job', 'review', 'message'} and not related_content_id:
+            return {'success': False, 'error': 'related_content_id is required for this report type'}
+
+        reported_user = None
+        if reported_user_id:
+            try:
+                reported_user = Accounts.objects.get(accountID=reported_user_id)
+            except Accounts.DoesNotExist:
+                return {'success': False, 'error': 'Reported user not found'}
+
+            if reported_user.accountID == user.accountID:
+                return {'success': False, 'error': 'You cannot report your own account'}
+
+        report = UserReport.objects.create(
+            reporterFK=user,
+            reportedUserFK=reported_user,
+            reportType=report_type,
+            reason=normalized_reason,
+            description=description.strip(),
+            relatedContentID=related_content_id,
+        )
+
+        return {
+            'success': True,
+            'data': {
+                'report_id': int(report.reportID),
+                'message': 'Report submitted successfully',
+                'status': report.status,
+            },
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Create report error: {str(e)}")
+        return {'success': False, 'error': f'Failed to submit report: {str(e)}'}
+
+
+def get_my_reports_mobile(
+    user: Accounts,
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    try:
+        from adminpanel.models import UserReport
+
+        queryset = UserReport.objects.filter(reporterFK=user).select_related('reportedUserFK')
+
+        if status and status != 'all':
+            queryset = queryset.filter(status=status)
+
+        total = queryset.count()
+        total_pages = (total + limit - 1) // limit if limit > 0 else 1
+        offset = max((page - 1) * limit, 0)
+        reports = queryset[offset:offset + limit]
+
+        return {
+            'success': True,
+            'data': {
+                'reports': [
+                    {
+                        'id': int(r.reportID),
+                        'report_type': r.reportType,
+                        'reason': r.reason,
+                        'description': r.description,
+                        'status': r.status,
+                        'action_taken': r.actionTaken,
+                        'related_content_id': r.relatedContentID,
+                        'reported_user_id': int(r.reportedUserFK_id) if r.reportedUserFK_id else None,
+                        'created_at': r.createdAt.isoformat(),
+                        'updated_at': r.updatedAt.isoformat(),
+                    }
+                    for r in reports
+                ],
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total': total,
+                    'total_pages': total_pages,
+                },
+            },
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Get my reports error: {str(e)}")
+        return {'success': False, 'error': f'Failed to fetch reports: {str(e)}'}
+
+
 def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
     # Get list of jobs that still need reviews from the current user.
     # Returns completed jobs where the user (worker or client) has not

@@ -21,6 +21,9 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert,
+  Platform,
+  ActionSheetIOS,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -36,6 +39,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useClientReviews } from "@/lib/hooks/useReviews";
+import { useSubmitReport } from "@/lib/hooks/useReports";
 
 interface ClientDetail {
   id: number;
@@ -127,6 +131,7 @@ export default function ClientDetailScreen() {
   const router = useRouter();
   const [reviewsPage, setReviewsPage] = useState(1);
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
+  const submitReportMutation = useSubmitReport();
 
   // Fetch client details
   const {
@@ -218,6 +223,53 @@ export default function ClientDetailScreen() {
     })}`;
   };
 
+  const submitClientReport = (reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other") => {
+    submitReportMutation.mutate(
+      {
+        report_type: "user",
+        reason,
+        reported_user_id: client.id,
+        related_content_id: client.id,
+        description: `Reported client profile ${client.id} (${fullName}). Reason: ${reason}`,
+      },
+      {
+        onSuccess: () => Alert.alert("Report Submitted", "Thank you. Your report has been submitted for admin review."),
+        onError: (error) =>
+          Alert.alert("Report Failed", error instanceof Error ? error.message : "Failed to submit report"),
+      },
+    );
+  };
+
+  const openClientReportMenu = () => {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["Cancel", "Spam", "Harassment", "Fraud/Scam", "Inappropriate", "Fake Profile"],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 1,
+          title: "Report User",
+        },
+        (index) => {
+          if (index === 1) submitClientReport("spam");
+          if (index === 2) submitClientReport("harassment");
+          if (index === 3) submitClientReport("fraud");
+          if (index === 4) submitClientReport("inappropriate");
+          if (index === 5) submitClientReport("fake_profile");
+        },
+      );
+      return;
+    }
+
+    Alert.alert("Report User", "Select a reason", [
+      { text: "Spam", onPress: () => submitClientReport("spam") },
+      { text: "Harassment", onPress: () => submitClientReport("harassment") },
+      { text: "Fraud/Scam", onPress: () => submitClientReport("fraud") },
+      { text: "Inappropriate", onPress: () => submitClientReport("inappropriate") },
+      { text: "Fake Profile", onPress: () => submitClientReport("fake_profile") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
@@ -229,7 +281,17 @@ export default function ClientDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Client Profile</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={openClientReportMenu}
+          disabled={submitReportMutation.isPending}
+        >
+          {submitReportMutation.isPending ? (
+            <ActivityIndicator size="small" color={Colors.error} />
+          ) : (
+            <Ionicons name="flag-outline" size={22} color={Colors.error} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView
