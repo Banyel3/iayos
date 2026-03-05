@@ -1203,285 +1203,6 @@ export default function CreateJobScreen() {
               </View>
             </View>
 
-
-            {/* Budget Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="card" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Budget & Payment Model <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-              </View>
-
-              {/* Payment Model Selector */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Payment Model</Text>
-                <View style={styles.buttonGroup}>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionButton,
-                      paymentModel === "PROJECT" && styles.optionButtonActive,
-                    ]}
-                    onPress={() => setPaymentModel("PROJECT")}
-                  >
-                    <Text
-                      style={[
-                        styles.optionButtonText,
-                        paymentModel === "PROJECT" &&
-                        styles.optionButtonTextActive,
-                      ]}
-                    >
-                      Fixed Budget
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionButton,
-                      paymentModel === "DAILY" && styles.optionButtonActive,
-                    ]}
-                    onPress={() => setPaymentModel("DAILY")}
-                  >
-                    <Text
-                      style={[
-                        styles.optionButtonText,
-                        paymentModel === "DAILY" &&
-                        styles.optionButtonTextActive,
-                      ]}
-                    >
-                      Daily Rate
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.hint}>
-                  {paymentModel === "PROJECT"
-                    ? "Pay for the entire project (50% downpayment, 50% on completion)"
-                    : "Pay per day of work (100% escrow upfront)"}
-                </Text>
-              </View>
-
-              {/* Fixed Budget Fields */}
-              {paymentModel === "PROJECT" && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Total Budget (₱)</Text>
-                  <View
-                    style={[
-                      styles.budgetInput,
-                      !effectiveCategoryId && styles.inputDisabled,
-                    ]}
-                  >
-                    <Text style={styles.currencySymbol}>₱</Text>
-                    <TextInput
-                      style={styles.budgetTextInput}
-                      placeholder={
-                        effectiveCategoryId ? "0.00" : "Add a worker requirement first"
-                      }
-                      value={budget}
-                      onChangeText={setBudget}
-                      keyboardType="decimal-pad"
-                      placeholderTextColor={Colors.textHint}
-                      editable={!!effectiveCategoryId}
-                    />
-                  </View>
-                  <Text style={styles.hint}>
-                    {effectiveCategory && effectiveCategory.minimum_rate > 0
-                      ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
-                      : effectiveCategoryId
-                        ? "This is what the worker will receive"
-                        : "Add a worker requirement first"}
-                  </Text>
-                </View>
-              )}
-
-              {/* Daily Rate Fields */}
-              {paymentModel === "DAILY" && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Daily Rate per Worker (₱)</Text>
-                    <View
-                      style={[
-                        styles.budgetInput,
-                        !effectiveCategoryId && styles.inputDisabled,
-                      ]}
-                    >
-                      <Text style={styles.currencySymbol}>₱</Text>
-                      <TextInput
-                        style={styles.budgetTextInput}
-                        placeholder={
-                          effectiveCategoryId ? "0.00" : "Add a worker requirement first"
-                        }
-                        value={dailyRate}
-                        onChangeText={setDailyRate}
-                        keyboardType="decimal-pad"
-                        placeholderTextColor={Colors.textHint}
-                        editable={!!effectiveCategoryId}
-                      />
-                    </View>
-                    <Text style={styles.hint}>
-                      Worker's daily rate (per 8-hour day)
-                    </Text>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Duration (Days)</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        !effectiveCategoryId && styles.inputDisabled,
-                      ]}
-                      placeholder={
-                        effectiveCategoryId ? "e.g., 5" : "Add a worker requirement first"
-                      }
-                      value={durationDays}
-                      onChangeText={setDurationDays}
-                      keyboardType="number-pad"
-                      placeholderTextColor={Colors.textHint}
-                      editable={!!effectiveCategoryId}
-                    />
-                    <Text style={styles.hint}>
-                      Estimated number of working days
-                    </Text>
-                  </View>
-                </>
-              )}
-
-              {/* AI Price Suggestion Card - Only for PROJECT model */}
-              {paymentModel === "PROJECT" &&
-                effectiveCategoryId &&
-                (title.length >= 5 || description.length >= 10) && (
-                  <PriceSuggestionCard
-                    minPrice={pricePrediction?.min_price}
-                    suggestedPrice={pricePrediction?.suggested_price}
-                    maxPrice={pricePrediction?.max_price}
-                    confidence={pricePrediction?.confidence}
-                    source={pricePrediction?.source}
-                    isLoading={isPredictingPrice}
-                    error={pricePredictionError?.message}
-                    onApplySuggested={handleApplySuggestedPrice}
-                  />
-                )}
-
-              {/* Payment Summary - PROJECT Model */}
-              {paymentModel === "PROJECT" && budget && parseFloat(budget) > 0 && (
-                <View style={styles.paymentSummary}>
-                  <Text style={styles.summaryTitle}>Payment Summary</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Total Budget (Worker Receives)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{parseFloat(budget).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      50% Escrow (Downpayment)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(budget) * 0.5).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Platform Fee (10% of escrow)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(budget) * 0.5 * 0.05).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                    <Text style={styles.summaryLabelTotal}>Due Now</Text>
-                    <Text style={styles.summaryValueTotal}>
-                      ₱{(parseFloat(budget) * 0.5 * 1.05).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.walletBalanceRow}>
-                    {walletLoading ? (
-                      <Text style={styles.walletLabel}>
-                        Loading wallet balance...
-                      </Text>
-                    ) : (
-                      <>
-                        <Text style={styles.walletLabel}>
-                          Wallet Balance: ₱{walletBalance.toFixed(2)}
-                        </Text>
-                        {hasInsufficientBalance && (
-                          <Text style={styles.insufficientText}>
-                            (Need ₱{shortfallAmount.toFixed(2)} more)
-                          </Text>
-                        )}
-                      </>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              {/* Payment Summary - DAILY Model */}
-              {paymentModel === "DAILY" && dailyRate && durationDays && parseFloat(dailyRate) > 0 && parseInt(durationDays) > 0 && (
-                <View style={styles.paymentSummary}>
-                  <Text style={styles.summaryTitle}>Payment Summary</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Daily Rate per Worker
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{parseFloat(dailyRate).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Duration
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      {parseInt(durationDays)} day{parseInt(durationDays) !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Total Worker Payment
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays)).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Platform Fee (10% of total)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.05).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                    <Text style={styles.summaryLabelTotal}>Due Now (100% Escrow)</Text>
-                    <Text style={styles.summaryValueTotal}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 1.05).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.walletBalanceRow}>
-                    {walletLoading ? (
-                      <Text style={styles.walletLabel}>
-                        Loading wallet balance...
-                      </Text>
-                    ) : (
-                      <>
-                        <Text style={styles.walletLabel}>
-                          Wallet Balance: ₱{walletBalance.toFixed(2)}
-                        </Text>
-                        {hasInsufficientBalance && (
-                          <Text style={styles.insufficientText}>
-                            (Need ₱{shortfallAmount.toFixed(2)} more)
-                          </Text>
-                        )}
-                      </>
-                    )}
-                  </View>
-                  <Text style={styles.dailyNote}>
-                    💡 Daily jobs require 100% escrow upfront. Workers confirm attendance daily.
-                  </Text>
-                </View>
-              )}
-            </View>
-
             {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -2151,12 +1872,286 @@ export default function CreateJobScreen() {
               )}
             </View>
 
-            {/* Payment Method Section */}
+            {/* Budget Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
                 <Ionicons name="card" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>Payment</Text>
+                <Text style={styles.sectionTitleText}>
+                  Payment <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
               </View>
+
+              {/* Payment Model Selector */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Payment Model</Text>
+                <View style={styles.buttonGroup}>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      paymentModel === "PROJECT" && styles.optionButtonActive,
+                    ]}
+                    onPress={() => setPaymentModel("PROJECT")}
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        paymentModel === "PROJECT" &&
+                        styles.optionButtonTextActive,
+                      ]}
+                    >
+                      Fixed Budget
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      paymentModel === "DAILY" && styles.optionButtonActive,
+                    ]}
+                    onPress={() => setPaymentModel("DAILY")}
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        paymentModel === "DAILY" &&
+                        styles.optionButtonTextActive,
+                      ]}
+                    >
+                      Daily Rate
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.hint}>
+                  {paymentModel === "PROJECT"
+                    ? "Pay for the entire project (50% downpayment, 50% on completion)"
+                    : "Pay per day of work (100% escrow upfront)"}
+                </Text>
+              </View>
+
+              {/* Fixed Budget Fields */}
+              {paymentModel === "PROJECT" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Total Budget (₱)</Text>
+                  <View
+                    style={[
+                      styles.budgetInput,
+                      !effectiveCategoryId && styles.inputDisabled,
+                    ]}
+                  >
+                    <Text style={styles.currencySymbol}>₱</Text>
+                    <TextInput
+                      style={styles.budgetTextInput}
+                      placeholder={
+                        effectiveCategoryId ? "0.00" : "Add a worker requirement first"
+                      }
+                      value={budget}
+                      onChangeText={setBudget}
+                      keyboardType="decimal-pad"
+                      placeholderTextColor={Colors.textHint}
+                      editable={!!effectiveCategoryId}
+                    />
+                  </View>
+                  <Text style={styles.hint}>
+                    {effectiveCategory && effectiveCategory.minimum_rate > 0
+                      ? `Minimum: ₱${effectiveCategory.minimum_rate.toFixed(2)}`
+                      : effectiveCategoryId
+                        ? "This is what the worker will receive"
+                        : "Add a worker requirement first"}
+                  </Text>
+                </View>
+              )}
+
+              {/* Daily Rate Fields */}
+              {paymentModel === "DAILY" && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Daily Rate per Worker (₱)</Text>
+                    <View
+                      style={[
+                        styles.budgetInput,
+                        !effectiveCategoryId && styles.inputDisabled,
+                      ]}
+                    >
+                      <Text style={styles.currencySymbol}>₱</Text>
+                      <TextInput
+                        style={styles.budgetTextInput}
+                        placeholder={
+                          effectiveCategoryId ? "0.00" : "Add a worker requirement first"
+                        }
+                        value={dailyRate}
+                        onChangeText={setDailyRate}
+                        keyboardType="decimal-pad"
+                        placeholderTextColor={Colors.textHint}
+                        editable={!!effectiveCategoryId}
+                      />
+                    </View>
+                    <Text style={styles.hint}>
+                      Worker's daily rate (per 8-hour day)
+                    </Text>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Duration (Days)</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        !effectiveCategoryId && styles.inputDisabled,
+                      ]}
+                      placeholder={
+                        effectiveCategoryId ? "e.g., 5" : "Add a worker requirement first"
+                      }
+                      value={durationDays}
+                      onChangeText={setDurationDays}
+                      keyboardType="number-pad"
+                      placeholderTextColor={Colors.textHint}
+                      editable={!!effectiveCategoryId}
+                    />
+                    <Text style={styles.hint}>
+                      Estimated number of working days
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {/* AI Price Suggestion Card - Only for PROJECT model */}
+              {paymentModel === "PROJECT" &&
+                effectiveCategoryId &&
+                (title.length >= 5 || description.length >= 10) && (
+                  <PriceSuggestionCard
+                    minPrice={pricePrediction?.min_price}
+                    suggestedPrice={pricePrediction?.suggested_price}
+                    maxPrice={pricePrediction?.max_price}
+                    confidence={pricePrediction?.confidence}
+                    source={pricePrediction?.source}
+                    isLoading={isPredictingPrice}
+                    error={pricePredictionError?.message}
+                    onApplySuggested={handleApplySuggestedPrice}
+                  />
+                )}
+
+              {/* Payment Summary - PROJECT Model */}
+              {paymentModel === "PROJECT" && budget && parseFloat(budget) > 0 && (
+                <View style={styles.paymentSummary}>
+                  <Text style={styles.summaryTitle}>Payment Summary</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Total Budget (Worker Receives)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{parseFloat(budget).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      50% Escrow (Downpayment)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(budget) * 0.5).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Platform Fee (10% of escrow)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(budget) * 0.5 * 0.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                    <Text style={styles.summaryLabelTotal}>Due Now</Text>
+                    <Text style={styles.summaryValueTotal}>
+                      ₱{(parseFloat(budget) * 0.5 * 1.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.walletBalanceRow}>
+                    {walletLoading ? (
+                      <Text style={styles.walletLabel}>
+                        Loading wallet balance...
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.walletLabel}>
+                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                        </Text>
+                        {hasInsufficientBalance && (
+                          <Text style={styles.insufficientText}>
+                            (Need ₱{shortfallAmount.toFixed(2)} more)
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Payment Summary - DAILY Model */}
+              {paymentModel === "DAILY" && dailyRate && durationDays && parseFloat(dailyRate) > 0 && parseInt(durationDays) > 0 && (
+                <View style={styles.paymentSummary}>
+                  <Text style={styles.summaryTitle}>Payment Summary</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Daily Rate per Worker
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{parseFloat(dailyRate).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Duration
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      {parseInt(durationDays)} day{parseInt(durationDays) !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Total Worker Payment
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays)).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Platform Fee (10% of total)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                    <Text style={styles.summaryLabelTotal}>Due Now (100% Escrow)</Text>
+                    <Text style={styles.summaryValueTotal}>
+                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 1.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.walletBalanceRow}>
+                    {walletLoading ? (
+                      <Text style={styles.walletLabel}>
+                        Loading wallet balance...
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.walletLabel}>
+                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                        </Text>
+                        {hasInsufficientBalance && (
+                          <Text style={styles.insufficientText}>
+                            (Need ₱{shortfallAmount.toFixed(2)} more)
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                  <Text style={styles.dailyNote}>
+                    💡 Daily jobs require 100% escrow upfront. Workers confirm attendance daily.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Payment Method Section */}
+            <View style={styles.section}>
 
               {/* Wallet Balance Card */}
               <View
@@ -2236,18 +2231,6 @@ export default function CreateJobScreen() {
                     <Text style={styles.depositButtonText}>Deposit Funds</Text>
                   </TouchableOpacity>
                 )}
-              </View>
-
-              {/* Payment Info - QR PH deposits supported */}
-              <View style={styles.successBox}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color={Colors.success}
-                />
-                <Text style={styles.successText}>
-                  QR PH deposits enabled (any bank/e-wallet)
-                </Text>
               </View>
 
               {/* Info Box */}

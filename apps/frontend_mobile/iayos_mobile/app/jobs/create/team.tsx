@@ -663,7 +663,7 @@ export default function CreateTeamJobScreen() {
                   style={styles.input}
                   value={title}
                   onChangeText={setTitle}
-                  placeholder="e.g., Home Renovation - Multiple Skills Needed"
+                  placeholder="Home Renovation"
                   maxLength={100}
                 />
                 <Text style={styles.charCount}>{title.length}/100</Text>
@@ -743,7 +743,7 @@ export default function CreateTeamJobScreen() {
               <View style={styles.sectionTitle}>
                 <Ionicons name="card" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>
-                  Budget <Text style={{ color: Colors.error }}>*</Text>
+                  Payment <Text style={{ color: Colors.error }}>*</Text>
                 </Text>
               </View>
 
