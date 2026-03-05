@@ -612,7 +612,9 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/reviews/${reviewId}`,
   REPORT_REVIEW: (reviewId: number) =>
     `${API_URL}/api/mobile/reviews/${reviewId}/report`,
-  PENDING_REVIEWS: `${API_URL}/api/mobile/reviews/pending`,
+  REPORTS_CREATE: `${API_URL}/api/mobile/reports`,
+  MY_REPORTS: `${API_URL}/api/mobile/reports/my`,
+  PENDING_REVIEWS: `${API_URL}/api/mobile/reviews/pending-jobs`,
 
   // Backjobs / Disputes
   REQUEST_BACKJOB: (jobId: number) =>
@@ -665,6 +667,11 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/rate-change`,
   DAILY_RATE_CHANGE_APPROVE: (jobId: number, changeId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/rate-change/${changeId}/approve`,
+  // Skip day workflow
+  DAILY_SKIP_DAY_REQUEST: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/skip-day/request`,
+  DAILY_SKIP_DAY_REVIEW: (jobId: number, skipRequestId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/skip-day/${skipRequestId}/review`,
   // Cancellation
   DAILY_CANCEL: (jobId: number) => `${API_URL}/api/jobs/${jobId}/daily/cancel`,
 };

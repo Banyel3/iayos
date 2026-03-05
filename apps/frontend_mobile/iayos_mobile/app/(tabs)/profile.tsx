@@ -657,6 +657,11 @@ export default function ProfileScreen() {
               onPress={() => router.push("/profile/account-info" as any)}
             />
             <MenuItem
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => router.push("/notifications" as any)}
+            />
+            <MenuItem
               icon="settings-outline"
               label="Settings"
               onPress={() => router.push("/profile/settings" as any)}
@@ -842,9 +847,7 @@ function CollapsibleSection({
           color={Colors.textSecondary}
         />
       </TouchableOpacity>
-      {isExpanded && (
-        <View style={styles.collapsibleContent}>{children}</View>
-      )}
+      {isExpanded && <View style={styles.collapsibleContent}>{children}</View>}
     </View>
   );
 }

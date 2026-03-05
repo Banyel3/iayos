@@ -56,14 +56,16 @@ import {
   useApproveBackjobCompletion,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
+import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
-import { AGORA_AVAILABLE } from "../../lib/services/agora";
 import {
   useWorkerCheckIn,
   useWorkerCheckOut,
   useClientConfirmAttendance,
   useClientVerifyArrival,
   useClientMarkCheckout,
+  useRequestDailySkipDay,
+  useClientReviewDailySkipDay,
 } from "../../lib/hooks/useDailyPayment";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
@@ -78,6 +80,8 @@ import {
   useUploadPurchaseProof,
   useSkipMaterialsStep,
 } from "../../lib/hooks/useJobMaterials";
+
+const AGORA_AVAILABLE = true;
 import type { JobMaterialItem } from "../../lib/hooks/useMessages";
 import {
   Colors,
@@ -102,7 +106,8 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
-  const [negotiationPanelExpanded, setNegotiationPanelExpanded] = useState(false);
+  const [negotiationPanelExpanded, setNegotiationPanelExpanded] =
+    useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
@@ -119,6 +124,7 @@ export default function ChatScreen() {
     "submit",
   );
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const submitReportMutation = useSubmitReport();
   const [countdownConfig, setCountdownConfig] = useState<{
     visible: boolean;
     title: string;
@@ -157,12 +163,17 @@ export default function ChatScreen() {
   // For team jobs: track current worker being reviewed
   const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
+  // Get current user for role-aware rendering and team assignment identification
+  const { user } = useAuth();
+
+  const messageViewerKey = `${user?.accountID ?? "anon"}:${user?.profile_data?.profileType ?? "UNKNOWN"}`;
+
   // Fetch conversation and messages
   const {
     data: conversation,
     isLoading,
     refetch,
-  } = useMessages(conversationId);
+  } = useMessages(conversationId, messageViewerKey);
 
   // For agency jobs: Auto-set review step based on what's already reviewed
   useEffect(() => {
@@ -264,9 +275,8 @@ export default function ChatScreen() {
   const clientConfirmAttendanceMutation = useClientConfirmAttendance();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
-
-  // Get current user for team job assignment identification
-  const { user } = useAuth();
+  const requestDailySkipDayMutation = useRequestDailySkipDay();
+  const clientReviewDailySkipDayMutation = useClientReviewDailySkipDay();
 
   // Voice calling
   const { initiateCall, callStatus } = useAgoraCall();
@@ -1113,6 +1123,146 @@ export default function ChatScreen() {
     }
   }, [conversationId]);
 
+  const submitConversationReport = useCallback(
+    (
+      type: "user" | "job" | "message",
+      reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other",
+      reportedUserId?: number,
+    ) => {
+      const jobId = conversation?.job?.id;
+      if (!jobId) {
+        Alert.alert("Report Failed", "Job context is not available yet.");
+        return;
+      }
+
+      const descriptionByType: Record<"user" | "job" | "message", string> = {
+        user: `Reported user from conversation ${conversationId}. Reason: ${reason}`,
+        job: `Reported job ${jobId} from conversation ${conversationId}. Reason: ${reason}`,
+        message: `Reported abusive conversation/messages in conversation ${conversationId}. Reason: ${reason}`,
+      };
+
+      submitReportMutation.mutate(
+        {
+          report_type: type,
+          reason,
+          description: descriptionByType[type],
+          reported_user_id: reportedUserId,
+          related_content_id: type === "job" ? jobId : conversationId,
+        },
+        {
+          onSuccess: () => {
+            Alert.alert(
+              "Report Submitted",
+              "Thank you. Your report has been submitted for admin review.",
+            );
+          },
+          onError: (error) => {
+            Alert.alert(
+              "Report Failed",
+              error instanceof Error ? error.message : "Failed to submit report",
+            );
+          },
+        },
+      );
+    },
+    [conversationId, conversation?.job?.id, submitReportMutation],
+  );
+
+  const openReportReasonPicker = useCallback(
+    (type: "user" | "job" | "message", reportedUserId?: number) => {
+      if (Platform.OS === "ios") {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [
+              "Cancel",
+              "Spam",
+              "Harassment",
+              "Fraud/Scam",
+              "Inappropriate",
+              "Fake Profile",
+            ],
+            cancelButtonIndex: 0,
+            destructiveButtonIndex: 1,
+            title:
+              type === "user"
+                ? "Report User"
+                : type === "job"
+                  ? "Report Job"
+                  : "Report Conversation",
+          },
+          (index) => {
+            if (index === 1) submitConversationReport(type, "spam", reportedUserId);
+            if (index === 2) submitConversationReport(type, "harassment", reportedUserId);
+            if (index === 3) submitConversationReport(type, "fraud", reportedUserId);
+            if (index === 4) submitConversationReport(type, "inappropriate", reportedUserId);
+            if (index === 5) submitConversationReport(type, "fake_profile", reportedUserId);
+          },
+        );
+        return;
+      }
+
+      Alert.alert("Select report reason", "Choose a reason", [
+        { text: "Spam", onPress: () => submitConversationReport(type, "spam", reportedUserId) },
+        { text: "Harassment", onPress: () => submitConversationReport(type, "harassment", reportedUserId) },
+        { text: "Fraud/Scam", onPress: () => submitConversationReport(type, "fraud", reportedUserId) },
+        { text: "Inappropriate", onPress: () => submitConversationReport(type, "inappropriate", reportedUserId) },
+        { text: "Fake Profile", onPress: () => submitConversationReport(type, "fake_profile", reportedUserId) },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    },
+    [submitConversationReport],
+  );
+
+  const openConversationReportMenu = useCallback(() => {
+    if (!conversation?.job) {
+      Alert.alert("Report", "Conversation context is still loading.");
+      return;
+    }
+
+    const reportUserTargetId =
+      conversation.my_role === "CLIENT"
+        ? conversation.job?.assignedWorkerId
+        : conversation.job?.clientId;
+
+    if (Platform.OS === "ios") {
+      const options = [
+        "Cancel",
+        ...(reportUserTargetId ? ["Report User"] : []),
+        "Report Job",
+        "Report Conversation",
+      ];
+
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 1,
+          title: "Report",
+        },
+        (index) => {
+          if (reportUserTargetId) {
+            if (index === 1) openReportReasonPicker("user", reportUserTargetId);
+            if (index === 2) openReportReasonPicker("job");
+            if (index === 3) openReportReasonPicker("message");
+          } else {
+            if (index === 1) openReportReasonPicker("job");
+            if (index === 2) openReportReasonPicker("message");
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert("Report", "Choose what to report", [
+      ...(reportUserTargetId
+        ? [{ text: "Report User", onPress: () => openReportReasonPicker("user", reportUserTargetId) }]
+        : []),
+      { text: "Report Job", onPress: () => openReportReasonPicker("job") },
+      { text: "Report Conversation", onPress: () => openReportReasonPicker("message") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }, [conversation, openReportReasonPicker]);
+
   // Pick image from camera
   const pickImageFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -1187,10 +1337,11 @@ export default function ChatScreen() {
       });
 
       if (!uploadResult?.success) {
-        throw new Error(uploadResult?.error || "Failed to send image. Please try again.");
+        throw new Error(
+          uploadResult?.error || "Failed to send image. Please try again.",
+        );
       }
 
-      Alert.alert("Success", "Image sent successfully!");
       resetProgress();
 
       // Refetch conversation to show the new image message
@@ -1202,10 +1353,16 @@ export default function ChatScreen() {
       }, 100);
     } catch (error) {
       console.error("[ChatScreen] Image upload failed:", error);
-      Alert.alert(
-        "Error",
-        getErrorMessage(error, "Failed to send image. Please try again."),
+      const parsed = getErrorMessage(
+        error,
+        "Failed to send image. Please try again.",
       );
+      const userMessage = parsed
+        .toLowerCase()
+        .includes("network error during upload")
+        ? "Upload failed due to network instability. Please check connection and try again."
+        : parsed;
+      Alert.alert("Error", userMessage);
     }
   };
 
@@ -1513,6 +1670,21 @@ export default function ChatScreen() {
               size={24}
               color={Colors.primary}
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openConversationReportMenu}
+            style={styles.infoButton}
+            disabled={submitReportMutation.isPending}
+          >
+            {submitReportMutation.isPending ? (
+              <ActivityIndicator size="small" color={Colors.error} />
+            ) : (
+              <Ionicons
+                name="flag-outline"
+                size={22}
+                color={Colors.error}
+              />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -1986,6 +2158,278 @@ export default function ChatScreen() {
                         })()}
                       </View>
                     )}
+
+                    {/* Worker View: Skip Day Request */}
+                    {conversation.my_role === "WORKER" && (
+                      <View style={styles.skipDayContainer}>
+                        <View style={styles.skipDayWarningCard}>
+                          <Text style={styles.skipDayWarningText}>
+                            Client approval is not guaranteed. If your skip-day
+                            request is rejected, repeated abuse may lead to
+                            reports and possible admin action.
+                          </Text>
+                        </View>
+                        {(() => {
+                          const todaySkipRequest =
+                            conversation.daily_skip_requests_today?.[0];
+                          const requestToday = new Date()
+                            .toISOString()
+                            .split("T")[0];
+
+                          if (!todaySkipRequest) {
+                            return (
+                              <TouchableOpacity
+                                style={styles.skipDayButton}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Request Skip Day",
+                                    "Send a skip-day request to the client for today?",
+                                    [
+                                      { text: "Cancel", style: "cancel" },
+                                      {
+                                        text: "Request",
+                                        onPress: () =>
+                                          requestDailySkipDayMutation.mutate({
+                                            jobId: conversation.job.id,
+                                            request_date: requestToday,
+                                          }),
+                                      },
+                                    ],
+                                  )
+                                }
+                                disabled={requestDailySkipDayMutation.isPending}
+                              >
+                                {requestDailySkipDayMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="calendar-outline"
+                                      size={16}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.skipDayButtonText}>
+                                      Request Skip Day
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          }
+
+                          if (todaySkipRequest.status === "PENDING") {
+                            if (todaySkipRequest.my_worker_requested) {
+                              return (
+                                <View style={styles.skipDayStatusPending}>
+                                  <Text style={styles.skipDayStatusTitle}>
+                                    Skip request sent
+                                  </Text>
+                                  <Text style={styles.skipDayStatusText}>
+                                    {todaySkipRequest.requires_all_team_workers
+                                      ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} workers requested`
+                                      : "Waiting for client approval"}
+                                  </Text>
+                                </View>
+                              );
+                            }
+
+                            return (
+                              <TouchableOpacity
+                                style={styles.skipDayButton}
+                                onPress={() =>
+                                  requestDailySkipDayMutation.mutate({
+                                    jobId: conversation.job.id,
+                                    request_date: requestToday,
+                                  })
+                                }
+                                disabled={requestDailySkipDayMutation.isPending}
+                              >
+                                {requestDailySkipDayMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="people-outline"
+                                      size={16}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.skipDayButtonText}>
+                                      Join Skip Request
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          }
+
+                          if (todaySkipRequest.status === "APPROVED") {
+                            return (
+                              <View style={styles.skipDayStatusApproved}>
+                                <Text style={styles.skipDayStatusTitle}>
+                                  Skip day approved
+                                </Text>
+                                <Text style={styles.skipDayStatusText}>
+                                  Client approved today's skip request.
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          if (todaySkipRequest.status === "REJECTED") {
+                            return (
+                              <View style={styles.skipDayStatusRejected}>
+                                <Text style={styles.skipDayStatusTitle}>
+                                  Skip day rejected
+                                </Text>
+                                <Text style={styles.skipDayStatusText}>
+                                  {todaySkipRequest.client_rejection_reason ||
+                                    "Client declined the skip request."}
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          return null;
+                        })()}
+                      </View>
+                    )}
+
+                    {/* Client View: Skip Day Request Review */}
+                    {conversation.my_role === "CLIENT" &&
+                      (() => {
+                        const todaySkipRequest =
+                          conversation.daily_skip_requests_today?.[0];
+
+                        if (!todaySkipRequest) return null;
+
+                        const waitingForTeam =
+                          todaySkipRequest.requires_all_team_workers &&
+                          !todaySkipRequest.all_workers_requested;
+
+                        if (todaySkipRequest.status === "PENDING") {
+                          return (
+                            <View style={styles.clientSkipDayCard}>
+                              <Text style={styles.clientSkipDayTitle}>
+                                Skip Day Request
+                              </Text>
+                              <Text style={styles.clientSkipDayText}>
+                                {todaySkipRequest.requires_all_team_workers
+                                  ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} team workers requested`
+                                  : "Worker requested to skip today"}
+                              </Text>
+
+                              {waitingForTeam ? (
+                                <Text style={styles.clientSkipDayWaitingText}>
+                                  Waiting for all ACTIVE team workers to request
+                                </Text>
+                              ) : (
+                                <View style={styles.clientSkipDayActions}>
+                                  <TouchableOpacity
+                                    style={styles.clientSkipApproveButton}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Approve Skip Day",
+                                        "Approve this skip-day request?",
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Approve",
+                                            onPress: () =>
+                                              clientReviewDailySkipDayMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  skipRequestId:
+                                                    todaySkipRequest.skip_request_id,
+                                                  approve: true,
+                                                },
+                                              ),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientReviewDailySkipDayMutation.isPending
+                                    }
+                                  >
+                                    <Text style={styles.clientSkipApproveText}>
+                                      Approve
+                                    </Text>
+                                  </TouchableOpacity>
+
+                                  <TouchableOpacity
+                                    style={styles.clientSkipRejectButton}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Reject Skip Day",
+                                        "Reject this skip-day request?",
+                                        [
+                                          {
+                                            text: "Cancel",
+                                            style: "cancel",
+                                          },
+                                          {
+                                            text: "Reject",
+                                            style: "destructive",
+                                            onPress: () =>
+                                              clientReviewDailySkipDayMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  skipRequestId:
+                                                    todaySkipRequest.skip_request_id,
+                                                  approve: false,
+                                                  reason:
+                                                    "Client declined skip day request.",
+                                                },
+                                              ),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientReviewDailySkipDayMutation.isPending
+                                    }
+                                  >
+                                    <Text style={styles.clientSkipRejectText}>
+                                      Reject
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <View
+                            style={
+                              todaySkipRequest.status === "APPROVED"
+                                ? styles.skipDayStatusApproved
+                                : styles.skipDayStatusRejected
+                            }
+                          >
+                            <Text style={styles.skipDayStatusTitle}>
+                              {todaySkipRequest.status === "APPROVED"
+                                ? "Skip day approved"
+                                : "Skip day rejected"}
+                            </Text>
+                            {todaySkipRequest.status === "REJECTED" && (
+                              <Text style={styles.skipDayStatusText}>
+                                {todaySkipRequest.client_rejection_reason ||
+                                  "Request was declined."}
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })()}
 
                     {/* Client View: Confirm attendance for each worker */}
                     {conversation.my_role === "CLIENT" && (
@@ -2700,7 +3144,14 @@ export default function ChatScreen() {
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
                   conversation.job?.preferred_start_date &&
-                  new Date() < (() => { const d = new Date(conversation.job!.preferred_start_date!); d.setHours(0,0,0,0); return d; })() && (
+                  new Date() <
+                    (() => {
+                      const d = new Date(
+                        conversation.job!.preferred_start_date!,
+                      );
+                      d.setHours(0, 0, 0, 0);
+                      return d;
+                    })() && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
                         name="lock-closed-outline"
@@ -2710,11 +3161,15 @@ export default function ChatScreen() {
                       <View style={{ flex: 1, marginLeft: 4 }}>
                         <Text style={styles.waitingButtonText}>
                           Job starts on{" "}
-                          {new Date(conversation.job.preferred_start_date).toLocaleDateString(
-                            undefined,
-                            { weekday: "short", month: "short", day: "numeric", year: "numeric" }
-                          )}
-                          {" "}— action buttons will unlock on that date.
+                          {new Date(
+                            conversation.job.preferred_start_date,
+                          ).toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}{" "}
+                          — action buttons will unlock on that date.
                         </Text>
                       </View>
                     </View>
@@ -2726,7 +3181,14 @@ export default function ChatScreen() {
                   conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
                   (!conversation.job?.preferred_start_date ||
-                    new Date() >= (() => { const d = new Date(conversation.job.preferred_start_date!); d.setHours(0,0,0,0); return d; })()) &&
+                    new Date() >=
+                      (() => {
+                        const d = new Date(
+                          conversation.job.preferred_start_date!,
+                        );
+                        d.setHours(0, 0, 0, 0);
+                        return d;
+                      })()) &&
                   !conversation.job.clientConfirmedWorkStarted &&
                   (conversation.job.materials_status === "NONE" ||
                     conversation.job.materials_status === "APPROVED" ||
@@ -2892,7 +3354,8 @@ export default function ChatScreen() {
                   conversation.assigned_employees.length > 0 &&
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
-                      employee.agencyMarkedComplete || employee.status === "COMPLETED";
+                      employee.agencyMarkedComplete ||
+                      employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
                       (e) => e.dispatched,
@@ -3091,7 +3554,8 @@ export default function ChatScreen() {
                   conversation.assigned_employees.length > 0 &&
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
-                      employee.agencyMarkedComplete || employee.status === "COMPLETED";
+                      employee.agencyMarkedComplete ||
+                      employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
                       (e) => e.dispatched,
@@ -4616,6 +5080,19 @@ export default function ChatScreen() {
         {/* Backjob Banner - shows when there's an active backjob */}
         {conversation.backjob?.has_backjob && (
           <View style={styles.backjobSectionCompact}>
+            {conversation.backjob.status === "OPEN" && (
+              <View style={styles.backjobPendingAdminBanner}>
+                <Ionicons
+                  name="hourglass-outline"
+                  size={14}
+                  color={Colors.warning}
+                />
+                <Text style={styles.backjobPendingAdminText}>
+                  Waiting for admin to approve backjob request
+                </Text>
+              </View>
+            )}
+
             {/* Compact Backjob Banner */}
             <TouchableOpacity
               style={styles.backjobBannerCompact}
@@ -4647,81 +5124,83 @@ export default function ChatScreen() {
             </TouchableOpacity>
 
             {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION or after if admin messages exist */}
-            {(hasActiveNegotiation ||
+            {!hasActiveNegotiation &&
               conversation.messages.some(
                 (m: any) => m.sender_type === "admin",
-              )) && (
-              <View style={styles.negotiationPanel}>
-                <TouchableOpacity
-                  style={styles.negotiationPanelHeader}
-                  onPress={() =>
-                    setNegotiationPanelExpanded(!negotiationPanelExpanded)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="shield-half-outline"
-                    size={13}
-                    color="#7C3AED"
-                  />
-                  <Text style={styles.negotiationPanelHeaderText}>
-                    {hasActiveNegotiation
-                      ? "Negotiation Chat"
-                      : "Negotiation History"}
-                  </Text>
-                  {hasActiveNegotiation && (
-                    <View style={styles.negotiationLiveBadge}>
-                      <Text style={styles.negotiationLiveBadgeText}>LIVE</Text>
+              ) && (
+                <View style={styles.negotiationPanel}>
+                  <TouchableOpacity
+                    style={styles.negotiationPanelHeader}
+                    onPress={() =>
+                      setNegotiationPanelExpanded(!negotiationPanelExpanded)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="shield-half-outline"
+                      size={13}
+                      color="#7C3AED"
+                    />
+                    <Text style={styles.negotiationPanelHeaderText}>
+                      {hasActiveNegotiation
+                        ? "Negotiation Chat"
+                        : "Negotiation History"}
+                    </Text>
+                    {hasActiveNegotiation && (
+                      <View style={styles.negotiationLiveBadge}>
+                        <Text style={styles.negotiationLiveBadgeText}>
+                          LIVE
+                        </Text>
+                      </View>
+                    )}
+                    <Ionicons
+                      name={
+                        negotiationPanelExpanded ? "chevron-up" : "chevron-down"
+                      }
+                      size={13}
+                      color="#7C3AED"
+                    />
+                  </TouchableOpacity>
+
+                  {negotiationPanelExpanded && (
+                    <View style={styles.negotiationPanelBody}>
+                      {conversation.messages.filter(
+                        (m: any) => m.sender_type === "admin",
+                      ).length === 0 ? (
+                        <Text style={styles.negotiationEmptyText}>
+                          Waiting for admin to join the negotiation…
+                        </Text>
+                      ) : (
+                        conversation.messages
+                          .filter((m: any) => m.sender_type === "admin")
+                          .map((msg: any, idx: number) => (
+                            <View
+                              key={msg.message_id || idx}
+                              style={styles.negotiationMessage}
+                            >
+                              <Ionicons
+                                name="shield-checkmark-outline"
+                                size={12}
+                                color="#7C3AED"
+                              />
+                              <View style={styles.negotiationMessageContent}>
+                                <Text style={styles.negotiationMessageSender}>
+                                  Admin
+                                </Text>
+                                <Text style={styles.negotiationMessageText}>
+                                  {msg.message_text}
+                                </Text>
+                                <Text style={styles.negotiationMessageTime}>
+                                  {format(new Date(msg.created_at), "h:mm a")}
+                                </Text>
+                              </View>
+                            </View>
+                          ))
+                      )}
                     </View>
                   )}
-                  <Ionicons
-                    name={
-                      negotiationPanelExpanded ? "chevron-up" : "chevron-down"
-                    }
-                    size={13}
-                    color="#7C3AED"
-                  />
-                </TouchableOpacity>
-
-                {negotiationPanelExpanded && (
-                  <View style={styles.negotiationPanelBody}>
-                    {conversation.messages.filter(
-                      (m: any) => m.sender_type === "admin",
-                    ).length === 0 ? (
-                      <Text style={styles.negotiationEmptyText}>
-                        Waiting for admin to join the negotiation…
-                      </Text>
-                    ) : (
-                      conversation.messages
-                        .filter((m: any) => m.sender_type === "admin")
-                        .map((msg: any, idx: number) => (
-                          <View
-                            key={msg.message_id || idx}
-                            style={styles.negotiationMessage}
-                          >
-                            <Ionicons
-                              name="shield-checkmark-outline"
-                              size={12}
-                              color="#7C3AED"
-                            />
-                            <View style={styles.negotiationMessageContent}>
-                              <Text style={styles.negotiationMessageSender}>
-                                Admin
-                              </Text>
-                              <Text style={styles.negotiationMessageText}>
-                                {msg.message_text}
-                              </Text>
-                              <Text style={styles.negotiationMessageTime}>
-                                {format(new Date(msg.created_at), "h:mm a")}
-                              </Text>
-                            </View>
-                          </View>
-                        ))
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
+                </View>
+              )}
 
             {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
             {hasApprovedBackjob && (
@@ -4866,19 +5345,14 @@ export default function ChatScreen() {
         {/* Messages List */}
         <FlatList
           ref={flatListRef}
-          data={
-            hasActiveNegotiation
-              ? conversation.messages.filter(
-                  (m: any) => m.sender_type !== "admin",
-                )
-              : conversation.messages
-          }
+          data={conversation.messages}
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
-              : `msg_${index}_${item.created_at}`
+              : `msg_${item.created_at}_${item.sender_name || "unknown"}_${item.message_type || "TEXT"}_${item.message_text || ""}`
           }
           renderItem={renderMessage}
+          extraData={messageViewerKey}
           ListFooterComponent={renderTypingIndicator}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
@@ -5574,6 +6048,120 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     fontWeight: "600",
     color: Colors.primary,
+  },
+  skipDayContainer: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  skipDayButton: {
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+  },
+  skipDayButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  skipDayWarningCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+  },
+  skipDayWarningText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
+  skipDayStatusPending: {
+    backgroundColor: "#FFF3E0",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  skipDayStatusApproved: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  skipDayStatusRejected: {
+    backgroundColor: "#FFEBEE",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  skipDayStatusTitle: {
+    ...Typography.body.small,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  skipDayStatusText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  clientSkipDayCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  clientSkipDayTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  clientSkipDayText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  clientSkipDayWaitingText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    marginTop: Spacing.xs,
+    fontWeight: "600",
+  },
+  clientSkipDayActions: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  clientSkipApproveButton: {
+    flex: 1,
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    alignItems: "center",
+  },
+  clientSkipApproveText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+  },
+  clientSkipRejectButton: {
+    flex: 1,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    alignItems: "center",
+  },
+  clientSkipRejectText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
   },
   // Legacy team styles - keeping for reference
   teamWorkerCard: {
@@ -6436,6 +7024,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: "#E65100",
+  },
+  backjobPendingAdminBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.warning + "1A",
+    borderWidth: 1,
+    borderColor: Colors.warning + "40",
+    borderRadius: BorderRadius.small,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+  },
+  backjobPendingAdminText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
   },
   backjobActionButtonsCompact: {
     flexDirection: "row",

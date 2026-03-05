@@ -63,7 +63,7 @@ export default function RejectedKYCPage() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/kyc/logs?action=Rejected&limit=500`,
+        `${API_BASE}/api/adminpanel/kyc/audit-logs?action=Rejected&limit=500`,
         {
           credentials: "include",
         },

@@ -293,10 +293,10 @@ export default function CreateTeamJobScreen() {
           title,
           description,
           category_id: primaryCategoryId,
-          urgency,
+          urgency: urgency ?? undefined,
           skill_level: highestSkillLevel,
-          job_scope: jobScope,
-          work_environment: workEnvironment,
+          job_scope: jobScope ?? undefined,
+          work_environment: workEnvironment ?? undefined,
         });
       }, 800);
     } else {
@@ -349,7 +349,15 @@ export default function CreateTeamJobScreen() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      const result = await response.json();
+      const result = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        job_id?: number;
+        skill_slots_created?: number;
+        total_workers_needed?: number;
+        total_budget?: number;
+        escrow_amount?: number;
+      };
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Failed to create team job");
       }
@@ -1204,40 +1212,47 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <Text style={styles.label}>Select Specialization</Text>
-              <FlatList
-                data={filteredSpecs}
-                keyExtractor={(item) => item.id.toString()}
-                style={styles.specList}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.specItem,
-                      selectedSpecialization?.id === item.id &&
-                      styles.specItemSelected,
-                    ]}
-                    onPress={() => setSelectedSpecialization(item)}
-                  >
-                    <View>
-                      <Text style={styles.specName}>{item.name}</Text>
-                      <Text style={styles.specCategory}>
-                        {item.category_name}
-                      </Text>
-                    </View>
-                    {selectedSpecialization?.id === item.id && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={24}
-                        color={Colors.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={styles.emptyListText}>
-                    {specsLoading ? "Loading..." : "No specializations found"}
-                  </Text>
-                }
-              />
+              {filteredSpecs.length === 0 ? (
+                <Text style={styles.emptyListText}>
+                  {specsLoading ? "Loading..." : "No specializations found"}
+                </Text>
+              ) : (
+                <View style={styles.specTagsContainer}>
+                  {filteredSpecs.map((item) => {
+                    const isSelected = selectedSpecialization?.id === item.id;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[
+                          styles.specTag,
+                          isSelected && styles.specTagSelected,
+                        ]}
+                        onPress={() => setSelectedSpecialization(item)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.specTagText,
+                            isSelected && styles.specTagTextSelected,
+                          ]}
+                        >
+                          {item.name}
+                        </Text>
+                        {!!item.category_name && (
+                          <Text
+                            style={[
+                              styles.specTagSubtext,
+                              isSelected && styles.specTagSubtextSelected,
+                            ]}
+                          >
+                            {item.category_name}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
 
               {selectedSpecialization && (
                 <>
@@ -1909,29 +1924,41 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.md,
   },
-  specList: {
-    maxHeight: 200,
-    marginBottom: Spacing.md,
-  },
-  specItem: {
+  specTagsContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    maxHeight: 240,
   },
-  specItemSelected: {
-    backgroundColor: Colors.primary + "10",
+  specTag: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.white,
+    minWidth: "45%",
   },
-  specName: {
+  specTagSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "12",
+  },
+  specTagText: {
     ...Typography.body.medium,
-    fontWeight: "600",
     color: Colors.textPrimary,
+    fontWeight: "600",
   },
-  specCategory: {
+  specTagTextSelected: {
+    color: Colors.primary,
+  },
+  specTagSubtext: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  specTagSubtextSelected: {
+    color: Colors.primary,
   },
   emptyListText: {
     ...Typography.body.medium,

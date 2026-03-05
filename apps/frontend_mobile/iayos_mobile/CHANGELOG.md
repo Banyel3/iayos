@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+
+- **Production Skip-Day Request Workflow for DAILY Jobs**
+  - Added worker-initiated skip-day requests in conversation Daily Attendance section
+  - Team DAILY jobs now require all ACTIVE workers to request before client can review
+  - Added client approve/reject controls in chat with live consensus progress display
+  - Added approved/rejected skip-day state banners for workers and clients
+  - Added explicit worker-facing warning that client approval is not guaranteed and rejected/abusive requests may lead to reports or admin action
+  - **Impact**: Real production contingency flow for no-work days with explicit client approval and team consensus
+
 - **Withdrawal Screen Layout Fix & Enhancements**
   - Moved header outside KeyboardAvoidingView to fix layout issues
   - Removed vertical offset to eliminate whitespace above keyboard
@@ -24,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: APK installs now work on real phones, not just emulators. Users get clear guidance if permission is needed.
 
 ### Added
+
+- **Mobile Reporting Actions (User / Job / Conversation)**
+  - Added report actions in worker profile, client profile, job detail, and conversation header
+  - Added reason picker flow (spam, harassment, fraud/scam, inappropriate, fake profile)
+  - Added mobile reporting hook and endpoints integration for direct submission from app UI
+  - **Impact**: Workers and clients can now report users/jobs/conversations in-context without leaving the screen
+
 - **Countdown Confirmation Timer for Critical Actions**
   - Added 5-second countdown timer on standard confirmations (job creation, accept/reject application, withdraw application, delete job, accept invite)
   - Added 7-second countdown timer on financial confirmations (approve completion & pay, approve team job & pay, confirm daily attendance & pay, wallet withdrawal)
@@ -38,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Legal compliance — all in-app receipts clearly marked as non-O.R. transaction summaries
 
 ### Fixed
+
 - **KYC Upload Screen Crash - "Property 'kycData' doesn't exist"**
   - Fixed undefined variable reference `kycData` in upload.tsx useEffect that crashed the KYC screen
   - `kycData` was used at lines 200-203 but never destructured from the `useKYC()` hook
@@ -141,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Agency jobs now show only their own workflow sections; no duplicate buttons or conflicting UI
 
 ### Added
+
 - **Force Review Feature** (PR #349)
   - Users must leave a review after job completion/payment before exiting conversation
   - Hardware back button blocked with "Review Required" alert when review is pending
@@ -155,6 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Testers can now deposit funds instantly without needing a real payment gateway
 
 ### Changed
+
 - **Job Creation Category Auto-Derive from Worker Skills**
   - When hiring a specific worker (INVITE job), category picker now only shows the worker's registered skills
   - If worker has exactly 1 skill, category is auto-selected
@@ -168,6 +187,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This is the first stable release of the iAyos Mobile App, consolidating all previous development work.
 
 ### Features
+
 - **Job Browsing & Filtering** — Category browsing, advanced search, saved jobs, infinite scroll pagination
 - **Job Completion Workflow** — Two-phase completion (worker marks → client approves) with photo upload
 - **Escrow Payment System** — 50% downpayment via GCash/Wallet/Cash with status tracking
@@ -195,6 +215,7 @@ This is the first stable release of the iAyos Mobile App, consolidating all prev
    - `### Removed` - Removed features
 
 2. **Format each entry:**
+
    ```markdown
    - **Feature Name** (PR #XXX)
      - Brief description of what changed

@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { ENDPOINTS, apiRequest } from '@/lib/api/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import websocketService from '@/lib/services/websocket';
+import { removeAccessToken, removeCachedUser } from '@/lib/utils/tokenStorage';
 
 export function useLogout() {
   const queryClient = useQueryClient();
@@ -22,6 +24,13 @@ export function useLogout() {
     onSuccess: async () => {
       // Clear all React Query cache
       queryClient.clear();
+
+      // Reset websocket to avoid cross-session leakage
+      websocketService.reset();
+
+      // Clear secure auth storage
+      await removeAccessToken();
+      await removeCachedUser();
 
       // Clear AsyncStorage (theme, language preferences, etc.)
       try {
@@ -44,6 +53,9 @@ export function useLogout() {
       console.error('Logout error:', error);
       // Even if logout fails on server, clear local data and navigate
       queryClient.clear();
+      websocketService.reset();
+      void removeAccessToken();
+      void removeCachedUser();
       router.replace('/auth/login' as any);
     },
   });

@@ -12,6 +12,7 @@ import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Colors, Typography, Spacing } from "../constants/theme";
+import { apiRequest, ENDPOINTS } from "../lib/api/config";
 import {
   useWorkerSchedule,
   buildMarkedDates,
@@ -171,9 +172,23 @@ export default function WorkerCalendarModal({
                         <TouchableOpacity
                           key={job.id}
                           style={styles.jobCard}
-                          onPress={() => {
-                            onClose();
-                            router.push(`/messages` as any);
+                          onPress={async () => {
+                            try {
+                              const response = await apiRequest(
+                                ENDPOINTS.CONVERSATION_BY_JOB(job.id)
+                              );
+                              const data = await response.json();
+
+                              onClose();
+                              if (data?.success && data?.conversation_id) {
+                                router.push(`/messages/${data.conversation_id}` as any);
+                              } else {
+                                router.push(`/messages` as any);
+                              }
+                            } catch {
+                              onClose();
+                              router.push(`/messages` as any);
+                            }
                           }}
                         >
                           <View style={styles.jobCardInner}>

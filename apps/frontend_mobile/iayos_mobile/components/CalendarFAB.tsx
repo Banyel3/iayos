@@ -1,16 +1,26 @@
 import React, { useState } from "react";
 import { TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../constants/theme";
+import { useAuth } from "../context/AuthContext";
 import WorkerCalendarModal from "./WorkerCalendarModal";
 
 export default function CalendarFAB() {
   const [modalVisible, setModalVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+
+  if (!isWorker) {
+    return null;
+  }
 
   return (
     <>
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: insets.bottom + 92 }]}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.85}
       >
@@ -28,7 +38,6 @@ export default function CalendarFAB() {
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    bottom: 80,
     right: 20,
     width: 52,
     height: 52,
@@ -40,7 +49,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 5,
-    elevation: 6,
-    zIndex: 100,
+    elevation: 12,
+    zIndex: 999,
   },
 });

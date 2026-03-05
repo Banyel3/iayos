@@ -314,7 +314,7 @@ export function usePendingReviews(enabled = true) {
         throw new Error("Failed to fetch pending reviews");
       }
       const json = await response.json();
-      return json.data || { pending_reviews: [], count: 0 };
+      return json?.data ?? json ?? { pending_reviews: [], count: 0 };
     },
     enabled,
     staleTime: 30000, // 30 seconds

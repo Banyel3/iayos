@@ -287,6 +287,13 @@ export default function EmployeesPage() {
     );
   };
 
+  const normalizeMobile = (value: string) => value.replace(/[\s-]/g, "");
+
+  const isValidMobile = (value: string) => {
+    const normalized = normalizeMobile(value);
+    return /^09\d{9}$/.test(normalized) || /^\+639\d{9}$/.test(normalized);
+  };
+
   const saveEditEmployee = async () => {
     if (!editingEmployee) return;
 
@@ -295,6 +302,19 @@ export default function EmployeesPage() {
 
     if (!editFirstName.trim() || !editLastName.trim()) {
       toast.error("First name and last name are required");
+      return;
+    }
+
+    if (!editMobile.trim()) {
+      setEditMobileError("Mobile number is required");
+      toast.error("Mobile number is required");
+      return;
+    }
+
+    if (!isValidMobile(editMobile)) {
+      const msg = "Enter a valid mobile number (09XXXXXXXXX or +639XXXXXXXXX)";
+      setEditMobileError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -318,7 +338,7 @@ export default function EmployeesPage() {
             firstName: editFirstName.trim(),
             middleName: editMiddleName.trim(),
             lastName: editLastName.trim(),
-            mobile: editMobile,
+            mobile: normalizeMobile(editMobile),
             specializations: editSpecializations,
           }),
         },
@@ -365,6 +385,13 @@ export default function EmployeesPage() {
       return;
     }
 
+    if (!isValidMobile(mobile)) {
+      const msg = "Enter a valid mobile number (09XXXXXXXXX or +639XXXXXXXXX)";
+      setMobileError(msg);
+      toast.error(msg);
+      return;
+    }
+
     if (selectedSpecializations.length === 0) {
       toast.error("At least one specialization is required");
       return;
@@ -376,7 +403,7 @@ export default function EmployeesPage() {
       formData.append("firstName", firstName.trim());
       formData.append("middleName", middleName.trim());
       formData.append("lastName", lastName.trim());
-      formData.append("mobile", mobile);
+      formData.append("mobile", normalizeMobile(mobile));
       formData.append(
         "specializations",
         JSON.stringify(selectedSpecializations),

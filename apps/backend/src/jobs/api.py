@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -183,7 +183,11 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
-        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
+        payment_method = (
+            getattr(data, "downpayment_method", None)
+            or getattr(data, "payment_method", None)
+            or "WALLET"
+        ).upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
@@ -606,7 +610,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
-        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
+        payment_method = (
+            getattr(data, "downpayment_method", None)
+            or getattr(data, "payment_method", None)
+            or "WALLET"
+        ).upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
@@ -1534,21 +1542,26 @@ def get_completed_jobs(request):
         )
 
 
-@router.get("/worker-schedule", auth=cookie_auth)
+@router.get("/worker-schedule", auth=dual_auth)
 def get_worker_schedule(request):
     """Get current worker's scheduled/active jobs for calendar display.
     Returns jobs that have both preferredStartDate and scheduled_end_date set.
     """
     try:
         from accounts.models import WorkerProfile
-        profile = Profile.objects.filter(accountFK=request.auth).first()
-        if not profile:
-            return Response({"error": "Profile not found"}, status=404)
 
-        try:
-            worker_profile = WorkerProfile.objects.get(profileID=profile)
-        except WorkerProfile.DoesNotExist:
-            return Response({"error": "Worker profile not found"}, status=403)
+        # IMPORTANT: Resolve worker profile by account (not "first profile")
+        # to avoid false 403 for dual-profile users where CLIENT profile may be first.
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).select_related('profileID').first()
+
+        if not worker_profile:
+            return {
+                "success": True,
+                "jobs": [],
+                "message": "No worker profile found for this account"
+            }
 
         jobs = JobPosting.objects.filter(
             assignedWorkerID=worker_profile,
@@ -1563,12 +1576,16 @@ def get_worker_schedule(request):
                 {
                     "id": j.jobID,
                     "title": j.title,
-                    "preferred_start_date": str(j.preferredStartDate),
-                    "scheduled_end_date": str(j.scheduled_end_date),
+                    "preferred_start_date": j.preferredStartDate.isoformat()[:10] if j.preferredStartDate else None,
+                    "scheduled_end_date": j.scheduled_end_date.isoformat()[:10] if j.scheduled_end_date else None,
                     "status": j.status,
                     "client_name": (
                         f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
                     ),
+                    "other_party_name": (
+                        f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
+                    ),
+                    "location": j.location,
                     "budget": float(j.budget),
                 }
                 for j in jobs
@@ -2159,6 +2176,63 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "You cannot apply to your own job posting"},
                 status=403
             )
+
+        # Block workers from applying while currently working on another active assignment
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS,
+        ).exclude(jobID=job.jobID).first()
+
+        if active_regular_job:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active job in progress",
+                message=(
+                    f"You can't apply right now because you're currently working on "
+                    f"'{active_regular_job.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_regular_job.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active job: '{active_regular_job.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title,
+                },
+                status=400,
+            )
+
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE',
+        ).select_related('jobID').first()
+
+        if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active team assignment",
+                message=(
+                    f"You can't apply right now because you're currently assigned to "
+                    f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_team_assignment.jobID.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title,
+                },
+                status=400,
+            )
         
         # Check if job is still active
         if job.status != JobPosting.JobStatus.ACTIVE:
@@ -2167,12 +2241,16 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=400
             )
         
-        # Check if worker already applied
+        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
         existing_application = JobApplication.objects.filter(
             jobID=job,
-            workerID=worker_profile
+            workerID=worker_profile,
+            status__in=[
+                JobApplication.ApplicationStatus.PENDING,
+                JobApplication.ApplicationStatus.ACCEPTED,
+            ],
         ).first()
-        
+
         if existing_application:
             return Response(
                 {"error": "You have already applied for this job"},
@@ -2201,6 +2279,22 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "Invalid budget option"},
                 status=400
             )
+
+        if data.budget_option == 'NEGOTIATE' and job.categoryID and job.categoryID.minimumRate and data.proposed_budget is not None:
+            proposed_budget = Decimal(str(data.proposed_budget))
+            minimum_rate = Decimal(str(job.categoryID.minimumRate))
+            if proposed_budget < minimum_rate:
+                return Response(
+                    {
+                        "error": (
+                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
+                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                        ),
+                        "minimum_rate": float(minimum_rate),
+                        "category": job.categoryID.specializationName,
+                    },
+                    status=400,
+                )
         
         # Create the application
         application = JobApplication.objects.create(
@@ -2216,7 +2310,6 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         print(f"✅ Application {application.applicationID} created successfully")
 
         # Create notification for the client
-        from accounts.models import Notification
         worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
@@ -2458,7 +2551,6 @@ def accept_application(request, job_id: int, application_id: int):
                     print(f"✅ Updated fee transaction {pending_fee.transactionID} to COMPLETED")
                 
                 # Create escrow payment notification
-                from accounts.models import Notification
                 Notification.objects.create(
                     accountFK=request.auth,
                     notificationType="ESCROW_PAID",
@@ -2510,7 +2602,6 @@ def accept_application(request, job_id: int, application_id: int):
             ).select_related('workerID__profileID__accountFK')
 
             # Notify rejected workers
-            from accounts.models import Notification
             for other_app in other_applications:
                 Notification.objects.create(
                     accountFK=other_app.workerID.profileID.accountFK,
@@ -4011,7 +4102,7 @@ def client_approve_job_completion(
             buffer_days = get_payment_buffer_days()
             
             # Handle WALLET payment (instant deduction from client, but pending for worker)
-            if payment_method == 'WALLET':
+            if payment_method_upper == 'WALLET':
                 print(f"💳 Wallet payment selected - checking balance")
                 
                 # Get or create wallet for client
@@ -4094,6 +4185,31 @@ def client_approve_job_completion(
                     relatedJobID=job.jobID
                 )
                 print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+
+                if recipient_account:
+                    Notification.objects.create(
+                        accountFK=recipient_account,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Final payment for '{job.title}' is completed by the client. "
+                            f"Funds are now in pending release for {buffer_days} days."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
+                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
+                for admin in admin_accounts:
+                    Notification.objects.create(
+                        accountFK=admin,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Client completed final WALLET payment for job '{job.title}' "
+                            f"(₱{remaining_amount})."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
 
                 return {
                     "success": True,
@@ -4191,6 +4307,31 @@ def client_approve_job_completion(
                     relatedJobID=job.jobID
                 )
                 print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+
+                if cash_recipient_account:
+                    Notification.objects.create(
+                        accountFK=cash_recipient_account,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Final CASH payment for '{job.title}' is confirmed by the client. "
+                            f"Escrow portion is pending release for {buffer_days} days."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
+                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
+                for admin in admin_accounts:
+                    Notification.objects.create(
+                        accountFK=admin,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Client uploaded final CASH payment proof for job '{job.title}' "
+                            f"(₱{remaining_amount})."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
                 
                 return {
                     "success": True,
@@ -4788,9 +4929,10 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                         pending_workers = []
                         for assignment in assignments:
                             worker_account = assignment.workerID.profileID.accountFK
-                            if worker_account.id not in reviewed_worker_ids:
+                            worker_account_id = worker_account.accountID
+                            if worker_account_id not in reviewed_worker_ids:
                                 pending_workers.append({
-                                    "worker_id": assignment.workerID.id,
+                                    "worker_id": assignment.workerID.pk,
                                     "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
                                 })
                         
@@ -4885,6 +5027,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             pending_team_workers = []
             all_team_workers_reviewed = False
             reviewed_worker_name = None
+            total_team_workers = job.total_workers_assigned
             
             if job.is_team_job and is_client:
                 from accounts.models import JobWorkerAssignment
@@ -4913,13 +5056,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     # Check if still pending review
                     if worker_account_id not in reviewed_worker_account_ids:
                         pending_team_workers.append({
-                            "worker_id": a.workerID.id,
+                            "worker_id": a.workerID.pk,
                             "account_id": worker_account_id,
                             "name": worker_name,
                             "avatar": worker_profile.profileImg,
                             "skill": a.skillSlotID.specializationID.specializationName if a.skillSlotID else None,
                         })
                 
+                total_team_workers = len(all_assignments)
                 all_team_workers_reviewed = len(pending_team_workers) == 0
             
             # Check if both parties have now submitted reviews
@@ -4928,12 +5072,21 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             job_completed = False
             # For team jobs: completed when all workers reviewed AND all workers have reviewed client
             if job.is_team_job:
+                from accounts.models import JobWorkerAssignment
+
+                # Use actual assigned workers for this started team run.
+                # This avoids blocking completion when jobs started with partial teams.
+                expected_worker_count = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).values('workerID').distinct().count()
+
                 # Count client reviews (one per worker)
                 client_reviews = JobReview.objects.filter(jobID=job, reviewerType="CLIENT").count()
                 worker_reviews = JobReview.objects.filter(jobID=job, reviewerType="WORKER").count()
-                total_workers = job.total_workers_needed
+                total_workers = expected_worker_count
                 
-                if client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
+                if total_workers > 0 and client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
                     job.status = "COMPLETED"
                     job.completedAt = timezone.now()
                     job.save()
@@ -4980,8 +5133,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     "reviewed_worker_name": reviewed_worker_name,
                     "pending_team_workers": pending_team_workers,
                     "all_team_workers_reviewed": all_team_workers_reviewed,
-                    "total_team_workers": job.total_workers_needed,
-                    "reviewed_count": job.total_workers_needed - len(pending_team_workers)
+                    "total_team_workers": total_team_workers,
+                    "reviewed_count": max(0, total_team_workers - len(pending_team_workers))
                 })
             
             return response
@@ -5620,6 +5773,21 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 {"error": "Only the client who posted this job can request a backjob"},
                 status=403
             )
+
+        # Anti-abuse guard: limit concurrent active backjob requests per client
+        active_backjob_count = JobDispute.objects.filter(
+            jobID__clientID__profileID__accountFK=request.auth,
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+        ).count()
+        if active_backjob_count >= 3:
+            return Response(
+                {
+                    "error": "Backjob request limit reached. You can only have up to 3 active backjob requests at a time.",
+                    "active_backjob_count": active_backjob_count,
+                    "max_active_backjobs": 3,
+                },
+                status=429,
+            )
         
         # Check if a dispute/backjob already exists for this job
         existing_dispute = JobDispute.objects.filter(jobID=job).first()
@@ -6179,8 +6347,10 @@ def complete_backjob(request, job_id: int, notes: str = Form(default="")):
     
     This endpoint is kept for backward compatibility but redirects to mark-complete.
     """
+    if notes:
+        print(f"⚠️ Deprecated complete-backjob endpoint received notes for job {job_id}: {notes}")
     print(f"⚠️ Deprecated complete-backjob endpoint called for job {job_id}. Use new 3-phase workflow.")
-    return mark_backjob_complete(request, job_id, notes)
+    return mark_backjob_complete(request, job_id)
 
 #endregion
 

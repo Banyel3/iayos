@@ -75,6 +75,7 @@ const STATUS_CONFIG = {
 const REASON_CONFIG: Record<string, { color: string }> = {
   spam: { color: "bg-orange-100 text-orange-700" },
   inappropriate: { color: "bg-red-100 text-red-700" },
+  fraud: { color: "bg-purple-100 text-purple-700" },
   scam: { color: "bg-purple-100 text-purple-700" },
   harassment: { color: "bg-pink-100 text-pink-700" },
   other: { color: "bg-gray-100 text-gray-700" },

@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Send,
@@ -81,6 +83,9 @@ export default function TicketDetailPage() {
   const [sending, setSending] = useState(false);
   const [editingSubject, setEditingSubject] = useState(false);
   const [newSubject, setNewSubject] = useState("");
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closeResolutionNote, setCloseResolutionNote] = useState("");
+  const [closingTicket, setClosingTicket] = useState(false);
 
   useEffect(() => {
     if (ticketId) {
@@ -163,7 +168,7 @@ export default function TicketDetailPage() {
 
   const handleUpdateStatus = async (newStatus: string) => {
     try {
-      await fetch(
+      const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/status`,
         {
           method: "PUT",
@@ -172,15 +177,22 @@ export default function TicketDetailPage() {
           body: JSON.stringify({ status: newStatus }),
         },
       );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "Failed to update status");
+        return;
+      }
+      toast.success("Ticket status updated");
       fetchTicketDetail();
     } catch (error) {
       console.error("Error updating status:", error);
+      toast.error("Failed to update status");
     }
   };
 
   const handleUpdatePriority = async (newPriority: string) => {
     try {
-      await fetch(
+      const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/priority`,
         {
           method: "PUT",
@@ -189,29 +201,52 @@ export default function TicketDetailPage() {
           body: JSON.stringify({ priority: newPriority }),
         },
       );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "Failed to update priority");
+        return;
+      }
+      toast.success("Ticket priority updated");
       fetchTicketDetail();
     } catch (error) {
       console.error("Error updating priority:", error);
+      toast.error("Failed to update priority");
     }
   };
 
   const handleCloseTicket = async () => {
-    const resolution = prompt("Enter resolution note:");
-    if (!resolution) return;
+    if (closeResolutionNote.trim().length < 10) {
+      toast.error("Resolution note must be at least 10 characters");
+      return;
+    }
 
+    setClosingTicket(true);
     try {
-      await fetch(
+      const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets/${ticketId}/close`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ resolution_note: resolution }),
+          body: JSON.stringify({ resolution_note: closeResolutionNote.trim() }),
         },
       );
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "Failed to close ticket");
+        return;
+      }
+
+      toast.success("Ticket closed successfully");
+      setShowCloseModal(false);
+      setCloseResolutionNote("");
       fetchTicketDetail();
     } catch (error) {
       console.error("Error closing ticket:", error);
+      toast.error("Failed to close ticket");
+    } finally {
+      setClosingTicket(false);
     }
   };
 
@@ -406,7 +441,10 @@ export default function TicketDetailPage() {
                       </div>
 
                       <div className="flex gap-2">
-                        <Button variant="outline" onClick={handleCloseTicket}>
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowCloseModal(true)}
+                        >
                           Close Ticket
                         </Button>
                         <Button
@@ -551,6 +589,47 @@ export default function TicketDetailPage() {
           </div>
         </div>
       </main>
+
+      {showCloseModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Close Ticket</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Add a resolution note (minimum 10 characters). This will be recorded in ticket history.
+            </p>
+            <Textarea
+              value={closeResolutionNote}
+              onChange={(e) => setCloseResolutionNote(e.target.value)}
+              placeholder="Explain how this ticket was resolved..."
+              className="min-h-[120px]"
+            />
+            <div className="mt-2 text-xs text-gray-500">
+              {closeResolutionNote.trim().length}/10 minimum characters
+            </div>
+            <div className="mt-6 flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  if (closingTicket) return;
+                  setShowCloseModal(false);
+                  setCloseResolutionNote("");
+                }}
+                disabled={closingTicket}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleCloseTicket}
+                disabled={closingTicket || closeResolutionNote.trim().length < 10}
+              >
+                {closingTicket ? "Closing..." : "Confirm Close"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

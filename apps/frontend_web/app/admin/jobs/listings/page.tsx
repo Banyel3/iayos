@@ -63,6 +63,7 @@ export default function JobListingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const mainClass = useMainContentClass("p-8 min-h-screen");
@@ -114,6 +115,7 @@ export default function JobListingsPage() {
     }
 
     try {
+      setDeletingJobId(jobId);
       const response = await fetch(
         `${API_BASE}/api/adminpanel/jobs/listings/${jobId}`,
         {
@@ -132,6 +134,8 @@ export default function JobListingsPage() {
     } catch (error) {
       console.error("Error deleting job:", error);
       toast.error(getErrorMessage(error, "Failed to delete job"));
+    } finally {
+      setDeletingJobId(null);
     }
   };
 
@@ -463,10 +467,11 @@ export default function JobListingsPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => deleteJob(job.id, job.title)}
+                        disabled={deletingJobId === job.id}
                         className="w-full border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all text-xs sm:text-sm"
                       >
                         <Trash2 className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
-                        Delete
+                        {deletingJobId === job.id ? "Deleting..." : "Delete"}
                       </Button>
                     </div>
                   </div>
