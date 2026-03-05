@@ -210,6 +210,7 @@ export default function CreateJobScreen() {
   const [durationDays, setDurationDays] = useState("");
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
   const [materialInput, setMaterialInput] = useState("");
+  const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
 
   // Skill slots for worker requirements (unified model for all job types)
@@ -810,11 +811,14 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please select a start date for the job");
       return;
     }
-    if (!scheduledEndDate) {
+
+    const finalEndDate = isOneDayJob ? startDate : scheduledEndDate;
+
+    if (!finalEndDate) {
       Alert.alert("Error", "Please select an end date for the job");
       return;
     }
-    if (scheduledEndDate < startDate) {
+    if (finalEndDate < startDate) {
       Alert.alert("Error", "End date cannot be before start date");
       return;
     }
@@ -874,8 +878,8 @@ export default function CreateJobScreen() {
       preferred_start_date: startDate
         ? startDate.toISOString().split("T")[0]
         : undefined,
-      scheduled_end_date: scheduledEndDate
-        ? scheduledEndDate.toISOString().split("T")[0]
+      scheduled_end_date: finalEndDate
+        ? finalEndDate.toISOString().split("T")[0]
         : undefined,
       downpayment_method: "WALLET", // Jobs only use Wallet payment
       // Universal job fields for ML accuracy - explicitly passed
@@ -1638,236 +1642,252 @@ export default function CreateJobScreen() {
                 </View>
               )}
             </View>
-
             {/* Job Options Section */}
             <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="settings" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
-              </View>
-
-              {/* Skill Level Required */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Skill Level Required</Text>
-                <View style={styles.urgencyRow}>
-                  {(
-                    [
-                      { value: "ENTRY", label: "Entry" },
-                      { value: "INTERMEDIATE", label: "Intermediate" },
-                      { value: "EXPERT", label: "Expert" },
-                    ] as const
-                  ).map((level) => (
-                    <TouchableOpacity
-                      key={level.value}
-                      style={[
-                        styles.urgencyButton,
-                        skillLevel === level.value && styles.urgencyButtonActive,
-                      ]}
-                      onPress={() => setSkillLevel(skillLevel === level.value ? null : level.value)}
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyText,
-                          skillLevel === level.value &&
-                          styles.urgencyTextActive,
-                        ]}
-                      >
-                        {level.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              <TouchableOpacity
+                style={[styles.sectionTitle, { justifyContent: 'space-between' }]}
+                onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="settings" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
                 </View>
-              </View>
-
-              {/* Job Scope */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Scope</Text>
-                <View style={styles.urgencyRow}>
-                  {(
-                    [
-                      { value: "MINOR_REPAIR", label: "Minor" },
-                      { value: "MODERATE_PROJECT", label: "Moderate" },
-                      { value: "MAJOR_RENOVATION", label: "Major" },
-                    ] as const
-                  ).map((scope) => (
-                    <TouchableOpacity
-                      key={scope.value}
-                      style={[
-                        styles.urgencyButton,
-                        jobScope === scope.value && styles.urgencyButtonActive,
-                      ]}
-                      onPress={() => setJobScope(jobScope === scope.value ? null : scope.value)}
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyText,
-                          jobScope === scope.value && styles.urgencyTextActive,
-                        ]}
-                      >
-                        {scope.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Work Environment */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Work Environment</Text>
-                <View style={styles.urgencyRow}>
-                  {(
-                    [
-                      { value: "INDOOR", label: "Indoor" },
-                      { value: "OUTDOOR", label: "Outdoor" },
-                      { value: "BOTH", label: "Both" },
-                    ] as const
-                  ).map((env) => (
-                    <TouchableOpacity
-                      key={env.value}
-                      style={[
-                        styles.urgencyButton,
-                        workEnvironment === env.value && styles.urgencyButtonActive,
-                      ]}
-                      onPress={() => setWorkEnvironment(workEnvironment === env.value ? null : env.value)}
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyText,
-                          workEnvironment === env.value &&
-                          styles.urgencyTextActive,
-                        ]}
-                      >
-                        {env.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            {/* Materials Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="construct" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
-              </View>
-
-              {/* Manual Material Input */}
-              <View style={styles.materialInputRow}>
-                <TextInput
-                  style={styles.materialInput}
-                  placeholder="Add a material (e.g. 5 bags of cement)"
-                  value={materialInput}
-                  onChangeText={setMaterialInput}
-                  placeholderTextColor={Colors.textHint}
-                  onSubmitEditing={() => {
-                    if (materialInput.trim()) {
-                      setManualMaterials(prev => [...prev, materialInput.trim()]);
-                      setMaterialInput("");
-                    }
-                  }}
+                <Ionicons
+                  name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={Colors.primary}
                 />
-                <TouchableOpacity
-                  style={styles.materialAddBtn}
-                  onPress={() => {
-                    if (materialInput.trim()) {
-                      setManualMaterials(prev => [...prev, materialInput.trim()]);
-                      setMaterialInput("");
-                    }
-                  }}
-                >
-                  <Ionicons name="add" size={24} color={Colors.white} />
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
 
-              {/* Material Suggestions from DB */}
-              <SuggestionBubbles
-                suggestions={materialSuggestions}
-                onSelect={(text) => {
-                  if (!manualMaterials.includes(text)) {
-                    setManualMaterials(prev => [...prev, text]);
-                  }
-                }}
-                isLoading={loadingSuggestionFields.has('materials')}
-                label="Common materials"
-                icon="construct-outline"
-                showFrequency
-              />
+              {isJobOptionsExpanded && (
+                <View>
 
-              {/* Manual Materials List */}
-              {manualMaterials.length > 0 && (
-                <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
-                  {manualMaterials.map((item, index) => (
-                    <View key={`manual-${index}`} style={styles.manualMaterialTag}>
-                      <Text style={styles.manualMaterialText}>{item}</Text>
-                      <TouchableOpacity
-                        onPress={() => setManualMaterials(prev => prev.filter((_, i) => i !== index))}
-                      >
-                        <Ionicons name="close-circle" size={18} color={Colors.error} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
 
-              {/* Worker Materials (if selected) */}
-              {workerId && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Select from Worker's List:</Text>
-                  {materialsLoading ? (
-                    <View style={styles.loadingCategories}>
-                      <ActivityIndicator size="small" color={Colors.primary} />
-                      <Text style={styles.loadingText}>Loading materials...</Text>
-                    </View>
-                  ) : workerMaterials.length > 0 ? (
-                    <View style={styles.materialsContainer}>
-                      {workerMaterials.map((material) => (
+                  {/* Skill Level Required */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Skill Level Required</Text>
+                    <View style={styles.urgencyRow}>
+                      {(
+                        [
+                          { value: "ENTRY", label: "Entry" },
+                          { value: "INTERMEDIATE", label: "Intermediate" },
+                          { value: "EXPERT", label: "Expert" },
+                        ] as const
+                      ).map((level) => (
                         <TouchableOpacity
-                          key={material.id}
+                          key={level.value}
                           style={[
-                            styles.materialCard,
-                            selectedMaterials.includes(material.id) &&
-                            styles.materialCardSelected,
+                            styles.urgencyButton,
+                            skillLevel === level.value && styles.urgencyButtonActive,
                           ]}
-                          onPress={() => {
-                            setSelectedMaterials((prev) =>
-                              prev.includes(material.id)
-                                ? prev.filter((id) => id !== material.id)
-                                : [...prev, material.id],
-                            );
-                          }}
+                          onPress={() => setSkillLevel(skillLevel === level.value ? null : level.value)}
                         >
-                          <View style={styles.materialCardContent}>
-                            <View style={styles.materialInfo}>
-                              <Text style={styles.materialName}>{material.name}</Text>
-                              {material.description && (
-                                <Text style={styles.materialDesc} numberOfLines={1}>
-                                  {material.description}
-                                </Text>
-                              )}
-                              <Text style={styles.materialPrice}>
-                                ₱{material.price.toLocaleString()} / {material.priceUnit}
-                              </Text>
-                            </View>
-                            <View style={[
-                              styles.materialCheckbox,
-                              selectedMaterials.includes(material.id) && styles.materialCheckboxSelected
-                            ]}>
-                              {selectedMaterials.includes(material.id) && (
-                                <Ionicons name="checkmark" size={16} color={Colors.white} />
-                              )}
-                            </View>
-                          </View>
+                          <Text
+                            style={[
+                              styles.urgencyText,
+                              skillLevel === level.value &&
+                              styles.urgencyTextActive,
+                            ]}
+                          >
+                            {level.label}
+                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>
-                  ) : (
-                    <Text style={styles.hint}>
-                      {workerId
-                        ? "This worker has no materials listed"
-                        : "This agency has no materials listed"}
-                    </Text>
-                  )}
+                  </View>
+
+                  {/* Job Scope */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Job Scope</Text>
+                    <View style={styles.urgencyRow}>
+                      {(
+                        [
+                          { value: "MINOR_REPAIR", label: "Minor" },
+                          { value: "MODERATE_PROJECT", label: "Moderate" },
+                          { value: "MAJOR_RENOVATION", label: "Major" },
+                        ] as const
+                      ).map((scope) => (
+                        <TouchableOpacity
+                          key={scope.value}
+                          style={[
+                            styles.urgencyButton,
+                            jobScope === scope.value && styles.urgencyButtonActive,
+                          ]}
+                          onPress={() => setJobScope(jobScope === scope.value ? null : scope.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.urgencyText,
+                              jobScope === scope.value && styles.urgencyTextActive,
+                            ]}
+                          >
+                            {scope.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Work Environment */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Work Environment</Text>
+                    <View style={styles.urgencyRow}>
+                      {(
+                        [
+                          { value: "INDOOR", label: "Indoor" },
+                          { value: "OUTDOOR", label: "Outdoor" },
+                          { value: "BOTH", label: "Both" },
+                        ] as const
+                      ).map((env) => (
+                        <TouchableOpacity
+                          key={env.value}
+                          style={[
+                            styles.urgencyButton,
+                            workEnvironment === env.value && styles.urgencyButtonActive,
+                          ]}
+                          onPress={() => setWorkEnvironment(workEnvironment === env.value ? null : env.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.urgencyText,
+                              workEnvironment === env.value &&
+                              styles.urgencyTextActive,
+                            ]}
+                          >
+                            {env.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Materials Section */}
+                  <View style={{ marginTop: 16 }}>
+                    <View style={styles.sectionTitle}>
+                      <Ionicons name="construct" size={20} color={Colors.primary} />
+                      <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
+                    </View>
+
+                    {/* Manual Material Input */}
+                    <View style={styles.materialInputRow}>
+                      <TextInput
+                        style={styles.materialInput}
+                        placeholder="Add a material (e.g. 5 bags of cement)"
+                        value={materialInput}
+                        onChangeText={setMaterialInput}
+                        placeholderTextColor={Colors.textHint}
+                        onSubmitEditing={() => {
+                          if (materialInput.trim()) {
+                            setManualMaterials(prev => [...prev, materialInput.trim()]);
+                            setMaterialInput("");
+                          }
+                        }}
+                      />
+                      <TouchableOpacity
+                        style={styles.materialAddBtn}
+                        onPress={() => {
+                          if (materialInput.trim()) {
+                            setManualMaterials(prev => [...prev, materialInput.trim()]);
+                            setMaterialInput("");
+                          }
+                        }}
+                      >
+                        <Ionicons name="add" size={24} color={Colors.white} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Material Suggestions from DB */}
+                    <SuggestionBubbles
+                      suggestions={materialSuggestions}
+                      onSelect={(text) => {
+                        if (!manualMaterials.includes(text)) {
+                          setManualMaterials(prev => [...prev, text]);
+                        }
+                      }}
+                      isLoading={loadingSuggestionFields.has('materials')}
+                      label="Common materials"
+                      icon="construct-outline"
+                      showFrequency
+                    />
+
+                    {/* Manual Materials List */}
+                    {manualMaterials.length > 0 && (
+                      <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
+                        {manualMaterials.map((item, index) => (
+                          <View key={`manual-${index}`} style={styles.manualMaterialTag}>
+                            <Text style={styles.manualMaterialText}>{item}</Text>
+                            <TouchableOpacity
+                              onPress={() => setManualMaterials(prev => prev.filter((_, i) => i !== index))}
+                            >
+                              <Ionicons name="close-circle" size={18} color={Colors.error} />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Worker Materials (if selected) */}
+                    {workerId && (
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Select from Worker's List:</Text>
+                        {materialsLoading ? (
+                          <View style={styles.loadingCategories}>
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                            <Text style={styles.loadingText}>Loading materials...</Text>
+                          </View>
+                        ) : workerMaterials.length > 0 ? (
+                          <View style={styles.materialsContainer}>
+                            {workerMaterials.map((material) => (
+                              <TouchableOpacity
+                                key={material.id}
+                                style={[
+                                  styles.materialCard,
+                                  selectedMaterials.includes(material.id) &&
+                                  styles.materialCardSelected,
+                                ]}
+                                onPress={() => {
+                                  setSelectedMaterials((prev) =>
+                                    prev.includes(material.id)
+                                      ? prev.filter((id) => id !== material.id)
+                                      : [...prev, material.id],
+                                  );
+                                }}
+                              >
+                                <View style={styles.materialCardContent}>
+                                  <View style={styles.materialInfo}>
+                                    <Text style={styles.materialName}>{material.name}</Text>
+                                    {material.description && (
+                                      <Text style={styles.materialDesc} numberOfLines={1}>
+                                        {material.description}
+                                      </Text>
+                                    )}
+                                    <Text style={styles.materialPrice}>
+                                      ₱{material.price.toLocaleString()} / {material.priceUnit}
+                                    </Text>
+                                  </View>
+                                  <View style={[
+                                    styles.materialCheckbox,
+                                    selectedMaterials.includes(material.id) && styles.materialCheckboxSelected
+                                  ]}>
+                                    {selectedMaterials.includes(material.id) && (
+                                      <Ionicons name="checkmark" size={16} color={Colors.white} />
+                                    )}
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text style={styles.hint}>
+                            {workerId
+                              ? "This worker has no materials listed"
+                              : "This agency has no materials listed"}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
                 </View>
               )}
             </View>

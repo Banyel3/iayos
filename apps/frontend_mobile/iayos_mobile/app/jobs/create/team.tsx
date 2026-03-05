@@ -114,6 +114,7 @@ export default function CreateTeamJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [materials, setMaterials] = useState<string[]>([]);
+  const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
   const [materialInput, setMaterialInput] = useState("");
 
   // Universal job fields for ML accuracy (same as single job form)
@@ -1038,13 +1039,27 @@ export default function CreateTeamJobScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-
-            {/* Job Scope & Work Environment (for ML accuracy) */}
+            {/* Job Options Section */}
             <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="stats-chart" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>Job Details (Optional)</Text>
-              </View>
+              <TouchableOpacity 
+                style={[styles.sectionTitle, { justifyContent: 'space-between' }]}
+                onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="settings" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
+                </View>
+                <Ionicons 
+                  name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color={Colors.primary} 
+                />
+              </TouchableOpacity>
+
+              {isJobOptionsExpanded && (
+                <View>
+
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Job Scope</Text>
@@ -1109,10 +1124,9 @@ export default function CreateTeamJobScreen() {
                   ))}
                 </View>
               </View>
-            </View>
 
             {/* Materials */}
-            <View style={styles.section}>
+            <View style={{marginTop: 16}}>
               <View style={styles.sectionTitle}>
                 <Ionicons name="construct" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
@@ -1156,7 +1170,11 @@ export default function CreateTeamJobScreen() {
               )}
             </View>
           </View>
-        </ScrollView>
+        )}
+      </View>
+
+    </View>
+  </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity
