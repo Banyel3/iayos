@@ -15,6 +15,8 @@ from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
+from datetime import timedelta
 
 
 router = Router()
@@ -37,6 +39,29 @@ def _get_user_profile(request) -> Profile:
         return profile
 
     raise Profile.DoesNotExist
+
+
+def _is_testing_mode_enabled() -> bool:
+    if not bool(getattr(settings, "TESTING", False)):
+        return False
+
+    environment = str(getattr(settings, "ENVIRONMENT", "")).strip().lower()
+    if environment in ["production", "prod", "live"]:
+        return False
+
+    return True
+
+
+def _get_effective_work_date(job):
+    base_date = timezone.now().date()
+    if not _is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 # ============================================================
 # DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
@@ -1810,9 +1835,12 @@ def get_conversation_messages(request, conversation_id: int):
         # Get today's attendance for daily-rate jobs (DAILY payment model)
         attendance_today = []
         daily_skip_requests_today = []
+        effective_work_date = timezone.now().date()
+        qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
         if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
             from accounts.models import DailyAttendance, DailySkipDayRequest
-            today = timezone.now().date()
+            today = _get_effective_work_date(job)
+            effective_work_date = today
             
             # Query attendance records for today
             attendance_records = DailyAttendance.objects.filter(
@@ -2000,6 +2028,9 @@ def get_conversation_messages(request, conversation_id: int):
             "backjob": backjob_info,
             "attendance_today": attendance_today,  # Daily attendance records for DAILY jobs
             "daily_skip_requests_today": daily_skip_requests_today,
+            "effective_work_date": effective_work_date.isoformat(),
+            "qa_day_offset": qa_day_offset,
+            "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
             "job_materials": job_materials_list,

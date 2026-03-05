@@ -202,6 +202,9 @@ export type ConversationDetail = {
     my_worker_requested?: boolean;
     client_rejection_reason?: string | null;
   }>;
+  effective_work_date?: string;
+  qa_day_offset?: number;
+  qa_testing_mode?: boolean;
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;

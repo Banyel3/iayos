@@ -1380,6 +1380,10 @@ class Job(models.Model):
         default=0,
         help_text="Total days worked across all workers"
     )
+    qa_day_offset = models.IntegerField(
+        default=0,
+        help_text="TESTING-only day offset for QA fast-forward on DAILY jobs"
+    )
     daily_escrow_total = models.DecimalField(
         max_digits=12,
         decimal_places=2,

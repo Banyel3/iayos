@@ -280,3 +280,8 @@ class ReviewSkipDaySchema(Schema):
     """Schema for client review of a skip-day request"""
     action: str  # approve | reject
     reason: Optional[str] = None
+
+
+class QASkipNextDaySchema(Schema):
+    """Schema for TESTING-only QA skip-to-next-day action"""
+    reason: Optional[str] = None
