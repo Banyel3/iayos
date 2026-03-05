@@ -379,14 +379,14 @@ export default function ClientDetailScreen() {
         </View>
 
         {/* Description Section */}
-        {client.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <View style={styles.card}>
-              <Text style={styles.descriptionText}>{client.description}</Text>
-            </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <View style={styles.card}>
+            <Text style={styles.descriptionText}>
+              {client.description || "I’m just looking for reliable workers to help with some tasks."}
+            </Text>
           </View>
-        )}
+        </View>
 
         {/* Reviews Section - Collapsible */}
         <View style={styles.section}>

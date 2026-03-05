@@ -83,7 +83,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "What are the platform fees?",
-        a: "The platform charges a 5% fee on the downpayment portion. The remaining 50% at completion has no additional fees.",
+        a: "The platform charges a 10% fee on the downpayment portion. The remaining 50% at completion has no additional fees.",
       },
       {
         q: "How long do withdrawals take?",

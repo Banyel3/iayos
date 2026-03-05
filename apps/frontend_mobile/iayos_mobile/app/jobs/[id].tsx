@@ -123,10 +123,10 @@ interface JobDetail {
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
   budget_allocation_type?:
-    | "EQUAL_PER_SKILL"
-    | "EQUAL_PER_WORKER"
-    | "MANUAL"
-    | "SKILL_WEIGHTED";
+  | "EQUAL_PER_SKILL"
+  | "EQUAL_PER_WORKER"
+  | "MANUAL"
+  | "SKILL_WEIGHTED";
   team_fill_percentage?: number;
   total_workers_needed?: number;
   total_workers_assigned?: number;
@@ -371,19 +371,19 @@ export default function JobDetailScreen() {
         status: jobData.status,
         postedBy: jobData.client
           ? {
-              id: jobData.client.id,
-              name: jobData.client.name,
-              avatar: jobData.client.avatar || null,
-              rating: jobData.client.rating ?? 0,
-              phone: jobData.client.phone || null,
-            }
+            id: jobData.client.id,
+            name: jobData.client.name,
+            avatar: jobData.client.avatar || null,
+            rating: jobData.client.rating ?? 0,
+            phone: jobData.client.phone || null,
+          }
           : {
-              id: -1,
-              name: "Unknown Client",
-              avatar: null,
-              rating: 0,
-              phone: null,
-            },
+            id: -1,
+            name: "Unknown Client",
+            avatar: null,
+            rating: 0,
+            phone: null,
+          },
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
@@ -400,31 +400,31 @@ export default function JobDetailScreen() {
         jobType: jobData.job_type,
         assignedWorker: jobData.assigned_worker
           ? {
-              id: jobData.assigned_worker.id,
-              name: jobData.assigned_worker.name,
-              avatar: jobData.assigned_worker.avatar || null,
-              rating: jobData.assigned_worker.rating ?? 0,
-              phone: jobData.assigned_worker.phone || null,
-            }
+            id: jobData.assigned_worker.id,
+            name: jobData.assigned_worker.name,
+            avatar: jobData.assigned_worker.avatar || null,
+            rating: jobData.assigned_worker.rating ?? 0,
+            phone: jobData.assigned_worker.phone || null,
+          }
           : null,
         assignedAgency: jobData.assigned_agency
           ? {
-              id: jobData.assigned_agency.id,
-              name: jobData.assigned_agency.name,
-              logo: jobData.assigned_agency.logo || null,
-              rating: jobData.assigned_agency.rating ?? 0,
-              workers_assigned: jobData.assigned_agency.workers_assigned ?? 0,
-            }
+            id: jobData.assigned_agency.id,
+            name: jobData.assigned_agency.name,
+            logo: jobData.assigned_agency.logo || null,
+            rating: jobData.assigned_agency.rating ?? 0,
+            workers_assigned: jobData.assigned_agency.workers_assigned ?? 0,
+          }
           : null,
         reviews: jobData.reviews
           ? {
-              clientToWorker: jobData.reviews.client_to_worker
-                ? mapReview(jobData.reviews.client_to_worker)
-                : undefined,
-              workerToClient: jobData.reviews.worker_to_client
-                ? mapReview(jobData.reviews.worker_to_client)
-                : undefined,
-            }
+            clientToWorker: jobData.reviews.client_to_worker
+              ? mapReview(jobData.reviews.client_to_worker)
+              : undefined,
+            workerToClient: jobData.reviews.worker_to_client
+              ? mapReview(jobData.reviews.worker_to_client)
+              : undefined,
+          }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
         // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
@@ -451,8 +451,8 @@ export default function JobDetailScreen() {
         daily_rate:
           jobData.daily_rate_agreed ??
           (jobData.payment_model === "DAILY" &&
-          jobData.budget &&
-          jobData.duration_days
+            jobData.budget &&
+            jobData.duration_days
             ? jobData.budget / jobData.duration_days
             : undefined),
         duration_days: jobData.duration_days,
@@ -885,20 +885,20 @@ export default function JobDetailScreen() {
   const computedWorkersNeeded =
     isTeamJob && job?.skill_slots?.length
       ? job.skill_slots.reduce(
-          (sum, slot) => sum + (slot.workers_needed || 0),
-          0,
-        )
+        (sum, slot) => sum + (slot.workers_needed || 0),
+        0,
+      )
       : job?.total_workers_needed || 0;
   const computedWorkersAssigned =
     isTeamJob && job?.skill_slots?.length
       ? job.skill_slots.reduce(
-          (sum, slot) =>
-            sum +
-            (slot.status === "FILLED"
-              ? slot.workers_needed
-              : slot.workers_assigned || 0),
-          0,
-        )
+        (sum, slot) =>
+          sum +
+          (slot.status === "FILLED"
+            ? slot.workers_needed
+            : slot.workers_assigned || 0),
+        0,
+      )
       : job?.total_workers_assigned || 0;
   const computedFillPercentage =
     computedWorkersNeeded > 0
@@ -1659,13 +1659,13 @@ export default function JobDetailScreen() {
         {/* ML Estimated Completion Time */}
         {(isLoading ||
           (job.estimatedCompletion && job.status !== "COMPLETED")) && (
-          <View style={styles.section}>
-            <EstimatedTimeCard
-              prediction={job?.estimatedCompletion || null}
-              isLoading={isLoading}
-            />
-          </View>
-        )}
+            <View style={styles.section}>
+              <EstimatedTimeCard
+                prediction={job?.estimatedCompletion || null}
+                isLoading={isLoading}
+              />
+            </View>
+          )}
 
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
@@ -2301,11 +2301,11 @@ export default function JobDetailScreen() {
                           style={[
                             styles.applicationStatusBadge,
                             application.status === "PENDING" &&
-                              styles.statusPending,
+                            styles.statusPending,
                             application.status === "ACCEPTED" &&
-                              styles.statusAccepted,
+                            styles.statusAccepted,
                             application.status === "REJECTED" &&
-                              styles.statusRejected,
+                            styles.statusRejected,
                           ]}
                         >
                           <Text style={styles.applicationStatusText}>
@@ -2517,8 +2517,8 @@ export default function JobDetailScreen() {
 
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
-        job.status === "IN_PROGRESS" ||
-        job.status === "COMPLETED" ? (
+          job.status === "IN_PROGRESS" ||
+          job.status === "COMPLETED" ? (
           <>
             {/* Client Section - clickable for workers */}
             <View style={styles.section}>
@@ -2964,14 +2964,6 @@ export default function JobDetailScreen() {
       {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
       {isWorker && job?.jobType !== "INVITE" && (
         <View style={styles.applyButtonContainer}>
-          {!user?.kycVerified && (
-            <View style={styles.kycWarningBanner}>
-              <Ionicons name="warning" size={20} color={Colors.warning} />
-              <Text style={styles.kycWarningText}>
-                Complete KYC verification to apply for jobs
-              </Text>
-            </View>
-          )}
           {hasApplied ? (
             <View style={styles.appliedContainer}>
               <View style={styles.appliedRow}>
@@ -3004,7 +2996,7 @@ export default function JobDetailScreen() {
               style={[
                 styles.applyButton,
                 (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonDisabled,
+                styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
@@ -3014,7 +3006,7 @@ export default function JobDetailScreen() {
                 style={[
                   styles.applyButtonText,
                   (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonTextDisabled,
+                  styles.applyButtonTextDisabled,
                 ]}
               >
                 {!user?.kycVerified

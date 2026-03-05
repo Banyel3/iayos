@@ -91,8 +91,8 @@ tags:
 - tapOn:
     id: "bio-input"
     optional: true
-      - text: "Hourly Rate"
-      - text: "₱/hr"
+      - text: "Daily Rate"
+      - text: "₱/day"
     optional: true
 
 - inputText: "150"

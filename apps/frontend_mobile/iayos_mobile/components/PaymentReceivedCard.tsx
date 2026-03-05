@@ -67,7 +67,7 @@ export default function PaymentReceivedCard({
         </View>
 
         <View style={styles.breakdownRow}>
-          <Text style={styles.feeLabel}>Platform Fee (5%)</Text>
+          <Text style={styles.feeLabel}>Platform Fee (10%)</Text>
           <Text style={styles.feeValue}>-₱{formatAmount(platformFee)}</Text>
         </View>
 

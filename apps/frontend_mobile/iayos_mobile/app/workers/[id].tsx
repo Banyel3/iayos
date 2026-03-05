@@ -13,7 +13,7 @@
  * - Create job request button
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -26,7 +26,10 @@ import {
   Alert,
   Platform,
   ActionSheetIOS,
+  Animated,
+  Easing,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -48,7 +51,6 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useWorkerReviews } from "@/lib/hooks/useReviews";
 import { useSubmitReport } from "@/lib/hooks/useReports";
-import { VerificationBadge } from "@/components/VerificationBadge";
 
 interface Skill {
   id: number; // workerSpecialization ID
@@ -156,33 +158,33 @@ const WorkerDetailSkeleton = () => {
         </View>
 
         {/* Stats Skeleton */}
-        <View style={styles.statsSection}>
-          <View style={styles.statItem}>
-            <View style={[styles.skeletonBox, { width: 40, height: 28 }]} />
+        <View style={styles.statsRow}>
+          <View style={styles.statsRowItem}>
+            <View style={[styles.skeletonBox, { width: 40, height: 20 }]} />
             <View
               style={[
                 styles.skeletonBox,
-                { width: 60, height: 14, marginTop: 4 },
+                { width: 60, height: 12, marginTop: 4 },
               ]}
             />
           </View>
-          <View style={styles.divider} />
-          <View style={styles.statItem}>
-            <View style={[styles.skeletonBox, { width: 60, height: 28 }]} />
+          <View style={styles.statsRowDivider} />
+          <View style={styles.statsRowItem}>
+            <View style={[styles.skeletonBox, { width: 60, height: 20 }]} />
             <View
               style={[
                 styles.skeletonBox,
-                { width: 50, height: 14, marginTop: 4 },
+                { width: 50, height: 12, marginTop: 4 },
               ]}
             />
           </View>
-          <View style={styles.divider} />
-          <View style={styles.statItem}>
-            <View style={[styles.skeletonBox, { width: 30, height: 28 }]} />
+          <View style={styles.statsRowDivider} />
+          <View style={styles.statsRowItem}>
+            <View style={[styles.skeletonBox, { width: 30, height: 20 }]} />
             <View
               style={[
                 styles.skeletonBox,
-                { width: 40, height: 14, marginTop: 4 },
+                { width: 40, height: 12, marginTop: 4 },
               ]}
             />
           </View>
@@ -286,6 +288,7 @@ export default function WorkerDetailScreen() {
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
+  const [showScoreDetails, setShowScoreDetails] = useState(false);
   const submitReportMutation = useSubmitReport();
 
   // Lightbox state for certificate images
@@ -462,7 +465,8 @@ export default function WorkerDetailScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ paddingBottom: 120, flexGrow: 1 }}
+          style={{ backgroundColor: "#F0F7FF" }} // Match Ice Blue theme
         >
           {/* Self-View Banner */}
           {isOwnProfile && (
@@ -492,16 +496,17 @@ export default function WorkerDetailScreen() {
               )}
               {data.verified && (
                 <View style={styles.verifiedBadge}>
-                  <VerificationBadge
-                    level={data.verificationLevel || 1}
-                    variant="badge"
-                    size={20}
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
                   />
                 </View>
               )}
             </View>
 
-            <Text style={styles.name}>{fullName}</Text>
+            <Text style={styles.name}>{data.specializations?.[0] || "General Worker"}</Text>
+            <Text style={styles.identityNameSub}>{fullName}</Text>
 
             {/* Rating */}
             <View style={styles.ratingContainer}>
@@ -512,867 +517,792 @@ export default function WorkerDetailScreen() {
               </Text>
             </View>
 
-            {/* Location */}
-            {(data.city || data.province) && (
-              <View style={styles.locationRow}>
-                <Ionicons
-                  name="location"
-                  size={16}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.locationText}>
-                  {[data.city, data.province].filter(Boolean).join(", ")}
+            {/* Profile Statistics Row */}
+            <View style={styles.statsRow}>
+              <View style={styles.statsRowItem}>
+                <Ionicons name="briefcase-outline" size={14} color="#00BAF1" />
+                <Text style={styles.statsRowValue}>
+                  {data.completedJobs} ({data.completionRate.toFixed(0)}%)
                 </Text>
-                {data.distance && (
-                  <Text style={styles.distanceText}>
-                    • {data.distance.toFixed(1)}km away
-                  </Text>
+                <Text style={styles.statsRowLabel}>Jobs Done</Text>
+              </View>
+              <View style={styles.statsRowDivider} />
+              <View style={styles.statsRowItem}>
+                <Ionicons name="time-outline" size={14} color="#00BAF1" />
+                <Text style={styles.statsRowValue}>{data.responseTime || "1h"}</Text>
+                <Text style={styles.statsRowLabel}>Response Time</Text>
+              </View>
+              <View style={styles.statsRowDivider} />
+              <View style={styles.statsRowItem}>
+                <Ionicons name="cash-outline" size={14} color="#00BAF1" />
+                <Text style={styles.statsRowValue}>₱{data.hourlyRate || "N/A"}</Text>
+                <Text style={styles.statsRowLabel}>Per Day</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.contentContainer}>
+
+            {/* AI Profile Score Section (Redesigned as Rectangle) */}
+            {profileScore && profileScore.profile_score !== null && (
+              <View style={[styles.section, styles.aiScoreRectangleContainer]}>
+                <TouchableOpacity
+                  style={styles.aiScoreRectangle}
+                  onPress={() => setShowScoreDetails(!showScoreDetails)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.aiScoreMainRow}>
+                    <View style={styles.aiScoreTextGroup}>
+                      <Text style={styles.mlScoreLabelAbove} numberOfLines={1}>AI PROFILE SCORE</Text>
+                      <Text style={styles.mlScoreLabelBelow}>
+                        {profileScore.rating_category.toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={[styles.mlScoreValueCompact, { color: getScoreColor(profileScore.profile_score) }]}>
+                      {profileScore.profile_score.toFixed(0)}<Text style={styles.mlScorePercentSymbol}>%</Text>
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {showScoreDetails && (
+                  <View style={styles.aiScoreDetailsInline}>
+                    <View style={styles.aiScoreTooltipDivider} />
+                    <Text style={styles.aiScoreDetailsText}>
+                      Based on profile completeness, certifications, and job history
+                    </Text>
+                  </View>
                 )}
               </View>
             )}
 
-            {/* Joined Date */}
-            <View style={styles.joinedRow}>
-              <Ionicons
-                name="calendar-outline"
-                size={14}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.joinedText}>
-                Joined {new Date(data.joinedDate).toLocaleDateString("en-US", {
-                  month: "long",
-                  year: "numeric"
-                })}
-              </Text>
-            </View>
-          </View>
-
-          {/* Bio */}
-          {data.bio && (
+            {/* Unified About Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>About</Text>
-              <Text style={styles.bioText}>{data.bio}</Text>
-            </View>
-          )}
 
-          {/* Stats Cards */}
-          <View style={styles.statsSection}>
-            <View style={styles.statItem}>
-              <Ionicons name="briefcase" size={24} color={Colors.primary} />
-              <Text style={styles.statValue}>{data.completedJobs}</Text>
-              <Text style={styles.statLabel}>Jobs Done</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statItem}>
-              <Ionicons name="time" size={24} color={Colors.primary} />
-              <Text style={styles.statValue}>{data.responseTime || "1h"}</Text>
-              <Text style={styles.statLabel}>Response Time</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statItem}>
-              <Ionicons name="cash" size={24} color={Colors.primary} />
-              <Text style={styles.statValue}>₱{data.hourlyRate || "N/A"}</Text>
-              <Text style={styles.statLabel}>Per Day</Text>
-            </View>
-          </View>
-
-          {/* ML Profile Score Card */}
-          {profileScore && profileScore.profile_score !== null && (
-            <View style={styles.section}>
-              <View
-                style={[
-                  styles.mlScoreCard,
-                  {
-                    borderLeftColor: getScoreColor(profileScore.profile_score),
-                  },
-                ]}
-              >
-                <View style={styles.mlScoreHeader}>
-                  <View style={styles.mlScoreLeft}>
-                    <Text style={styles.mlScoreLabel}>AI Profile Score</Text>
-                    <View style={styles.mlScoreRow}>
-                      <Text
-                        style={[
-                          styles.mlScoreValue,
-                          { color: getScoreColor(profileScore.profile_score) },
-                        ]}
-                      >
-                        {profileScore.profile_score.toFixed(0)}
-                      </Text>
-                      <Text style={styles.mlScoreMax}>/100</Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.mlCategoryBadge,
-                      {
-                        backgroundColor:
-                          getCategoryInfo(profileScore.rating_category).color +
-                          "20",
-                      },
-                    ]}
-                  >
-                    <Text style={styles.mlCategoryEmoji}>
-                      {getCategoryInfo(profileScore.rating_category).emoji}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.mlCategoryText,
-                        {
-                          color: getCategoryInfo(profileScore.rating_category)
-                            .color,
-                        },
-                      ]}
-                    >
-                      {profileScore.rating_category}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.mlScoreSubtext}>
-                  Based on profile completeness, certifications, and job history
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* Completion Rate Card */}
-          <View style={styles.section}>
-            <View style={styles.completionRateCard}>
-              <View style={styles.completionRateHeader}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={28}
-                  color={
-                    data.completionRate >= 90
-                      ? Colors.success
-                      : data.completionRate >= 70
-                        ? Colors.warning
-                        : Colors.error
-                  }
-                />
-                <View style={styles.completionRateInfo}>
-                  <Text style={styles.completionRateValue}>
-                    {data.completionRate.toFixed(1)}%
-                  </Text>
-                  <Text style={styles.completionRateLabel}>
-                    Job Completion Rate
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: `${data.completionRate}%`,
-                      backgroundColor:
-                        data.completionRate >= 90
-                          ? Colors.success
-                          : data.completionRate >= 70
-                            ? Colors.warning
-                            : Colors.error,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Reviews Section - Collapsible */}
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.collapsibleHeader}
-              onPress={() => setIsReviewsExpanded(!isReviewsExpanded)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.collapsibleTitleRow}>
-                <Ionicons name="star" size={22} color={Colors.warning} />
-                <Text style={styles.sectionTitle}>Reviews & Ratings</Text>
-                <View style={styles.reviewCountBadge}>
-                  <Text style={styles.reviewCountBadgeText}>
-                    {reviewsData?.total_count || data.reviewCount || 0}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name={isReviewsExpanded ? "chevron-up" : "chevron-down"}
-                size={24}
-                color={Colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            {isReviewsExpanded && (
-              <View style={styles.reviewsContent}>
-                {isLoadingReviews ? (
-                  <View style={styles.reviewsLoading}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.reviewsLoadingText}>
-                      Loading reviews...
-                    </Text>
-                  </View>
-                ) : reviewsData?.reviews && reviewsData.reviews.length > 0 ? (
-                  <>
-                    {reviewsData.reviews.map((review) => (
-                      <View key={review.review_id} style={styles.reviewCard}>
-                        <View style={styles.reviewHeader}>
-                          {review.reviewer_profile_img ? (
-                            <Image
-                              source={{ uri: review.reviewer_profile_img }}
-                              style={styles.reviewerAvatar}
-                            />
-                          ) : (
-                            <View
-                              style={[
-                                styles.reviewerAvatar,
-                                styles.reviewerAvatarPlaceholder,
-                              ]}
-                            >
-                              <Text style={styles.reviewerAvatarText}>
-                                {review.reviewer_name?.charAt(0) || "?"}
-                              </Text>
-                            </View>
-                          )}
-                          <View style={styles.reviewerInfo}>
-                            <Text style={styles.reviewerName}>
-                              {review.reviewer_name}
-                            </Text>
-                            <Text style={styles.reviewDate}>
-                              {new Date(review.created_at).toLocaleDateString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                }
-                              )}
-                            </Text>
-                          </View>
-                          <View style={styles.reviewRating}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Ionicons
-                                key={star}
-                                name={
-                                  star <= review.rating
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={14}
-                                color={
-                                  star <= review.rating
-                                    ? Colors.warning
-                                    : Colors.textHint
-                                }
-                              />
-                            ))}
-                          </View>
-                        </View>
-                        {review.comment && (
-                          <Text style={styles.reviewComment}>
-                            {review.comment}
-                          </Text>
-                        )}
-                      </View>
-                    ))}
-
-                    {/* Pagination */}
-                    {reviewsData.total_pages > 1 && (
-                      <View style={styles.reviewsPagination}>
-                        <TouchableOpacity
-                          style={[
-                            styles.paginationButton,
-                            reviewsPage === 1 &&
-                            styles.paginationButtonDisabled,
-                          ]}
-                          onPress={() =>
-                            setReviewsPage(Math.max(1, reviewsPage - 1))
-                          }
-                          disabled={reviewsPage === 1}
-                        >
-                          <Ionicons
-                            name="chevron-back"
-                            size={18}
-                            color={
-                              reviewsPage === 1
-                                ? Colors.textHint
-                                : Colors.primary
-                            }
-                          />
-                        </TouchableOpacity>
-                        <Text style={styles.paginationText}>
-                          {reviewsPage} of {reviewsData.total_pages}
-                        </Text>
-                        <TouchableOpacity
-                          style={[
-                            styles.paginationButton,
-                            reviewsPage === reviewsData.total_pages &&
-                            styles.paginationButtonDisabled,
-                          ]}
-                          onPress={() =>
-                            setReviewsPage(
-                              Math.min(reviewsData.total_pages, reviewsPage + 1)
-                            )
-                          }
-                          disabled={reviewsPage === reviewsData.total_pages}
-                        >
-                          <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={
-                              reviewsPage === reviewsData.total_pages
-                                ? Colors.textHint
-                                : Colors.primary
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Ionicons
-                      name="chatbubble-outline"
-                      size={48}
-                      color={Colors.textHint}
-                    />
-                    <Text style={styles.emptyStateText}>
-                      No reviews yet. Be the first to hire and review this
-                      worker!
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* Performance Ratings */}
-          {data.reviewCount > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Performance Ratings</Text>
-              <View style={styles.ratingsContainer}>
-                {/* Quality Rating */}
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Quality</Text>
-                  <View style={styles.ratingStarsContainer}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Ionicons
-                        key={star}
-                        name={
-                          star <= Math.round(data.qualityRating)
-                            ? "star"
-                            : "star-outline"
-                        }
-                        size={16}
-                        color={
-                          star <= Math.round(data.qualityRating)
-                            ? Colors.warning
-                            : Colors.textHint
-                        }
-                      />
-                    ))}
-                    <Text style={styles.ratingValue}>
-                      {data.qualityRating.toFixed(1)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Communication Rating */}
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Communication</Text>
-                  <View style={styles.ratingStarsContainer}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Ionicons
-                        key={star}
-                        name={
-                          star <= Math.round(data.communicationRating)
-                            ? "star"
-                            : "star-outline"
-                        }
-                        size={16}
-                        color={
-                          star <= Math.round(data.communicationRating)
-                            ? Colors.warning
-                            : Colors.textHint
-                        }
-                      />
-                    ))}
-                    <Text style={styles.ratingValue}>
-                      {data.communicationRating.toFixed(1)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Professionalism Rating */}
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Professionalism</Text>
-                  <View style={styles.ratingStarsContainer}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Ionicons
-                        key={star}
-                        name={
-                          star <= Math.round(data.professionalismRating)
-                            ? "star"
-                            : "star-outline"
-                        }
-                        size={16}
-                        color={
-                          star <= Math.round(data.professionalismRating)
-                            ? Colors.warning
-                            : Colors.textHint
-                        }
-                      />
-                    ))}
-                    <Text style={styles.ratingValue}>
-                      {data.professionalismRating.toFixed(1)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Timeliness Rating */}
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Timeliness</Text>
-                  <View style={styles.ratingStarsContainer}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Ionicons
-                        key={star}
-                        name={
-                          star <= Math.round(data.timelinessRating)
-                            ? "star"
-                            : "star-outline"
-                        }
-                        size={16}
-                        color={
-                          star <= Math.round(data.timelinessRating)
-                            ? Colors.warning
-                            : Colors.textHint
-                        }
-                      />
-                    ))}
-                    <Text style={styles.ratingValue}>
-                      {data.timelinessRating.toFixed(1)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
-
-
-
-          {/* Soft Skills */}
-          {data.softSkills && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Soft Skills</Text>
-              <View style={styles.softSkillsContainer}>
-                {data.softSkills.split(",").map((skill, index) => (
-                  <View key={index} style={styles.softSkillBubble}>
-                    <Text style={styles.softSkillText}>{skill.trim()}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Skills with Nested Certifications */}
-          {data.skills && data.skills.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Skills & Certifications</Text>
-              <Text style={styles.sectionDescription}>
-                Tap a skill to view certifications
+              <Text style={styles.bioText}>
+                {data.bio || "I’m hardworking and always ready to lend a hand."}
               </Text>
 
-              {data.skills.map((skill: Skill) => {
-                const isExpanded = expandedSkills.has(skill.id);
-                const skillCerts =
-                  data.certifications?.filter(
-                    (cert) => cert.specializationId === skill.id
-                  ) || [];
+              <View style={styles.aboutFooterDetails}>
+                {(data.city || data.province) && (
+                  <View style={styles.locationRow}>
+                    <Ionicons
+                      name="location"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.locationText}>
+                      {[data.city, data.province].filter(Boolean).join(", ")}
+                    </Text>
+                    {data.distance && (
+                      <Text style={styles.distanceText}>
+                        • {data.distance.toFixed(1)}km away
+                      </Text>
+                    )}
+                  </View>
+                )}
 
-                return (
-                  <View key={skill.id} style={styles.skillSection}>
-                    {/* Skill Header - Clickable */}
-                    <TouchableOpacity
-                      style={styles.skillHeader}
-                      onPress={() => {
-                        const newExpanded = new Set(expandedSkills);
-                        if (isExpanded) {
-                          newExpanded.delete(skill.id);
-                        } else {
-                          newExpanded.add(skill.id);
-                        }
-                        setExpandedSkills(newExpanded);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.skillHeaderLeft}>
-                        <Ionicons
-                          name="construct"
-                          size={20}
-                          color={Colors.primary}
-                        />
-                        <View style={styles.skillHeaderText}>
-                          <Text style={styles.skillName}>{skill.name}</Text>
-                          <Text style={styles.skillMeta}>
-                            {skill.experienceYears}{" "}
-                            {skill.experienceYears === 1 ? "year" : "years"}{" "}
-                            experience
-                          </Text>
-                        </View>
-                      </View>
+                <View style={styles.joinedRow}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={14}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.joinedText}>
+                    Joined {new Date(data.joinedDate).toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric"
+                    })}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
-                      <View style={styles.skillHeaderRight}>
-                        <View style={styles.certBadge}>
-                          <Ionicons
-                            name="ribbon"
-                            size={14}
-                            color={
-                              skill.certificationCount > 0
-                                ? Colors.success
-                                : Colors.textSecondary
-                            }
-                          />
-                          <Text
-                            style={[
-                              styles.certBadgeText,
-                              skill.certificationCount > 0 &&
-                              styles.certBadgeTextActive,
-                            ]}
-                          >
-                            {skill.certificationCount}
-                          </Text>
-                        </View>
-                        <Ionicons
-                          name={isExpanded ? "chevron-up" : "chevron-down"}
-                          size={20}
-                          color={Colors.textSecondary}
-                        />
-                      </View>
-                    </TouchableOpacity>
 
-                    {/* Expanded: Show Certifications */}
-                    {isExpanded && (
-                      <View style={styles.skillCertifications}>
-                        {skillCerts.length > 0 ? (
-                          skillCerts.map((cert) => {
-                            // Calculate days until expiry for warning badge
-                            const daysUntilExpiry = cert.expiryDate
-                              ? Math.ceil(
-                                (new Date(cert.expiryDate).getTime() -
-                                  new Date().getTime()) /
-                                (1000 * 60 * 60 * 24)
-                              )
-                              : null;
-                            const isExpiringSoon =
-                              daysUntilExpiry !== null &&
-                              daysUntilExpiry > 0 &&
-                              daysUntilExpiry <= 30;
 
-                            return (
+
+            {/* Reviews Section - Collapsible */}
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setIsReviewsExpanded(!isReviewsExpanded)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.collapsibleTitleRow}>
+                  <Ionicons name="star" size={22} color={Colors.warning} />
+                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Reviews & Ratings</Text>
+                  <View style={styles.reviewCountBadge}>
+                    <Text style={styles.reviewCountBadgeText}>
+                      {reviewsData?.total_count || data.reviewCount || 0}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons
+                  name={isReviewsExpanded ? "chevron-up" : "chevron-down"}
+                  size={24}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              {isReviewsExpanded && (
+                <View style={styles.reviewsContent}>
+                  {isLoadingReviews ? (
+                    <View style={styles.reviewsLoading}>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.reviewsLoadingText}>
+                        Loading reviews...
+                      </Text>
+                    </View>
+                  ) : reviewsData?.reviews && reviewsData.reviews.length > 0 ? (
+                    <>
+                      {reviewsData.reviews.map((review) => (
+                        <View key={review.review_id} style={styles.reviewCard}>
+                          <View style={styles.reviewHeader}>
+                            {review.reviewer_profile_img ? (
+                              <Image
+                                source={{ uri: review.reviewer_profile_img }}
+                                style={styles.reviewerAvatar}
+                              />
+                            ) : (
                               <View
-                                key={cert.id}
-                                style={styles.certificationItem}
+                                style={[
+                                  styles.reviewerAvatar,
+                                  styles.reviewerAvatarPlaceholder,
+                                ]}
                               >
-                                <View style={styles.certificationRow}>
-                                  {/* Certificate Image Thumbnail on Left */}
-                                  {cert.certificateUrl ? (
-                                    <TouchableOpacity
-                                      style={styles.certThumbnailLeft}
-                                      onPress={() =>
-                                        setLightboxImage(cert.certificateUrl!)
-                                      }
-                                      activeOpacity={0.7}
-                                    >
-                                      <Image
-                                        source={{ uri: cert.certificateUrl }}
-                                        style={styles.certThumbnailLeftImage}
-                                        resizeMode="cover"
-                                      />
+                                <Text style={styles.reviewerAvatarText}>
+                                  {review.reviewer_name?.charAt(0) || "?"}
+                                </Text>
+                              </View>
+                            )}
+                            <View style={styles.reviewerInfo}>
+                              <Text style={styles.reviewerName}>
+                                {review.reviewer_name}
+                              </Text>
+                              <Text style={styles.reviewDate}>
+                                {new Date(review.created_at).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  }
+                                )}
+                              </Text>
+                            </View>
+                            <View style={styles.reviewRating}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Ionicons
+                                  key={star}
+                                  name={
+                                    star <= review.rating
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={14}
+                                  color={
+                                    star <= review.rating
+                                      ? Colors.warning
+                                      : Colors.textHint
+                                  }
+                                />
+                              ))}
+                            </View>
+                          </View>
+                          {review.comment && (
+                            <Text style={styles.reviewComment}>
+                              {review.comment}
+                            </Text>
+                          )}
+                        </View>
+                      ))}
+
+                      {/* Pagination */}
+                      {reviewsData.total_pages > 1 && (
+                        <View style={styles.reviewsPagination}>
+                          <TouchableOpacity
+                            style={[
+                              styles.paginationButton,
+                              reviewsPage === 1 &&
+                              styles.paginationButtonDisabled,
+                            ]}
+                            onPress={() =>
+                              setReviewsPage(Math.max(1, reviewsPage - 1))
+                            }
+                            disabled={reviewsPage === 1}
+                          >
+                            <Ionicons
+                              name="chevron-back"
+                              size={18}
+                              color={
+                                reviewsPage === 1
+                                  ? Colors.textHint
+                                  : Colors.primary
+                              }
+                            />
+                          </TouchableOpacity>
+                          <Text style={styles.paginationText}>
+                            {reviewsPage} of {reviewsData.total_pages}
+                          </Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.paginationButton,
+                              reviewsPage === reviewsData.total_pages &&
+                              styles.paginationButtonDisabled,
+                            ]}
+                            onPress={() =>
+                              setReviewsPage(
+                                Math.min(reviewsData.total_pages, reviewsPage + 1)
+                              )
+                            }
+                            disabled={reviewsPage === reviewsData.total_pages}
+                          >
+                            <Ionicons
+                              name="chevron-forward"
+                              size={18}
+                              color={
+                                reviewsPage === reviewsData.total_pages
+                                  ? Colors.textHint
+                                  : Colors.primary
+                              }
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="chatbubble-outline"
+                        size={48}
+                        color={Colors.textHint}
+                      />
+                      <Text style={styles.emptyStateText}>
+                        No reviews yet. Be the first to hire and review this
+                        worker!
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Performance Ratings */}
+            {data.reviewCount > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Performance Ratings</Text>
+                <View style={styles.ratingsContainer}>
+                  {/* Quality Rating */}
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratingLabel}>Quality</Text>
+                    <View style={styles.ratingStarsContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={
+                            star <= Math.round(data.qualityRating)
+                              ? "star"
+                              : "star-outline"
+                          }
+                          size={16}
+                          color={
+                            star <= Math.round(data.qualityRating)
+                              ? Colors.warning
+                              : Colors.textHint
+                          }
+                        />
+                      ))}
+                      <Text style={styles.ratingValue}>
+                        {data.qualityRating.toFixed(1)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Communication Rating */}
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratingLabel}>Communication</Text>
+                    <View style={styles.ratingStarsContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={
+                            star <= Math.round(data.communicationRating)
+                              ? "star"
+                              : "star-outline"
+                          }
+                          size={16}
+                          color={
+                            star <= Math.round(data.communicationRating)
+                              ? Colors.warning
+                              : Colors.textHint
+                          }
+                        />
+                      ))}
+                      <Text style={styles.ratingValue}>
+                        {data.communicationRating.toFixed(1)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Professionalism Rating */}
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratingLabel}>Professionalism</Text>
+                    <View style={styles.ratingStarsContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={
+                            star <= Math.round(data.professionalismRating)
+                              ? "star"
+                              : "star-outline"
+                          }
+                          size={16}
+                          color={
+                            star <= Math.round(data.professionalismRating)
+                              ? Colors.warning
+                              : Colors.textHint
+                          }
+                        />
+                      ))}
+                      <Text style={styles.ratingValue}>
+                        {data.professionalismRating.toFixed(1)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Timeliness Rating */}
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratingLabel}>Timeliness</Text>
+                    <View style={styles.ratingStarsContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={
+                            star <= Math.round(data.timelinessRating)
+                              ? "star"
+                              : "star-outline"
+                          }
+                          size={16}
+                          color={
+                            star <= Math.round(data.timelinessRating)
+                              ? Colors.warning
+                              : Colors.textHint
+                          }
+                        />
+                      ))}
+                      <Text style={styles.ratingValue}>
+                        {data.timelinessRating.toFixed(1)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+
+
+            {/* Soft Skills */}
+            {data.softSkills && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Soft Skills</Text>
+                <View style={styles.softSkillsContainer}>
+                  {data.softSkills.split(",").map((skill, index) => (
+                    <View key={index} style={styles.softSkillBubble}>
+                      <Text style={styles.softSkillText}>{skill.trim()}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Skills with Nested Certifications */}
+            {data.skills && data.skills.length > 0 && (
+              <View style={[styles.section, { paddingBottom: 2, marginBottom: 8 }]}>
+                <Text style={styles.sectionTitle}>Skills & Certifications</Text>
+
+                {data.skills.map((skill: Skill) => {
+                  const isExpanded = expandedSkills.has(skill.id);
+                  const skillCerts =
+                    data.certifications?.filter(
+                      (cert) => cert.specializationId === skill.id
+                    ) || [];
+
+                  return (
+                    <View key={skill.id} style={styles.skillSection}>
+                      {/* Skill Header - Clickable */}
+                      <TouchableOpacity
+                        style={styles.skillHeader}
+                        onPress={() => {
+                          const newExpanded = new Set(expandedSkills);
+                          if (isExpanded) {
+                            newExpanded.delete(skill.id);
+                          } else {
+                            newExpanded.add(skill.id);
+                          }
+                          setExpandedSkills(newExpanded);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.skillHeaderLeft}>
+                          <Ionicons
+                            name="construct"
+                            size={20}
+                            color={Colors.primary}
+                          />
+                          <View style={styles.skillHeaderText}>
+                            <Text style={styles.skillName}>{skill.name}</Text>
+                            <Text style={styles.skillMeta}>
+                              {skill.experienceYears}{" "}
+                              {skill.experienceYears === 1 ? "year" : "years"}{" "}
+                              experience
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.skillHeaderRight}>
+                          <View style={styles.certBadge}>
+                            <Ionicons
+                              name="ribbon"
+                              size={14}
+                              color={
+                                skill.certificationCount > 0
+                                  ? Colors.success
+                                  : Colors.textSecondary
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.certBadgeText,
+                                skill.certificationCount > 0 &&
+                                styles.certBadgeTextActive,
+                              ]}
+                            >
+                              {skill.certificationCount}
+                            </Text>
+                          </View>
+                          <Ionicons
+                            name={isExpanded ? "chevron-up" : "chevron-down"}
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Expanded: Show Certifications */}
+                      {isExpanded && (
+                        <View style={styles.skillCertifications}>
+                          {skillCerts.length > 0 ? (
+                            skillCerts.map((cert) => {
+                              // Calculate days until expiry for warning badge
+                              const daysUntilExpiry = cert.expiryDate
+                                ? Math.ceil(
+                                  (new Date(cert.expiryDate).getTime() -
+                                    new Date().getTime()) /
+                                  (1000 * 60 * 60 * 24)
+                                )
+                                : null;
+                              const isExpiringSoon =
+                                daysUntilExpiry !== null &&
+                                daysUntilExpiry > 0 &&
+                                daysUntilExpiry <= 30;
+
+                              return (
+                                <View
+                                  key={cert.id}
+                                  style={styles.certificationItem}
+                                >
+                                  <View style={styles.certificationRow}>
+                                    {/* Certificate Image Thumbnail on Left */}
+                                    {cert.certificateUrl ? (
+                                      <TouchableOpacity
+                                        style={styles.certThumbnailLeft}
+                                        onPress={() =>
+                                          setLightboxImage(cert.certificateUrl!)
+                                        }
+                                        activeOpacity={0.7}
+                                      >
+                                        <Image
+                                          source={{ uri: cert.certificateUrl }}
+                                          style={styles.certThumbnailLeftImage}
+                                          resizeMode="cover"
+                                        />
+                                        <View
+                                          style={styles.certThumbnailLeftOverlay}
+                                        >
+                                          <Ionicons
+                                            name="expand-outline"
+                                            size={16}
+                                            color={Colors.white}
+                                          />
+                                        </View>
+                                      </TouchableOpacity>
+                                    ) : (
                                       <View
-                                        style={styles.certThumbnailLeftOverlay}
+                                        style={
+                                          styles.certThumbnailLeftPlaceholder
+                                        }
                                       >
                                         <Ionicons
-                                          name="expand-outline"
-                                          size={16}
-                                          color={Colors.white}
+                                          name="document-text"
+                                          size={24}
+                                          color={Colors.textSecondary}
                                         />
                                       </View>
-                                    </TouchableOpacity>
-                                  ) : (
-                                    <View
-                                      style={
-                                        styles.certThumbnailLeftPlaceholder
-                                      }
-                                    >
-                                      <Ionicons
-                                        name="document-text"
-                                        size={24}
-                                        color={Colors.textSecondary}
-                                      />
-                                    </View>
-                                  )}
+                                    )}
 
-                                  {/* Header: Name on left, Verified badge on right */}
-                                  <View style={styles.certificationHeader}>
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={styles.certificationName}>
-                                        {cert.name}
-                                      </Text>
-                                      {cert.issuingOrganization && (
-                                        <Text style={styles.certificationOrg}>
-                                          {cert.issuingOrganization}
+                                    {/* Header: Name on left, Verified badge on right */}
+                                    <View style={styles.certificationHeader}>
+                                      <View style={{ flex: 1 }}>
+                                        <Text style={styles.certificationName}>
+                                          {cert.name}
                                         </Text>
-                                      )}
-                                      {/* Expiring Soon Warning */}
-                                      {isExpiringSoon && (
-                                        <View style={styles.expiringWarning}>
+                                        {cert.issuingOrganization && (
+                                          <Text style={styles.certificationOrg}>
+                                            {cert.issuingOrganization}
+                                          </Text>
+                                        )}
+                                        {/* Expiring Soon Warning */}
+                                        {isExpiringSoon && (
+                                          <View style={styles.expiringWarning}>
+                                            <Ionicons
+                                              name="warning"
+                                              size={12}
+                                              color={Colors.warning}
+                                            />
+                                            <Text
+                                              style={styles.expiringWarningText}
+                                            >
+                                              Expires in {daysUntilExpiry} day
+                                              {daysUntilExpiry !== 1 ? "s" : ""}
+                                            </Text>
+                                          </View>
+                                        )}
+                                      </View>
+
+                                      {/* Verified Badge on Right */}
+                                      {cert.isVerified && (
+                                        <View
+                                          style={styles.certVerificationBadge}
+                                        >
                                           <Ionicons
-                                            name="warning"
-                                            size={12}
-                                            color={Colors.warning}
+                                            name="checkmark-circle"
+                                            size={14}
+                                            color={Colors.success}
                                           />
                                           <Text
-                                            style={styles.expiringWarningText}
+                                            style={
+                                              styles.certVerificationBadgeText
+                                            }
                                           >
-                                            Expires in {daysUntilExpiry} day
-                                            {daysUntilExpiry !== 1 ? "s" : ""}
+                                            Verified
                                           </Text>
                                         </View>
                                       )}
                                     </View>
-
-                                    {/* Verified Badge on Right */}
-                                    {cert.isVerified && (
-                                      <View
-                                        style={styles.certVerificationBadge}
-                                      >
-                                        <Ionicons
-                                          name="checkmark-circle"
-                                          size={14}
-                                          color={Colors.success}
-                                        />
-                                        <Text
-                                          style={
-                                            styles.certVerificationBadgeText
-                                          }
-                                        >
-                                          Verified
-                                        </Text>
-                                      </View>
-                                    )}
                                   </View>
                                 </View>
-                              </View>
-                            );
-                          })
-                        ) : (
-                          <View style={styles.noCertifications}>
-                            <Ionicons
-                              name="ribbon-outline"
-                              size={32}
-                              color={Colors.textSecondary}
-                            />
-                            <Text style={styles.noCertificationsText}>
-                              No certifications added for {skill.name}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
+                              );
+                            })
+                          ) : (
+                            <View style={styles.noCertifications}>
+                              <Ionicons
+                                name="ribbon-outline"
+                                size={32}
+                                color={Colors.textSecondary}
+                              />
+                              <Text style={styles.noCertificationsText}>
+                                No certifications added for {skill.name}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
 
-          {/* Unlinked Certifications (not associated with any skill) */}
-          {data.certifications &&
-            data.certifications.some((cert) => !cert.specializationId) && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>General Certifications</Text>
-                <Text style={styles.sectionDescription}>
-                  Certifications not linked to a specific skill
-                </Text>
+            {/* Unlinked Certifications (not associated with any skill) */}
+            {data.certifications &&
+              data.certifications.some((cert) => !cert.specializationId) && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>General Certifications</Text>
+                  <Text style={styles.sectionDescription}>
+                    Certifications not linked to a specific skill
+                  </Text>
 
-                <View style={styles.skillCertifications}>
-                  {data.certifications
-                    .filter((cert) => !cert.specializationId)
-                    .map((cert) => {
-                      // Calculate days until expiry for warning badge
-                      const daysUntilExpiry = cert.expiryDate
-                        ? Math.ceil(
-                          (new Date(cert.expiryDate).getTime() -
-                            new Date().getTime()) /
-                          (1000 * 60 * 60 * 24)
-                        )
-                        : null;
-                      const isExpiringSoon =
-                        daysUntilExpiry !== null &&
-                        daysUntilExpiry > 0 &&
-                        daysUntilExpiry <= 30;
+                  <View style={styles.skillCertifications}>
+                    {data.certifications
+                      .filter((cert) => !cert.specializationId)
+                      .map((cert) => {
+                        // Calculate days until expiry for warning badge
+                        const daysUntilExpiry = cert.expiryDate
+                          ? Math.ceil(
+                            (new Date(cert.expiryDate).getTime() -
+                              new Date().getTime()) /
+                            (1000 * 60 * 60 * 24)
+                          )
+                          : null;
+                        const isExpiringSoon =
+                          daysUntilExpiry !== null &&
+                          daysUntilExpiry > 0 &&
+                          daysUntilExpiry <= 30;
 
-                      return (
-                        <View key={cert.id} style={styles.certificationItem}>
-                          <View style={styles.certificationRow}>
-                            {/* Certificate Image Thumbnail on Left */}
-                            {cert.certificateUrl ? (
-                              <TouchableOpacity
-                                style={styles.certThumbnailLeft}
-                                onPress={() =>
-                                  setLightboxImage(cert.certificateUrl!)
-                                }
-                                activeOpacity={0.7}
-                              >
-                                <Image
-                                  source={{ uri: cert.certificateUrl }}
-                                  style={styles.certThumbnailLeftImage}
-                                  resizeMode="cover"
-                                />
-                                <View style={styles.certThumbnailLeftOverlay}>
+                        return (
+                          <View key={cert.id} style={styles.certificationItem}>
+                            <View style={styles.certificationRow}>
+                              {/* Certificate Image Thumbnail on Left */}
+                              {cert.certificateUrl ? (
+                                <TouchableOpacity
+                                  style={styles.certThumbnailLeft}
+                                  onPress={() =>
+                                    setLightboxImage(cert.certificateUrl!)
+                                  }
+                                  activeOpacity={0.7}
+                                >
+                                  <Image
+                                    source={{ uri: cert.certificateUrl }}
+                                    style={styles.certThumbnailLeftImage}
+                                    resizeMode="cover"
+                                  />
+                                  <View style={styles.certThumbnailLeftOverlay}>
+                                    <Ionicons
+                                      name="expand-outline"
+                                      size={16}
+                                      color={Colors.white}
+                                    />
+                                  </View>
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={styles.certThumbnailLeftPlaceholder}>
                                   <Ionicons
-                                    name="expand-outline"
-                                    size={16}
-                                    color={Colors.white}
+                                    name="document-text"
+                                    size={24}
+                                    color={Colors.textSecondary}
                                   />
                                 </View>
-                              </TouchableOpacity>
-                            ) : (
-                              <View style={styles.certThumbnailLeftPlaceholder}>
-                                <Ionicons
-                                  name="document-text"
-                                  size={24}
-                                  color={Colors.textSecondary}
-                                />
-                              </View>
-                            )}
+                              )}
 
-                            {/* Header: Name on left, Verified badge on right */}
-                            <View style={styles.certificationHeader}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.certificationName}>
-                                  {cert.name}
-                                </Text>
-                                {cert.issuingOrganization && (
-                                  <Text style={styles.certificationOrg}>
-                                    {cert.issuingOrganization}
+                              {/* Header: Name on left, Verified badge on right */}
+                              <View style={styles.certificationHeader}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.certificationName}>
+                                    {cert.name}
                                   </Text>
-                                )}
-                                {/* Expiring Soon Warning */}
-                                {isExpiringSoon && (
-                                  <View style={styles.expiringWarning}>
+                                  {cert.issuingOrganization && (
+                                    <Text style={styles.certificationOrg}>
+                                      {cert.issuingOrganization}
+                                    </Text>
+                                  )}
+                                  {/* Expiring Soon Warning */}
+                                  {isExpiringSoon && (
+                                    <View style={styles.expiringWarning}>
+                                      <Ionicons
+                                        name="warning"
+                                        size={12}
+                                        color={Colors.warning}
+                                      />
+                                      <Text style={styles.expiringWarningText}>
+                                        Expires in {daysUntilExpiry} day
+                                        {daysUntilExpiry !== 1 ? "s" : ""}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </View>
+
+                                {/* Verified Badge on Right */}
+                                {cert.isVerified && (
+                                  <View style={styles.certVerificationBadge}>
                                     <Ionicons
-                                      name="warning"
-                                      size={12}
-                                      color={Colors.warning}
+                                      name="checkmark-circle"
+                                      size={14}
+                                      color={Colors.success}
                                     />
-                                    <Text style={styles.expiringWarningText}>
-                                      Expires in {daysUntilExpiry} day
-                                      {daysUntilExpiry !== 1 ? "s" : ""}
+                                    <Text
+                                      style={styles.certVerificationBadgeText}
+                                    >
+                                      Verified
                                     </Text>
                                   </View>
                                 )}
                               </View>
-
-                              {/* Verified Badge on Right */}
-                              {cert.isVerified && (
-                                <View style={styles.certVerificationBadge}>
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={14}
-                                    color={Colors.success}
-                                  />
-                                  <Text
-                                    style={styles.certVerificationBadgeText}
-                                  >
-                                    Verified
-                                  </Text>
-                                </View>
-                              )}
                             </View>
                           </View>
-                        </View>
-                      );
-                    })}
+                        );
+                      })}
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
 
-          {/* Materials/Products */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Materials & Products Available
-            </Text>
-            {data.materials && data.materials.length > 0 ? (
-              data.materials.map((material) => (
-                <View key={material.id} style={styles.materialCard}>
-                  <View style={styles.materialHeader}>
-                    {material.imageUrl ? (
-                      <Image
-                        source={{ uri: material.imageUrl }}
-                        style={styles.materialImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.materialIconContainer}>
-                        <Ionicons
-                          name="cube-outline"
-                          size={24}
-                          color={Colors.primary}
+            {/* Materials/Products */}
+            {data.materials && data.materials.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  Materials & Products Available
+                </Text>
+                {data.materials.map((material) => (
+                  <View key={material.id} style={styles.materialCard}>
+                    <View style={styles.materialHeader}>
+                      {material.imageUrl ? (
+                        <Image
+                          source={{ uri: material.imageUrl }}
+                          style={styles.materialImage}
+                          resizeMode="cover"
                         />
-                      </View>
-                    )}
-                    <View style={styles.materialInfo}>
-                      <Text style={styles.materialName}>{material.name}</Text>
-                      {material.description && (
-                        <Text style={styles.materialDesc} numberOfLines={2}>
-                          {material.description}
-                        </Text>
+                      ) : (
+                        <View style={styles.materialIconContainer}>
+                          <Ionicons
+                            name="cube-outline"
+                            size={24}
+                            color={Colors.primary}
+                          />
+                        </View>
                       )}
-                      <View style={styles.materialFooter}>
-                        <Text style={styles.materialPrice}>
-                          ₱{material.price.toLocaleString()} /{" "}
-                          {material.priceUnit.toLowerCase().replace("_", " ")}
-                        </Text>
-                        <View
-                          style={[
-                            styles.stockBadge,
-                            {
-                              backgroundColor: material.inStock
-                                ? Colors.successLight
-                                : Colors.errorLight,
-                            },
-                          ]}
-                        >
-                          <Text
+                      <View style={styles.materialInfo}>
+                        <Text style={styles.materialName}>{material.name}</Text>
+                        {material.description && (
+                          <Text style={styles.materialDesc} numberOfLines={2}>
+                            {material.description}
+                          </Text>
+                        )}
+                        <View style={styles.materialFooter}>
+                          <Text style={styles.materialPrice}>
+                            ₱{material.price.toLocaleString()} /{" "}
+                            {material.priceUnit.toLowerCase().replace("_", " ")}
+                          </Text>
+                          <View
                             style={[
-                              styles.stockText,
+                              styles.stockBadge,
                               {
-                                color: material.inStock
-                                  ? Colors.success
-                                  : Colors.error,
+                                backgroundColor: material.inStock
+                                  ? Colors.successLight
+                                  : Colors.errorLight,
                               },
                             ]}
                           >
-                            {material.inStock ? "In Stock" : "Out of Stock"}
-                          </Text>
+                            <Text
+                              style={[
+                                styles.stockText,
+                                {
+                                  color: material.inStock
+                                    ? Colors.success
+                                    : Colors.error,
+                                },
+                              ]}
+                            >
+                              {material.inStock ? "In Stock" : "Out of Stock"}
+                            </Text>
+                          </View>
                         </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name="cube-outline"
-                  size={48}
-                  color={Colors.textHint}
-                />
-                <Text style={styles.emptyStateText}>
-                  {"This worker doesn't have any materials or products listed"}
-                </Text>
+                ))}
               </View>
             )}
-          </View>
 
+          </View>
         </ScrollView>
 
         {/* Bottom Action Button */}
@@ -1389,14 +1319,6 @@ export default function WorkerDetailScreen() {
           ) : (
             // Show Hire Worker button when viewing someone else's profile
             <>
-              {!user?.kycVerified && (
-                <View style={styles.kycWarningBanner}>
-                  <Ionicons name="warning" size={20} color={Colors.warning} />
-                  <Text style={styles.kycWarningText}>
-                    Complete KYC verification to hire workers
-                  </Text>
-                </View>
-              )}
               <TouchableOpacity
                 style={[
                   styles.hireButton,
@@ -1436,7 +1358,7 @@ export default function WorkerDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F7FF", // Match Ice Blue theme
   },
   header: {
     flexDirection: "row",
@@ -1516,7 +1438,7 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 20,
     alignItems: "center",
-    marginBottom: 16,
+    paddingBottom: 68,
   },
   avatarContainer: {
     position: "relative",
@@ -1526,6 +1448,8 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#00BAF1",
   },
   avatarPlaceholder: {
     backgroundColor: Colors.primary,
@@ -1545,9 +1469,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   name: {
-    fontSize: 24,
+    fontSize: 22, // Slightly reduced to fit longer titles
     fontWeight: "800",
     color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  identityNameSub: {
+    fontSize: 16,
+    fontWeight: "400",
+    color: "#000000",
     marginBottom: 8,
   },
   ratingContainer: {
@@ -1584,41 +1514,53 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 4,
   },
   joinedText: {
     fontSize: 13,
     color: Colors.textSecondary,
   },
-  statsSection: {
+  aboutFooterDetails: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0, 0, 0, 0.05)",
+    gap: 8,
+  },
+  statsRow: {
     flexDirection: "row",
-    backgroundColor: Colors.white,
-    marginHorizontal: 16,
-    borderRadius: BorderRadius.lg,
-    paddingVertical: 16,
-    marginBottom: 16,
-    ...Shadows.sm,
-  },
-  statItem: {
-    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    gap: 12,
   },
-  divider: {
+  statsRowItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statsRowDivider: {
     width: 1,
-    height: "60%",
+    height: 20,
     backgroundColor: Colors.border,
-    alignSelf: "center",
   },
-  statValue: {
-    fontSize: 18,
+  statsRowValue: {
+    fontSize: 15,
     fontWeight: "700",
     color: Colors.textPrimary,
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 4,
+  },
+  statsRowLabel: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  contentContainer: {
+    flex: 1,
+    backgroundColor: "#F0F7FF", // Subtle Ice Blue Background
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    marginTop: -32,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   section: {
     backgroundColor: Colors.white,
@@ -1627,6 +1569,65 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: BorderRadius.lg,
     ...Shadows.sm,
+  },
+  noContainerSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  aiScoreRectangleContainer: {
+    padding: 0, // Override padding for cleaner look
+    overflow: "hidden",
+  },
+  aiScoreRectangle: {
+    padding: 16,
+    width: "100%",
+    backgroundColor: Colors.white,
+  },
+  aiScoreMainRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  aiScoreTextGroup: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  mlScoreValueCompact: {
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  mlScorePercentSymbol: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  mlScoreLabelAbove: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#000000",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  mlScoreLabelBelow: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#000000",
+    letterSpacing: 1,
+  },
+  aiScoreDetailsInline: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  aiScoreTooltipDivider: {
+    height: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    marginBottom: 12,
+  },
+  aiScoreDetailsText: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "left",
   },
   sectionTitle: {
     fontSize: 18,
@@ -1656,7 +1657,7 @@ const styles = StyleSheet.create({
   bioText: {
     fontSize: 15,
     lineHeight: 24,
-    color: Colors.textSecondary,
+    color: "#000000",
   },
   softSkillsContainer: {
     flexDirection: "row",
@@ -2277,59 +2278,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
   },
-  // ML Profile Score Styles
-  mlScoreCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    borderLeftWidth: 4,
-    ...Shadows.sm,
-  },
-  mlScoreHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  mlScoreLeft: {
-    flex: 1,
-  },
-  mlScoreLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  mlScoreRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-  },
-  mlScoreValue: {
-    fontSize: 32,
-    fontWeight: "700",
-  },
-  mlScoreMax: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    marginLeft: 2,
-  },
-  mlCategoryBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: 20,
-    gap: 4,
-  },
-  mlCategoryEmoji: {
-    fontSize: 16,
-  },
-  mlCategoryText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  mlScoreSubtext: {
-    fontSize: 11,
-    color: Colors.textHint,
-    marginTop: Spacing.xs,
-  },
+
 });
