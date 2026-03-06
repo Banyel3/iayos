@@ -92,7 +92,81 @@ def get_dashboard_stats_optimized() -> Dict[str, Any]:
 
     total_revenue = float(financial_stats['total_revenue'])
     platform_fees = round(total_revenue * float(getattr(settings, 'PLATFORM_FEE_RATE', 0.10)), 2)
+
+    # --- New Metrics Calculations ---
     
+    # 1. Platform Fee Trend (comparing this month to last month)
+    last_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    
+    this_month_volume = Transaction.objects.filter(
+        status='COMPLETED', createdAt__gte=month_start
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    last_month_volume = Transaction.objects.filter(
+        status='COMPLETED', createdAt__gte=last_month_start, createdAt__lt=month_start
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    this_month_fees = float(this_month_volume) * float(getattr(settings, 'PLATFORM_FEE_RATE', 0.10))
+    last_month_fees = float(last_month_volume) * float(getattr(settings, 'PLATFORM_FEE_RATE', 0.10))
+    
+    platform_fee_trend = 0
+    if last_month_fees > 0:
+        platform_fee_trend = round(((this_month_fees - last_month_fees) / last_month_fees) * 100, 1)
+    elif this_month_fees > 0:
+        platform_fee_trend = 100.0  # Infinite increase, represented as 100%
+
+    # 2. Top Job Categories
+    top_categories_qs = Job.objects.filter(status='COMPLETED').values(
+        'categoryID__specializationName'
+    ).annotate(
+        earnings=Sum('budget'),
+        posts=Count('jobID')
+    ).order_by('-earnings')[:5]
+    
+    top_job_categories = [
+        {
+            'name': cat['categoryID__specializationName'] or 'Uncategorized',
+            'earnings': float(cat['earnings'] or 0),
+            'posts': cat['posts']
+        }
+        for cat in top_categories_qs
+    ]
+
+    # 3. Revenue Chart Data
+    seven_days_ago = now - timedelta(days=7)
+    thirty_days_ago = now - timedelta(days=30)
+    
+    def fetch_revenue_data(start_date=None, group_by_month=False):
+        qs = Transaction.objects.filter(status='COMPLETED')
+        if start_date:
+            qs = qs.filter(createdAt__gte=start_date)
+            
+        trunc_func = TruncMonth('createdAt') if group_by_month else TruncDate('createdAt')
+        
+        data = qs.annotate(
+            date=trunc_func
+        ).values('date').annotate(
+            total=Sum('amount')
+        ).order_by('date')
+        
+        formatted = []
+        for d in data:
+            if not d['date']:
+                continue
+            amt = float(d['total'] or 0)
+            formatted.append({
+                'name': d['date'].strftime('%b %Y') if group_by_month else d['date'].strftime('%a') if start_date == seven_days_ago else d['date'].strftime('%b %d'),
+                'TotalRevenue': amt,
+                'PlatformCut': round(amt * float(getattr(settings, 'PLATFORM_FEE_RATE', 0.10)), 2)
+            })
+        return formatted
+        
+    revenue_chart_data = {
+        '7d': fetch_revenue_data(seven_days_ago, False),
+        '30d': fetch_revenue_data(thirty_days_ago, False),
+        'All': fetch_revenue_data(None, True),
+    }
+
     return {
         'total_users': user_stats['total_users'],
         'total_clients': profile_counts.get('CLIENT', 0),
@@ -110,6 +184,9 @@ def get_dashboard_stats_optimized() -> Dict[str, Any]:
         'escrow_held': float(financial_stats['escrow_held']),
         'platform_fees': platform_fees,
         'global_avg_rating': round(float(avg_rating), 1),
+        'platform_fee_trend': platform_fee_trend,
+        'top_job_categories': top_job_categories,
+        'revenue_chart_data': revenue_chart_data,
     }
 
 

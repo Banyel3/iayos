@@ -41,12 +41,20 @@ interface DashboardStats {
   escrow_held: number;
   platform_fees: number;
   global_avg_rating: number;
+  platform_fee_trend?: number;
+  top_job_categories?: { name: string, earnings: number, posts: number }[];
+  revenue_chart_data?: {
+    '7d': { name: string, TotalRevenue: number, PlatformCut: number }[];
+    '30d': { name: string, TotalRevenue: number, PlatformCut: number }[];
+    'All': { name: string, TotalRevenue: number, PlatformCut: number }[];
+  };
 }
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [revenueFilter, setRevenueFilter] = useState<'7d' | '30d' | 'All'>('7d');
   const mainClassName = useMainContentClass("p-6 bg-gray-50 min-h-screen");
 
   const onPieEnter = (_: any, index: number) => {
@@ -158,32 +166,39 @@ export default function AdminDashboardPage() {
                     </p>
                   </div>
                   <div className="flex bg-gray-50 border border-gray-200 rounded-md p-1 mt-1">
-                    <button className="px-3 py-1 text-xs font-medium text-gray-900 bg-white shadow-sm rounded">7d</button>
-                    <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-900">30d</button>
-                    <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-900">All</button>
+                    <button
+                      onClick={() => setRevenueFilter('7d')}
+                      className={`px-3 py-1 text-xs font-medium rounded ${revenueFilter === '7d' ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >7d</button>
+                    <button
+                      onClick={() => setRevenueFilter('30d')}
+                      className={`px-3 py-1 text-xs font-medium rounded ${revenueFilter === '30d' ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >30d</button>
+                    <button
+                      onClick={() => setRevenueFilter('All')}
+                      className={`px-3 py-1 text-xs font-medium rounded ${revenueFilter === 'All' ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >All</button>
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col pt-0">
                   <div className="flex-1 w-full min-h-[250px] relative flex flex-col items-center justify-center border-t border-gray-100 mt-4 pt-4">
-                    <ResponsiveContainer width="100%" height="100%" className="opacity-30">
-                      <BarChart data={[
-                        { name: 'Sun', TotalRevenue: 0, PlatformCut: 0 },
-                        { name: 'Mon', TotalRevenue: 0, PlatformCut: 0 },
-                        { name: 'Tue', TotalRevenue: 0, PlatformCut: 0 },
-                        { name: 'Wed', TotalRevenue: 0, PlatformCut: 0 },
-                        { name: 'Thu', TotalRevenue: 0, PlatformCut: 0 },
-                        { name: 'Fri', TotalRevenue: 0, PlatformCut: 0 },
-                        { name: 'Sat', TotalRevenue: 0, PlatformCut: 0 },
-                      ]}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.revenue_chart_data?.[revenueFilter] || []}>
+                        <Tooltip
+                          formatter={(value: number) => [`₱${value.toLocaleString()}`, undefined]}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
                         <Bar barSize={40} dataKey="TotalRevenue" fill="#00BAF1" radius={[4, 4, 0, 0]} />
                         <Bar barSize={40} dataKey="PlatformCut" fill="#a5f3fc" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="bg-white/80 px-4 py-2 rounded-md shadow-sm border border-gray-100 backdrop-blur-sm">
-                        <p className="text-gray-500 text-sm italic font-medium">Chart data coming soon</p>
+                    {!stats.revenue_chart_data && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="bg-white/80 px-4 py-2 rounded-md shadow-sm border border-gray-100 backdrop-blur-sm">
+                          <p className="text-gray-500 text-sm italic font-medium">Chart data coming soon</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-center gap-6 mt-4 pb-2">
                     <div className="flex items-center">
@@ -215,10 +230,12 @@ export default function AdminDashboardPage() {
                   <div className="text-4xl font-bold text-gray-900">
                     ₱{(stats.platform_fees ?? 0).toLocaleString()}
                   </div>
-                  <div className="flex items-center mt-3 text-sm text-green-500">
-                    <TrendingUp className="h-4 w-4 mr-1" />
-                    <span className="font-semibold text-green-500/60 italic text-xs">Trend data coming soon</span>
-                  </div>
+                  {stats.platform_fee_trend !== undefined && (
+                    <div className={`flex items-center mt-3 text-sm ${stats.platform_fee_trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      <TrendingUp className={`h-4 w-4 mr-1 ${stats.platform_fee_trend < 0 ? 'rotate-180 transform' : ''}`} />
+                      <span className="font-semibold text-xs">{Math.abs(stats.platform_fee_trend)}% vs last month</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -418,48 +435,22 @@ export default function AdminDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col relative pt-0 pb-5">
-                <div className="space-y-0 relative z-10 flex-1 opacity-[0.25]">
-                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
-                    <span className="text-sm font-bold text-gray-900">Plumber</span>
-                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
-                      <span>—</span>
-                      <span>—</span>
+                <div className="space-y-0 relative z-10 flex-1">
+                  {stats.top_job_categories && stats.top_job_categories.length > 0 ? (
+                    stats.top_job_categories.map((cat, idx) => (
+                      <div key={idx} className={`flex items-center justify-between py-3.5 ${idx < stats.top_job_categories!.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                        <span className="text-sm font-bold text-gray-900">{cat.name}</span>
+                        <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
+                          <span className="font-semibold">₱{cat.earnings.toLocaleString()}</span>
+                          <span className="font-semibold">{cat.posts}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500 pt-8">
+                      <p className="text-sm">No job categories data available.</p>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
-                    <span className="text-sm font-bold text-gray-900">Carpenter</span>
-                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
-                      <span>—</span>
-                      <span>—</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
-                    <span className="text-sm font-bold text-gray-900">Cleaning</span>
-                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
-                      <span>—</span>
-                      <span>—</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
-                    <span className="text-sm font-bold text-gray-900">Masonry</span>
-                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
-                      <span>—</span>
-                      <span>—</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between py-3.5">
-                    <span className="text-sm font-bold text-gray-900">Gardening</span>
-                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
-                      <span>—</span>
-                      <span>—</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-                  <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-md shadow-sm border border-gray-200">
-                    <p className="text-xs font-bold text-gray-600 italic">Detailed analytics coming soon</p>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
