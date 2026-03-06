@@ -1761,6 +1761,7 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
                 "evidence_images": evidence_urls,
                 "client": {
                     "id": client.profileID if client else None,
