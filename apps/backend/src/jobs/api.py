@@ -1564,8 +1564,13 @@ def get_completed_jobs(request):
 
 @router.get("/worker-schedule", auth=dual_auth)
 def get_worker_schedule(request):
-    """Get current worker's scheduled/active jobs for calendar display.
-    Returns jobs that have both preferredStartDate and scheduled_end_date set.
+    """Get current worker's upcoming and in-progress jobs for calendar display.
+
+    Includes:
+    - Direct assignments via Job.assignedWorkerID
+    - Team assignments via JobWorkerAssignment
+
+    Excludes jobs without both preferredStartDate and scheduled_end_date.
     """
     try:
         from accounts.models import WorkerProfile
@@ -1583,12 +1588,32 @@ def get_worker_schedule(request):
                 "message": "No worker profile found for this account"
             }
 
+        # Direct worker assignments
+        direct_job_ids = list(
+            JobPosting.objects.filter(assignedWorkerID=worker_profile).values_list("jobID", flat=True)
+        )
+
+        # Team job assignments for this worker
+        team_job_ids = list(
+            JobWorkerAssignment.objects.filter(
+                workerID=worker_profile,
+                assignment_status__in=[
+                    JobWorkerAssignment.AssignmentStatus.ACTIVE,
+                    JobWorkerAssignment.AssignmentStatus.COMPLETED,
+                ],
+            ).values_list("jobID", flat=True)
+        )
+
+        relevant_job_ids = set(direct_job_ids + team_job_ids)
+        if not relevant_job_ids:
+            return {"success": True, "jobs": []}
+
         jobs = JobPosting.objects.filter(
-            assignedWorkerID=worker_profile,
+            jobID__in=relevant_job_ids,
             status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
             preferredStartDate__isnull=False,
             scheduled_end_date__isnull=False,
-        ).select_related('clientID__profileID')
+        ).select_related('clientID__profileID').order_by('preferredStartDate', 'jobID')
 
         return {
             "success": True,
