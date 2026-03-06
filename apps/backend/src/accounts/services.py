@@ -346,6 +346,13 @@ def login_account(data, request=None):
         # Don't block login if audit log fails
         print(f"⚠️ Failed to log user login: {e}")
     
+    # If the account has an Agency record, force AGENCY profile type in JWT.
+    # This prevents stale CLIENT/WORKER profile tokens from misclassifying
+    # agency accounts in web auth flows.
+    has_agency = Agency.objects.filter(accountFK=user).exists()
+    if has_agency:
+        return generateCookie(user, profile_type='AGENCY')
+
     return generateCookie(user)
 
 def generateCookie(user, profile_type=None):    
@@ -355,9 +362,16 @@ def generateCookie(user, profile_type=None):
     if profile_type is None:
         try:
             from .models import Profile
-            # Get last used profile (most recently updated)
-            profile = Profile.objects.filter(accountFK=user).order_by('-profileID').first()
-            profile_type = profile.profileType if profile else None
+
+            # Prefer AGENCY when the account has an agency record. This is
+            # critical for web agency login and prevents accidental fallback to
+            # stale CLIENT/WORKER profiles.
+            if Agency.objects.filter(accountFK=user).exists():
+                profile_type = 'AGENCY'
+            else:
+                # Get last used profile (most recently created)
+                profile = Profile.objects.filter(accountFK=user).order_by('-profileID').first()
+                profile_type = profile.profileType if profile else None
         except Exception as e:
             print(f"⚠️ Could not fetch profile type for user {user.accountID}: {e}")
             profile_type = None
