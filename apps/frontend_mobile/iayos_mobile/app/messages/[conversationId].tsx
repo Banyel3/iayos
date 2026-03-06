@@ -29,6 +29,7 @@ import { safeGoBack } from "../../lib/hooks/useSafeBack";
 import {
   useMessages,
   useSendMessageMutation,
+  ApiResponseError,
 } from "../../lib/hooks/useMessages";
 import {
   useMessageListener,
@@ -174,6 +175,8 @@ export default function ChatScreen() {
   const {
     data: conversation,
     isLoading,
+    isError,
+    error,
     refetch,
   } = useMessages(conversationId, messageViewerKey);
 
@@ -367,6 +370,13 @@ export default function ChatScreen() {
     };
     loadPending();
   }, [conversationId]);
+
+  // Auto-expand negotiation panel when negotiation goes live
+  useEffect(() => {
+    if (hasActiveNegotiation) {
+      setNegotiationPanelExpanded(true);
+    }
+  }, [hasActiveNegotiation]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -1551,11 +1561,45 @@ export default function ChatScreen() {
 
   // Render error state
   if (!conversation) {
+    let errorTitle = "Error";
+    let errorBody = "Unable to load this conversation.";
+    let actionLabel = "Go Back";
+    let actionHandler = () => safeGoBack(routerHook, "/(tabs)/messages");
+
+    if (isError && error instanceof ApiResponseError) {
+      if (error.status === 403) {
+        errorTitle = "Access Denied";
+        errorBody =
+          "You don't have access to this conversation from your current profile.";
+      } else if (error.status === 404) {
+        errorTitle = "Conversation Not Found";
+        errorBody = "This conversation no longer exists or is unavailable.";
+      } else if (error.status >= 500) {
+        errorTitle = "Server Error";
+        errorBody = "The server failed to load the conversation. Please try again.";
+        actionLabel = "Retry";
+        actionHandler = () => {
+          void refetch();
+        };
+      } else {
+        errorBody = error.message || errorBody;
+      }
+    } else if (isError && error) {
+      errorBody = getErrorMessage(error, errorBody);
+      if (errorBody.toLowerCase().includes("network")) {
+        errorTitle = "Connection Problem";
+        actionLabel = "Retry";
+        actionHandler = () => {
+          void refetch();
+        };
+      }
+    }
+
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <Stack.Screen
           options={{
-            title: "Error",
+            title: errorTitle,
             headerBackTitle: "Back",
           }}
         />
@@ -1565,12 +1609,12 @@ export default function ChatScreen() {
             size={64}
             color={Colors.error}
           />
-          <Text style={styles.errorText}>Conversation not found</Text>
+          <Text style={styles.errorText}>{errorBody}</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => safeGoBack(routerHook, "/(tabs)/messages")}
+            onPress={actionHandler}
           >
-            <Text style={styles.retryButtonText}>Go Back</Text>
+            <Text style={styles.retryButtonText}>{actionLabel}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -5216,11 +5260,11 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
-            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION or after if admin messages exist */}
-            {!hasActiveNegotiation &&
+            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION (live) or after if admin messages exist (history) */}
+            {(hasActiveNegotiation ||
               conversation.messages.some(
                 (m: any) => m.sender_type === "admin",
-              ) && (
+              )) && (
                 <View style={styles.negotiationPanel}>
                   <TouchableOpacity
                     style={styles.negotiationPanelHeader}
@@ -5256,7 +5300,11 @@ export default function ChatScreen() {
                   </TouchableOpacity>
 
                   {negotiationPanelExpanded && (
-                    <View style={styles.negotiationPanelBody}>
+                    <ScrollView
+                      style={styles.negotiationPanelBody}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
                       {conversation.messages.filter(
                         (m: any) => m.sender_type === "admin",
                       ).length === 0 ? (
@@ -5290,7 +5338,7 @@ export default function ChatScreen() {
                             </View>
                           ))
                       )}
-                    </View>
+                    </ScrollView>
                   )}
                 </View>
               )}
@@ -5435,10 +5483,16 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Messages List */}
+        {/* Messages List — admin messages are filtered out when a backjob exists; they appear in the negotiation panel instead */}
         <FlatList
           ref={flatListRef}
-          data={conversation.messages}
+          data={
+            conversation.backjob?.has_backjob
+              ? conversation.messages.filter(
+                  (m: any) => m.sender_type !== "admin",
+                )
+              : conversation.messages
+          }
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)

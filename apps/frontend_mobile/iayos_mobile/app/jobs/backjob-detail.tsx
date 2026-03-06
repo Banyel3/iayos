@@ -30,6 +30,7 @@ interface BackjobDetail {
     opened_date: string | null;
     resolution: string | null;
     resolved_date: string | null;
+    scheduled_date: string | null;
     evidence_images: string[];
   } | null;
 }
@@ -276,6 +277,14 @@ export default function BackjobDetailScreen() {
                 ? "This backjob has been completed successfully."
                 : "This backjob request is pending admin review."}
           </Text>
+          {dispute.scheduled_date && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: "#fff3cd", borderRadius: 8, padding: 10 }}>
+              <Ionicons name="calendar-outline" size={16} color={Colors.warning} />
+              <Text style={{ color: Colors.warning, fontWeight: "600", fontSize: 13 }}>
+                Scheduled: {formatDate(dispute.scheduled_date)}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Job Info */}
@@ -413,6 +422,22 @@ export default function BackjobDetailScreen() {
                 </Text>
               </View>
             </View>
+            {dispute.scheduled_date && (
+              <View style={styles.timelineItem}>
+                <View
+                  style={[
+                    styles.timelineDot,
+                    { backgroundColor: Colors.warning },
+                  ]}
+                />
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>📅 Scheduled Date</Text>
+                  <Text style={[styles.timelineDate, { color: Colors.warning }]}>
+                    {formatDate(dispute.scheduled_date)}
+                  </Text>
+                </View>
+              </View>
+            )}
             {dispute.resolved_date && (
               <View style={styles.timelineItem}>
                 <View

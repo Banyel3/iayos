@@ -1170,6 +1170,7 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
                 'backjob_started': dispute.backjobStarted,
                 'worker_marked_complete': dispute.workerMarkedBackjobComplete,
                 'client_confirmed': dispute.clientConfirmedBackjob,
+                'scheduled_date': dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
             }
         }
     except JobDispute.DoesNotExist:
@@ -1683,6 +1684,87 @@ def approve_backjob(request, dispute_id: int):
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
         print(f"❌ Error approving backjob: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/jobs/disputes/{dispute_id}/set-scheduled-date", auth=cookie_auth)
+def set_backjob_scheduled_date(request, dispute_id: int):
+    """
+    Admin sets or updates the scheduled date for a backjob.
+    Can be set/updated while dispute is IN_NEGOTIATION or UNDER_REVIEW.
+    Notifies both parties (client and worker/agency) of the scheduled date.
+    """
+    from accounts.models import JobDispute, Notification
+    import datetime
+
+    try:
+        data = json.loads(request.body)
+        scheduled_date_str = data.get("scheduled_date", "").strip()
+
+        if not scheduled_date_str:
+            return {"success": False, "error": "scheduled_date is required (YYYY-MM-DD format)"}
+
+        try:
+            scheduled_date = datetime.date.fromisoformat(scheduled_date_str)
+        except ValueError:
+            return {"success": False, "error": "Invalid date format. Use YYYY-MM-DD"}
+
+        dispute = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID__profileID__accountFK',
+            'jobID__assignedWorkerID__profileID__accountFK',
+            'jobID__assignedAgencyFK__accountFK',
+        ).get(disputeID=dispute_id)
+
+        if dispute.status not in ["IN_NEGOTIATION", "UNDER_REVIEW"]:
+            return {"success": False, "error": f"Cannot set scheduled date when dispute is in '{dispute.status}' status. Must be IN_NEGOTIATION or UNDER_REVIEW."}
+
+        is_update = dispute.scheduled_date is not None
+        dispute.scheduled_date = scheduled_date
+        dispute.save(update_fields=["scheduled_date"])
+
+        job = dispute.jobID
+        formatted_date = scheduled_date.strftime("%B %d, %Y")
+        action_word = "updated" if is_update else "set"
+
+        # Notify client
+        client_account = job.clientID.profileID.accountFK if job.clientID else None
+        if client_account:
+            Notification.objects.create(
+                accountFK=client_account,
+                title="Backjob Scheduled Date " + action_word.capitalize(),
+                message=f"The admin has {action_word} the scheduled date for your backjob to {formatted_date}.",
+                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                relatedID=str(dispute.disputeID),
+            )
+
+        # Notify worker or agency
+        worker_account = None
+        if job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        elif job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+
+        if worker_account:
+            Notification.objects.create(
+                accountFK=worker_account,
+                title="Backjob Scheduled Date " + action_word.capitalize(),
+                message=f"The admin has {action_word} the scheduled date for the backjob \"{job.title}\" to {formatted_date}.",
+                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                relatedID=str(dispute.disputeID),
+            )
+
+        return {
+            "success": True,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "message": f"Scheduled date {action_word} to {formatted_date}"
+        }
+
+    except JobDispute.DoesNotExist:
+        return {"success": False, "error": "Dispute not found"}
+    except Exception as e:
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}

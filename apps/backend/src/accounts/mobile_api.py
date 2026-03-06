@@ -1761,6 +1761,7 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
                 "evidence_images": evidence_urls,
                 "client": {
                     "id": client.profileID if client else None,
@@ -5214,6 +5215,12 @@ def mobile_get_pending_reviews_alias(request):
     Stable alias endpoint for pending reviews.
     Avoids any potential path ambiguity with /reviews/pending/{job_id}.
     """
+    return mobile_get_pending_reviews(request)
+
+
+@mobile_router.post("/reviews/pending-jobs", auth=jwt_auth)
+def mobile_get_pending_reviews_alias_post(request):
+    """POST alias for clients hitting pending-jobs with wrong method."""
     return mobile_get_pending_reviews(request)
 
 #endregion

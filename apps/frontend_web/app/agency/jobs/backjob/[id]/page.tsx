@@ -53,6 +53,7 @@ interface BackjobDetail {
     worker_marked_complete_at: string | null;
     client_confirmed: boolean;
     client_confirmed_at: string | null;
+    scheduled_date: string | null;
   } | null;
 }
 
@@ -399,6 +400,14 @@ function AgencyBackjobDetailContent({
                     ? "This backjob has been completed successfully."
                     : "This backjob request is pending admin review."}
               </p>
+              {dispute.scheduled_date && (
+                <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                  <Calendar className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm text-orange-700 font-medium">
+                    Scheduled: {formatDate(dispute.scheduled_date)}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -578,6 +587,19 @@ function AgencyBackjobDetailContent({
                     </p>
                   </div>
                 </div>
+
+                {/* Scheduled Date */}
+                {dispute.scheduled_date && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-3 h-3 bg-orange-400 rounded-full mt-1.5" />
+                    <div>
+                      <p className="font-medium text-gray-900">Scheduled Date</p>
+                      <p className="text-sm text-orange-600 font-medium">
+                        {formatDate(dispute.scheduled_date)}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Step 2: Client confirmed work started */}
                 {dispute.backjob_started && (

@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, JobEmployeeAssignment, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -1564,8 +1564,15 @@ def get_completed_jobs(request):
 
 @router.get("/worker-schedule", auth=dual_auth)
 def get_worker_schedule(request):
-    """Get current worker's scheduled/active jobs for calendar display.
-    Returns jobs that have both preferredStartDate and scheduled_end_date set.
+    """Get current worker's upcoming and in-progress jobs for calendar display.
+
+    Includes:
+    - Direct assignments via Job.assignedWorkerID
+    - Team assignments via JobWorkerAssignment
+    - Agency employee assignments via JobEmployeeAssignment
+
+    Jobs without an end date are treated as single-day entries
+    (scheduled_end_date falls back to preferredStartDate).
     """
     try:
         from accounts.models import WorkerProfile
@@ -1576,28 +1583,62 @@ def get_worker_schedule(request):
             profileID__accountFK=request.auth
         ).select_related('profileID').first()
 
-        if not worker_profile:
-            return {
-                "success": True,
-                "jobs": [],
-                "message": "No worker profile found for this account"
-            }
+        # Direct worker assignments
+        direct_job_ids = []
+        if worker_profile:
+            direct_job_ids = list(
+                JobPosting.objects.filter(assignedWorkerID=worker_profile).values_list("jobID", flat=True)
+            )
+
+        # Team job assignments for this worker
+        team_job_ids = []
+        if worker_profile:
+            team_job_ids = list(
+                JobWorkerAssignment.objects.filter(
+                    workerID=worker_profile,
+                    assignment_status__in=[
+                        JobWorkerAssignment.AssignmentStatus.ACTIVE,
+                        JobWorkerAssignment.AssignmentStatus.COMPLETED,
+                    ],
+                ).values_list("jobID", flat=True)
+            )
+
+        # Agency-employee assignment path. This captures accounts that work as
+        # agency-managed employees and may not have a WorkerProfile row.
+        agency_employee_job_ids = list(
+            JobEmployeeAssignment.objects.filter(
+                employee__agency=request.auth,
+                status__in=[
+                    JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                    JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                    JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+                ],
+            ).values_list("job__jobID", flat=True)
+        )
+
+        relevant_job_ids = set(direct_job_ids + team_job_ids + agency_employee_job_ids)
+        if not relevant_job_ids:
+            return {"success": True, "jobs": []}
 
         jobs = JobPosting.objects.filter(
-            assignedWorkerID=worker_profile,
+            jobID__in=relevant_job_ids,
             status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
             preferredStartDate__isnull=False,
-            scheduled_end_date__isnull=False,
-        ).select_related('clientID__profileID')
+        ).select_related('clientID__profileID').order_by('preferredStartDate', 'jobID')
 
-        return {
-            "success": True,
-            "jobs": [
+        payload_jobs = []
+        for j in jobs:
+            start_date = j.preferredStartDate
+            if not start_date:
+                continue
+
+            end_date = j.scheduled_end_date or start_date
+            payload_jobs.append(
                 {
                     "id": j.jobID,
                     "title": j.title,
-                    "preferred_start_date": j.preferredStartDate.isoformat()[:10] if j.preferredStartDate else None,
-                    "scheduled_end_date": j.scheduled_end_date.isoformat()[:10] if j.scheduled_end_date else None,
+                    "preferred_start_date": start_date.isoformat()[:10],
+                    "scheduled_end_date": end_date.isoformat()[:10],
                     "status": j.status,
                     "client_name": (
                         f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
@@ -1608,8 +1649,11 @@ def get_worker_schedule(request):
                     "location": j.location,
                     "budget": float(j.budget),
                 }
-                for j in jobs
-            ],
+            )
+
+        return {
+            "success": True,
+            "jobs": payload_jobs,
         }
     except Exception as e:
         return Response({"error": str(e)}, status=500)
@@ -1744,6 +1788,7 @@ def get_my_backjobs(request, status: Optional[str] = None):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
                 "evidence_images": evidence_urls,
                 "client": {
                     "id": client.profileID if client else None,
@@ -5999,7 +6044,11 @@ def get_backjob_status(request, job_id: int):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
-                "evidence_images": evidence_urls
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+                "evidence_images": evidence_urls,
+                "backjob_started": dispute.backjobStarted,
+                "worker_marked_complete": dispute.workerMarkedBackjobComplete,
+                "client_confirmed": dispute.clientConfirmedBackjob,
             }
         }
         

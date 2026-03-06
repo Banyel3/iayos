@@ -36,6 +36,7 @@ interface BackjobItem {
   opened_date: string | null;
   resolution: string | null;
   resolved_date: string | null;
+  scheduled_date: string | null;
   evidence_images: string[];
   client: {
     id: number;
@@ -359,6 +360,11 @@ export default function AgencyBackjobsPage() {
                     {backjob.opened_date && (
                       <span className="text-sm text-gray-400">
                         {formatDate(backjob.opened_date)}
+                      </span>
+                    )}
+                    {backjob.scheduled_date && (
+                      <span className="text-sm text-orange-500 font-medium">
+                        📅 {formatDate(backjob.scheduled_date)}
                       </span>
                     )}
                   </div>

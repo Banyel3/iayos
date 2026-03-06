@@ -1206,6 +1206,7 @@ class Notification(models.Model):
         BACKJOB_REJECTED = "BACKJOB_REJECTED", "Backjob Rejected"
         BACKJOB_COMPLETED = "BACKJOB_COMPLETED", "Backjob Completed"
         BACKJOB_NEGOTIATION = "BACKJOB_NEGOTIATION", "Backjob In Negotiation"
+        BACKJOB_SCHEDULED = "BACKJOB_SCHEDULED", "Backjob Scheduled"
 
         # Certification Notifications
         CERTIFICATION_APPROVED = "CERTIFICATION_APPROVED", "Certification Approved"
@@ -2240,7 +2241,14 @@ class JobDispute(models.Model):
         null=True,
         help_text="When admin accepted this dispute into negotiation"
     )
-    
+
+    # Admin-scheduled date for backjob completion
+    scheduled_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Admin-set date for when the backjob will be completed, as agreed in negotiations"
+    )
+
     # Timestamps
     openedDate = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
