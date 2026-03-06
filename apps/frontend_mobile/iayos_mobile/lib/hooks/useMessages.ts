@@ -8,8 +8,21 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "../api/config";
+import { parseApiError } from "../utils/parse-api-error";
 import { useSendMessage } from "./useWebSocket";
 import type { EstimatedCompletion } from "@/components/EstimatedTimeCard";
+
+export class ApiResponseError extends Error {
+  status: number;
+  statusText: string;
+
+  constructor(message: string, status: number, statusText: string) {
+    super(message);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.statusText = statusText;
+  }
+}
 
 export type MessageAttachment = {
   attachment_id: number;
@@ -241,7 +254,8 @@ export function useMessages(conversationId: number, viewerKey: string = "default
       const response = await apiRequest(url);
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch messages: ${response.statusText}`);
+        const message = await parseApiError(response);
+        throw new ApiResponseError(message, response.status, response.statusText);
       }
 
       const data = (await response.json()) as ConversationDetail;

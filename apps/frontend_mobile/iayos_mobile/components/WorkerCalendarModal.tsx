@@ -85,8 +85,8 @@ export default function WorkerCalendarModal({
               <Text style={styles.title}>My Schedule</Text>
               <Text style={styles.subtitle}>
                 {jobs.length === 0
-                  ? "No scheduled jobs"
-                  : `${jobs.length} scheduled job${jobs.length !== 1 ? "s" : ""}`}
+                  ? "No calendar jobs"
+                  : `${jobs.length} calendar job${jobs.length !== 1 ? "s" : ""}`}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
