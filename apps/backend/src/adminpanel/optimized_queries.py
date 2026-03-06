@@ -19,6 +19,7 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, TruncDate, TruncMonth, Now
 from django.core.paginator import Paginator
 from django.utils import timezone
+from django.conf import settings
 from datetime import timedelta
 from typing import Optional, Dict, Any, List
 
@@ -763,7 +764,7 @@ def get_transaction_stats_optimized() -> Dict[str, Any]:
     total_volume = float(stats['total_volume'])
     escrow_held = float(stats['escrow_held'])
     refunded_amount = float(stats['refunded_amount'])
-    platform_fees = round(total_volume * 0.05, 2)
+    platform_fees = round(total_volume * float(settings.PLATFORM_FEE_RATE), 2)
     average_transaction = round(total_volume / total_count, 2) if total_count > 0 else 0.0
 
     return {

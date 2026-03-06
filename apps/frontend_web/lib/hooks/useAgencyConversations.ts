@@ -219,6 +219,7 @@ export function useAgencyMessages(conversationId: number | null) {
     },
     enabled: !!conversationId,
     staleTime: 10000, // 10 seconds
+    refetchInterval: 15000, // Poll every 15s as fallback when WebSocket events are missed
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });

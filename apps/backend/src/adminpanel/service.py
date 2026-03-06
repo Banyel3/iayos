@@ -3859,7 +3859,7 @@ def get_job_invoice(job_id: int):
         # Calculate amounts
         budget = float(job.budget) if job.budget else 0
         downpayment = budget * 0.5
-        platform_fee = downpayment * 0.05  # 5% of downpayment
+        platform_fee = budget * float(settings.PLATFORM_FEE_RATE)  # 10% of total budget
         subtotal = budget
         total_paid = downpayment + platform_fee  # What client paid upfront
         remaining = budget - downpayment  # Remaining 50%

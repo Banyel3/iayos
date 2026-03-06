@@ -1261,7 +1261,7 @@ def mobile_my_jobs(
         return Response({"error": f"Failed to fetch jobs: {str(e)}"}, status=500)
 
 
-@mobile_router.get("/jobs/categories", auth=jwt_auth)
+@mobile_router.get("/jobs/categories")
 def mobile_job_categories(request):
     """
     Get all job categories/specializations for mobile

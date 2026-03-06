@@ -285,7 +285,7 @@ export function useMessages(conversationId: number, viewerKey: string = "default
     },
     enabled: !!conversationId,
     staleTime: 5000,
-    refetchInterval: false,
+    refetchInterval: 15000, // Poll every 15s as fallback when WebSocket events are missed
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
