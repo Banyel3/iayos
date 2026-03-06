@@ -89,7 +89,7 @@ export default function WalletDepositScreen() {
   }, []);
 
   // Preset amounts
-  const presetAmounts = [100, 200, 500, 1000, 2000, 5000];
+  const presetAmounts = [10, 50, 100, 200, 500, 1000, 2000, 5000];
 
   const sanitizeAmountInput = (value: string) => {
     const sanitized = value.replace(/[^0-9.]/g, "");
@@ -114,8 +114,8 @@ export default function WalletDepositScreen() {
       return false;
     }
 
-    if (amount < 100) {
-      setAmountError("Minimum deposit is ₱100");
+    if (amount < 10) {
+      setAmountError("Minimum deposit is ₱10");
       return false;
     }
 
@@ -141,7 +141,7 @@ export default function WalletDepositScreen() {
   const isDepositDisabled =
     !depositAmount ||
     isNaN(parsedAmount) ||
-    parsedAmount < 100 ||
+    parsedAmount < 10 ||
     parsedAmount > 100000 ||
     isProcessing;
   const formattedDepositAmount = !isNaN(parsedAmount)
@@ -491,7 +491,7 @@ export default function WalletDepositScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Enter Amount</Text>
           <Text style={styles.sectionSubtitle}>
-            Minimum ₱100, Maximum ₱100,000
+            Minimum ₱10, Maximum ₱100,000
           </Text>
 
           <View style={styles.amountInputContainer}>
@@ -517,7 +517,7 @@ export default function WalletDepositScreen() {
                 style={[
                   styles.presetButton,
                   depositAmount === amount.toString() &&
-                    styles.presetButtonActive,
+                  styles.presetButtonActive,
                 ]}
                 onPress={() => handlePresetAmount(amount)}
               >
@@ -525,7 +525,7 @@ export default function WalletDepositScreen() {
                   style={[
                     styles.presetButtonText,
                     depositAmount === amount.toString() &&
-                      styles.presetButtonTextActive,
+                    styles.presetButtonTextActive,
                   ]}
                 >
                   ₱{amount}
@@ -545,7 +545,7 @@ export default function WalletDepositScreen() {
                 style={[
                   styles.paymentMethodButton,
                   selectedPaymentMethod === "qrph" &&
-                    styles.paymentMethodButtonActive,
+                  styles.paymentMethodButtonActive,
                 ]}
                 onPress={() => setSelectedPaymentMethod("qrph")}
               >
@@ -562,7 +562,7 @@ export default function WalletDepositScreen() {
                   style={[
                     styles.paymentMethodText,
                     selectedPaymentMethod === "qrph" &&
-                      styles.paymentMethodTextActive,
+                    styles.paymentMethodTextActive,
                   ]}
                 >
                   QR PH
@@ -571,7 +571,7 @@ export default function WalletDepositScreen() {
                   style={[
                     styles.paymentMethodSubtext,
                     selectedPaymentMethod === "qrph" &&
-                      styles.paymentMethodSubtextActive,
+                    styles.paymentMethodSubtextActive,
                   ]}
                 >
                   Any banking app
@@ -582,7 +582,7 @@ export default function WalletDepositScreen() {
                 style={[
                   styles.paymentMethodButton,
                   selectedPaymentMethod === "gcash" &&
-                    styles.paymentMethodButtonActive,
+                  styles.paymentMethodButtonActive,
                 ]}
                 onPress={() => setSelectedPaymentMethod("gcash")}
               >
@@ -599,7 +599,7 @@ export default function WalletDepositScreen() {
                   style={[
                     styles.paymentMethodText,
                     selectedPaymentMethod === "gcash" &&
-                      styles.paymentMethodTextActive,
+                    styles.paymentMethodTextActive,
                   ]}
                 >
                   Direct Deposit
@@ -608,7 +608,7 @@ export default function WalletDepositScreen() {
                   style={[
                     styles.paymentMethodSubtext,
                     selectedPaymentMethod === "gcash" &&
-                      styles.paymentMethodSubtextActive,
+                    styles.paymentMethodSubtextActive,
                   ]}
                 >
                   Test Only - Instant
