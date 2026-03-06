@@ -140,6 +140,9 @@ export type ConversationDetail = {
     clientConfirmedArrivalAt?: string | null;
     agencyMarkedComplete?: boolean;
     agencyMarkedCompleteAt?: string | null;
+    employeeMarkedComplete?: boolean;
+    employeeMarkedCompleteAt?: string | null;
+    marked_complete?: boolean;
     // Per-employee approval tracking
     paymentAmount?: number | null;
     clientApproved?: boolean;
