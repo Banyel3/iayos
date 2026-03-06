@@ -123,14 +123,18 @@ class CookieJWTAuth:
             # Decode the JWT token
             payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get('user_id')
+            profile_type = payload.get('profile_type')
 
             if not user_id:
                 print("[FAIL] No user_id in token payload")
                 return None
 
             print(f"[AUTH] Token validated - User ID: {user_id}")
+            print(f"[AUTH] Profile type from cookie JWT: {profile_type}")
 
             user = Accounts.objects.get(accountID=user_id)
+            # Keep parity with Bearer auth: attach profile type for profile-aware endpoints.
+            user.profile_type = profile_type
             print(f"[SUCCESS] Authentication SUCCESS - User: {user.email}")
             return user
 
