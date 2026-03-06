@@ -3164,6 +3164,10 @@ def paymongo_webhook(request):
             transaction.xenditPaymentChannel = webhook_data.get('payment_channel', 'PAYMONGO')
             transaction.xenditPaymentMethod = webhook_data.get('payment_method', 'checkout')
             transaction.completedAt = timezone.now()
+            # Store the actual pay_xxx payment ID from the webhook payments[] array
+            actual_payment_id = webhook_data.get('actual_payment_id')
+            if actual_payment_id:
+                transaction.paymongoPaymentId = actual_payment_id
             transaction.save()
             
             # If this is an escrow payment, mark the job as escrow paid

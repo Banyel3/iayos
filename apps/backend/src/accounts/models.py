@@ -2665,6 +2665,10 @@ class Transaction(models.Model):
     xenditPaymentMethod = models.CharField(max_length=50, blank=True, null=True)   # e.g., "EWALLET"
     invoiceURL = models.URLField(max_length=500, blank=True, null=True)  # Payment redirect URL
     xenditExternalID = models.CharField(max_length=255, blank=True, null=True)  # Our internal reference
+    paymongoPaymentId = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="PayMongo pay_xxx payment ID (from webhook payments[] or lazy-fetched via checkout session)"
+    )
     
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)

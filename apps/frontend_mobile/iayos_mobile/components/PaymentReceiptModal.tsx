@@ -13,7 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 import PaymentStatusBadge, { PaymentStatus } from "./PaymentStatusBadge";
-import { formatCurrency } from "../lib/hooks/usePayments";
+import { formatCurrency, useTransactionDetail } from "../lib/hooks/usePayments";
 import ReceiptDisclaimer, { RECEIPT_DISCLAIMER_TEXT } from "./ReceiptDisclaimer";
 import { downloadDepositReceiptPdf } from "../lib/utils/generate-receipt-pdf";
 
@@ -42,6 +42,7 @@ interface PaymentReceipt {
   reference_number?: string | null;
   balance_after?: number | null;
   paymongo_checkout_url?: string | null;
+  paymongo_payment_id?: string | null;
   job?: {
     id: number;
     title: string;
@@ -62,6 +63,20 @@ export default function PaymentReceiptModal({
 }: PaymentReceiptModalProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Lazy-fetch PayMongo pay_xxx ID for completed transactions that don't have it yet.
+  // The hook is disabled (no network call) when receipt already has the ID or is not completed.
+  const shouldFetchDetail =
+    visible &&
+    receipt?.status === 'completed' &&
+    !receipt?.paymongo_payment_id;
+
+  const { data: detailData, isLoading: isLoadingPaymongoId } = useTransactionDetail(
+    shouldFetchDetail ? (receipt?.id ?? null) : null
+  );
+
+  // Prefer freshly-fetched value; fall back to value already on the receipt object.
+  const paymongoId = detailData?.paymongo_payment_id ?? receipt?.paymongo_payment_id ?? null;
 
   if (!receipt) return null;
 
@@ -96,7 +111,10 @@ ${RECEIPT_DISCLAIMER_TEXT}
   const handleDownloadPdf = async () => {
     try {
       setIsDownloading(true);
-      await downloadDepositReceiptPdf(receipt);
+      await downloadDepositReceiptPdf({
+        ...receipt,
+        paymongo_payment_id: paymongoId ?? undefined,
+      });
     } catch (error) {
       console.log("PDF download error:", error);
     } finally {
@@ -244,6 +262,27 @@ ${RECEIPT_DISCLAIMER_TEXT}
               </View>
             )}
           </View>
+
+          {/* PayMongo Receipt */}
+          {(paymongoId || isLoadingPaymongoId) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>PayMongo Receipt</Text>
+              {isLoadingPaymongoId && !paymongoId ? (
+                <ActivityIndicator
+                  size="small"
+                  color={Colors.primary}
+                  style={{ marginVertical: Spacing.sm }}
+                />
+              ) : paymongoId ? (
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Payment Ref.</Text>
+                  <Text style={styles.rowValue} selectable>
+                    {paymongoId}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
 
           {/* Job Details */}
           {receipt.job && (

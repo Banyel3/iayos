@@ -605,10 +605,13 @@ class PayMongoService(PaymentProviderInterface):
             metadata = resource_attributes.get("metadata", {})
             payments = resource_attributes.get("payments", [])
             payment_info = payments[0].get("attributes", {}) if payments else {}
+            # The actual pay_xxx ID lives at payments[0]["id"] (distinct from the cs_xxx checkout session ID)
+            actual_payment_id = payments[0].get("id") if payments else None
             
             return {
                 "event_type": event_type,
                 "payment_id": resource_data.get("id"),
+                "actual_payment_id": actual_payment_id,
                 "external_id": resource_attributes.get("reference_number") or metadata.get("external_id"),
                 "status": self._map_webhook_status(event_type),
                 "amount": resource_attributes.get("amount", 0) / 100 if resource_attributes.get("amount") else 0,
@@ -625,6 +628,31 @@ class PayMongoService(PaymentProviderInterface):
             logger.error(f"❌ Failed to parse webhook payload: {str(e)}")
             return None
     
+    def get_checkout_session_payments(self, cs_id: str):
+        """
+        Fetch the pay_xxx payment ID for a given checkout session (used for lazy backfill).
+        Returns the pay_xxx string, or None if not found / request fails.
+        """
+        try:
+            response = requests.get(
+                f"{self.BASE_URL}/checkout_sessions/{cs_id}",
+                headers=self._get_headers(),
+                timeout=30
+            )
+            if response.status_code == 200:
+                data = response.json()
+                payments = (
+                    data.get("data", {})
+                        .get("attributes", {})
+                        .get("payments", [])
+                )
+                if payments:
+                    return payments[0].get("id")  # pay_xxx
+            return None
+        except Exception as e:
+            logger.error(f"❌ Failed to get checkout session payments for {cs_id}: {str(e)}")
+            return None
+
     # Helper methods
     
     def _map_payment_methods(self, methods: List[str]) -> List[str]:

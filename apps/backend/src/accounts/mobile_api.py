@@ -4641,6 +4641,7 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
                 'reference_number': t.referenceNumber or t.xenditExternalID or None,
                 'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
                 'paymongo_checkout_url': paymongo_checkout_url,
+                'paymongo_payment_id': t.paymongoPaymentId or None,
                 'job': job_data,
             })
         
@@ -4661,6 +4662,104 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
             {"error": "Failed to fetch transactions"},
             status=500
         )
+
+
+@mobile_router.get("/wallet/transactions/{transaction_id}", auth=jwt_auth)
+def mobile_get_transaction_detail(request, transaction_id: int):
+    """
+    Get a single transaction by ID with lazy PayMongo payment ID backfill.
+
+    If the transaction was a completed QR PH / PayMongo deposit but doesn't yet have
+    a ``paymongoPaymentId`` stored, this endpoint fetches it from PayMongo via
+    ``GET /v1/checkout_sessions/{cs_id}`` and persists the result before returning.
+    """
+    try:
+        from .models import Wallet, Transaction
+
+        wallet = Wallet.objects.filter(accountFK=request.auth).first()
+        if not wallet:
+            return Response({"error": "Not found"}, status=404)
+
+        try:
+            t = Transaction.objects.select_related('relatedJobPosting').get(
+                transactionID=transaction_id, walletID=wallet
+            )
+        except Transaction.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        # --- Lazy backfill: fetch pay_xxx if not yet stored ---
+        if (
+            not t.paymongoPaymentId
+            and t.xenditInvoiceID
+            and t.xenditInvoiceID.startswith("cs_")
+            and t.status == Transaction.TransactionStatus.COMPLETED
+        ):
+            try:
+                from .paymongo_service import PayMongoService
+                paymongo = PayMongoService()
+                pay_id = paymongo.get_checkout_session_payments(t.xenditInvoiceID)
+                if pay_id:
+                    t.paymongoPaymentId = pay_id
+                    t.save(update_fields=['paymongoPaymentId'])
+                    print(f"✅ [Mobile] Lazy-backfilled paymongoPaymentId={pay_id} for txn {t.transactionID}")
+            except Exception as backfill_err:
+                print(f"⚠️ [Mobile] Could not backfill paymongoPaymentId for txn {t.transactionID}: {backfill_err}")
+
+        # Build job context
+        job_data = None
+        if t.relatedJobPosting:
+            job_data = {
+                'id': t.relatedJobPosting.jobID,
+                'title': t.relatedJobPosting.title,
+                'status': t.relatedJobPosting.status,
+            }
+
+        # Only expose PayMongo checkout URL for completed deposits
+        paymongo_checkout_url = None
+        if (
+            t.status == 'COMPLETED'
+            and t.transactionType == Transaction.TransactionType.DEPOSIT
+            and t.invoiceURL
+        ):
+            paymongo_checkout_url = t.invoiceURL
+
+        TYPE_LABELS = {
+            'DEPOSIT': 'Wallet Deposit',
+            'WITHDRAWAL': 'Withdrawal',
+            'PAYMENT': 'Job Payment',
+            'REFUND': 'Refund',
+            'EARNING': 'Job Earning',
+            'PLATFORM_FEE': 'Platform Fee',
+            'ESCROW': 'Escrow Payment',
+            'ESCROW_RELEASE': 'Escrow Release',
+        }
+        type_display = t.transactionType
+        if t.transactionType == 'EARNING' or (t.transactionType == 'DEPOSIT' and t.amount > 0 and t.relatedJobPosting):
+            type_display = 'EARNING'
+
+        return {
+            'id': t.transactionID,
+            'type': type_display,
+            'transaction_type_label': TYPE_LABELS.get(t.transactionType, t.transactionType),
+            'title': t.description or TYPE_LABELS.get(t.transactionType, f'{t.transactionType} Transaction'),
+            'description': t.description or '',
+            'amount': float(t.amount),
+            'created_at': t.createdAt.isoformat(),
+            'status': t.status.lower() if t.status else 'pending',
+            'payment_method': t.paymentMethod or 'wallet',
+            'transaction_id': str(t.transactionID),
+            'reference_number': t.referenceNumber or t.xenditExternalID or None,
+            'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
+            'paymongo_checkout_url': paymongo_checkout_url,
+            'paymongo_payment_id': t.paymongoPaymentId or None,
+            'job': job_data,
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Error fetching transaction detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to fetch transaction detail"}, status=500)
 
 #endregion
 
