@@ -371,6 +371,13 @@ export default function ChatScreen() {
     loadPending();
   }, [conversationId]);
 
+  // Auto-expand negotiation panel when negotiation goes live
+  useEffect(() => {
+    if (hasActiveNegotiation) {
+      setNegotiationPanelExpanded(true);
+    }
+  }, [hasActiveNegotiation]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (conversation?.messages.length) {
@@ -5253,11 +5260,11 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
-            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION or after if admin messages exist */}
-            {!hasActiveNegotiation &&
+            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION (live) or after if admin messages exist (history) */}
+            {(hasActiveNegotiation ||
               conversation.messages.some(
                 (m: any) => m.sender_type === "admin",
-              ) && (
+              )) && (
                 <View style={styles.negotiationPanel}>
                   <TouchableOpacity
                     style={styles.negotiationPanelHeader}
@@ -5293,7 +5300,11 @@ export default function ChatScreen() {
                   </TouchableOpacity>
 
                   {negotiationPanelExpanded && (
-                    <View style={styles.negotiationPanelBody}>
+                    <ScrollView
+                      style={styles.negotiationPanelBody}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
                       {conversation.messages.filter(
                         (m: any) => m.sender_type === "admin",
                       ).length === 0 ? (
@@ -5327,7 +5338,7 @@ export default function ChatScreen() {
                             </View>
                           ))
                       )}
-                    </View>
+                    </ScrollView>
                   )}
                 </View>
               )}
@@ -5472,10 +5483,16 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Messages List */}
+        {/* Messages List — admin messages are filtered out when a backjob exists; they appear in the negotiation panel instead */}
         <FlatList
           ref={flatListRef}
-          data={conversation.messages}
+          data={
+            conversation.backjob?.has_backjob
+              ? conversation.messages.filter(
+                  (m: any) => m.sender_type !== "admin",
+                )
+              : conversation.messages
+          }
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
