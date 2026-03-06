@@ -5216,6 +5216,12 @@ def mobile_get_pending_reviews_alias(request):
     """
     return mobile_get_pending_reviews(request)
 
+
+@mobile_router.post("/reviews/pending-jobs", auth=jwt_auth)
+def mobile_get_pending_reviews_alias_post(request):
+    """POST alias for clients hitting pending-jobs with wrong method."""
+    return mobile_get_pending_reviews(request)
+
 #endregion
 
 #region PROFILE SWITCHING

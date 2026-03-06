@@ -1411,6 +1411,7 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Format messages
         formatted_messages = []
+        current_account_id = getattr(request.auth, 'accountID', None)
         for msg in messages:
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
@@ -1438,12 +1439,13 @@ def get_conversation_messages(request, conversation_id: int):
                 # Regular message from a Profile
                 is_mine = (
                     msg.sender is not None
-                    and msg.sender.accountFK_id == request.auth.id
+                    and current_account_id is not None
+                    and msg.sender.accountFK_id == current_account_id
                 )
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
                 sender_type = "profile"
-                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {request.auth.id})")
+                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {current_account_id})")
             
             # Get attachments for this message
             attachments = []
