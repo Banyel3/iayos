@@ -1119,6 +1119,19 @@ def accept_job_invite(request, job_id: int):
                 print(f"✅ Created conversation {conversation.conversationID} for INVITE job {job_id}")
             else:
                 print(f"ℹ️ Conversation already exists for job {job_id}")
+                # Repair legacy rows missing agency linkage to avoid participant check failures.
+                repair_fields = []
+                if conversation.agency_id != agency.agencyId:
+                    conversation.agency = agency
+                    repair_fields.append("agency")
+                if conversation.worker_id is not None:
+                    conversation.worker = None
+                    repair_fields.append("worker")
+                if repair_fields:
+                    conversation.save(update_fields=repair_fields)
+                    print(
+                        f"🔧 Repaired conversation {conversation.conversationID} fields: {', '.join(repair_fields)}"
+                    )
         except Exception as e:
             print(f"⚠️ Failed to create conversation: {str(e)}")
             # Don't fail the job acceptance if conversation creation fails
