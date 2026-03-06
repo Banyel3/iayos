@@ -60,6 +60,7 @@ interface DisputeDetail {
   backjob_started: boolean;
   worker_marked_complete: boolean;
   client_confirmed: boolean;
+  scheduled_date: string | null;
 }
 
 interface ChatMessage {
@@ -182,6 +183,10 @@ export default function BackjobDetailPage() {
 
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
+  const [showScheduledDateModal, setShowScheduledDateModal] = useState(false);
+  const [scheduledDateInput, setScheduledDateInput] = useState("");
+  const [scheduledDateLoading, setScheduledDateLoading] = useState(false);
+
   const fetchDispute = useCallback(async () => {
     try {
       const res = await fetch(
@@ -279,6 +284,40 @@ export default function BackjobDetailPage() {
       alert("Network error");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleSetScheduledDate = async () => {
+    if (!scheduledDateInput) {
+      alert("Please select a date.");
+      return;
+    }
+    setScheduledDateLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/set-scheduled-date`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scheduled_date: scheduledDateInput }),
+        },
+      );
+      const data = await res.json();
+      if (data.success) {
+        setShowScheduledDateModal(false);
+        setScheduledDateInput("");
+        setSuccessMsg(
+          data.message || "Scheduled date updated. Both parties have been notified.",
+        );
+        fetchDispute();
+      } else {
+        alert(data.error || "Failed to set scheduled date");
+      }
+    } catch {
+      alert("Network error");
+    } finally {
+      setScheduledDateLoading(false);
     }
   };
 
@@ -552,6 +591,16 @@ export default function BackjobDetailPage() {
                       </div>
                     ))}
                   </div>
+                  {dispute.scheduled_date && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-orange-600 uppercase tracking-wide">
+                        📅 Scheduled Date
+                      </span>
+                      <span className="text-sm font-semibold text-orange-700">
+                        {fmtDate(dispute.scheduled_date)}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {dispute.resolution && (
                   <div className="pt-2 border-t border-gray-100">
@@ -902,6 +951,17 @@ export default function BackjobDetailPage() {
                         Approve Backjob
                       </Button>
                       <Button
+                        className="w-full bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          setScheduledDateInput(dispute.scheduled_date ? dispute.scheduled_date.split("T")[0] : "");
+                          setShowScheduledDateModal(true);
+                        }}
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        {dispute.scheduled_date ? "Update Scheduled Date" : "Set Scheduled Date"}
+                      </Button>
+                      <Button
                         className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
                         disabled={actionLoading}
                         onClick={() => setShowRejectModal(true)}
@@ -923,6 +983,17 @@ export default function BackjobDetailPage() {
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Approve Backjob
+                      </Button>
+                      <Button
+                        className="w-full bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          setScheduledDateInput(dispute.scheduled_date ? dispute.scheduled_date.split("T")[0] : "");
+                          setShowScheduledDateModal(true);
+                        }}
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        {dispute.scheduled_date ? "Update Scheduled Date" : "Set Scheduled Date"}
                       </Button>
                     </>
                   )}
@@ -963,6 +1034,54 @@ export default function BackjobDetailPage() {
           </div>
         </div>
       </main>
+
+      {showScheduledDateModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">
+              {dispute?.scheduled_date ? "Update Scheduled Date" : "Set Scheduled Date"}
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Set the agreed date for when the backjob will be completed. Both parties will be notified.
+            </p>
+            {dispute?.scheduled_date && (
+              <div className="mb-3 p-3 bg-orange-50 rounded-xl border border-orange-200 text-xs text-orange-700">
+                Current: {fmtDate(dispute.scheduled_date)}
+              </div>
+            )}
+            <input
+              type="date"
+              value={scheduledDateInput}
+              onChange={(e) => setScheduledDateInput(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-orange-300"
+            />
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowScheduledDateModal(false);
+                  setScheduledDateInput("");
+                }}
+                disabled={scheduledDateLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleSetScheduledDate}
+                disabled={scheduledDateLoading || !scheduledDateInput}
+              >
+                {scheduledDateLoading
+                  ? "Saving..."
+                  : dispute?.scheduled_date
+                    ? "Update Date"
+                    : "Set Date"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
