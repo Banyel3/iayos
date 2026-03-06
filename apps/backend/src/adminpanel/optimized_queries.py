@@ -72,7 +72,26 @@ def get_dashboard_stats_optimized() -> Dict[str, Any]:
         in_progress_jobs=Count('jobID', filter=Q(status='IN_PROGRESS')),
         completed_jobs=Count('jobID', filter=Q(status='COMPLETED')),
         cancelled_jobs=Count('jobID', filter=Q(status='CANCELLED')),
+        new_jobs_this_month=Count('jobID', filter=Q(createdAt__gte=month_start)),
     )
+
+    # Single aggregation for financial stats
+    financial_stats = Transaction.objects.aggregate(
+        total_revenue=Coalesce(Sum('amount', filter=Q(status='COMPLETED')), Value(0), output_field=DecimalField()),
+        escrow_held=Coalesce(
+            Sum('amount', filter=Q(transactionType='ESCROW', status='PENDING')),
+            Value(0),
+            output_field=DecimalField()
+        ),
+    )
+
+    # Calculate global rating
+    avg_rating = JobReview.objects.filter(status='ACTIVE').aggregate(
+        avg=Avg('rating')
+    )['avg'] or 0.0
+
+    total_revenue = float(financial_stats['total_revenue'])
+    platform_fees = round(total_revenue * float(getattr(settings, 'PLATFORM_FEE_RATE', 0.10)), 2)
     
     return {
         'total_users': user_stats['total_users'],
@@ -86,6 +105,11 @@ def get_dashboard_stats_optimized() -> Dict[str, Any]:
         'pending_agency_kyc': pending_agency_kyc,
         **job_stats,
         'open_jobs': job_stats['active_jobs'] + job_stats['in_progress_jobs'],
+        # New business metrics
+        'total_revenue': total_revenue,
+        'escrow_held': float(financial_stats['escrow_held']),
+        'platform_fees': platform_fees,
+        'global_avg_rating': round(float(avg_rating), 1),
     }
 
 

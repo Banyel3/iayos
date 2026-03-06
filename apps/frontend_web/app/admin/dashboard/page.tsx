@@ -8,18 +8,17 @@ import {
   Users,
   Briefcase,
   TrendingUp,
-  UserCheck,
-  Building2,
-  FileText,
-  MessageSquare,
-  AlertCircle,
-  CheckCircle,
   Clock,
+  CheckCircle,
   XCircle,
-  TrendingDown,
+  AlertCircle,
+  Lock,
+  UserCheck,
+  LayoutGrid,
+  Star,
 } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
+import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from "recharts";
 
 interface DashboardStats {
   total_users: number;
@@ -37,12 +36,22 @@ interface DashboardStats {
   completed_jobs: number;
   cancelled_jobs: number;
   open_jobs: number;
+  new_jobs_this_month: number;
+  total_revenue: number;
+  escrow_held: number;
+  platform_fees: number;
+  global_avg_rating: number;
 }
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const mainClassName = useMainContentClass("p-6 bg-gray-50 min-h-screen");
+
+  const onPieEnter = (_: any, index: number) => {
+    setActiveIndex(index);
+  };
 
   const fetchStats = async () => {
     try {
@@ -65,9 +74,7 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    const controller = new AbortController();
     fetchStats();
-    return () => controller.abort();
   }, []);
 
   if (loading) {
@@ -76,18 +83,17 @@ export default function AdminDashboardPage() {
         <Sidebar />
         <main className={mainClassName}>
           <div className="max-w-7xl mx-auto">
-            <h1 className="text-3xl font-bold text-gray-900 mb-6">
-              Admin Dashboard
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+            <p className="text-gray-600 mb-6">Platform overview and business health metrics</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                <Card key={i}>
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i} className="animate-pulse shadow-sm">
                   <CardHeader className="pb-2">
-                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-8 bg-gray-200 rounded w-1/3 mb-2 animate-pulse"></div>
-                    <div className="h-3 bg-gray-200 rounded w-2/3 animate-pulse"></div>
+                    <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-2/3"></div>
                   </CardContent>
                 </Card>
               ))}
@@ -103,502 +109,361 @@ export default function AdminDashboardPage() {
       <div>
         <Sidebar />
         <main className={mainClassName}>
-          <div className="max-w-7xl mx-auto">
-            <p className="text-red-600">Failed to load dashboard data</p>
+          <div className="max-w-7xl mx-auto text-center py-20">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900">Failed to load dashboard</h2>
+            <p className="text-gray-600 mt-2">There was an error fetching the latest statistics.</p>
+            <button
+              onClick={() => { setLoading(true); fetchStats(); }}
+              className="mt-4 px-4 py-2 bg-[#00BAF1] text-white rounded-md hover:bg-[#0098c7] transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         </main>
       </div>
     );
   }
+
+  // Row 2 Col 1: Donut Chart Data - Sorted by value
+  const userData = [
+    { name: 'Clients', value: stats.total_clients, color: '#00BAF1' },
+    { name: 'Workers', value: stats.total_workers, color: '#008bb6' },
+    { name: 'Agencies', value: stats.total_agencies, color: '#005d7a' },
+  ].sort((a, b) => b.value - a.value);
+
   return (
     <div>
       <Sidebar />
       <main className={mainClassName}>
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
+          {/* Page Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Admin Dashboard
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Overview of platform statistics and recent activity
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-gray-600 mt-1">Platform overview and business health metrics</p>
           </div>
 
-          {/* Main Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Total Users */}
-            <Link href="/admin/users">
-              <Card className="cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    Total Users
-                  </CardTitle>
-                  <Users className="h-5 w-5 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {(stats.total_users ?? 0).toLocaleString()}
+          {/* Row 1: Revenue + Side Metrics */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            {/* Left wide column (2/3 width on LG) */}
+            <div className="lg:col-span-2">
+              <Card className="h-full flex flex-col shadow-sm border-gray-100 bg-white">
+                <CardHeader className="flex flex-row items-start justify-between pb-2">
+                  <div>
+                    <CardTitle className="text-4xl font-bold text-gray-900">
+                      ₱{(stats.total_revenue ?? 0).toLocaleString()}
+                    </CardTitle>
+                    <p className="text-sm font-bold text-gray-900 mt-2">
+                      Total Revenue (GMV)
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-green-600 flex items-center">
-                      <TrendingUp className="h-3 w-3 mr-1" />+
-                      {stats.new_users_this_month} this month
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {((stats.active_users / stats.total_users) * 100).toFixed(
-                        0,
-                      )}
-                      % active
-                    </p>
+                  <div className="flex bg-gray-50 border border-gray-200 rounded-md p-1 mt-1">
+                    <button className="px-3 py-1 text-xs font-medium text-gray-900 bg-white shadow-sm rounded">7d</button>
+                    <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-900">30d</button>
+                    <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-900">All</button>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col pt-0">
+                  <div className="flex-1 w-full min-h-[250px] relative flex flex-col items-center justify-center border-t border-gray-100 mt-4 pt-4">
+                    <ResponsiveContainer width="100%" height="100%" className="opacity-30">
+                      <BarChart data={[
+                        { name: 'Sun', TotalRevenue: 0, PlatformCut: 0 },
+                        { name: 'Mon', TotalRevenue: 0, PlatformCut: 0 },
+                        { name: 'Tue', TotalRevenue: 0, PlatformCut: 0 },
+                        { name: 'Wed', TotalRevenue: 0, PlatformCut: 0 },
+                        { name: 'Thu', TotalRevenue: 0, PlatformCut: 0 },
+                        { name: 'Fri', TotalRevenue: 0, PlatformCut: 0 },
+                        { name: 'Sat', TotalRevenue: 0, PlatformCut: 0 },
+                      ]}>
+                        <Bar barSize={40} dataKey="TotalRevenue" fill="#00BAF1" radius={[4, 4, 0, 0]} />
+                        <Bar barSize={40} dataKey="PlatformCut" fill="#a5f3fc" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-white/80 px-4 py-2 rounded-md shadow-sm border border-gray-100 backdrop-blur-sm">
+                        <p className="text-gray-500 text-sm italic font-medium">Chart data coming soon</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-6 mt-4 pb-2">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-sm bg-[#00BAF1] mr-2"></div>
+                      <span className="text-sm font-bold text-gray-900">Total Revenue</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-sm bg-[#a5f3fc] mr-2"></div>
+                      <span className="text-sm font-bold text-gray-900">Platform cut 10%</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-            </Link>
+            </div>
 
-            {/* Active Jobs */}
-            <Link href="/admin/jobs">
-              <Card className="cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    Total Jobs
-                  </CardTitle>
-                  <Briefcase className="h-5 w-5 text-orange-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {(stats.total_jobs ?? 0).toLocaleString()}
+            {/* Right column (1/3 width on LG) */}
+            <div className="flex flex-col gap-4">
+              {/* Platform Cut */}
+              <Card className="flex-1 shadow-sm border-gray-100 bg-white flex flex-col justify-center">
+                <CardHeader className="pb-2 pt-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-[#00BAF1]" />
+                    <CardTitle className="text-sm font-bold text-gray-900">
+                      Platform cut 10%
+                    </CardTitle>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-blue-600">
-                      {stats.active_jobs} active
-                    </p>
-                    <p className="text-xs text-green-600">
-                      {stats.completed_jobs} completed
-                    </p>
+                </CardHeader>
+                <CardContent className="pb-4">
+                  <div className="text-4xl font-bold text-gray-900">
+                    ₱{(stats.platform_fees ?? 0).toLocaleString()}
+                  </div>
+                  <div className="flex items-center mt-3 text-sm text-green-500">
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                    <span className="font-semibold text-green-500/60 italic text-xs">Trend data coming soon</span>
                   </div>
                 </CardContent>
               </Card>
-            </Link>
 
-            {/* Pending KYC */}
-            <Link href="/admin/kyc/pending">
-              <Card className="cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    Pending KYC
-                  </CardTitle>
-                  <FileText className="h-5 w-5 text-yellow-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {stats.pending_kyc}
+              {/* Funds in Escrow */}
+              <Card className="flex-1 shadow-sm border-gray-100 bg-white flex flex-col justify-center">
+                <CardHeader className="pb-2 pt-4">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-5 w-5 text-[#00BAF1]" />
+                    <CardTitle className="text-sm font-bold text-gray-900">
+                      Funds in Escrow
+                    </CardTitle>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-gray-600">
-                      {stats.pending_individual_kyc} individual
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {stats.pending_agency_kyc} agency
-                    </p>
+                </CardHeader>
+                <CardContent className="pb-4">
+                  <div className="text-4xl font-bold text-gray-900 flex items-center gap-1">
+                    <span>₱</span>
+                    <span>{(stats.escrow_held ?? 0).toLocaleString()}</span>
                   </div>
                 </CardContent>
               </Card>
-            </Link>
+            </div>
+          </div>
 
-            {/* Completion Rate */}
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-purple-900">
-                  Job Completion Rate
+          {/* Row 2: Three Equal Columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Column 1: Total Users Donut Chart */}
+            <Card className="shadow-sm border-gray-100 bg-white flex flex-col h-full">
+              <CardHeader className="pb-0 pt-5">
+                <CardTitle className="text-sm font-bold text-gray-900 flex items-center">
+                  <Users className="h-5 w-5 mr-2 text-[#00BAF1]" />
+                  Total Users
                 </CardTitle>
-                <CheckCircle className="h-5 w-5 text-purple-600" />
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-purple-900">
-                  {stats.total_jobs > 0
-                    ? ((stats.completed_jobs / stats.total_jobs) * 100).toFixed(
-                      1,
-                    )
-                    : 0}
-                  %
+              <CardContent className="flex flex-col flex-1 items-center justify-center pt-2 pb-5">
+                <div className="w-full h-60 relative mb-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart style={{ outline: 'none', border: 'none' }} className="outline-none focus:outline-none">
+                      <defs>
+                        <style>
+                          {`
+                            .recharts-surface:focus { outline: none; }
+                            @keyframes chartFadeIn {
+                              from { opacity: 0; }
+                              to { opacity: 1; }
+                            }
+                            .chart-fade-in {
+                              animation: chartFadeIn 0.3s ease-in-out forwards;
+                            }
+                          `}
+                        </style>
+                      </defs>
+                      <Pie
+                        data={userData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={80}
+                        outerRadius={105}
+                        paddingAngle={8}
+                        cornerRadius={10}
+                        dataKey="value"
+                        stroke="none"
+                        activeIndex={activeIndex !== null ? activeIndex : undefined}
+                        onMouseEnter={(data, index) => setActiveIndex(index)}
+                        onMouseLeave={() => setActiveIndex(null)}
+                        labelLine={false}
+                        label={(props) => {
+                          const { cx, cy, midAngle, outerRadius, value, name, index } = props;
+                          if (index !== activeIndex || midAngle === undefined) return null;
+
+                          const RADIAN = Math.PI / 180;
+                          const labelRadius = outerRadius + 15;
+                          const x = cx + labelRadius * Math.cos(-midAngle * RADIAN);
+                          const y = cy + labelRadius * Math.sin(-midAngle * RADIAN);
+
+                          const percentage = stats ? ((value / stats.total_users) * 100).toFixed(0) : 0;
+
+                          return (
+                            <text
+                              x={x}
+                              y={y}
+                              fill="#111827"
+                              textAnchor={x > cx ? 'start' : 'end'}
+                              dominantBaseline="central"
+                              className="text-[12px] font-bold chart-fade-in pointer-events-none"
+                            >
+                              {name}: {value.toLocaleString()} ({percentage}%)
+                            </text>
+                          );
+                        }}
+                      >
+                        {userData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.color}
+                            style={{ outline: 'none', border: 'none' }}
+                            tabIndex={-1}
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Total Count in center */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                    <p className="text-5xl font-extrabold text-gray-900 tracking-tight">
+                      {stats.total_users.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] leading-tight mt-1 uppercase text-gray-500 font-bold">
+                      Total<br />Users
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-purple-700 mt-2">
-                  {stats.completed_jobs} of {stats.total_jobs} jobs
-                </p>
+
+                <div className="w-full space-y-3 mt-auto px-2">
+                  {userData.map((entry, index) => {
+                    const percentage = stats ? ((entry.value / stats.total_users) * 100).toFixed(0) : 0;
+                    return (
+                      <div key={entry.name} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 rounded-sm mr-2" style={{ backgroundColor: entry.color }}></div>
+                          <span className="font-bold text-gray-900">{entry.name} ({percentage}%):</span>
+                        </div>
+                        <span className="font-bold text-gray-900">{entry.value.toLocaleString()}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Platform Health Overview */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
-                Platform Health Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Job Status Breakdown */}
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-blue-900">
-                      Active Jobs
-                    </span>
-                    <Briefcase className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div className="text-2xl font-bold text-blue-900">
-                    {stats.active_jobs}
-                  </div>
-                  <div className="mt-2 h-2 bg-blue-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-600 rounded-full"
-                      style={{
-                        width: `${stats.total_jobs > 0 ? (stats.active_jobs / stats.total_jobs) * 100 : 0}%`,
-                      }}
-                    ></div>
-                  </div>
+            {/* Column 2: Customer Satisfaction & Job Pipeline */}
+            <Card className="shadow-sm border-gray-100 bg-white h-full flex flex-col">
+              <CardHeader className="pb-4 pt-5">
+                <CardTitle className="text-sm font-bold text-gray-900 flex items-center">
+                  <Star className="h-5 w-5 mr-2 text-[#00BAF1]" />
+                  Customer Satisfaction
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 flex flex-col gap-4">
+                <div className="flex flex-col">
+                  <p className="text-xl font-bold text-gray-900">{(stats.global_avg_rating ?? 0).toFixed(1)} / 5.0</p>
                 </div>
 
-                <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-amber-900">
-                      In Progress
-                    </span>
+                <div className="flex items-center gap-2 px-1">
+                  <p className="text-xs font-medium text-gray-600">Total Jobs:</p>
+                  <p className="text-xs font-medium text-gray-900">{stats.total_jobs.toLocaleString()}</p>
+                </div>
+
+                {/* Job Pipeline - Vertical Stack */}
+                <div className="flex flex-col gap-2">
+                  <div className="bg-[#f0f9ff] px-4 py-2.5 rounded-xl flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-[#00BAF1] uppercase tracking-wider">Active</span>
+                      <div className="text-xl font-bold text-[#008bb6] leading-tight">{stats.active_jobs.toLocaleString()}</div>
+                    </div>
+                    <Briefcase className="h-4 w-4 text-[#00BAF1]" />
+                  </div>
+
+                  <div className="bg-amber-50 px-4 py-2.5 rounded-xl flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">In Progress</span>
+                      <div className="text-xl font-bold text-amber-900 leading-tight">{stats.in_progress_jobs.toLocaleString()}</div>
+                    </div>
                     <Clock className="h-4 w-4 text-amber-600" />
                   </div>
-                  <div className="text-2xl font-bold text-amber-900">
-                    {stats.in_progress_jobs}
-                  </div>
-                  <div className="mt-2 h-2 bg-amber-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-amber-600 rounded-full"
-                      style={{
-                        width: `${stats.total_jobs > 0 ? (stats.in_progress_jobs / stats.total_jobs) * 100 : 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
 
-                <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-green-900">
-                      Completed
-                    </span>
+                  <div className="bg-green-50 px-4 py-2.5 rounded-xl flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-green-700 uppercase tracking-wider">Completed</span>
+                      <div className="text-xl font-bold text-green-900 leading-tight">{stats.completed_jobs.toLocaleString()}</div>
+                    </div>
                     <CheckCircle className="h-4 w-4 text-green-600" />
                   </div>
-                  <div className="text-2xl font-bold text-green-900">
-                    {stats.completed_jobs}
-                  </div>
-                  <div className="mt-2 h-2 bg-green-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-600 rounded-full"
-                      style={{
-                        width: `${stats.total_jobs > 0 ? (stats.completed_jobs / stats.total_jobs) * 100 : 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
 
-                <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-red-900">
-                      Cancelled
-                    </span>
+                  <div className="bg-red-50 px-4 py-2.5 rounded-xl flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Cancelled</span>
+                      <div className="text-xl font-bold text-red-900 leading-tight">{stats.cancelled_jobs.toLocaleString()}</div>
+                    </div>
                     <XCircle className="h-4 w-4 text-red-600" />
-                  </div>
-                  <div className="text-2xl font-bold text-red-900">
-                    {stats.cancelled_jobs}
-                  </div>
-                  <div className="mt-2 h-2 bg-red-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-red-600 rounded-full"
-                      style={{
-                        width: `${stats.total_jobs > 0 ? (stats.cancelled_jobs / stats.total_jobs) * 100 : 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* User Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* User Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="h-5 w-5 mr-2 text-blue-600" />
-                  User Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Clients */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Clients
-                      </span>
-                      <span className="text-sm font-bold text-blue-600">
-                        {(stats.total_clients ?? 0).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600 rounded-full transition-all"
-                        style={{
-                          width: `${stats.total_users > 0 ? (stats.total_clients / stats.total_users) * 100 : 0}%`,
-                        }}
-                      ></div>
-                    </div>
-                    <span className="text-xs text-gray-500 mt-1">
-                      {stats.total_users > 0
-                        ? (
-                          (stats.total_clients / stats.total_users) *
-                          100
-                        ).toFixed(1)
-                        : 0}
-                      % of total users
-                    </span>
-                  </div>
-
-                  {/* Workers */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Workers
-                      </span>
-                      <span className="text-sm font-bold text-green-600">
-                        {(stats.total_workers ?? 0).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-600 rounded-full transition-all"
-                        style={{
-                          width: `${stats.total_users > 0 ? (stats.total_workers / stats.total_users) * 100 : 0}%`,
-                        }}
-                      ></div>
-                    </div>
-                    <span className="text-xs text-gray-500 mt-1">
-                      {stats.total_users > 0
-                        ? (
-                          (stats.total_workers / stats.total_users) *
-                          100
-                        ).toFixed(1)
-                        : 0}
-                      % of total users
-                    </span>
-                  </div>
-
-                  {/* Agencies */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Agencies
-                      </span>
-                      <span className="text-sm font-bold text-purple-600">
-                        {(stats.total_agencies ?? 0).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-purple-600 rounded-full transition-all"
-                        style={{
-                          width: `${stats.total_users > 0 ? (stats.total_agencies / stats.total_users) * 100 : 0}%`,
-                        }}
-                      ></div>
-                    </div>
-                    <span className="text-xs text-gray-500 mt-1">
-                      {stats.total_users > 0
-                        ? (
-                          (stats.total_agencies / stats.total_users) *
-                          100
-                        ).toFixed(1)
-                        : 0}
-                      % of total users
-                    </span>
-                  </div>
-
-                  {/* Active Users */}
-                  <div className="pt-3 border-t">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700 flex items-center">
-                        <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
-                        Verified Active
-                      </span>
-                      <span className="text-sm font-bold text-emerald-600">
-                        {(stats.active_users ?? 0).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-600 rounded-full transition-all"
-                        style={{
-                          width: `${stats.total_users > 0 ? (stats.active_users / stats.total_users) * 100 : 0}%`,
-                        }}
-                      ></div>
-                    </div>
-                    <span className="text-xs text-gray-500 mt-1">
-                      {stats.total_users > 0
-                        ? (
-                          (stats.active_users / stats.total_users) *
-                          100
-                        ).toFixed(1)
-                        : 0}
-                      % verification rate
-                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* KYC Status Breakdown */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FileText className="h-5 w-5 mr-2 text-yellow-600" />
-                  KYC Verification Status
+            {/* Column 3: Top Job Categories Placeholder */}
+            <Card className="shadow-sm border-gray-100 bg-white h-full flex flex-col">
+              <CardHeader className="pb-4 pt-5">
+                <CardTitle className="text-sm font-bold text-gray-900 flex items-center">
+                  <LayoutGrid className="h-5 w-5 mr-2 text-[#00BAF1]" />
+                  Top Job Categories
                 </CardTitle>
+                <div className="flex justify-end pt-3">
+                  <div className="flex gap-8 text-xs font-bold text-gray-900 pr-2">
+                    <span>Earnings</span>
+                    <span>Posts</span>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Individual KYC */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                      Individual Verification
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Clock className="h-4 w-4 mr-2 text-yellow-600" />
-                          <span className="text-sm text-gray-600">Pending</span>
-                        </div>
-                        <span className="text-sm font-bold text-yellow-600">
-                          {stats.pending_individual_kyc}
-                        </span>
-                      </div>
+              <CardContent className="flex-1 flex flex-col relative pt-0 pb-5">
+                <div className="space-y-0 relative z-10 flex-1 opacity-[0.25]">
+                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
+                    <span className="text-sm font-bold text-gray-900">Plumber</span>
+                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
+                      <span>—</span>
+                      <span>—</span>
                     </div>
                   </div>
-
-                  <div className="border-t pt-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                      Agency Verification
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Clock className="h-4 w-4 mr-2 text-yellow-600" />
-                          <span className="text-sm text-gray-600">Pending</span>
-                        </div>
-                        <span className="text-sm font-bold text-yellow-600">
-                          {stats.pending_agency_kyc}
-                        </span>
-                      </div>
+                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
+                    <span className="text-sm font-bold text-gray-900">Carpenter</span>
+                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
+                      <span>—</span>
+                      <span>—</span>
                     </div>
                   </div>
-
-                  {/* Total Pending Summary */}
-                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <AlertCircle className="h-5 w-5 mr-2 text-yellow-600" />
-                        <span className="text-sm font-semibold text-yellow-900">
-                          Total Awaiting Review
-                        </span>
-                      </div>
-                      <span className="text-xl font-bold text-yellow-900">
-                        {stats.pending_kyc}
-                      </span>
+                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
+                    <span className="text-sm font-bold text-gray-900">Cleaning</span>
+                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
+                      <span>—</span>
+                      <span>—</span>
                     </div>
-                    <Link
-                      href="/admin/kyc/pending"
-                      className="text-xs text-yellow-700 hover:text-yellow-900 mt-2 inline-flex items-center"
-                    >
-                      Review pending submissions →
-                    </Link>
+                  </div>
+                  <div className="flex items-center justify-between py-3.5 border-b border-gray-100">
+                    <span className="text-sm font-bold text-gray-900">Masonry</span>
+                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
+                      <span>—</span>
+                      <span>—</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-3.5">
+                    <span className="text-sm font-bold text-gray-900">Gardening</span>
+                    <div className="flex gap-12 text-sm text-gray-500 w-[120px] justify-end pr-3">
+                      <span>—</span>
+                      <span>—</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
+                  <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-md shadow-sm border border-gray-200">
+                    <p className="text-xs font-bold text-gray-600 italic">Detailed analytics coming soon</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Job Statistics - Removed (now in Platform Health Overview) */}
-
-          {/* Quick Actions & Key Metrics */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
-                Key Performance Indicators
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-6">
-                {/* Verification Rate */}
-                <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                  <div className="text-3xl font-bold text-blue-900">
-                    {stats.total_users > 0
-                      ? (
-                        (stats.active_users / stats.total_users) *
-                        100
-                      ).toFixed(1)
-                      : 0}
-                    %
-                  </div>
-                  <div className="text-sm text-blue-700 mt-2 font-medium">
-                    Verification Rate
-                  </div>
-                  <div className="text-xs text-blue-600 mt-1">
-                    {stats.active_users} of {stats.total_users} users
-                  </div>
-                </div>
-
-                {/* Job Success Rate */}
-                <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-                  <div className="text-3xl font-bold text-green-900">
-                    {stats.total_jobs > 0
-                      ? (
-                        (stats.completed_jobs / stats.total_jobs) *
-                        100
-                      ).toFixed(1)
-                      : 0}
-                    %
-                  </div>
-                  <div className="text-sm text-green-700 mt-2 font-medium">
-                    Job Success Rate
-                  </div>
-                  <div className="text-xs text-green-600 mt-1">
-                    {stats.completed_jobs} of {stats.total_jobs} jobs
-                  </div>
-                </div>
-
-                {/* Cancellation Rate */}
-                <div className="text-center p-6 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200">
-                  <div className="text-3xl font-bold text-red-900">
-                    {stats.total_jobs > 0
-                      ? (
-                        (stats.cancelled_jobs / stats.total_jobs) *
-                        100
-                      ).toFixed(1)
-                      : 0}
-                    %
-                  </div>
-                  <div className="text-sm text-red-700 mt-2 font-medium">
-                    Cancellation Rate
-                  </div>
-                  <div className="text-xs text-red-600 mt-1">
-                    {stats.cancelled_jobs} cancelled
-                  </div>
-                </div>
-              </div>
-
-
-            </CardContent>
-          </Card>
         </div>
       </main>
     </div>
