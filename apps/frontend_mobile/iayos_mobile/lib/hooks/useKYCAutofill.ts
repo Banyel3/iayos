@@ -295,6 +295,12 @@ export interface IDExtractionResponse {
   confidence: number;
   id_type: string;
   extracted_at: string;
+  name_match?: boolean | null;
+  name_match_score?: number;
+  name_match_reason?: string;
+  profile_name?: string;
+  ocr_name?: string;
+  name_match_required?: boolean;
   message?: string;
   error?: string;
   error_code?: string;

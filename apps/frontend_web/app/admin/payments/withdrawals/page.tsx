@@ -78,6 +78,13 @@ interface ApproveModalState {
   amount: number;
 }
 
+interface RejectModalState {
+  isOpen: boolean;
+  transactionId: string | number | null;
+  userName: string;
+  amount: number;
+}
+
 // Helper to get transaction ID safely
 const getTransactionId = (w: WithdrawalRequest): string => {
   return w.id || String(w.transaction_id || "");
@@ -94,7 +101,15 @@ export default function WithdrawalsPage() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [approveNotes, setApproveNotes] = useState("");
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const [approveModal, setApproveModal] = useState<ApproveModalState>({
+    isOpen: false,
+    transactionId: null,
+    userName: "",
+    amount: 0,
+  });
+  const [rejectModal, setRejectModal] = useState<RejectModalState>({
     isOpen: false,
     transactionId: null,
     userName: "",
@@ -360,40 +375,49 @@ export default function WithdrawalsPage() {
     }
   };
 
-  const handleReject = async (transactionId: string | number) => {
-    const reason = prompt("Enter rejection reason:");
-    if (!reason) return;
+  const openRejectModal = (withdrawal: WithdrawalRequest) => {
+    setRejectReason("");
+    setRejectModal({
+      isOpen: true,
+      transactionId: withdrawal.id || withdrawal.transaction_id || null,
+      userName: withdrawal.user?.name || withdrawal.user_name || "",
+      amount: withdrawal.amount,
+    });
+  };
 
-    // Final confirmation dialog
-    const confirmed = confirm(
-      `⚠️ FINAL CONFIRMATION\n\n` +
-      `You are about to REJECT this withdrawal request.\n\n` +
-      `Rejection Reason: ${reason}\n\n` +
-      `This will:\n` +
-      `• Refund the amount back to the user's wallet\n` +
-      `• Notify the user of the rejection\n` +
-      `• This action CANNOT be undone\n\n` +
-      `Are you absolutely sure you want to proceed?`,
-    );
+  const closeRejectModal = () => {
+    setRejectModal({
+      isOpen: false,
+      transactionId: null,
+      userName: "",
+      amount: 0,
+    });
+    setRejectReason("");
+  };
 
-    if (!confirmed) {
+  const handleReject = async () => {
+    if (!rejectModal.transactionId) return;
+    if (rejectReason.trim().length < 10) {
+      toast.error("Rejection reason must be at least 10 characters");
       return;
     }
 
+    setRejecting(true);
     try {
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/withdrawals/${transactionId}/reject`,
+        `${API_BASE}/api/adminpanel/withdrawals/${rejectModal.transactionId}/reject`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ reason }),
+          body: JSON.stringify({ reason: rejectReason.trim() }),
         },
       );
 
       const data = await response.json();
       if (data.success) {
         toast.success(data.message || "Withdrawal rejected and funds refunded to user wallet!");
+        closeRejectModal();
         fetchWithdrawals();
         fetchStatistics();
       } else {
@@ -402,6 +426,8 @@ export default function WithdrawalsPage() {
     } catch (error) {
       console.error("Error:", error);
       toast.error(getErrorMessage(error, "Failed to reject withdrawal"));
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -697,7 +723,7 @@ export default function WithdrawalsPage() {
                               <span className="hidden sm:inline">Mark</span> Completed
                             </Button>
                             <Button
-                              onClick={() => handleReject(withdrawal.id || withdrawal.transaction_id || "")}
+                              onClick={() => openRejectModal(withdrawal)}
                               variant="outline"
                               className="h-9 sm:h-10 border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1 px-3 sm:px-4 text-xs sm:text-sm"
                             >
@@ -807,6 +833,56 @@ export default function WithdrawalsPage() {
                       Confirm & Approve
                     </>
                   )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {rejectModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg mx-4 bg-white shadow-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-red-100 rounded-full">
+                  <XCircle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Reject Withdrawal</h3>
+                  <p className="text-sm text-gray-600">
+                    This will refund ₱{(rejectModal.amount ?? 0).toLocaleString()} back to {rejectModal.userName}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rejection Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Explain why this withdrawal is rejected..."
+                  className="w-full min-h-[120px] p-3 border border-gray-300 rounded-lg"
+                />
+                <p className="text-xs text-gray-500 mt-1">{rejectReason.trim().length}/10 minimum characters</p>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  onClick={closeRejectModal}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  disabled={rejecting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleReject}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  disabled={rejecting || rejectReason.trim().length < 10}
+                >
+                  {rejecting ? "Rejecting..." : "Confirm Reject"}
                 </Button>
               </div>
             </CardContent>

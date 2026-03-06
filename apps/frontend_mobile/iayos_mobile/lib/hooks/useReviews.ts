@@ -139,16 +139,23 @@ export function useMyReviews() {
   return useQuery({
     queryKey: reviewKeys.myReviews(),
     queryFn: async (): Promise<MyReviewsResponse> => {
-      const response = await apiRequest(ENDPOINTS.MY_REVIEWS);
+      const response = await apiRequest(ENDPOINTS.MY_REVIEWS, { timeout: 15000 });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(getErrorMessage(errorData, "Failed to fetch your reviews"));
+        let errorMessage = "Failed to fetch your reviews";
+        try {
+          const errorData = await response.json();
+          errorMessage = getErrorMessage(errorData, errorMessage);
+        } catch (_) {
+          // Non-JSON error body – use default message
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }
 
@@ -307,7 +314,7 @@ export function usePendingReviews(enabled = true) {
         throw new Error("Failed to fetch pending reviews");
       }
       const json = await response.json();
-      return json.data || { pending_reviews: [], count: 0 };
+      return json?.data ?? json ?? { pending_reviews: [], count: 0 };
     },
     enabled,
     staleTime: 30000, // 30 seconds

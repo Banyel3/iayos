@@ -5,8 +5,8 @@ import { Colors, Spacing, Typography, BorderRadius } from "../constants/theme";
 
 interface FinalPaymentCardProps {
   halfBudget: number; // Remaining 50% of job budget
-  platformFee: number; // 5% platform fee on final payment
-  totalAmount: number; // Total final payment (50% + 5%)
+  platformFee: number; // 10% platform fee on final payment
+  totalAmount: number; // Total final payment (50% + 10%)
   workerReceives?: number; // Amount worker receives (optional, calculated from escrow + final)
   showWorkerReceives?: boolean; // Whether to show worker receives section
 }
@@ -45,7 +45,7 @@ export default function FinalPaymentCard({
         <View style={styles.breakdownRow}>
           <View style={styles.labelWithIcon}>
             <Text style={styles.breakdownLabel}>
-              Platform Fee (5% of payment)
+              Platform Fee (10% of payment)
             </Text>
             <Ionicons
               name="information-circle-outline"

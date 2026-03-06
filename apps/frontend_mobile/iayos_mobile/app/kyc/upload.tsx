@@ -16,7 +16,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
@@ -150,6 +149,14 @@ export default function KYCUploadScreen() {
     current: number;
     total: number;
     label: string;
+  } | null>(null);
+
+  const [nameMismatchModalVisible, setNameMismatchModalVisible] =
+    useState(false);
+  const [nameMismatchInfo, setNameMismatchInfo] = useState<{
+    profileName: string;
+    ocrName: string;
+    score?: number;
   } | null>(null);
 
   // Per-document validation states (validate on upload like agency KYC)
@@ -603,6 +610,7 @@ export default function KYCUploadScreen() {
 
       // ===== OCR EXTRACTION: Extract ID data (no re-validation needed) =====
       setIsExtracting(true);
+      let blockForNameMismatch = false;
 
       try {
         const idFormData = new FormData();
@@ -626,6 +634,19 @@ export default function KYCUploadScreen() {
             }
           });
           setIdFormValues(initialValues);
+
+          if (extractResult.name_match === false) {
+            blockForNameMismatch = true;
+            setNameMismatchInfo({
+              profileName: extractResult.profile_name || "Your profile name",
+              ocrName:
+                extractResult.ocr_name ||
+                extractResult.fields.full_name?.value ||
+                "Extracted ID name",
+              score: extractResult.name_match_score,
+            });
+            setNameMismatchModalVisible(true);
+          }
         } else {
           // No extraction - enable manual entry mode
           setIdFormValues({
@@ -654,6 +675,10 @@ export default function KYCUploadScreen() {
         });
       } finally {
         setIsExtracting(false);
+      }
+
+      if (blockForNameMismatch) {
+        return;
       }
 
       // Proceed to Step 3 (ID verification)
@@ -1151,6 +1176,14 @@ export default function KYCUploadScreen() {
       })}
     </View>
   );
+
+  const handleEditProfileForNameMismatch = () => {
+    setNameMismatchModalVisible(false);
+    const activeProfileType = user?.profile_data?.profileType;
+    const profileEditRoute =
+      activeProfileType === "CLIENT" ? "/profile/edit-client" : "/profile/edit";
+    router.push(profileEditRoute as any);
+  };
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
@@ -1738,7 +1771,7 @@ export default function KYCUploadScreen() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={handleBack}
-            disabled={isValidating || isSubmitting || isExtracting}
+            disabled={isValidating || isSubmitting || isExtracting || nameMismatchModalVisible}
           >
             <Ionicons
               name="arrow-back"
@@ -1765,10 +1798,12 @@ export default function KYCUploadScreen() {
           style={[
             styles.nextButton,
             currentStep === 1 && styles.nextButtonFull,
-            (isValidating || isSubmitting || isExtracting) && { opacity: 0.7 },
+            (isValidating || isSubmitting || isExtracting || nameMismatchModalVisible) && {
+              opacity: 0.7,
+            },
           ]}
           onPress={handleNext}
-          disabled={isSubmitting || isValidating || isExtracting}
+          disabled={isSubmitting || isValidating || isExtracting || nameMismatchModalVisible}
         >
           {isSubmitting || isValidating || isExtracting ? (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -1801,6 +1836,63 @@ export default function KYCUploadScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={nameMismatchModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.nameMismatchModalOverlay}>
+          <View style={styles.nameMismatchModalCard}>
+            <View style={styles.nameMismatchIconWrap}>
+              <Ionicons name="alert-circle" size={30} color={Colors.error} />
+            </View>
+            <Text style={styles.nameMismatchTitle}>Name Mismatch Detected</Text>
+            <Text style={styles.nameMismatchText}>
+              The name extracted from your Government ID does not match your account profile name.
+            </Text>
+
+            <View style={styles.nameMismatchCompareBox}>
+              <Text style={styles.nameMismatchLabel}>Profile Name</Text>
+              <Text style={styles.nameMismatchValue}>
+                {nameMismatchInfo?.profileName || "-"}
+              </Text>
+
+              <Text style={[styles.nameMismatchLabel, { marginTop: 10 }]}>ID Name (OCR)</Text>
+              <Text style={styles.nameMismatchValue}>{nameMismatchInfo?.ocrName || "-"}</Text>
+
+              {typeof nameMismatchInfo?.score === "number" && (
+                <Text style={styles.nameMismatchScore}>
+                  Match score: {nameMismatchInfo.score.toFixed(1)}%
+                </Text>
+              )}
+            </View>
+
+            <Text style={styles.nameMismatchHint}>
+              Please edit your account name first, then re-upload your ID to continue KYC.
+            </Text>
+
+            <View style={styles.nameMismatchButtons}>
+              <TouchableOpacity
+                style={styles.nameMismatchCancelBtn}
+                onPress={() => setNameMismatchModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.nameMismatchCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.nameMismatchEditBtn}
+                onPress={handleEditProfileForNameMismatch}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.nameMismatchEditText}>Edit Name</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Camera Guidance Modal removed - now using /kyc/camera screen with built-in overlay */}
     </SafeAreaView>
@@ -2148,6 +2240,106 @@ const styles = StyleSheet.create({
     borderRightWidth: 3,
     borderColor: Colors.primary,
     borderBottomRightRadius: 4,
+  },
+  nameMismatchModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  nameMismatchModalCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: 20,
+  },
+  nameMismatchIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.errorLight,
+    alignSelf: "center",
+    marginBottom: 10,
+  },
+  nameMismatchTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  nameMismatchText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  nameMismatchCompareBox: {
+    marginTop: 14,
+    padding: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  nameMismatchLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  nameMismatchValue: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  nameMismatchScore: {
+    marginTop: 10,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+  },
+  nameMismatchHint: {
+    marginTop: 12,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
+  },
+  nameMismatchButtons: {
+    flexDirection: "row",
+    marginTop: 16,
+    gap: 10,
+  },
+  nameMismatchCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  nameMismatchCancelText: {
+    color: Colors.textSecondary,
+    fontWeight: "600",
+    fontSize: Typography.fontSize.sm,
+  },
+  nameMismatchEditBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+  },
+  nameMismatchEditText: {
+    color: Colors.white,
+    fontWeight: "700",
+    fontSize: Typography.fontSize.sm,
   },
   // Camera Guidance Modal styles removed - now using /kyc/camera screen with built-in overlay
 });

@@ -19,6 +19,7 @@ import {
   useAgencyDailyAttendance,
   useDispatchEmployee,
   useDispatchProjectEmployee,
+  useAgencyRequestSkipDay,
 } from "@/lib/hooks/useAgencyDailyAttendance";
 import {
   useConfirmBackjobStarted,
@@ -123,6 +124,7 @@ export default function AgencyChatScreen() {
   );
   const dispatchEmployeeMutation = useDispatchEmployee();
   const dispatchProjectMutation = useDispatchProjectEmployee();
+  const requestSkipDayMutation = useAgencyRequestSkipDay();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -871,6 +873,106 @@ export default function AgencyChatScreen() {
                     Mark which employees are working today. Client will verify
                     attendance.
                   </p>
+                </div>
+
+                {/* Agency Skip-Day Request Section */}
+                <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      📅 Skip Day Request
+                    </h3>
+                    <Badge variant="outline" className="text-xs">
+                      Client approval required
+                    </Badge>
+                  </div>
+
+                  <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2">
+                    <p className="text-xs text-amber-800 font-medium">
+                      Client approval is not guaranteed. If a skip-day request
+                      is rejected, repeated abuse may lead to reports and
+                      possible admin action.
+                    </p>
+                  </div>
+
+                  {(() => {
+                    const todaySkipRequest =
+                      conversation.daily_skip_requests_today?.[0];
+                    const requestToday = new Date().toISOString().split("T")[0];
+
+                    if (!todaySkipRequest) {
+                      return (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500 text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            if (!job?.id) return;
+                            requestSkipDayMutation.mutate({
+                              jobId: job.id,
+                              request_date: requestToday,
+                              conversationId,
+                            });
+                          }}
+                          disabled={requestSkipDayMutation.isPending}
+                        >
+                          {requestSkipDayMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                          )}
+                          Request Skip Day (Today)
+                        </Button>
+                      );
+                    }
+
+                    if (todaySkipRequest.status === "PENDING") {
+                      return (
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
+                            <span className="text-sm text-amber-800 font-medium">
+                              ⏳ Skip day request pending client review
+                            </span>
+                          </div>
+                          {todaySkipRequest.requires_all_team_workers && (
+                            <p className="text-xs text-amber-700 mt-1">
+                              Team consensus: {todaySkipRequest.requested_count}/
+                              {todaySkipRequest.total_required} workers requested
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (todaySkipRequest.status === "APPROVED") {
+                      return (
+                        <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-sm text-green-800 font-medium">
+                              ✅ Skip day approved by client
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-red-600" />
+                          <span className="text-sm text-red-800 font-medium">
+                            Skip day request rejected
+                          </span>
+                        </div>
+                        {!!todaySkipRequest.client_rejection_reason && (
+                          <p className="text-xs text-red-700 mt-1">
+                            {todaySkipRequest.client_rejection_reason}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Daily Attendance Section */}

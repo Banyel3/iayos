@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ViewStyle } from "react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 
 /**
@@ -23,6 +23,7 @@ export type PaymentStatus =
 interface PaymentStatusBadgeProps {
   status: PaymentStatus;
   size?: "small" | "medium" | "large";
+  style?: ViewStyle;
 }
 
 const statusConfig = {
@@ -30,19 +31,19 @@ const statusConfig = {
     label: "Pending",
     backgroundColor: "#FEF3C7",
     textColor: "#92400E",
-    icon: "⏳",
+    icon: null,
   },
   completed: {
     label: "Completed",
     backgroundColor: "#D1FAE5",
     textColor: "#065F46",
-    icon: "✓",
+    icon: null,
   },
   failed: {
     label: "Failed",
     backgroundColor: "#FEE2E2",
     textColor: "#991B1B",
-    icon: "✗",
+    icon: null,
   },
   verifying: {
     label: "Verifying",
@@ -61,6 +62,7 @@ const statusConfig = {
 export default function PaymentStatusBadge({
   status,
   size = "medium",
+  style,
 }: PaymentStatusBadgeProps) {
   const config = statusConfig[status];
 
@@ -91,6 +93,7 @@ export default function PaymentStatusBadge({
           paddingHorizontal: sizeStyles[size].paddingHorizontal,
           paddingVertical: sizeStyles[size].paddingVertical,
         },
+        style,
       ]}
     >
       <Text
@@ -102,7 +105,7 @@ export default function PaymentStatusBadge({
           },
         ]}
       >
-        {config.icon} {config.label}
+        {config.icon ? `${config.icon} ` : ""}{config.label}
       </Text>
     </View>
   );

@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/context/AuthContext";
@@ -46,7 +47,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 // Normally hideAsync() is called in ~100ms when RootLayout mounts.
 // This timeout only fires if something catastrophic prevents mounting.
 setTimeout(() => {
-  SplashScreen.hideAsync().catch(() => {});
+  SplashScreen.hideAsync().catch(() => { });
 }, 8000);
 
 // DEV-only guard: detect when React.createElement is called with an undefined type.
@@ -227,68 +228,70 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-      <AppUpdateWrapper>
-      <AuthProvider>
-        <NotificationProvider>
-          <PaperProvider>
-            <ThemeProvider
-              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-            >
-              <Stack
-                screenOptions={{
-                  headerShown: false, // Hide default headers globally
-                }}
-              >
-                <Stack.Screen
-                  name="auth/login"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/register"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/select-role"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="messages/[conversationId]"
-                  options={{
-                    headerShown: false,
-                    presentation: "card",
-                    animation: "slide_from_right",
-                  }}
-                />
-                <Stack.Screen
-                  name="notifications/index"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="notifications/settings"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="modal"
-                  options={{ presentation: "modal", title: "Modal" }}
-                />
-              </Stack>
-              <StatusBar
-                style={colorScheme === "dark" ? "light" : "dark"}
-                backgroundColor="transparent"
-                translucent
-              />
-              <Toast />
-            </ThemeProvider>
-          </PaperProvider>
-        </NotificationProvider>
-      </AuthProvider>
-      </AppUpdateWrapper>
-    </QueryClientProvider>
-    </ErrorBoundary>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AppUpdateWrapper>
+              <AuthProvider>
+                <NotificationProvider>
+                  <PaperProvider>
+                    <ThemeProvider
+                      value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+                    >
+                      <Stack
+                        screenOptions={{
+                          headerShown: false, // Hide default headers globally
+                        }}
+                      >
+                        <Stack.Screen
+                          name="auth/login"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
+                          name="auth/register"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
+                          name="auth/select-role"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen
+                          name="messages/[conversationId]"
+                          options={{
+                            headerShown: false,
+                            presentation: "card",
+                            animation: "slide_from_right",
+                          }}
+                        />
+                        <Stack.Screen
+                          name="notifications/index"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
+                          name="notifications/settings"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
+                          name="modal"
+                          options={{ presentation: "modal", title: "Modal" }}
+                        />
+                      </Stack>
+                      <StatusBar
+                        style={colorScheme === "dark" ? "light" : "dark"}
+                        backgroundColor="transparent"
+                        translucent
+                      />
+                      <Toast />
+                    </ThemeProvider>
+                  </PaperProvider>
+                </NotificationProvider>
+              </AuthProvider>
+            </AppUpdateWrapper>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

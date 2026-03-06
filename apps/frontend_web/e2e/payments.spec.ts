@@ -142,7 +142,7 @@ test.describe("Payment & Wallet Flows", () => {
             page.getByText(/payment|escrow|downpayment/i),
           ).toBeVisible({ timeout: 3000 });
 
-          // Check for payment details (50% downpayment + 5% platform fee)
+          // Check for payment details (50% downpayment + 10% platform fee)
           await expect(page.getByText(/50%|downpayment/i)).toBeVisible({
             timeout: 3000,
           });

@@ -33,6 +33,7 @@ export type ConnectionState =
 class WebSocketService {
   private ws: WebSocket | null = null;
   private url: string;
+  private activeToken: string | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000; // Start with 1 second
@@ -58,17 +59,6 @@ class WebSocketService {
   // Connect to WebSocket
   async connect(): Promise<void> {
     return new Promise(async (resolve, reject) => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        console.log("[WebSocket] Already connected");
-        resolve();
-        return;
-      }
-
-      if (this.ws?.readyState === WebSocket.CONNECTING) {
-        console.log("[WebSocket] Connection in progress");
-        return;
-      }
-
       // Get JWT token from SecureStore for authentication
       const token = await getAccessToken();
       if (!token) {
@@ -78,11 +68,33 @@ class WebSocketService {
         return;
       }
 
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        if (this.activeToken === token) {
+          console.log("[WebSocket] Already connected");
+          resolve();
+          return;
+        }
+
+        console.log("[WebSocket] Token changed, rebinding socket session");
+        this.disconnect();
+      }
+
+      if (this.ws?.readyState === WebSocket.CONNECTING) {
+        if (this.activeToken === token) {
+          console.log("[WebSocket] Connection in progress");
+          return;
+        }
+
+        console.log("[WebSocket] Token changed while connecting, restarting socket");
+        this.disconnect();
+      }
+
       // Append token to WebSocket URL for backend authentication
       const wsUrl = `${this.url}?token=${token}`;
       console.log(`[WebSocket] Connecting to ${wsUrl.replace(token, "XXX...")}`);
       this.connectionState = "connecting";
       this.isIntentionalClose = false;
+      this.activeToken = token;
 
       try {
         this.ws = new WebSocket(wsUrl);
@@ -146,6 +158,7 @@ class WebSocketService {
     }
 
     this.connectionState = "disconnected";
+    this.activeToken = null;
   }
 
   // Reset WebSocket service (clear all handlers and disconnect)

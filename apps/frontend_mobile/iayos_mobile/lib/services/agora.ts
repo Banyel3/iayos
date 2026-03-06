@@ -419,4 +419,5 @@ class AgoraService {
 }
 
 // Singleton instance
+export const AGORA_AVAILABLE = true;
 export const agoraService = new AgoraService();

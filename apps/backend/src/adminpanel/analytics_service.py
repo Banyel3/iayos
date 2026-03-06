@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional
 
 from accounts.models import Accounts, Profile, Job, JobApplication
 from profiles.models import Transaction
+from django.conf import settings
 
 
 # =============================================================================
@@ -267,9 +268,9 @@ def get_financial_analytics(period: str = "last_30_days") -> Dict[str, Any]:
         status='COMPLETED'
     ).aggregate(total=Sum('amount'))['total'] or 0
     
-    # Platform fees (5% of escrow)
-    platform_fees = float(total_revenue) * 0.05
-    period_platform_fees = float(period_revenue) * 0.05
+    # Platform fees (10% of escrow as per settings)
+    platform_fees = float(total_revenue) * float(settings.PLATFORM_FEE_RATE)
+    period_platform_fees = float(period_revenue) * float(settings.PLATFORM_FEE_RATE)
     
     # Transaction by type
     by_type = list(
@@ -631,7 +632,7 @@ def get_analytics_overview(period: str = "last_30_days") -> Dict[str, Any]:
         createdAt__lt=start_date
     ).aggregate(total=Sum('amount'))['total'] or 0
     
-    platform_fees = float(total_revenue) * 0.05
+    platform_fees = float(total_revenue) * float(settings.PLATFORM_FEE_RATE)
     
     # Calculate growth rates
     user_growth_rate = ((new_users_period - prev_new_users) / prev_new_users * 100) if prev_new_users > 0 else 0

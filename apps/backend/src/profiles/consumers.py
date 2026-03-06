@@ -658,10 +658,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             conversation = Conversation.objects.get(conversationID=self.conversation_id)
             print(f"[WebSocket] Found conversation: {conversation.conversationID}")
-            print(f"[WebSocket] Client: {conversation.client.profileID}, Worker: {conversation.worker.profileID if conversation.worker else 'None'}")
-            
-            has_access = (conversation.client.profileID == profile.profileID or 
-                         (conversation.worker and conversation.worker.profileID == profile.profileID))
+            print(
+                f"[WebSocket] Client: {getattr(conversation.client, 'profileID', None)}, "
+                f"Worker: {getattr(conversation.worker, 'profileID', None)}"
+            )
+
+            is_direct_participant = (
+                (conversation.client and conversation.client.profileID == profile.profileID)
+                or (conversation.worker and conversation.worker.profileID == profile.profileID)
+            )
+
+            is_team_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=profile,
+            ).exists()
+
+            has_access = is_direct_participant or is_team_participant
             print(f"[WebSocket] Access result: {has_access}")
             return has_access
         except Conversation.DoesNotExist:

@@ -988,10 +988,11 @@ def fetch_kyc_logs(action_filter: str | None = None, limit: int = 100):
         
         # Apply action filter if provided
         if action_filter:
-            queryset = queryset.filter(action=action_filter)
+            normalized_action = action_filter.strip().upper()
+            queryset = queryset.filter(action__iexact=normalized_action)
         
         # Limit results
-        queryset = queryset[:limit]
+        queryset = queryset.order_by('-reviewedAt')[:limit]
         
         logs = []
         for log in queryset:
@@ -2424,14 +2425,25 @@ def create_job_category(data: dict):
     if not name:
         raise ValueError("Category name is required")
 
+    minimum_rate = Decimal(str(data.get('minimum_rate', 0)))
+    avg_min = Decimal(str(data.get('average_project_cost_min', 0)))
+    avg_max = Decimal(str(data.get('average_project_cost_max', 0)))
+
+    if minimum_rate < 0:
+        raise ValueError("Minimum rate cannot be negative")
+    if avg_min < 0 or avg_max < 0:
+        raise ValueError("Project cost range cannot be negative")
+    if avg_max < avg_min:
+        raise ValueError("Maximum project cost must be greater than or equal to minimum project cost")
+
     category = Specializations.objects.create(
         specializationName=name,
         description=(data.get('description') or '').strip(),
-        minimumRate=Decimal(str(data.get('minimum_rate', 0))),
+        minimumRate=minimum_rate,
         rateType=data.get('rate_type', 'hourly'),
         skillLevel=data.get('skill_level', 'intermediate'),
-        averageProjectCostMin=Decimal(str(data.get('average_project_cost_min', 0))),
-        averageProjectCostMax=Decimal(str(data.get('average_project_cost_max', 0))),
+        averageProjectCostMin=avg_min,
+        averageProjectCostMax=avg_max,
     )
     return {
         'id': category.specializationID,
@@ -2469,15 +2481,31 @@ def update_job_category(category_id: int, data: dict):
     if 'description' in data:
         category.description = (data['description'] or '').strip()
     if 'minimum_rate' in data:
-        category.minimumRate = Decimal(str(data['minimum_rate']))
+        minimum_rate = Decimal(str(data['minimum_rate']))
+        if minimum_rate < 0:
+            raise ValueError("Minimum rate cannot be negative")
+        category.minimumRate = minimum_rate
     if 'rate_type' in data:
         category.rateType = data['rate_type']
     if 'skill_level' in data:
         category.skillLevel = data['skill_level']
+    proposed_min = category.averageProjectCostMin
+    proposed_max = category.averageProjectCostMax
+
     if 'average_project_cost_min' in data:
-        category.averageProjectCostMin = Decimal(str(data['average_project_cost_min']))
+        proposed_min = Decimal(str(data['average_project_cost_min']))
+        if proposed_min < 0:
+            raise ValueError("Minimum project cost cannot be negative")
     if 'average_project_cost_max' in data:
-        category.averageProjectCostMax = Decimal(str(data['average_project_cost_max']))
+        proposed_max = Decimal(str(data['average_project_cost_max']))
+        if proposed_max < 0:
+            raise ValueError("Maximum project cost cannot be negative")
+
+    if proposed_max < proposed_min:
+        raise ValueError("Maximum project cost must be greater than or equal to minimum project cost")
+
+    category.averageProjectCostMin = proposed_min
+    category.averageProjectCostMax = proposed_max
 
     category.save()
     return {
@@ -3831,7 +3859,7 @@ def get_job_invoice(job_id: int):
         # Calculate amounts
         budget = float(job.budget) if job.budget else 0
         downpayment = budget * 0.5
-        platform_fee = downpayment * 0.05  # 5% of downpayment
+        platform_fee = budget * float(settings.PLATFORM_FEE_RATE)  # 10% of total budget
         subtotal = budget
         total_paid = downpayment + platform_fee  # What client paid upfront
         remaining = budget - downpayment  # Remaining 50%

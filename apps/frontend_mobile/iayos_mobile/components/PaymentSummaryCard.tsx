@@ -52,9 +52,9 @@ export default function PaymentSummaryCard({
               <Text style={styles.value}>{formatCurrency(halfBudget)}</Text>
             </View>
 
-            {/* Platform Fee (5%) */}
+            {/* Platform Fee (10%) */}
             <View style={styles.row}>
-              <Text style={styles.label}>Platform Fee (5% of escrow)</Text>
+              <Text style={styles.label}>Platform Fee (10% of escrow)</Text>
               <Text style={styles.value}>{formatCurrency(platformFee)}</Text>
             </View>
 

@@ -99,7 +99,7 @@ export default function AboutScreen() {
           <BulletPoint text="Secure Escrow: Your payment is protected until work is complete" />
           <BulletPoint text="Real Reviews: Honest ratings from real clients and workers" />
           <BulletPoint text="Quick Response: Find available workers near you in minutes" />
-          <BulletPoint text="Fair Platform: Only 5% platform fee on downpayment (2.5% of total job value)" />
+          <BulletPoint text="Fair Platform: Only 10% platform fee on downpayment" />
         </Section>
 
         {/* How It Works */}

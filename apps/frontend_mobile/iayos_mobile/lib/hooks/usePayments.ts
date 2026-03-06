@@ -315,11 +315,11 @@ export const useWalletDepositGCash = () => {
   });
 };
 
-// Utility: Calculate escrow amount (50% of job budget + 10% platform fee on that 50%)
+// Utility: Calculate escrow amount (50% of job budget + 10% platform fee on total budget)
 // Worker receives full job budget, client pays platform fee on top
 export const calculateEscrowAmount = (jobBudget: number) => {
   const halfBudget = jobBudget * 0.5; // 50% to worker
-  const platformFee = halfBudget * 0.1; // 10% of the 50% (5% of total budget)
+  const platformFee = jobBudget * 0.1; // 10% of total budget
   const total = halfBudget + platformFee; // Total client pays for escrow
 
   return {

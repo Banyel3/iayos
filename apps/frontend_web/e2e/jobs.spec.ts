@@ -126,15 +126,15 @@ test.describe("Job Management Flows", () => {
         .first();
       await budgetInput.fill("1000");
 
-      // Check if payment breakdown appears (50% downpayment + 5% platform fee)
+      // Check if payment breakdown appears (50% downpayment + 10% platform fee)
       // Worker receives: ₱1,000
       // Downpayment: ₱500
-      // Platform fee (5% of downpayment): ₱25
-      // You pay now: ₱525
+      // Platform fee (10% of budget): ₱100
+      // You pay now: ₱600
       await expect(
         page.getByText(/worker receives|payment breakdown/i),
       ).toBeVisible({ timeout: 3000 });
-      await expect(page.getByText(/525|₱525/)).toBeVisible({ timeout: 3000 }); // Total downpayment with fee
+      await expect(page.getByText(/600|₱600/)).toBeVisible({ timeout: 3000 }); // Total downpayment with fee
     });
   });
 

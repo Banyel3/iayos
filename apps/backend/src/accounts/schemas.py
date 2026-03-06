@@ -240,6 +240,14 @@ class SubmitReviewMobileSchema(Schema):
     employee_id: Optional[int] = None  # For agency employee reviews (JobEmployeeAssignment)
     worker_assignment_id: Optional[int] = None  # For team job worker reviews (JobWorkerAssignment)
 
+
+class MobileCreateReportSchema(Schema):
+    report_type: str  # 'user' | 'job' | 'review' | 'message' | 'other'
+    reason: str  # 'spam' | 'harassment' | 'fraud' | 'inappropriate' | 'fake_profile' | 'other'
+    description: str
+    reported_user_id: Optional[int] = None
+    related_content_id: Optional[int] = None
+
 class SendMessageMobileSchema(Schema):
     """Schema for sending chat message"""
     text: str

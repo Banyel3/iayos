@@ -3,16 +3,17 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
 from .schemas import (
     CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, 
     JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema,
-    LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema
+    LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema,
+    RequestSkipDaySchema, ReviewSkipDaySchema, QASkipNextDaySchema
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
 from django.db import transaction as db_transaction
@@ -44,6 +45,25 @@ def get_user_profile(request):
     else:
         # Fallback for single profile users
         return Profile.objects.filter(accountFK=request.auth).first()
+
+
+def is_testing_mode_enabled() -> bool:
+    """Return True when TESTING mode is enabled."""
+    return bool(getattr(settings, 'TESTING', False))
+
+
+def get_effective_work_date(job: Job):
+    """Get effective work date with TESTING-only QA offset applied."""
+    base_date = timezone.now().date()
+
+    if not is_testing_mode_enabled():
+        return base_date
+
+    day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    return base_date + timedelta(days=day_offset)
 
 
 def broadcast_job_status_update(job_id, update_data):
@@ -183,7 +203,11 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
-        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
+        payment_method = (
+            getattr(data, "downpayment_method", None)
+            or getattr(data, "payment_method", None)
+            or "WALLET"
+        ).upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
@@ -606,7 +630,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         
         # Get payment method (default to WALLET)
         # Frontend sends downpayment_method; fall back to payment_method for backward compat
-        payment_method = (data.downpayment_method or data.payment_method or "WALLET").upper()
+        payment_method = (
+            getattr(data, "downpayment_method", None)
+            or getattr(data, "payment_method", None)
+            or "WALLET"
+        ).upper()
         print(f"💳 Payment method selected: {payment_method}")
         
         # Handle payment based on method
@@ -961,7 +989,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             print(f"💳 Creating {provider_name.upper()} invoice for escrow payment...")
             
             payment_result = payment_provider.create_gcash_payment(
-                amount=float(total_to_charge),  # Include 5% platform fee
+                amount=float(total_to_charge),  # Include platform fee (10% as per settings)
                 user_email=request.auth.email,
                 user_name=user_name,
                 transaction_id=escrow_transaction.transactionID
@@ -1534,21 +1562,26 @@ def get_completed_jobs(request):
         )
 
 
-@router.get("/worker-schedule", auth=cookie_auth)
+@router.get("/worker-schedule", auth=dual_auth)
 def get_worker_schedule(request):
     """Get current worker's scheduled/active jobs for calendar display.
     Returns jobs that have both preferredStartDate and scheduled_end_date set.
     """
     try:
         from accounts.models import WorkerProfile
-        profile = Profile.objects.filter(accountFK=request.auth).first()
-        if not profile:
-            return Response({"error": "Profile not found"}, status=404)
 
-        try:
-            worker_profile = WorkerProfile.objects.get(profileID=profile)
-        except WorkerProfile.DoesNotExist:
-            return Response({"error": "Worker profile not found"}, status=403)
+        # IMPORTANT: Resolve worker profile by account (not "first profile")
+        # to avoid false 403 for dual-profile users where CLIENT profile may be first.
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).select_related('profileID').first()
+
+        if not worker_profile:
+            return {
+                "success": True,
+                "jobs": [],
+                "message": "No worker profile found for this account"
+            }
 
         jobs = JobPosting.objects.filter(
             assignedWorkerID=worker_profile,
@@ -1563,12 +1596,16 @@ def get_worker_schedule(request):
                 {
                     "id": j.jobID,
                     "title": j.title,
-                    "preferred_start_date": str(j.preferredStartDate),
-                    "scheduled_end_date": str(j.scheduled_end_date),
+                    "preferred_start_date": j.preferredStartDate.isoformat()[:10] if j.preferredStartDate else None,
+                    "scheduled_end_date": j.scheduled_end_date.isoformat()[:10] if j.scheduled_end_date else None,
                     "status": j.status,
                     "client_name": (
                         f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
                     ),
+                    "other_party_name": (
+                        f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
+                    ),
+                    "location": j.location,
                     "budget": float(j.budget),
                 }
                 for j in jobs
@@ -2159,6 +2196,63 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "You cannot apply to your own job posting"},
                 status=403
             )
+
+        # Block workers from applying while currently working on another active assignment
+        active_regular_job = JobPosting.objects.filter(
+            assignedWorkerID=worker_profile,
+            status=JobPosting.JobStatus.IN_PROGRESS,
+        ).exclude(jobID=job.jobID).first()
+
+        if active_regular_job:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active job in progress",
+                message=(
+                    f"You can't apply right now because you're currently working on "
+                    f"'{active_regular_job.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_regular_job.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active job: '{active_regular_job.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_regular_job.jobID,
+                    "active_job_title": active_regular_job.title,
+                },
+                status=400,
+            )
+
+        active_team_assignment = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status='ACTIVE',
+        ).select_related('jobID').first()
+
+        if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+            Notification.objects.create(
+                accountFK=request.auth,
+                notificationType="JOB_APPLICATION_BLOCKED",
+                title="Application blocked: active team assignment",
+                message=(
+                    f"You can't apply right now because you're currently assigned to "
+                    f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
+                ),
+                relatedJobID=active_team_assignment.jobID.jobID,
+            )
+            return Response(
+                {
+                    "error": (
+                        f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
+                        "Complete it before applying to another job."
+                    ),
+                    "active_job_id": active_team_assignment.jobID.jobID,
+                    "active_job_title": active_team_assignment.jobID.title,
+                },
+                status=400,
+            )
         
         # Check if job is still active
         if job.status != JobPosting.JobStatus.ACTIVE:
@@ -2167,12 +2261,16 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=400
             )
         
-        # Check if worker already applied
+        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
         existing_application = JobApplication.objects.filter(
             jobID=job,
-            workerID=worker_profile
+            workerID=worker_profile,
+            status__in=[
+                JobApplication.ApplicationStatus.PENDING,
+                JobApplication.ApplicationStatus.ACCEPTED,
+            ],
         ).first()
-        
+
         if existing_application:
             return Response(
                 {"error": "You have already applied for this job"},
@@ -2201,6 +2299,22 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "Invalid budget option"},
                 status=400
             )
+
+        if data.budget_option == 'NEGOTIATE' and job.categoryID and job.categoryID.minimumRate and data.proposed_budget is not None:
+            proposed_budget = Decimal(str(data.proposed_budget))
+            minimum_rate = Decimal(str(job.categoryID.minimumRate))
+            if proposed_budget < minimum_rate:
+                return Response(
+                    {
+                        "error": (
+                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
+                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                        ),
+                        "minimum_rate": float(minimum_rate),
+                        "category": job.categoryID.specializationName,
+                    },
+                    status=400,
+                )
         
         # Create the application
         application = JobApplication.objects.create(
@@ -2216,7 +2330,6 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         print(f"✅ Application {application.applicationID} created successfully")
 
         # Create notification for the client
-        from accounts.models import Notification
         worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
@@ -2458,7 +2571,6 @@ def accept_application(request, job_id: int, application_id: int):
                     print(f"✅ Updated fee transaction {pending_fee.transactionID} to COMPLETED")
                 
                 # Create escrow payment notification
-                from accounts.models import Notification
                 Notification.objects.create(
                     accountFK=request.auth,
                     notificationType="ESCROW_PAID",
@@ -2510,7 +2622,6 @@ def accept_application(request, job_id: int, application_id: int):
             ).select_related('workerID__profileID__accountFK')
 
             # Notify rejected workers
-            from accounts.models import Notification
             for other_app in other_applications:
                 Notification.objects.create(
                     accountFK=other_app.workerID.profileID.accountFK,
@@ -4011,7 +4122,7 @@ def client_approve_job_completion(
             buffer_days = get_payment_buffer_days()
             
             # Handle WALLET payment (instant deduction from client, but pending for worker)
-            if payment_method == 'WALLET':
+            if payment_method_upper == 'WALLET':
                 print(f"💳 Wallet payment selected - checking balance")
                 
                 # Get or create wallet for client
@@ -4094,6 +4205,31 @@ def client_approve_job_completion(
                     relatedJobID=job.jobID
                 )
                 print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+
+                if recipient_account:
+                    Notification.objects.create(
+                        accountFK=recipient_account,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Final payment for '{job.title}' is completed by the client. "
+                            f"Funds are now in pending release for {buffer_days} days."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
+                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
+                for admin in admin_accounts:
+                    Notification.objects.create(
+                        accountFK=admin,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Client completed final WALLET payment for job '{job.title}' "
+                            f"(₱{remaining_amount})."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
 
                 return {
                     "success": True,
@@ -4191,6 +4327,31 @@ def client_approve_job_completion(
                     relatedJobID=job.jobID
                 )
                 print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+
+                if cash_recipient_account:
+                    Notification.objects.create(
+                        accountFK=cash_recipient_account,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Final CASH payment for '{job.title}' is confirmed by the client. "
+                            f"Escrow portion is pending release for {buffer_days} days."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
+
+                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
+                for admin in admin_accounts:
+                    Notification.objects.create(
+                        accountFK=admin,
+                        notificationType="FINAL_PAYMENT_COMPLETED",
+                        title="Final Payment Completed",
+                        message=(
+                            f"Client uploaded final CASH payment proof for job '{job.title}' "
+                            f"(₱{remaining_amount})."
+                        ),
+                        relatedJobID=job.jobID,
+                    )
                 
                 return {
                     "success": True,
@@ -4788,9 +4949,10 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                         pending_workers = []
                         for assignment in assignments:
                             worker_account = assignment.workerID.profileID.accountFK
-                            if worker_account.id not in reviewed_worker_ids:
+                            worker_account_id = worker_account.accountID
+                            if worker_account_id not in reviewed_worker_ids:
                                 pending_workers.append({
-                                    "worker_id": assignment.workerID.id,
+                                    "worker_id": assignment.workerID.pk,
                                     "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
                                 })
                         
@@ -4885,6 +5047,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             pending_team_workers = []
             all_team_workers_reviewed = False
             reviewed_worker_name = None
+            total_team_workers = job.total_workers_assigned
             
             if job.is_team_job and is_client:
                 from accounts.models import JobWorkerAssignment
@@ -4913,13 +5076,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     # Check if still pending review
                     if worker_account_id not in reviewed_worker_account_ids:
                         pending_team_workers.append({
-                            "worker_id": a.workerID.id,
+                            "worker_id": a.workerID.pk,
                             "account_id": worker_account_id,
                             "name": worker_name,
                             "avatar": worker_profile.profileImg,
                             "skill": a.skillSlotID.specializationID.specializationName if a.skillSlotID else None,
                         })
                 
+                total_team_workers = len(all_assignments)
                 all_team_workers_reviewed = len(pending_team_workers) == 0
             
             # Check if both parties have now submitted reviews
@@ -4928,12 +5092,21 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             job_completed = False
             # For team jobs: completed when all workers reviewed AND all workers have reviewed client
             if job.is_team_job:
+                from accounts.models import JobWorkerAssignment
+
+                # Use actual assigned workers for this started team run.
+                # This avoids blocking completion when jobs started with partial teams.
+                expected_worker_count = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).values('workerID').distinct().count()
+
                 # Count client reviews (one per worker)
                 client_reviews = JobReview.objects.filter(jobID=job, reviewerType="CLIENT").count()
                 worker_reviews = JobReview.objects.filter(jobID=job, reviewerType="WORKER").count()
-                total_workers = job.total_workers_needed
+                total_workers = expected_worker_count
                 
-                if client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
+                if total_workers > 0 and client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
                     job.status = "COMPLETED"
                     job.completedAt = timezone.now()
                     job.save()
@@ -4980,8 +5153,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     "reviewed_worker_name": reviewed_worker_name,
                     "pending_team_workers": pending_team_workers,
                     "all_team_workers_reviewed": all_team_workers_reviewed,
-                    "total_team_workers": job.total_workers_needed,
-                    "reviewed_count": job.total_workers_needed - len(pending_team_workers)
+                    "total_team_workers": total_team_workers,
+                    "reviewed_count": max(0, total_team_workers - len(pending_team_workers))
                 })
             
             return response
@@ -5620,6 +5793,21 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 {"error": "Only the client who posted this job can request a backjob"},
                 status=403
             )
+
+        # Anti-abuse guard: limit concurrent active backjob requests per client
+        active_backjob_count = JobDispute.objects.filter(
+            jobID__clientID__profileID__accountFK=request.auth,
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+        ).count()
+        if active_backjob_count >= 3:
+            return Response(
+                {
+                    "error": "Backjob request limit reached. You can only have up to 3 active backjob requests at a time.",
+                    "active_backjob_count": active_backjob_count,
+                    "max_active_backjobs": 3,
+                },
+                status=429,
+            )
         
         # Check if a dispute/backjob already exists for this job
         existing_dispute = JobDispute.objects.filter(jobID=job).first()
@@ -6179,8 +6367,10 @@ def complete_backjob(request, job_id: int, notes: str = Form(default="")):
     
     This endpoint is kept for backward compatibility but redirects to mark-complete.
     """
+    if notes:
+        print(f"⚠️ Deprecated complete-backjob endpoint received notes for job {job_id}: {notes}")
     print(f"⚠️ Deprecated complete-backjob endpoint called for job {job_id}. Use new 3-phase workflow.")
-    return mark_backjob_complete(request, job_id, notes)
+    return mark_backjob_complete(request, job_id)
 
 #endregion
 
@@ -7650,6 +7840,245 @@ def get_rate_changes(request, job_id: int):
         'job_id': job_id,
         'rate_changes': records,
         'total': len(records)
+    }
+
+
+@router.post("/{job_id}/daily/skip-day/request", auth=dual_auth)
+@require_kyc
+def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
+    """
+    Worker/agency requests a skip day for a DAILY job.
+    """
+    from datetime import date
+    from accounts.models import DailySkipDayRequest
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    # Block clients from requesting skip day
+    if job.clientID and job.clientID.profileID.accountFK == request.auth:
+        return Response({"error": "Only worker/agency can request skip day"}, status=403)
+
+    # Verify user is assigned to this job as worker or agency
+    is_agency = bool(job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth)
+    is_worker = bool(job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth)
+
+    if not is_agency and not is_worker:
+        # Team worker fallback
+        is_worker = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            workerID__profileID__accountFK=request.auth,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        ).exists()
+
+    if not is_agency and not is_worker:
+        return Response({"error": "You are not assigned to this job"}, status=403)
+
+    request_date = data.request_date
+    if not request_date:
+        return Response({"error": "request_date is required"}, status=400)
+
+    try:
+        parsed_date = date.fromisoformat(request_date)
+    except ValueError:
+        return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+
+    requester_account_id = int(request.auth.accountID)
+
+    requires_all_team_workers = bool(getattr(job, 'is_team_job', False) and not is_agency)
+    total_required = 1
+    if requires_all_team_workers:
+        total_required = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        ).count() or 1
+
+    with db_transaction.atomic():
+        skip_request, created = DailySkipDayRequest.objects.get_or_create(
+            jobID=job,
+            request_date=parsed_date,
+            defaults={
+                'requested_by': 'AGENCY' if is_agency else 'WORKER',
+                'requestedByUser': request.auth,
+                'requested_account_ids': [requester_account_id],
+                'requested_count': 1,
+                'total_required': total_required,
+                'requires_all_team_workers': requires_all_team_workers,
+                'all_workers_requested': (not requires_all_team_workers) or total_required <= 1,
+            }
+        )
+
+        if not created:
+            if skip_request.status != 'PENDING':
+                return Response({
+                    "error": f"Skip day request already {skip_request.status.lower()} for this date"
+                }, status=400)
+
+            requested_ids = list(skip_request.requested_account_ids or [])
+            if requester_account_id not in requested_ids:
+                requested_ids.append(requester_account_id)
+
+            skip_request.requested_account_ids = requested_ids
+            skip_request.requested_count = len(requested_ids)
+            skip_request.total_required = max(skip_request.total_required or 1, total_required)
+            skip_request.requires_all_team_workers = requires_all_team_workers
+            skip_request.all_workers_requested = (
+                (not requires_all_team_workers)
+                or skip_request.requested_count >= skip_request.total_required
+            )
+            if not skip_request.requestedByUser:
+                skip_request.requestedByUser = request.auth
+            skip_request.save()
+
+    return {
+        "success": True,
+        "message": "Skip day request submitted",
+        "skip_request": {
+            "skip_request_id": skip_request.skipRequestID,
+            "request_date": skip_request.request_date.isoformat(),
+            "status": skip_request.status,
+            "requested_count": skip_request.requested_count,
+            "total_required": skip_request.total_required,
+            "requires_all_team_workers": skip_request.requires_all_team_workers,
+            "all_workers_requested": skip_request.all_workers_requested,
+            "my_worker_requested": requester_account_id in (skip_request.requested_account_ids or []),
+            "client_rejection_reason": skip_request.client_rejection_reason,
+        }
+    }
+
+
+@router.post("/{job_id}/daily/skip-day/{skip_request_id}/review", auth=dual_auth)
+@require_kyc
+def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: ReviewSkipDaySchema):
+    """
+    Client approves/rejects a DAILY skip-day request.
+    """
+    from accounts.models import DailySkipDayRequest
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can review skip-day requests"}, status=403)
+
+    try:
+        skip_request = DailySkipDayRequest.objects.get(
+            skipRequestID=skip_request_id,
+            jobID=job
+        )
+    except DailySkipDayRequest.DoesNotExist:
+        return Response({"error": "Skip-day request not found"}, status=404)
+
+    if skip_request.status != 'PENDING':
+        return Response({"error": "Skip-day request is already reviewed"}, status=400)
+
+    action = (data.action or '').strip().lower()
+    if action not in ['approve', 'reject']:
+        return Response({"error": "action must be 'approve' or 'reject'"}, status=400)
+
+    if action == 'approve':
+        skip_request.status = 'APPROVED'
+        skip_request.client_rejection_reason = None
+        message = 'Skip-day request approved'
+    else:
+        skip_request.status = 'REJECTED'
+        skip_request.client_rejection_reason = (data.reason or 'Client declined skip day request.').strip()
+        message = 'Skip-day request rejected'
+
+    skip_request.reviewedByUser = request.auth
+    skip_request.reviewedAt = timezone.now()
+    skip_request.save(update_fields=[
+        'status',
+        'client_rejection_reason',
+        'reviewedByUser',
+        'reviewedAt',
+        'updatedAt',
+    ])
+
+    return {
+        "success": True,
+        "message": message,
+        "skip_request": {
+            "skip_request_id": skip_request.skipRequestID,
+            "status": skip_request.status,
+            "client_rejection_reason": skip_request.client_rejection_reason,
+            "reviewed_at": skip_request.reviewedAt.isoformat() if skip_request.reviewedAt else None,
+        }
+    }
+
+
+@router.post("/{job_id}/daily/qa/skip-next-day", auth=dual_auth)
+@require_kyc
+def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
+    """
+    TESTING-only endpoint: client advances DAILY job by one effective day.
+    This does not change server time and is blocked in production.
+    """
+    if not is_testing_mode_enabled():
+        return Response({
+            "error": "QA skip-next-day is disabled outside TESTING non-production environments"
+        }, status=403)
+
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can advance QA day"}, status=403)
+
+    old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    new_offset = old_offset + 1
+
+    old_effective_date = timezone.now().date() + timedelta(days=old_offset)
+    new_effective_date = timezone.now().date() + timedelta(days=new_offset)
+
+    with db_transaction.atomic():
+        job.qa_day_offset = new_offset
+        job.save(update_fields=['qa_day_offset', 'updatedAt'])
+
+        JobLog.objects.create(
+            jobID=job,
+            actionType=JobLog.ActionType.JOB_EDITED,
+            oldStatus=job.status,
+            newStatus=job.status,
+            changedBy=request.auth,
+            notes="[QA][TESTING] Advanced effective daily work date by +1 day",
+            metadata={
+                "event": "qa_skip_next_day",
+                "testing": True,
+                "old_offset": old_offset,
+                "new_offset": new_offset,
+                "old_effective_date": old_effective_date.isoformat(),
+                "new_effective_date": new_effective_date.isoformat(),
+                "reason": (data.reason or "").strip() or "QA fast-forward",
+            }
+        )
+
+    return {
+        "success": True,
+        "message": "[QA][TESTING] Effective day advanced by 1",
+        "qa": {
+            "enabled": True,
+            "day_offset": new_offset,
+            "effective_work_date": new_effective_date.isoformat(),
+        }
     }
 
 

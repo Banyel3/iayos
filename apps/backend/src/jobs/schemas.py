@@ -269,3 +269,19 @@ class ApproveRateChangeSchema(Schema):
 class CancelDailyJobSchema(Schema):
     """Schema for canceling a daily job"""
     reason: str
+
+
+class RequestSkipDaySchema(Schema):
+    """Schema for requesting a daily skip day"""
+    request_date: str  # YYYY-MM-DD format
+
+
+class ReviewSkipDaySchema(Schema):
+    """Schema for client review of a skip-day request"""
+    action: str  # approve | reject
+    reason: Optional[str] = None
+
+
+class QASkipNextDaySchema(Schema):
+    """Schema for TESTING-only QA skip-to-next-day action"""
+    reason: Optional[str] = None

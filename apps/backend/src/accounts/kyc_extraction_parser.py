@@ -621,6 +621,12 @@ class KYCExtractionParser:
     
     def _parse_date_from_text(self, text: str) -> Optional[str]:
         """Try to parse a date from text"""
+        if not text:
+            return None
+
+        # Normalize OCR spacing around separators (e.g., "07 /22 /2025" -> "07/22/2025")
+        text = re.sub(r'\s*([/\-])\s*', r'\1', text)
+        text = re.sub(r'\s+', ' ', text).strip()
         
         # Pattern: YYYY/MM/DD (NEW LTO FORMAT - e.g., 1977/03/01, 2021/03/01)
         match = re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', text)
@@ -1070,124 +1076,192 @@ class KYCExtractionParser:
         
         text_upper = ocr_text.upper()
         lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
+
+        stop_label_tokens = [
+            "ADDRESS", "DATE", "BIRTH", "PURPOSE", "STATUS", "FINDINGS",
+            "CLEARANCE", "ISSUE", "VALID", "GENDER", "CIVIL", "SIGNATURE",
+            "THUMB", "NBI", "REMARKS", "CITIZENSHIP", "PLACE OF BIRTH"
+        ]
+
+        def normalize_line_for_match(line: str) -> str:
+            return re.sub(r'[^A-Z0-9:/\-\.\s]', ' ', line.upper()).strip()
+
+        def clean_extracted_value(value: str) -> str:
+            value = re.sub(r'\s+', ' ', value or '').strip()
+            value = re.sub(r'^[\:\.\-\s]+', '', value)
+            return value.strip()
+
+        def is_likely_header_or_noise(value: str) -> bool:
+            if not value:
+                return True
+            value_up = value.upper()
+            if len(value_up) < 3:
+                return True
+            noisy_keywords = [
+                "REPUBLIC OF THE PHILIPPINES", "NATIONAL BUREAU", "POLICE",
+                "CLEARANCE CERTIFICATE", "TO WHOM IT MAY CONCERN", "INVESTIGATION",
+                "NO DEROGATORY RECORD"
+            ]
+            return any(keyword in value_up for keyword in noisy_keywords)
+
+        def line_has_stop_token(line: str) -> bool:
+            line_up = line.upper()
+            return any(token in line_up for token in stop_label_tokens)
+
+        def extract_labeled_value(label_patterns: List[str], max_lookahead: int = 2) -> str:
+            """
+            Extract a value from either same-line label/value format or following lines.
+            """
+            for idx, raw_line in enumerate(lines):
+                line_up = normalize_line_for_match(raw_line)
+                for label_pattern in label_patterns:
+                    label_match = re.search(label_pattern, line_up)
+                    if not label_match:
+                        continue
+
+                    # Same-line value
+                    value_part = clean_extracted_value(line_up[label_match.end():])
+                    if value_part and not is_likely_header_or_noise(value_part):
+                        return value_part
+
+                    # Next-line fallback
+                    for jump in range(1, max_lookahead + 1):
+                        next_idx = idx + jump
+                        if next_idx >= len(lines):
+                            break
+                        next_line = clean_extracted_value(normalize_line_for_match(lines[next_idx]))
+                        if not next_line:
+                            continue
+                        if line_has_stop_token(next_line):
+                            break
+                        if not is_likely_header_or_noise(next_line):
+                            return next_line
+            return ""
+
+        def extract_number_token(text_value: str) -> str:
+            """Find likely clearance number token in extracted label value."""
+            if not text_value:
+                return ""
+            # Supports formats like: C654BVBN50-R92684150, 214720265, ABC/12345
+            token_match = re.search(r'([A-Z0-9][A-Z0-9\-/]{5,30})', text_value.upper())
+            return token_match.group(1).strip() if token_match else ""
+
+        def extract_name_token(text_value: str) -> str:
+            if not text_value:
+                return ""
+            candidate = re.sub(r'[^A-Z\s\-\.]', ' ', text_value.upper())
+            candidate = re.sub(r'\s+', ' ', candidate).strip()
+            if is_likely_header_or_noise(candidate):
+                return ""
+            return candidate.title()
         
         # =====================================================================
         # NBI CLEARANCE PATTERNS
         # =====================================================================
         if clearance_type == "NBI":
-            # NBI Clearance Number — modern format uses "NBI ID NO: C654BVBN50-R92684150"
-            nbi_number_patterns = [
-                r'NBI\s*ID\s*(?:NO|NUMBER)?[:\.\s]+([A-Z0-9\-]+)',
-                r'(?:NBI\s*)?CLEARANCE\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
-                r'NO[:\.\s]*(\d{4}[\-\s]?\d{8})',
-                r'(?:NBI|CLEARANCE)\s*[:\.\s]*([A-Z]?\d{4,}[\-\s]?\d{0,8})',
-            ]
+            nbi_number_raw = extract_labeled_value([
+                r'\bNBI\s*ID\s*(?:NO|NUMBER)?\b',
+                r'\bNBI\s*NO\b',
+                r'\bCLEARANCE\s*(?:NO|NUMBER|#)\b',
+            ])
+            nbi_number = extract_number_token(nbi_number_raw)
+            if not nbi_number:
+                nbi_inline = re.search(r'\bNBI\s*ID\s*(?:NO|NUMBER)?[:\.\s]+([A-Z0-9\-/]{6,32})', text_upper)
+                if nbi_inline:
+                    nbi_number = nbi_inline.group(1).strip()
+            if nbi_number:
+                result["clearance_number"] = nbi_number
+                result["clearance_number_confidence"] = 0.9
 
-            for pattern in nbi_number_patterns:
-                match = re.search(pattern, text_upper, re.IGNORECASE)
-                if match:
-                    result["clearance_number"] = match.group(1).strip()
-                    result["clearance_number_confidence"] = 0.85
-                    break
+            family_raw = extract_labeled_value([r'\bFAMILY\s*NAME\b'])
+            first_raw = extract_labeled_value([r'\bFIRST\s*NAME\b'])
+            middle_raw = extract_labeled_value([r'\bMIDDLE\s*NAME\b'])
 
-            # Modern NBI has separate FAMILY NAME / FIRST NAME / MIDDLE NAME lines
-            _name_stop = r'(?=\s*(?:ADDRESS|DATE|VALID|BIRTH|PURPOSE|STATUS|NBI|CLEARANCE|ISSUED|\d))'
-            _family_match = re.search(r'FAMILY\s*NAME[:\.\s]+([A-Z][A-Z\s\-\.]+)' + _name_stop, text_upper)
-            _first_match  = re.search(r'FIRST\s*NAME[:\.\s]+([A-Z][A-Z\s\-\.]+)' + _name_stop, text_upper)
-            _middle_match = re.search(r'MIDDLE\s*NAME[:\.\s]+([A-Z][A-Z\s\-\.]+)' + _name_stop, text_upper)
+            family = extract_name_token(family_raw)
+            first = extract_name_token(first_raw)
+            middle = extract_name_token(middle_raw)
 
-            if _family_match:
-                _family = _family_match.group(1).strip()
-                _first  = _first_match.group(1).strip()  if _first_match  else ''
-                _middle = _middle_match.group(1).strip() if _middle_match else ''
-                full_name = ' '.join(part for part in [_first, _middle, _family] if part)
-                result["holder_name"] = full_name.title()
-                result["holder_name_confidence"] = 0.9
+            if family and first:
+                full_name = " ".join(part for part in [first, middle, family] if part)
+                result["holder_name"] = full_name
+                result["holder_name_confidence"] = 0.92
             else:
-                # Fallback: generic NAME / ISSUED TO / HOLDER patterns
-                name_patterns = [
-                    r'(?:ISSUED\s+TO|HOLDER)[:\.\s]+([A-Z][A-Z\s,\.]+)',
-                    r'\bNAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
-                ]
-                for pattern in name_patterns:
-                    match = re.search(pattern, text_upper)
-                    if match:
-                        name = match.group(1).strip()
-                        name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
-                        name = re.sub(r'\s+', ' ', name).strip()
-                        if len(name) > 3:
-                            result["holder_name"] = name.title()
-                            result["holder_name_confidence"] = 0.8
-                            break
+                generic_name_raw = extract_labeled_value([
+                    r'\bNAME\b',
+                    r'\bISSUED\s+TO\b',
+                    r'\bHOLDER\b',
+                ])
+                generic_name = extract_name_token(generic_name_raw)
+                if generic_name:
+                    result["holder_name"] = generic_name
+                    result["holder_name_confidence"] = 0.78
         
         # =====================================================================
         # POLICE CLEARANCE PATTERNS
         # =====================================================================
         elif clearance_type == "POLICE":
-            # Police Clearance Number pattern
-            police_number_patterns = [
-                r'(?:CONTROL|CLEARANCE|REFERENCE)\s*(?:NO|NUMBER|#)[:\.\s]*([A-Z0-9\-]+)',
-                r'NO[:\.\s]*(\d{4,}[\-\s]?\d{0,8})',
-            ]
-            
-            for pattern in police_number_patterns:
-                match = re.search(pattern, text_upper)
-                if match:
-                    result["clearance_number"] = match.group(1).strip()
-                    result["clearance_number_confidence"] = 0.8
-                    break
-            
-            # Name pattern for police clearance
-            name_patterns = [
-                r'NAME[:\.\s]+([A-Z][A-Z\s,\.]+)',
-                r'(?:CERTIFY|HEREBY|THIS\s+IS\s+TO)[^A-Z]*([A-Z][A-Z\s,\.]{5,30})',
-            ]
-            
-            for pattern in name_patterns:
-                match = re.search(pattern, text_upper)
-                if match:
-                    name = match.group(1).strip()
-                    name = re.sub(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.*', '', name).strip()
-                    name = re.sub(r'\s+', ' ', name).strip()
-                    if len(name) > 3:
-                        result["holder_name"] = name.title()
-                        result["holder_name_confidence"] = 0.75
-                        break
+            police_number_raw = extract_labeled_value([
+                r'\bREG\.?\s*SIX\s*ISSUE\b',
+                r'\bREFERENCE\s*(?:NO|NUMBER|#)?\b',
+                r'\bCONTROL\s*(?:NO|NUMBER|#)?\b',
+                r'\bCLEARANCE\s*(?:NO|NUMBER|#)\b',
+            ])
+            police_number = extract_number_token(police_number_raw)
+            if not police_number:
+                # fallback for lines like: "Reg. Six Isssue 214720265"
+                reg_line_match = re.search(r'\bREG\.?\s*SIX\s*ISS\w*\s+([A-Z0-9\-/]{6,20})', text_upper)
+                if reg_line_match:
+                    police_number = reg_line_match.group(1).strip()
+            if police_number:
+                result["clearance_number"] = police_number
+                result["clearance_number_confidence"] = 0.9
+
+            police_name_raw = extract_labeled_value([
+                r'\bNAME\b',
+            ], max_lookahead=3)
+            police_name = extract_name_token(police_name_raw)
+            if police_name:
+                result["holder_name"] = police_name
+                result["holder_name_confidence"] = 0.85
         
         # =====================================================================
         # DATE EXTRACTION (Common for both types)
         # =====================================================================
-        # Issue date patterns
-        issue_patterns = [
-            r'(?:DATE\s+OF\s+ISSUE|ISSUED\s+ON|ISSUE\s+DATE|DATE\s+ISSUED)[:\.\s]*([A-Z0-9\s,\-/]+)',
-            r'ISSUED[:\.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-        ]
+        issue_raw = extract_labeled_value([
+            r'\bDATE\s*OF\s*ISSUE\b',
+            r'\bISSUED\s*ON\b',
+            r'\bISSUE\s*DATE\b',
+            r'\bDATE\s*ISSUED\b',
+            r'\bISSUED\b',
+            r'\bDATE\b',
+        ], max_lookahead=2)
+
+        if issue_raw:
+            parsed_date = self._parse_date_from_text(issue_raw)
+            if parsed_date:
+                result["issue_date"] = parsed_date
+                result["issue_date_confidence"] = 0.86
+
+        if not result["issue_date"]:
+            # fallback: pick first plausible date in full text
+            all_dates = self._find_all_dates(text_upper)
+            if all_dates:
+                result["issue_date"] = all_dates[0][0]
+                result["issue_date_confidence"] = 0.65
         
-        for pattern in issue_patterns:
-            match = re.search(pattern, text_upper)
-            if match:
-                date_str = match.group(1).strip()[:30]  # Limit length
-                parsed_date = self._parse_date_from_text(date_str)
-                if parsed_date:
-                    result["issue_date"] = parsed_date
-                    result["issue_date_confidence"] = 0.8
-                    break
-        
-        # Validity/expiry date patterns
-        validity_patterns = [
-            r'(?:VALID\s+UNTIL|EXPIRY|EXPIRATION|VALID\s+THRU)[:\.\s]*([A-Z0-9\s,\-/]+)',
-            r'(?:VALID|EXPIRES)[:\.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-        ]
-        
-        for pattern in validity_patterns:
-            match = re.search(pattern, text_upper)
-            if match:
-                date_str = match.group(1).strip()[:30]
-                parsed_date = self._parse_date_from_text(date_str)
-                if parsed_date:
-                    result["validity_date"] = parsed_date
-                    result["validity_date_confidence"] = 0.8
-                    break
+        validity_raw = extract_labeled_value([
+            r'\bVALID\s*UNTIL\b',
+            r'\bEXPIRY\b',
+            r'\bEXPIRATION\b',
+            r'\bVALID\s*THRU\b',
+            r'\bEXPIRES\b',
+        ], max_lookahead=2)
+
+        if validity_raw:
+            parsed_validity = self._parse_date_from_text(validity_raw)
+            if parsed_validity:
+                result["validity_date"] = parsed_validity
+                result["validity_date_confidence"] = 0.82
         
         # Calculate overall confidence
         confidences = [

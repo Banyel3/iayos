@@ -493,7 +493,7 @@ export default function EditProfileScreen() {
 
             {/* First Name */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>First Name *</Text>
+              <Text style={styles.label}>First Name</Text>
               <TextInput
                 style={[styles.input, styles.inputReadonly]}
                 value={firstName}
@@ -505,7 +505,7 @@ export default function EditProfileScreen() {
 
             {/* Last Name */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Last Name *</Text>
+              <Text style={styles.label}>Last Name</Text>
               <TextInput
                 style={[styles.input, styles.inputReadonly]}
                 value={lastName}
@@ -558,7 +558,7 @@ export default function EditProfileScreen() {
                 ]}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Tell clients about your experience, skills, and what makes you stand out..."
+                placeholder="Say something about yourself"
                 placeholderTextColor={Colors.textSecondary}
                 multiline
                 numberOfLines={6}
@@ -569,12 +569,12 @@ export default function EditProfileScreen() {
                 <Text
                   style={[
                     styles.hint,
-                    bio.length > 0 && bio.length < 50 && styles.hintWarning,
+                    bio.length > 0 && bio.length < 20 && styles.hintWarning,
                   ]}
                 >
-                  {bio.length > 0 && bio.length < 50
-                    ? `${50 - bio.length} more characters needed`
-                    : "Minimum 50 characters recommended"}
+                  {bio.length > 0 && bio.length < 20
+                    ? `${20 - bio.length} more characters needed`
+                    : "Minimum 20 characters"}
                 </Text>
                 <Text style={styles.charCount}>{bio.length}/500</Text>
               </View>
@@ -583,7 +583,7 @@ export default function EditProfileScreen() {
             {/* Hourly Rate Field */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>
-                Hourly Rate <Text style={styles.optional}>(optional)</Text>
+                Daily Rate <Text style={styles.optional}>(optional)</Text>
               </Text>
               <View style={styles.inputWithIcon}>
                 <Text style={styles.currencySymbol}>₱</Text>
@@ -599,9 +599,8 @@ export default function EditProfileScreen() {
                   placeholderTextColor={Colors.textSecondary}
                   keyboardType="decimal-pad"
                 />
-                <Text style={styles.inputSuffix}>/hour</Text>
+                <Text style={styles.inputSuffix}>/day</Text>
               </View>
-              <Text style={styles.hint}>Set your preferred hourly rate</Text>
             </View>
           </View>
 

@@ -55,7 +55,7 @@ export default function KYCAuditLogPage() {
       setError(null);
 
       // Use the real KYC logs endpoint
-      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/logs`, {
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/audit-logs`, {
         credentials: "include",
       });
 
