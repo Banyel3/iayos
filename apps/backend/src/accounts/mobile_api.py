@@ -4142,7 +4142,7 @@ def get_mobile_config(request):
             "auto_withdraw": True,
         },
         "platform": {
-            "min_deposit": 100,
+            "min_deposit": 10,
             "max_deposit": 100000,
             "min_withdraw": 100,
             "auto_withdraw_day": "Friday",
