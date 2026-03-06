@@ -315,6 +315,39 @@ export const useWalletDepositGCash = () => {
   });
 };
 
+// ─── Transaction Detail ──────────────────────────────────────────────────────
+
+export interface TransactionDetail {
+  id: number;
+  transaction_id: string;
+  amount: number;
+  payment_method: string;
+  status: string;
+  created_at: string;
+  type?: string;
+  transaction_type_label?: string;
+  title?: string;
+  description?: string;
+  reference_number?: string | null;
+  balance_after?: number | null;
+  paymongo_checkout_url?: string | null;
+  paymongo_payment_id?: string | null;
+  job?: { id: number; title: string; status?: string } | null;
+}
+
+/**
+ * Fetch a single transaction with lazy PayMongo payment ID backfill.
+ * Uses `staleTime: Infinity` because completed transaction data is immutable.
+ */
+export const useTransactionDetail = (id: number | null) => {
+  return useQuery<TransactionDetail>({
+    queryKey: ['transactionDetail', id],
+    queryFn: () => fetchJson<TransactionDetail>(ENDPOINTS.TRANSACTION_DETAIL(id!), { credentials: 'include' }),
+    enabled: !!id,
+    staleTime: Infinity,
+  });
+};
+
 // Utility: Calculate escrow amount (50% of job budget + 10% platform fee on total budget)
 // Worker receives full job budget, client pays platform fee on top
 export const calculateEscrowAmount = (jobBudget: number) => {

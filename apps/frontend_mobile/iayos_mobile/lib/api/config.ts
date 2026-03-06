@@ -510,6 +510,7 @@ export const ENDPOINTS = {
   DEPOSIT_GCASH: `${API_URL}/api/mobile/wallet/deposit-gcash`,
   WALLET_WITHDRAW: `${API_URL}/api/mobile/wallet/withdraw`,
   WALLET_TRANSACTIONS: `${API_URL}/api/mobile/wallet/transactions`,
+  TRANSACTION_DETAIL: (id: number) => `${API_URL}/api/mobile/wallet/transactions/${id}`,
   CREATE_JOB_WITH_PAYMENT: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
   CREATE_JOB: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
   // Payment webhooks (server-side only, not called from frontend)
