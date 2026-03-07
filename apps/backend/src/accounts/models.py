@@ -2242,11 +2242,22 @@ class JobDispute(models.Model):
         help_text="When admin accepted this dispute into negotiation"
     )
 
-    # Admin-scheduled date for backjob completion
+    # Client-proposed date for backjob completion (confirmed by worker/agency)
     scheduled_date = models.DateField(
         blank=True,
         null=True,
-        help_text="Admin-set date for when the backjob will be completed, as agreed in negotiations"
+        help_text="Client-set date for when the backjob will be completed, pending worker/agency confirmation"
+    )
+
+    # Worker/agency must explicitly confirm the proposed schedule before activation
+    workerScheduleConfirmed = models.BooleanField(
+        default=False,
+        help_text="True when the assigned worker/agency confirms the proposed backjob schedule"
+    )
+    workerScheduleConfirmedAt = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp when worker/agency confirmed the proposed backjob schedule"
     )
 
     # Timestamps

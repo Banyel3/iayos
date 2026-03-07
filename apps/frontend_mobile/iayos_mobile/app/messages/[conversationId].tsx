@@ -55,6 +55,8 @@ import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
+  useSetBackjobScheduledDate,
+  useConfirmBackjobScheduledDate,
   useRequestBackjobRenegotiation,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
@@ -110,8 +112,6 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
-  const [negotiationPanelExpanded, setNegotiationPanelExpanded] =
-    useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
@@ -140,6 +140,9 @@ export default function ChatScreen() {
     icon?: string;
     iconColor?: string;
   } | null>(null);
+  const [showBackjobScheduleModal, setShowBackjobScheduleModal] =
+    useState(false);
+  const [backjobScheduleInput, setBackjobScheduleInput] = useState("");
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -292,6 +295,8 @@ export default function ChatScreen() {
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
+  const setBackjobScheduledDateMutation = useSetBackjobScheduledDate();
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
   const requestBackjobRenegotiationMutation = useRequestBackjobRenegotiation();
 
   const parseScheduledDate = (dateStr?: string | null): Date | null => {
@@ -402,13 +407,6 @@ export default function ChatScreen() {
     };
     loadPending();
   }, [conversationId]);
-
-  // Auto-expand negotiation panel when negotiation goes live
-  useEffect(() => {
-    if (hasActiveNegotiation) {
-      setNegotiationPanelExpanded(true);
-    }
-  }, [hasActiveNegotiation]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -845,6 +843,63 @@ export default function ChatScreen() {
             requestBackjobRenegotiationMutation.mutate({
               jobId: conversation.job.id,
               reason: "Requested schedule re-negotiation before planned backjob date.",
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const handleOpenBackjobScheduleModal = () => {
+    if (!conversation) return;
+    const initialDate = conversation.backjob?.scheduled_date || "";
+    setBackjobScheduleInput(initialDate);
+    setShowBackjobScheduleModal(true);
+  };
+
+  const handleSubmitBackjobScheduleDate = () => {
+    if (!conversation) return;
+
+    const scheduleValue = backjobScheduleInput.trim();
+    if (!scheduleValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      Alert.alert("Invalid Date", "Use YYYY-MM-DD format.");
+      return;
+    }
+
+    const selectedDate = parseScheduledDate(scheduleValue);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!selectedDate || selectedDate < today) {
+      Alert.alert("Invalid Date", "Scheduled date cannot be in the past.");
+      return;
+    }
+
+    setBackjobScheduledDateMutation.mutate(
+      {
+        jobId: conversation.job.id,
+        scheduledDate: scheduleValue,
+      },
+      {
+        onSuccess: () => {
+          setShowBackjobScheduleModal(false);
+        },
+      },
+    );
+  };
+
+  const handleConfirmBackjobScheduledDate = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Schedule",
+      `Confirm backjob scheduled date: ${conversation.backjob?.scheduled_date}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            confirmBackjobScheduledDateMutation.mutate({
+              jobId: conversation.job.id,
             });
           },
         },
@@ -5352,84 +5407,102 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
-            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION (live) or after if admin messages exist (history) */}
-            {(hasActiveNegotiation ||
-              conversation.messages.some(
-                (m: any) => m.sender_type === "admin",
-              )) && (
-              <View style={styles.negotiationPanel}>
-                <TouchableOpacity
-                  style={styles.negotiationPanelHeader}
-                  onPress={() =>
-                    setNegotiationPanelExpanded(!negotiationPanelExpanded)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="shield-half-outline"
-                    size={13}
-                    color="#7C3AED"
-                  />
-                  <Text style={styles.negotiationPanelHeaderText}>
-                    {hasActiveNegotiation
-                      ? "Negotiation Chat"
-                      : "Negotiation History"}
-                  </Text>
-                  {hasActiveNegotiation && (
-                    <View style={styles.negotiationLiveBadge}>
-                      <Text style={styles.negotiationLiveBadgeText}>LIVE</Text>
+            {hasActiveNegotiation && (
+              <View style={styles.backjobActionButtonsCompact}>
+                {conversation.backjob?.scheduled_date ? (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Proposed Date: {conversation.backjob.scheduled_date}
+                      </Text>
                     </View>
-                  )}
-                  <Ionicons
-                    name={
-                      negotiationPanelExpanded ? "chevron-up" : "chevron-down"
-                    }
-                    size={13}
-                    color="#7C3AED"
-                  />
-                </TouchableOpacity>
 
-                {negotiationPanelExpanded && (
-                  <ScrollView
-                    style={styles.negotiationPanelBody}
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {conversation.messages.filter(
-                      (m: any) => m.sender_type === "admin",
-                    ).length === 0 ? (
-                      <Text style={styles.negotiationEmptyText}>
-                        Waiting for admin to join the negotiation…
+                    {conversation.backjob.worker_schedule_confirmed ? (
+                      <Text style={styles.backjobScheduledNoticeText}>
+                        Worker confirmed this schedule. Backjob is ready for start on the scheduled date.
                       </Text>
                     ) : (
-                      conversation.messages
-                        .filter((m: any) => m.sender_type === "admin")
-                        .map((msg: any, idx: number) => (
-                          <View
-                            key={msg.message_id || idx}
-                            style={styles.negotiationMessage}
-                          >
-                            <Ionicons
-                              name="shield-checkmark-outline"
-                              size={12}
-                              color="#7C3AED"
-                            />
-                            <View style={styles.negotiationMessageContent}>
-                              <Text style={styles.negotiationMessageSender}>
-                                Admin
-                              </Text>
-                              <Text style={styles.negotiationMessageText}>
-                                {msg.message_text}
-                              </Text>
-                              <Text style={styles.negotiationMessageTime}>
-                                {format(new Date(msg.created_at), "h:mm a")}
-                              </Text>
-                            </View>
-                          </View>
-                        ))
+                      <Text style={styles.backjobScheduledNoticeText}>
+                        Waiting for worker confirmation.
+                      </Text>
                     )}
-                  </ScrollView>
+                  </View>
+                ) : null}
+
+                {conversation.my_role === "CLIENT" && (
+                  <TouchableOpacity
+                    style={[
+                      styles.backjobActionButtonCompact,
+                      { backgroundColor: Colors.warning },
+                    ]}
+                    onPress={handleOpenBackjobScheduleModal}
+                    disabled={setBackjobScheduledDateMutation.isPending}
+                  >
+                    {setBackjobScheduledDateMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="calendar-number"
+                          size={16}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.backjobActionButtonText}>
+                          {conversation.backjob?.scheduled_date
+                            ? "Update Schedule"
+                            : "Set Schedule"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 )}
+
+                {conversation.my_role !== "CLIENT" &&
+                  !conversation.backjob?.scheduled_date && (
+                    <View style={styles.backjobWaitingBadge}>
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.backjobWaitingText}>
+                        Waiting for client to set date...
+                      </Text>
+                    </View>
+                  )}
+
+                {conversation.my_role !== "CLIENT" &&
+                  !!conversation.backjob?.scheduled_date &&
+                  !conversation.backjob?.worker_schedule_confirmed && (
+                    <TouchableOpacity
+                      style={[
+                        styles.backjobActionButtonCompact,
+                        { backgroundColor: Colors.success },
+                      ]}
+                      onPress={handleConfirmBackjobScheduledDate}
+                      disabled={confirmBackjobScheduledDateMutation.isPending}
+                    >
+                      {confirmBackjobScheduledDateMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-done"
+                            size={16}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.backjobActionButtonText}>
+                            Confirm Schedule
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
               </View>
             )}
 
@@ -5615,16 +5688,10 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Messages List — admin messages are filtered out when a backjob exists; they appear in the negotiation panel instead */}
+        {/* Messages List */}
         <FlatList
           ref={flatListRef}
-          data={
-            conversation.backjob?.has_backjob
-              ? conversation.messages.filter(
-                  (m: any) => m.sender_type !== "admin",
-                )
-              : conversation.messages
-          }
+          data={conversation.messages}
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
@@ -5663,6 +5730,54 @@ export default function ChatScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showBackjobScheduleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBackjobScheduleModal(false)}
+      >
+        <View style={styles.priceModalBackdrop}>
+          <View style={styles.priceModalCard}>
+            <Text style={styles.priceModalTitle}>Set Backjob Schedule</Text>
+            <Text style={styles.priceModalSubtitle}>
+              Enter date in YYYY-MM-DD format.
+            </Text>
+
+            <TextInput
+              style={styles.priceInput}
+              value={backjobScheduleInput}
+              onChangeText={setBackjobScheduleInput}
+              placeholder="YYYY-MM-DD"
+              keyboardType="numbers-and-punctuation"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.priceModalActions}>
+              <TouchableOpacity
+                style={[styles.priceButton, styles.cancelButton]}
+                onPress={() => setShowBackjobScheduleModal(false)}
+                disabled={setBackjobScheduledDateMutation.isPending}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.priceButton, styles.submitButton]}
+                onPress={handleSubmitBackjobScheduleDate}
+                disabled={setBackjobScheduledDateMutation.isPending}
+              >
+                {setBackjobScheduledDateMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.submitButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Photo Preview Modal */}
       <Modal
@@ -6784,6 +6899,68 @@ const styles = StyleSheet.create({
   modalCancelButtonText: {
     ...Typography.body.medium,
     color: Colors.error,
+    fontWeight: "600",
+  },
+  // Backjob schedule modal styles
+  priceModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  priceModalCard: {
+    width: "100%",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.lg,
+  },
+  priceModalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  priceModalSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  priceInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  priceModalActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  priceButton: {
+    flex: 1,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cancelButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  submitButton: {
+    backgroundColor: Colors.primary,
+  },
+  submitButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
     fontWeight: "600",
   },
   // Cash Upload Modal Styles
