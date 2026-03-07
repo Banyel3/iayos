@@ -72,27 +72,27 @@ const ALLOCATION_METHODS: {
   label: string;
   description: string;
 }[] = [
-    {
-      value: "EQUAL_PER_WORKER",
-      label: "Equal Per Worker",
-      description: "Split budget equally among all workers",
-    },
-    {
-      value: "EQUAL_PER_SKILL",
-      label: "Equal Per Skill",
-      description: "Split budget equally among skill slots",
-    },
-    {
-      value: "SKILL_WEIGHTED",
-      label: "Skill Weighted",
-      description: "Expert 3x, Intermediate 2x, Entry 1x",
-    },
-    {
-      value: "MANUAL_ALLOCATION",
-      label: "Manual",
-      description: "Set budget per skill slot manually",
-    },
-  ];
+  {
+    value: "EQUAL_PER_WORKER",
+    label: "Equal Per Worker",
+    description: "Split budget equally among all workers",
+  },
+  {
+    value: "EQUAL_PER_SKILL",
+    label: "Equal Per Skill",
+    description: "Split budget equally among skill slots",
+  },
+  {
+    value: "SKILL_WEIGHTED",
+    label: "Skill Weighted",
+    description: "Expert 3x, Intermediate 2x, Entry 1x",
+  },
+  {
+    value: "MANUAL_ALLOCATION",
+    label: "Manual",
+    description: "Set budget per skill slot manually",
+  },
+];
 
 const SKILL_LEVELS = [
   { value: "ENTRY", label: "Entry Level", multiplier: 1 },
@@ -110,7 +110,9 @@ export default function CreateTeamJobScreen() {
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(null);
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(
+    null,
+  );
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [materials, setMaterials] = useState<string[]>([]);
@@ -216,7 +218,7 @@ export default function CreateTeamJobScreen() {
       const totalWeight = skillSlots.reduce(
         (sum, slot) =>
           sum + weights[slot.skill_level_required] * slot.workers_needed,
-        0
+        0,
       );
       const perWeight = budgetNum / totalWeight;
 
@@ -241,7 +243,7 @@ export default function CreateTeamJobScreen() {
 
   // Calculate escrow and fees
   const escrowAmount = budgetNum * 0.5;
-  const platformFee = budgetNum * 0.10;
+  const platformFee = budgetNum * 0.1;
   const totalDue = escrowAmount + platformFee;
   const hasEnoughBalance = walletBalance >= totalDue;
 
@@ -331,7 +333,7 @@ export default function CreateTeamJobScreen() {
       const scaledPrice = price * Math.max(1, totalWorkersNeeded);
       setTotalBudget(scaledPrice.toFixed(2));
     },
-    [totalWorkersNeeded]
+    [totalWorkersNeeded],
   );
 
   // Create mutation response type
@@ -373,7 +375,7 @@ export default function CreateTeamJobScreen() {
             text: "View Job",
             onPress: () => router.replace(`/jobs/${data.job_id}`),
           },
-        ]
+        ],
       );
     },
     onError: (error: any) => {
@@ -388,7 +390,7 @@ export default function CreateTeamJobScreen() {
     return specializations.filter(
       (s: Specialization) =>
         s.name.toLowerCase().includes(query) ||
-        (s.category_name || "").toLowerCase().includes(query)
+        (s.category_name || "").toLowerCase().includes(query),
     );
   }, [specializations, specSearchQuery]);
 
@@ -436,12 +438,12 @@ export default function CreateTeamJobScreen() {
         if (slot.id === slotId) {
           const newCount = Math.max(
             1,
-            Math.min(10, slot.workers_needed + delta)
+            Math.min(10, slot.workers_needed + delta),
           );
           return { ...slot, workers_needed: newCount };
         }
         return slot;
-      })
+      }),
     );
   };
 
@@ -453,7 +455,7 @@ export default function CreateTeamJobScreen() {
           return { ...slot, budget_allocated: parseFloat(budget) || 0 };
         }
         return slot;
-      })
+      }),
     );
   };
 
@@ -480,7 +482,7 @@ export default function CreateTeamJobScreen() {
     if (allocationMethod === "MANUAL_ALLOCATION") {
       const totalAllocated = skillSlots.reduce(
         (sum, s) => sum + (s.budget_allocated || 0),
-        0
+        0,
       );
       if (Math.abs(totalAllocated - budgetNum) > 1) {
         return `Manual allocation total (₱${totalAllocated}) must equal budget (₱${budgetNum})`;
@@ -539,7 +541,7 @@ export default function CreateTeamJobScreen() {
               <Text style={styles.skillLevelText}>
                 {
                   SKILL_LEVELS.find(
-                    (l) => l.value === slot.skill_level_required
+                    (l) => l.value === slot.skill_level_required,
                   )?.label
                 }
               </Text>
@@ -652,7 +654,11 @@ export default function CreateTeamJobScreen() {
             {/* Job Details Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
-                <Ionicons name="document-text" size={20} color={Colors.primary} />
+                <Ionicons
+                  name="document-text"
+                  size={20}
+                  color={Colors.primary}
+                />
                 <Text style={styles.sectionTitleText}>
                   Job Details <Text style={{ color: Colors.error }}>*</Text>
                 </Text>
@@ -691,7 +697,8 @@ export default function CreateTeamJobScreen() {
                 <View style={styles.sectionTitle}>
                   <Ionicons name="people" size={20} color={Colors.primary} />
                   <Text style={styles.sectionTitleText}>
-                    Team Requirements <Text style={{ color: Colors.error }}>*</Text>
+                    Team Requirements{" "}
+                    <Text style={{ color: Colors.error }}>*</Text>
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -770,19 +777,19 @@ export default function CreateTeamJobScreen() {
                     minPrice={
                       pricePrediction?.min_price
                         ? pricePrediction.min_price *
-                        Math.max(1, totalWorkersNeeded)
+                          Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     suggestedPrice={
                       pricePrediction?.suggested_price
                         ? pricePrediction.suggested_price *
-                        Math.max(1, totalWorkersNeeded)
+                          Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     maxPrice={
                       pricePrediction?.max_price
                         ? pricePrediction.max_price *
-                        Math.max(1, totalWorkersNeeded)
+                          Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     confidence={pricePrediction?.confidence}
@@ -802,7 +809,7 @@ export default function CreateTeamJobScreen() {
                       style={[
                         styles.allocationOption,
                         allocationMethod === method.value &&
-                        styles.allocationOptionSelected,
+                          styles.allocationOptionSelected,
                       ]}
                       onPress={() => setAllocationMethod(method.value)}
                     >
@@ -811,7 +818,7 @@ export default function CreateTeamJobScreen() {
                           style={[
                             styles.allocationOptionLabel,
                             allocationMethod === method.value &&
-                            styles.allocationOptionLabelSelected,
+                              styles.allocationOptionLabelSelected,
                           ]}
                         >
                           {method.label}
@@ -897,7 +904,8 @@ export default function CreateTeamJobScreen() {
               <View style={styles.sectionTitle}>
                 <Ionicons name="rocket" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>
-                  Team Start Options <Text style={{ color: Colors.error }}>*</Text>
+                  Team Start Options{" "}
+                  <Text style={{ color: Colors.error }}>*</Text>
                 </Text>
               </View>
 
@@ -912,7 +920,7 @@ export default function CreateTeamJobScreen() {
                       style={[
                         styles.thresholdOption,
                         teamStartThreshold === value &&
-                        styles.thresholdOptionSelected,
+                          styles.thresholdOptionSelected,
                       ]}
                       onPress={() => setTeamStartThreshold(value)}
                     >
@@ -920,7 +928,7 @@ export default function CreateTeamJobScreen() {
                         style={[
                           styles.thresholdText,
                           teamStartThreshold === value &&
-                          styles.thresholdTextSelected,
+                            styles.thresholdTextSelected,
                         ]}
                       >
                         {value}%
@@ -1007,12 +1015,20 @@ export default function CreateTeamJobScreen() {
                           backgroundColor: `${Colors.primary}10`,
                         },
                       ]}
-                      onPress={() => setUrgency(urgency === opt.value ? null : opt.value as any)}
+                      onPress={() =>
+                        setUrgency(
+                          urgency === opt.value ? null : (opt.value as any),
+                        )
+                      }
                     >
-                      <Text style={[
-                        styles.urgencyText,
-                        urgency === opt.value && { color: Colors.primary }
-                      ]}>{opt.label}</Text>
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          urgency === opt.value && { color: Colors.primary },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1042,13 +1058,20 @@ export default function CreateTeamJobScreen() {
             {/* Job Options Section */}
             <View style={styles.section}>
               <TouchableOpacity
-                style={[styles.sectionTitle, { justifyContent: 'space-between' }]}
+                style={[
+                  styles.sectionTitle,
+                  { justifyContent: "space-between" },
+                ]}
                 onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
                 activeOpacity={0.7}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <Ionicons name="settings" size={20} color={Colors.primary} />
-                  <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
+                  <Text style={styles.sectionTitleText}>
+                    Job Options (Optional)
+                  </Text>
                 </View>
                 <Ionicons
                   name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"}
@@ -1059,8 +1082,6 @@ export default function CreateTeamJobScreen() {
 
               {isJobOptionsExpanded && (
                 <View>
-
-
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Job Scope</Text>
                     <View style={styles.urgencyOptions}>
@@ -1078,12 +1099,20 @@ export default function CreateTeamJobScreen() {
                               backgroundColor: `${Colors.primary}10`,
                             },
                           ]}
-                          onPress={() => setJobScope(jobScope === opt.value ? null : opt.value as any)}
+                          onPress={() =>
+                            setJobScope(
+                              jobScope === opt.value
+                                ? null
+                                : (opt.value as any),
+                            )
+                          }
                         >
                           <Text
                             style={[
                               styles.urgencyText,
-                              jobScope === opt.value && { color: Colors.primary },
+                              jobScope === opt.value && {
+                                color: Colors.primary,
+                              },
                             ]}
                           >
                             {opt.label}
@@ -1110,12 +1139,20 @@ export default function CreateTeamJobScreen() {
                               backgroundColor: `${Colors.primary}10`,
                             },
                           ]}
-                          onPress={() => setWorkEnvironment(workEnvironment === opt.value ? null : opt.value as any)}
+                          onPress={() =>
+                            setWorkEnvironment(
+                              workEnvironment === opt.value
+                                ? null
+                                : (opt.value as any),
+                            )
+                          }
                         >
                           <Text
                             style={[
                               styles.urgencyText,
-                              workEnvironment === opt.value && { color: Colors.primary },
+                              workEnvironment === opt.value && {
+                                color: Colors.primary,
+                              },
                             ]}
                           >
                             {opt.label}
@@ -1128,8 +1165,14 @@ export default function CreateTeamJobScreen() {
                   {/* Materials */}
                   <View style={{ marginTop: 16 }}>
                     <View style={styles.sectionTitle}>
-                      <Ionicons name="construct" size={20} color={Colors.primary} />
-                      <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
+                      <Ionicons
+                        name="construct"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.sectionTitleText}>
+                        Materials Needed (Optional)
+                      </Text>
                     </View>
 
                     <View style={styles.materialInputRow}>
@@ -1155,7 +1198,9 @@ export default function CreateTeamJobScreen() {
                             <Text style={styles.materialTagText}>{m}</Text>
                             <TouchableOpacity
                               onPress={() =>
-                                setMaterials(materials.filter((_, idx) => idx !== i))
+                                setMaterials(
+                                  materials.filter((_, idx) => idx !== i),
+                                )
                               }
                             >
                               <Ionicons
@@ -1172,7 +1217,6 @@ export default function CreateTeamJobScreen() {
                 </View>
               )}
             </View>
-
           </View>
         </ScrollView>
 
@@ -1183,7 +1227,7 @@ export default function CreateTeamJobScreen() {
               (!hasEnoughBalance ||
                 skillSlots.length === 0 ||
                 createJobMutation.isPending) &&
-              styles.submitButtonDisabled,
+                styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={
@@ -1210,7 +1254,7 @@ export default function CreateTeamJobScreen() {
           presentationStyle="pageSheet"
           onRequestClose={() => setAddSkillModalVisible(false)}
         >
-          <View style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Skill Requirement</Text>
               <TouchableOpacity onPress={() => setAddSkillModalVisible(false)}>
@@ -1218,7 +1262,12 @@ export default function CreateTeamJobScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalContent}>
+            <ScrollView
+              style={styles.modalContent}
+              contentContainerStyle={styles.modalContentContainer}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Search Skill/Specialization</Text>
                 <TextInput
@@ -1235,7 +1284,12 @@ export default function CreateTeamJobScreen() {
                   {specsLoading ? "Loading..." : "No specializations found"}
                 </Text>
               ) : (
-                <View style={styles.specTagsContainer}>
+                <ScrollView
+                  style={styles.specTagsScroll}
+                  contentContainerStyle={styles.specTagsContainer}
+                  nestedScrollEnabled
+                  keyboardShouldPersistTaps="handled"
+                >
                   {filteredSpecs.map((item) => {
                     const isSelected = selectedSpecialization?.id === item.id;
                     return (
@@ -1269,7 +1323,7 @@ export default function CreateTeamJobScreen() {
                       </TouchableOpacity>
                     );
                   })}
-                </View>
+                </ScrollView>
               )}
 
               {selectedSpecialization && (
@@ -1317,7 +1371,7 @@ export default function CreateTeamJobScreen() {
                           style={[
                             styles.skillLevelOption,
                             newSlotLevel === level.value &&
-                            styles.skillLevelOptionSelected,
+                              styles.skillLevelOptionSelected,
                           ]}
                           onPress={() => setNewSlotLevel(level.value as any)}
                         >
@@ -1357,8 +1411,8 @@ export default function CreateTeamJobScreen() {
                   </TouchableOpacity>
                 </>
               )}
-            </View>
-          </View>
+            </ScrollView>
+          </SafeAreaView>
         </Modal>
 
         {/* Barangay Selection Modal */}
@@ -1940,14 +1994,18 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
+  },
+  modalContentContainer: {
     padding: Spacing.md,
+  },
+  specTagsScroll: {
+    maxHeight: 240,
+    marginBottom: Spacing.md,
   },
   specTagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-    maxHeight: 240,
+    justifyContent: "space-between",
   },
   specTag: {
     borderWidth: 1,
@@ -1956,7 +2014,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     backgroundColor: Colors.white,
-    minWidth: "45%",
+    width: "48%",
+    marginBottom: Spacing.sm,
   },
   specTagSelected: {
     borderColor: Colors.primary,
