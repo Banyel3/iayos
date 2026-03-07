@@ -6601,11 +6601,17 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
         print(f"📋 Creating team job: {payload.title}")
         print(f"   Skill slots: {len(payload.skill_slots)}")
         
-        # Get client profile
-        from accounts.models import Profile
-        profile = Profile.objects.filter(accountFK=request.auth).first()
+        # Get client profile (role-aware for accounts with multiple profiles)
+        profile = get_user_profile(request)
         if not profile:
             return Response({"error": "Profile not found"}, status=404)
+        if profile.profileType != "CLIENT":
+            return Response(
+                {
+                    "error": f"Only clients can create team jobs. Your profile type is: {profile.profileType}"
+                },
+                status=403,
+            )
         
         # Convert skill slots to dict format
         skill_slots_data = [
