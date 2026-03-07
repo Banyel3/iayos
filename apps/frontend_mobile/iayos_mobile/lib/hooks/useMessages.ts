@@ -188,6 +188,7 @@ export type ConversationDetail = {
       | "APPROVED"
       | "REJECTED"
       | "COMPLETED";
+    scheduled_date?: string | null;
     backjob_started?: boolean;
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;

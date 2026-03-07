@@ -152,3 +152,49 @@ export function useApproveBackjobCompletion() {
     },
   });
 }
+
+/**
+ * Participant requests re-negotiation for the SAME active backjob record.
+ * This reopens admin negotiation and clears the currently scheduled date.
+ */
+export function useRequestBackjobRenegotiation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId, reason }: { jobId: number; reason?: string }) => {
+      const url = ENDPOINTS.BACKJOB_REQUEST_RENEGOTIATION(jobId);
+      const response = await apiRequest(url, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(
+          getErrorMessage(error, "Failed to request backjob re-negotiation"),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      Toast.show({
+        type: "success",
+        text1: "Re-negotiation Requested",
+        text2: "Admin has been notified to reopen the schedule discussion",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Request Failed",
+        text2: error.message,
+      });
+    },
+  });
+}

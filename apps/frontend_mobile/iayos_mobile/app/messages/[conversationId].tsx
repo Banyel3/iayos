@@ -55,6 +55,7 @@ import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
+  useRequestBackjobRenegotiation,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
 import { useSubmitReport } from "../../lib/hooks/useReports";
@@ -291,6 +292,37 @@ export default function ChatScreen() {
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
+  const requestBackjobRenegotiationMutation = useRequestBackjobRenegotiation();
+
+  const parseScheduledDate = (dateStr?: string | null): Date | null => {
+    if (!dateStr) return null;
+
+    // Preserve date-only semantics from YYYY-MM-DD without timezone drift.
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]) - 1;
+      const day = Number(match[3]);
+      return new Date(year, month, day);
+    }
+
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
+  };
+
+  const scheduledBackjobDate = parseScheduledDate(
+    conversation?.backjob?.scheduled_date,
+  );
+  const todayLocal = new Date();
+  todayLocal.setHours(0, 0, 0, 0);
+  const isBackjobScheduledForFuture =
+    !!hasApprovedBackjob &&
+    !!scheduledBackjobDate &&
+    !conversation?.backjob?.backjob_started &&
+    todayLocal < scheduledBackjobDate;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -798,6 +830,28 @@ export default function ChatScreen() {
     );
   };
 
+  // Request re-negotiation before the scheduled backjob date.
+  const handleRequestBackjobRenegotiation = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Request Re-negotiation",
+      "This will notify admin to reopen negotiation and set a new backjob schedule.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send Request",
+          onPress: () => {
+            requestBackjobRenegotiationMutation.mutate({
+              jobId: conversation.job.id,
+              reason: "Requested schedule re-negotiation before planned backjob date.",
+            });
+          },
+        },
+      ],
+    );
+  };
+
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation) return;
@@ -1162,7 +1216,13 @@ export default function ChatScreen() {
   const submitConversationReport = useCallback(
     (
       type: "user" | "job" | "message",
-      reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other",
+      reason:
+        | "spam"
+        | "harassment"
+        | "fraud"
+        | "inappropriate"
+        | "fake_profile"
+        | "other",
       reportedUserId?: number,
     ) => {
       const jobId = conversation?.job?.id;
@@ -1195,7 +1255,9 @@ export default function ChatScreen() {
           onError: (error) => {
             Alert.alert(
               "Report Failed",
-              error instanceof Error ? error.message : "Failed to submit report",
+              error instanceof Error
+                ? error.message
+                : "Failed to submit report",
             );
           },
         },
@@ -1227,22 +1289,46 @@ export default function ChatScreen() {
                   : "Report Conversation",
           },
           (index) => {
-            if (index === 1) submitConversationReport(type, "spam", reportedUserId);
-            if (index === 2) submitConversationReport(type, "harassment", reportedUserId);
-            if (index === 3) submitConversationReport(type, "fraud", reportedUserId);
-            if (index === 4) submitConversationReport(type, "inappropriate", reportedUserId);
-            if (index === 5) submitConversationReport(type, "fake_profile", reportedUserId);
+            if (index === 1)
+              submitConversationReport(type, "spam", reportedUserId);
+            if (index === 2)
+              submitConversationReport(type, "harassment", reportedUserId);
+            if (index === 3)
+              submitConversationReport(type, "fraud", reportedUserId);
+            if (index === 4)
+              submitConversationReport(type, "inappropriate", reportedUserId);
+            if (index === 5)
+              submitConversationReport(type, "fake_profile", reportedUserId);
           },
         );
         return;
       }
 
       Alert.alert("Select report reason", "Choose a reason", [
-        { text: "Spam", onPress: () => submitConversationReport(type, "spam", reportedUserId) },
-        { text: "Harassment", onPress: () => submitConversationReport(type, "harassment", reportedUserId) },
-        { text: "Fraud/Scam", onPress: () => submitConversationReport(type, "fraud", reportedUserId) },
-        { text: "Inappropriate", onPress: () => submitConversationReport(type, "inappropriate", reportedUserId) },
-        { text: "Fake Profile", onPress: () => submitConversationReport(type, "fake_profile", reportedUserId) },
+        {
+          text: "Spam",
+          onPress: () => submitConversationReport(type, "spam", reportedUserId),
+        },
+        {
+          text: "Harassment",
+          onPress: () =>
+            submitConversationReport(type, "harassment", reportedUserId),
+        },
+        {
+          text: "Fraud/Scam",
+          onPress: () =>
+            submitConversationReport(type, "fraud", reportedUserId),
+        },
+        {
+          text: "Inappropriate",
+          onPress: () =>
+            submitConversationReport(type, "inappropriate", reportedUserId),
+        },
+        {
+          text: "Fake Profile",
+          onPress: () =>
+            submitConversationReport(type, "fake_profile", reportedUserId),
+        },
         { text: "Cancel", style: "cancel" },
       ]);
     },
@@ -1291,10 +1377,18 @@ export default function ChatScreen() {
 
     Alert.alert("Report", "Choose what to report", [
       ...(reportUserTargetId
-        ? [{ text: "Report User", onPress: () => openReportReasonPicker("user", reportUserTargetId) }]
+        ? [
+            {
+              text: "Report User",
+              onPress: () => openReportReasonPicker("user", reportUserTargetId),
+            },
+          ]
         : []),
       { text: "Report Job", onPress: () => openReportReasonPicker("job") },
-      { text: "Report Conversation", onPress: () => openReportReasonPicker("message") },
+      {
+        text: "Report Conversation",
+        onPress: () => openReportReasonPicker("message"),
+      },
       { text: "Cancel", style: "cancel" },
     ]);
   }, [conversation, openReportReasonPicker]);
@@ -1576,7 +1670,8 @@ export default function ChatScreen() {
         errorBody = "This conversation no longer exists or is unavailable.";
       } else if (error.status >= 500) {
         errorTitle = "Server Error";
-        errorBody = "The server failed to load the conversation. Please try again.";
+        errorBody =
+          "The server failed to load the conversation. Please try again.";
         actionLabel = "Retry";
         actionHandler = () => {
           void refetch();
@@ -1610,10 +1705,7 @@ export default function ChatScreen() {
             color={Colors.error}
           />
           <Text style={styles.errorText}>{errorBody}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={actionHandler}
-          >
+          <TouchableOpacity style={styles.retryButton} onPress={actionHandler}>
             <Text style={styles.retryButtonText}>{actionLabel}</Text>
           </TouchableOpacity>
         </View>
@@ -1749,11 +1841,7 @@ export default function ChatScreen() {
             {submitReportMutation.isPending ? (
               <ActivityIndicator size="small" color={Colors.error} />
             ) : (
-              <Ionicons
-                name="flag-outline"
-                size={22}
-                color={Colors.error}
-              />
+              <Ionicons name="flag-outline" size={22} color={Colors.error} />
             )}
           </TouchableOpacity>
         </View>
@@ -3492,6 +3580,8 @@ export default function ChatScreen() {
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
                       employee.agencyMarkedComplete ||
+                      employee.employeeMarkedComplete ||
+                      employee.marked_complete ||
                       employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
@@ -3692,6 +3782,8 @@ export default function ChatScreen() {
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
                       employee.agencyMarkedComplete ||
+                      employee.employeeMarkedComplete ||
+                      employee.marked_complete ||
                       employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
@@ -5265,87 +5357,125 @@ export default function ChatScreen() {
               conversation.messages.some(
                 (m: any) => m.sender_type === "admin",
               )) && (
-                <View style={styles.negotiationPanel}>
-                  <TouchableOpacity
-                    style={styles.negotiationPanelHeader}
-                    onPress={() =>
-                      setNegotiationPanelExpanded(!negotiationPanelExpanded)
-                    }
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="shield-half-outline"
-                      size={13}
-                      color="#7C3AED"
-                    />
-                    <Text style={styles.negotiationPanelHeaderText}>
-                      {hasActiveNegotiation
-                        ? "Negotiation Chat"
-                        : "Negotiation History"}
-                    </Text>
-                    {hasActiveNegotiation && (
-                      <View style={styles.negotiationLiveBadge}>
-                        <Text style={styles.negotiationLiveBadgeText}>
-                          LIVE
-                        </Text>
-                      </View>
-                    )}
-                    <Ionicons
-                      name={
-                        negotiationPanelExpanded ? "chevron-up" : "chevron-down"
-                      }
-                      size={13}
-                      color="#7C3AED"
-                    />
-                  </TouchableOpacity>
-
-                  {negotiationPanelExpanded && (
-                    <ScrollView
-                      style={styles.negotiationPanelBody}
-                      nestedScrollEnabled
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {conversation.messages.filter(
-                        (m: any) => m.sender_type === "admin",
-                      ).length === 0 ? (
-                        <Text style={styles.negotiationEmptyText}>
-                          Waiting for admin to join the negotiation…
-                        </Text>
-                      ) : (
-                        conversation.messages
-                          .filter((m: any) => m.sender_type === "admin")
-                          .map((msg: any, idx: number) => (
-                            <View
-                              key={msg.message_id || idx}
-                              style={styles.negotiationMessage}
-                            >
-                              <Ionicons
-                                name="shield-checkmark-outline"
-                                size={12}
-                                color="#7C3AED"
-                              />
-                              <View style={styles.negotiationMessageContent}>
-                                <Text style={styles.negotiationMessageSender}>
-                                  Admin
-                                </Text>
-                                <Text style={styles.negotiationMessageText}>
-                                  {msg.message_text}
-                                </Text>
-                                <Text style={styles.negotiationMessageTime}>
-                                  {format(new Date(msg.created_at), "h:mm a")}
-                                </Text>
-                              </View>
-                            </View>
-                          ))
-                      )}
-                    </ScrollView>
+              <View style={styles.negotiationPanel}>
+                <TouchableOpacity
+                  style={styles.negotiationPanelHeader}
+                  onPress={() =>
+                    setNegotiationPanelExpanded(!negotiationPanelExpanded)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="shield-half-outline"
+                    size={13}
+                    color="#7C3AED"
+                  />
+                  <Text style={styles.negotiationPanelHeaderText}>
+                    {hasActiveNegotiation
+                      ? "Negotiation Chat"
+                      : "Negotiation History"}
+                  </Text>
+                  {hasActiveNegotiation && (
+                    <View style={styles.negotiationLiveBadge}>
+                      <Text style={styles.negotiationLiveBadgeText}>LIVE</Text>
+                    </View>
                   )}
-                </View>
-              )}
+                  <Ionicons
+                    name={
+                      negotiationPanelExpanded ? "chevron-up" : "chevron-down"
+                    }
+                    size={13}
+                    color="#7C3AED"
+                  />
+                </TouchableOpacity>
+
+                {negotiationPanelExpanded && (
+                  <ScrollView
+                    style={styles.negotiationPanelBody}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {conversation.messages.filter(
+                      (m: any) => m.sender_type === "admin",
+                    ).length === 0 ? (
+                      <Text style={styles.negotiationEmptyText}>
+                        Waiting for admin to join the negotiation…
+                      </Text>
+                    ) : (
+                      conversation.messages
+                        .filter((m: any) => m.sender_type === "admin")
+                        .map((msg: any, idx: number) => (
+                          <View
+                            key={msg.message_id || idx}
+                            style={styles.negotiationMessage}
+                          >
+                            <Ionicons
+                              name="shield-checkmark-outline"
+                              size={12}
+                              color="#7C3AED"
+                            />
+                            <View style={styles.negotiationMessageContent}>
+                              <Text style={styles.negotiationMessageSender}>
+                                Admin
+                              </Text>
+                              <Text style={styles.negotiationMessageText}>
+                                {msg.message_text}
+                              </Text>
+                              <Text style={styles.negotiationMessageTime}>
+                                {format(new Date(msg.created_at), "h:mm a")}
+                              </Text>
+                            </View>
+                          </View>
+                        ))
+                    )}
+                  </ScrollView>
+                )}
+              </View>
+            )}
 
             {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
             {hasApprovedBackjob && (
               <View style={styles.backjobActionButtonsCompact}>
+                {isBackjobScheduledForFuture && (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Backjob starts on {scheduledBackjobDate?.toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Text style={styles.backjobScheduledNoticeText}>
+                      Workflow actions will activate on the scheduled date. Need a new date? Send a re-negotiation request.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.backjobRenegotiateButton}
+                      onPress={handleRequestBackjobRenegotiation}
+                      disabled={requestBackjobRenegotiationMutation.isPending}
+                    >
+                      {requestBackjobRenegotiationMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="refresh-circle"
+                            size={15}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.backjobRenegotiateButtonText}>
+                            Re-negotiate Schedule
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!isBackjobScheduledForFuture && (
+                  <>
                 {/* CLIENT: Confirm Backjob Started Button */}
                 {conversation.my_role === "CLIENT" &&
                   !conversation.backjob?.backjob_started && (
@@ -5478,6 +5608,8 @@ export default function ChatScreen() {
                       )}
                     </TouchableOpacity>
                   )}
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -7227,10 +7359,50 @@ const styles = StyleSheet.create({
   backjobActionButtonsCompact: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     backgroundColor: "#FFF8E1",
     gap: Spacing.sm,
+  },
+  backjobScheduledNoticeCard: {
+    width: "100%",
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    borderWidth: 1,
+    borderColor: Colors.warning + "55",
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  backjobScheduledNoticeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  backjobScheduledNoticeTitle: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "700",
+  },
+  backjobScheduledNoticeText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  backjobRenegotiateButton: {
+    marginTop: Spacing.xs,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.warning,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+  },
+  backjobRenegotiateButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
   },
   backjobActionButtonCompact: {
     flexDirection: "row",
