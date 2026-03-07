@@ -2003,6 +2003,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
+                "remainingPaymentPaid": job.remainingPaymentPaid,
                 "workerReviewed": worker_reviewed,
                 "clientReviewed": client_reviewed,
                 "employeeReviewed": employee_review_exists if is_agency_job_for_reviews else None,

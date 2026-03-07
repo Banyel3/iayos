@@ -87,6 +87,7 @@ export type ConversationDetail = {
     clientConfirmedWorkStarted: boolean;
     workerMarkedComplete: boolean;
     clientMarkedComplete: boolean;
+    remainingPaymentPaid?: boolean;
     workerReviewed: boolean;
     clientReviewed: boolean;
     // Agency job review tracking - null for non-agency jobs
@@ -252,7 +253,10 @@ export type ConversationDetail = {
  * Auto-marks messages as read on fetch
  * Uses polling as fallback when WebSocket is unavailable
  */
-export function useMessages(conversationId: number, viewerKey: string = "default") {
+export function useMessages(
+  conversationId: number,
+  viewerKey: string = "default",
+) {
   return useQuery({
     queryKey: ["messages", conversationId, viewerKey],
     queryFn: async (): Promise<ConversationDetail> => {
@@ -261,7 +265,11 @@ export function useMessages(conversationId: number, viewerKey: string = "default
 
       if (!response.ok) {
         const message = await parseApiError(response);
-        throw new ApiResponseError(message, response.status, response.statusText);
+        throw new ApiResponseError(
+          message,
+          response.status,
+          response.statusText,
+        );
       }
 
       const data = (await response.json()) as ConversationDetail;
