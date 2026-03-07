@@ -564,6 +564,8 @@ export default function CreateJobScreen() {
   // Fetch worker details (including skills) when hiring a specific worker
   interface WorkerSkill {
     id: number;
+    specializationId?: number;
+    specializationID?: number;
     name: string;
     experience_years: number;
     certification_count: number;
@@ -591,6 +593,18 @@ export default function CreateJobScreen() {
     enabled: !!workerId, // Only fetch when workerId is provided
   });
 
+  const getWorkerSkillSpecializationId = useCallback((skill: any): number | null => {
+    const rawId =
+      skill?.specializationId ??
+      skill?.specializationID ??
+      skill?.specialization_id ??
+      null;
+
+    if (rawId === null || rawId === undefined) return null;
+    const parsed = Number(rawId);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, []);
+
   // Filter categories to only show worker's skills when hiring specific worker
   // Categories available in slot modal: filter to worker's skills for invite jobs, all for listing
   const filteredCategories = React.useMemo(() => {
@@ -601,8 +615,15 @@ export default function CreateJobScreen() {
     let list = categories;
     if (workerId && workerDetailsData?.skills) {
       // For INVITE jobs, only show worker's skills
-      const workerSkillIds = workerDetailsData.skills.map((s: any) => s.specializationId);
-      list = categories.filter((cat) => workerSkillIds.includes(cat.id));
+      const workerSkillIds = (workerDetailsData.skills as any[])
+        .map((s) => getWorkerSkillSpecializationId(s))
+        .filter((id): id is number => id !== null);
+
+      // If worker skill IDs are missing/malformed, fallback to all categories
+      // so clients can still proceed instead of getting a blank category list.
+      if (workerSkillIds.length > 0) {
+        list = categories.filter((cat) => workerSkillIds.includes(cat.id));
+      }
     }
 
     if (categorySearch.trim()) {
@@ -611,7 +632,7 @@ export default function CreateJobScreen() {
     }
 
     return list;
-  }, [workerId, workerDetailsData, categories, categorySearch]);
+  }, [workerId, workerDetailsData, categories, categorySearch, getWorkerSkillSpecializationId]);
 
   // Auto-add skill slot when invite worker has exactly 1 skill
   useEffect(() => {
@@ -619,21 +640,30 @@ export default function CreateJobScreen() {
       const skills = workerDetailsData.skills;
       if (skills.length === 1) {
         const singleSkill = skills[0];
+        const specializationId = getWorkerSkillSpecializationId(singleSkill);
+
+        if (!specializationId) {
+          if (__DEV__) {
+            console.warn("[CreateJob] Unable to auto-add worker skill slot: missing specializationId", singleSkill);
+          }
+          return;
+        }
+
         // Auto-add a slot for the worker's single skill
         setSkillSlots([{
-          specialization_id: singleSkill.specializationId,
+          specialization_id: specializationId,
           workers_needed: 1,
           skill_level_required: null,
         }]);
         // Set budget from category's minimum_rate
-        const matchingCat = categories.find((c) => c.id === singleSkill.specializationId);
+        const matchingCat = categories.find((c) => c.id === specializationId);
         if (matchingCat && matchingCat.minimum_rate > 0) {
           setBudget(matchingCat.minimum_rate.toFixed(2));
         }
         if (__DEV__) console.log(`[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`);
       }
     }
-  }, [workerId, workerDetailsData, categories, skillSlots.length]);
+  }, [workerId, workerDetailsData, categories, skillSlots.length, getWorkerSkillSpecializationId]);
 
 
   const getSpecializationName = useCallback(

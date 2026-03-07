@@ -170,7 +170,11 @@ export default function CreateTeamJobScreen() {
         data.data || data.skills || data.specializations || ([] as any[]);
 
       return rawSkills.map((skill) => ({
-        id: skill.id ?? skill.specializationID,
+        id:
+          skill.id ??
+          skill.specializationId ??
+          skill.specializationID ??
+          skill.specialization_id,
         name: skill.name ?? skill.specializationName ?? "",
         description: skill.description ?? "",
         category_id:
