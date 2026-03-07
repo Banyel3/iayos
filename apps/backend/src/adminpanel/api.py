@@ -1737,7 +1737,7 @@ def set_backjob_scheduled_date(request, dispute_id: int):
                 title="Backjob Scheduled Date " + action_word.capitalize(),
                 message=f"The admin has {action_word} the scheduled date for your backjob to {formatted_date}.",
                 notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
-                relatedID=str(dispute.disputeID),
+                relatedJobID=job.jobID,
             )
 
         # Notify worker or agency
@@ -1753,7 +1753,7 @@ def set_backjob_scheduled_date(request, dispute_id: int):
                 title="Backjob Scheduled Date " + action_word.capitalize(),
                 message=f"The admin has {action_word} the scheduled date for the backjob \"{job.title}\" to {formatted_date}.",
                 notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
-                relatedID=str(dispute.disputeID),
+                relatedJobID=job.jobID,
             )
 
         return {
