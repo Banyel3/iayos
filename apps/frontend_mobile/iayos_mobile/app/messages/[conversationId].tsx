@@ -103,6 +103,14 @@ import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
+type ReportReason =
+  | "spam"
+  | "harassment"
+  | "fraud"
+  | "inappropriate"
+  | "fake_profile"
+  | "other";
+
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const conversationId = parseInt(params.conversationId as string);
@@ -164,6 +172,10 @@ export default function ChatScreen() {
     jobId: number;
   } | null>(null);
   const [priceInputText, setPriceInputText] = useState("");
+  const [reportReasonModal, setReportReasonModal] = useState<{
+    type: "user" | "job" | "message";
+    reportedUserId?: number;
+  } | null>(null);
   // For team jobs: track current worker being reviewed
   const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
@@ -1216,13 +1228,7 @@ export default function ChatScreen() {
   const submitConversationReport = useCallback(
     (
       type: "user" | "job" | "message",
-      reason:
-        | "spam"
-        | "harassment"
-        | "fraud"
-        | "inappropriate"
-        | "fake_profile"
-        | "other",
+      reason: ReportReason,
       reportedUserId?: number,
     ) => {
       const jobId = conversation?.job?.id;
@@ -1304,33 +1310,9 @@ export default function ChatScreen() {
         return;
       }
 
-      Alert.alert("Select report reason", "Choose a reason", [
-        {
-          text: "Spam",
-          onPress: () => submitConversationReport(type, "spam", reportedUserId),
-        },
-        {
-          text: "Harassment",
-          onPress: () =>
-            submitConversationReport(type, "harassment", reportedUserId),
-        },
-        {
-          text: "Fraud/Scam",
-          onPress: () =>
-            submitConversationReport(type, "fraud", reportedUserId),
-        },
-        {
-          text: "Inappropriate",
-          onPress: () =>
-            submitConversationReport(type, "inappropriate", reportedUserId),
-        },
-        {
-          text: "Fake Profile",
-          onPress: () =>
-            submitConversationReport(type, "fake_profile", reportedUserId),
-        },
-        { text: "Cancel", style: "cancel" },
-      ]);
+      // Android Alert supports limited button actions; use a custom modal so all
+      // report reasons are visible and users can always dismiss it.
+      setReportReasonModal({ type, reportedUserId });
     },
     [submitConversationReport],
   );
@@ -1390,7 +1372,7 @@ export default function ChatScreen() {
         onPress: () => openReportReasonPicker("message"),
       },
       { text: "Cancel", style: "cancel" },
-    ]);
+    ], { cancelable: true });
   }, [conversation, openReportReasonPicker]);
 
   // Pick image from camera
@@ -5869,6 +5851,70 @@ export default function ChatScreen() {
         />
       )}
 
+      {/* Report Reason Modal (Android) */}
+      <Modal
+        visible={!!reportReasonModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setReportReasonModal(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setReportReasonModal(null)}>
+          <View style={styles.reportReasonModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.reportReasonModalContent}>
+                <View style={styles.reportReasonModalHeader}>
+                  <Text style={styles.reportReasonModalTitle}>
+                    Select report reason
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setReportReasonModal(null)}
+                    style={styles.reportReasonCloseButton}
+                  >
+                    <Ionicons name="close" size={20} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {[
+                  { label: "Spam", value: "spam" as ReportReason },
+                  { label: "Harassment", value: "harassment" as ReportReason },
+                  { label: "Fraud/Scam", value: "fraud" as ReportReason },
+                  { label: "Inappropriate", value: "inappropriate" as ReportReason },
+                  { label: "Fake Profile", value: "fake_profile" as ReportReason },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.value}
+                    style={styles.reportReasonOption}
+                    onPress={() => {
+                      if (!reportReasonModal) return;
+                      submitConversationReport(
+                        reportReasonModal.type,
+                        item.value,
+                        reportReasonModal.reportedUserId,
+                      );
+                      setReportReasonModal(null);
+                    }}
+                  >
+                    <Text style={styles.reportReasonOptionText}>{item.label}</Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                ))}
+
+                <TouchableOpacity
+                  style={styles.reportReasonCancelButton}
+                  onPress={() => setReportReasonModal(null)}
+                >
+                  <Text style={styles.reportReasonCancelButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* Price Input Modal - cross-platform replacement for Alert.prompt (iOS-only) */}
       <Modal
         visible={!!priceModal}
@@ -6784,6 +6830,60 @@ const styles = StyleSheet.create({
   modalCancelButtonText: {
     ...Typography.body.medium,
     color: Colors.error,
+    fontWeight: "600",
+  },
+  reportReasonModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  reportReasonModalContent: {
+    width: "100%",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.large,
+    paddingVertical: Spacing.md,
+  },
+  reportReasonModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  reportReasonModalTitle: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "700",
+  },
+  reportReasonCloseButton: {
+    padding: 4,
+  },
+  reportReasonOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  reportReasonOptionText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+  },
+  reportReasonCancelButton: {
+    marginTop: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: "center",
+  },
+  reportReasonCancelButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
     fontWeight: "600",
   },
   // Cash Upload Modal Styles
