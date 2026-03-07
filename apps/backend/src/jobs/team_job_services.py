@@ -122,14 +122,30 @@ def create_team_job(
         if abs(allocated_sum - Decimal(str(total_budget))) > Decimal('1'):  # Allow ₱1 variance
             return {'success': False, 'error': f'Manual allocation total (₱{allocated_sum}) does not match total budget (₱{total_budget})'}
     
-    # Get client's profile
-    client_profile_obj = client_profile if isinstance(client_profile, Profile) else Profile.objects.get(profileID=client_profile)
-    
-    # Get or verify ClientProfile exists
-    try:
-        client_profile_record = ClientProfile.objects.get(profileID=client_profile_obj)
-    except ClientProfile.DoesNotExist:
-        return {'success': False, 'error': 'Client profile not found. Only clients can create team jobs.'}
+    # Get client's base profile
+    client_profile_obj = (
+        client_profile
+        if isinstance(client_profile, Profile)
+        else Profile.objects.get(profileID=client_profile)
+    )
+
+    # Ensure only CLIENT profiles can create team jobs
+    if client_profile_obj.profileType != 'CLIENT':
+        return {
+            'success': False,
+            'error': f'Only clients can create team jobs. Your profile type is: {client_profile_obj.profileType}'
+        }
+
+    # Get or create ClientProfile to prevent false negatives for valid client accounts
+    client_profile_record, _ = ClientProfile.objects.get_or_create(
+        profileID=client_profile_obj,
+        defaults={
+            'description': '',
+            'totalJobsPosted': 0,
+            'clientRating': 0,
+            'activeJobsCount': 0,
+        },
+    )
     
     # Check wallet balance for escrow (50% of total) + platform fee (10% of total)
     escrow_amount = Decimal(str(total_budget)) * Decimal('0.5')
