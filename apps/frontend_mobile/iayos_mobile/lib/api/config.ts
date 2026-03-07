@@ -632,6 +632,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/backjob/mark-complete`,
   BACKJOB_APPROVE_COMPLETION: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/backjob/approve-completion`,
+  BACKJOB_REQUEST_RENEGOTIATION: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/backjob/request-renegotiation`,
 
   // ML/AI Prediction Endpoints
   // Price prediction for job creation - returns min/suggested/max price range

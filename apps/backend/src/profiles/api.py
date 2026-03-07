@@ -1174,6 +1174,7 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
         
@@ -1808,6 +1809,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 

@@ -6057,6 +6057,150 @@ def get_backjob_status(request, job_id: int):
         return Response({"error": "Failed to fetch backjob status"}, status=500)
 
 
+@router.post("/{job_id}/backjob/request-renegotiation", auth=dual_auth)
+@require_kyc
+def request_backjob_renegotiation(request, job_id: int):
+    """
+    Request re-negotiation for the SAME active backjob record.
+
+    Intended flow:
+    - Backjob is already approved (UNDER_REVIEW)
+    - Admin has set scheduled_date
+    - Before work starts, either party can ask admin to reopen negotiation
+
+    This endpoint does NOT create a new dispute record.
+    It reuses the existing dispute and transitions it back to OPEN for admin review.
+    """
+    try:
+        print(f"🔁 Backjob re-negotiation requested for job {job_id}")
+
+        note = ""
+        try:
+            body = json.loads(request.body) if request.body else {}
+            note = (body.get("reason") or body.get("note") or "").strip()
+        except Exception:
+            note = ""
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        # Allow only actual participants
+        is_client = bool(job.clientID and job.clientID.profileID.accountFK == request.auth)
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_client or is_assigned_worker or is_assigned_agency):
+            return Response({"error": "Only job participants can request re-negotiation"}, status=403)
+
+        # Re-negotiate ONLY the current approved backjob record
+        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        if not dispute:
+            return Response({"error": "No active approved backjob found to renegotiate"}, status=404)
+
+        # Prevent re-negotiation after work already started/completed
+        if dispute.backjobStarted or dispute.workerMarkedBackjobComplete or dispute.clientConfirmedBackjob:
+            return Response({
+                "error": "Cannot renegotiate after backjob work has started or been completed"
+            }, status=400)
+
+        requester_role = "CLIENT" if is_client else ("AGENCY" if is_assigned_agency else "WORKER")
+        requester_name = request.auth.email
+
+        # Keep audit trail by appending into resolution notes
+        ts = timezone.now().strftime("%Y-%m-%d %H:%M")
+        renegotiation_line = (
+            f"[{ts}] Re-negotiation requested by {requester_role} ({requester_name})"
+            + (f": {note}" if note else ".")
+        )
+        dispute.resolution = f"{dispute.resolution}\n{renegotiation_line}" if dispute.resolution else renegotiation_line
+
+        # Reopen admin workflow on the same dispute record
+        dispute.status = "OPEN"
+        dispute.in_negotiation_at = None
+        dispute.scheduled_date = None
+        dispute.save(update_fields=["status", "in_negotiation_at", "scheduled_date", "resolution", "updatedAt"])
+
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_RENEGO",
+            changedBy=request.auth,
+            notes=renegotiation_line
+        )
+
+        # Post system message to job conversation so both parties see context immediately
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"🔁 Re-negotiation requested by {requester_role}. Admin review is required before a new schedule is set."
+            )
+
+        # Notify all admins
+        from accounts.models import Accounts as AccountsModel, Notification
+        admin_accounts = AccountsModel.objects.filter(is_staff=True)
+        for admin_acct in admin_accounts:
+            Notification.objects.create(
+                accountFK=admin_acct,
+                notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                title="Backjob Re-negotiation Requested",
+                message=f"Dispute #{dispute.disputeID} for '{job.title}' requested re-negotiation.",
+                relatedJobID=job.jobID,
+            )
+
+        # Notify other participant(s)
+        if is_client:
+            if job.assignedAgencyFK:
+                Notification.objects.create(
+                    accountFK=job.assignedAgencyFK.accountFK,
+                    notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                    title="Backjob Re-negotiation Requested",
+                    message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                    relatedJobID=job.jobID,
+                )
+            elif job.assignedWorkerID:
+                Notification.objects.create(
+                    accountFK=job.assignedWorkerID.profileID.accountFK,
+                    notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                    title="Backjob Re-negotiation Requested",
+                    message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                    relatedJobID=job.jobID,
+                )
+        else:
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                title="Backjob Re-negotiation Requested",
+                message=f"{requester_role} requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                relatedJobID=job.jobID,
+            )
+
+        return {
+            "success": True,
+            "message": "Re-negotiation request submitted. Admin will review and coordinate a new schedule.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": None,
+        }
+
+    except Exception as e:
+        print(f"❌ Error requesting backjob re-negotiation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to request re-negotiation: {str(e)}"}, status=500)
+
+
 @router.post("/{job_id}/backjob/confirm-started", auth=dual_auth)
 @require_kyc
 def confirm_backjob_started(request, job_id: int):
