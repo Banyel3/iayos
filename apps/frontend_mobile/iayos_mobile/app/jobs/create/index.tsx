@@ -156,7 +156,7 @@ const CLIENT_PAYMENT_INFO_ITEMS = [
   },
   {
     icon: "checkmark-circle-outline" as const,
-    label: "Finish & Pay:",
+    label: "Finish & Pay",
     description:
       "Once the job is completed, the final 50% is released.",
   }

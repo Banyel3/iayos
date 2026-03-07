@@ -18,7 +18,7 @@ import {
   Star,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from "recharts";
+import { BarChart, Bar, XAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from "recharts";
 
 interface DashboardStats {
   total_users: number;
@@ -140,6 +140,26 @@ export default function AdminDashboardPage() {
     { name: 'Agencies', value: stats.total_agencies, color: '#005d7a' },
   ].sort((a, b) => b.value - a.value);
 
+  // Transform chart data for stacking: split TotalRevenue into NetRevenue + PlatformCut
+  const chartData = (stats.revenue_chart_data?.[revenueFilter] || []).map((d) => ({
+    ...d,
+    NetRevenue: d.TotalRevenue - d.PlatformCut,
+  }));
+
+  // Custom tooltip for stacked bars
+  const CustomBarTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload || !payload.length) return null;
+    const gmv = (payload[0]?.payload?.TotalRevenue ?? 0);
+    const fee = (payload[0]?.payload?.PlatformCut ?? 0);
+    return (
+      <div className="bg-white px-4 py-3 rounded-lg shadow-lg border border-gray-100">
+        <p className="text-xs font-semibold text-gray-500 mb-1">{label}</p>
+        <p className="text-sm font-bold text-gray-900">GMV: ₱{gmv.toLocaleString()}</p>
+        <p className="text-sm font-bold text-[#00BAF1]">Platform Fee: ₱{fee.toLocaleString()}</p>
+      </div>
+    );
+  };
+
   return (
     <div>
       <Sidebar />
@@ -162,8 +182,14 @@ export default function AdminDashboardPage() {
                       ₱{(stats.total_revenue ?? 0).toLocaleString()}
                     </CardTitle>
                     <p className="text-sm font-bold text-gray-900 mt-2">
-                      Total Revenue (GMV)
+                      Gross Merchandise Value (GMV)
                     </p>
+                    {stats.platform_fee_trend !== undefined && (
+                      <div className={`flex items-center mt-1 text-sm ${stats.platform_fee_trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <TrendingUp className={`h-4 w-4 mr-1 ${stats.platform_fee_trend < 0 ? 'rotate-180 transform' : ''}`} />
+                        <span className="font-semibold text-xs">{Math.abs(stats.platform_fee_trend)}% vs last month</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex bg-gray-50 border border-gray-200 rounded-md p-1 mt-1">
                     <button
@@ -183,13 +209,16 @@ export default function AdminDashboardPage() {
                 <CardContent className="flex-1 flex flex-col pt-0">
                   <div className="flex-1 w-full min-h-[250px] relative flex flex-col items-center justify-center border-t border-gray-100 mt-4 pt-4">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stats.revenue_chart_data?.[revenueFilter] || []}>
-                        <Tooltip
-                          formatter={(value: number) => [`₱${value.toLocaleString()}`, undefined]}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      <BarChart data={chartData}>
+                        <XAxis
+                          dataKey="name"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }}
                         />
-                        <Bar barSize={40} dataKey="TotalRevenue" fill="#00BAF1" radius={[4, 4, 0, 0]} />
-                        <Bar barSize={40} dataKey="PlatformCut" fill="#a5f3fc" radius={[4, 4, 0, 0]} />
+                        <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                        <Bar barSize={40} dataKey="NetRevenue" stackId="a" fill="#00BAF1" radius={[0, 0, 0, 0]} name="GMV" />
+                        <Bar barSize={40} dataKey="PlatformCut" stackId="a" fill="#a5f3fc" radius={[4, 4, 0, 0]} name="Platform Fee" />
                       </BarChart>
                     </ResponsiveContainer>
                     {!stats.revenue_chart_data && (
@@ -203,11 +232,11 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center justify-center gap-6 mt-4 pb-2">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-sm bg-[#00BAF1] mr-2"></div>
-                      <span className="text-sm font-bold text-gray-900">Total Revenue</span>
+                      <span className="text-sm font-bold text-gray-900">GMV</span>
                     </div>
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-sm bg-[#a5f3fc] mr-2"></div>
-                      <span className="text-sm font-bold text-gray-900">Platform cut 10%</span>
+                      <span className="text-sm font-bold text-gray-900">Platform Fee (10%)</span>
                     </div>
                   </div>
                 </CardContent>
@@ -222,7 +251,7 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-[#00BAF1]" />
                     <CardTitle className="text-sm font-bold text-gray-900">
-                      Platform cut 10%
+                      Platform Earnings (10%)
                     </CardTitle>
                   </div>
                 </CardHeader>

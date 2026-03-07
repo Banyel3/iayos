@@ -192,8 +192,8 @@ export async function downloadDepositReceiptPdf(transaction: DepositReceiptData)
           </td>
           <td class="address-cell">
             <div class="company-name">iAyos</div>
-            <div>Normal Road, Baliwasan, 7000</div>
-            <div>Zamboanga City, Philippines</div>
+            <div>Pasabolong, City of Zamboanga</div>
+            <div>Region IX (Zamboanga Peninsula)</div>
           </td>
         </tr>
       </table>
