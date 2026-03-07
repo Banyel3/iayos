@@ -495,24 +495,30 @@ export default function EditProfileScreen() {
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>First Name</Text>
               <TextInput
-                style={[styles.input, styles.inputReadonly]}
+                style={styles.input}
                 value={firstName}
-                editable={false}
+                onChangeText={setFirstName}
                 placeholder="Enter your first name"
                 placeholderTextColor={Colors.textSecondary}
               />
+              <Text style={styles.hint}>
+                Must match your Government ID for KYC verification
+              </Text>
             </View>
 
             {/* Last Name */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Last Name</Text>
               <TextInput
-                style={[styles.input, styles.inputReadonly]}
+                style={styles.input}
                 value={lastName}
-                editable={false}
+                onChangeText={setLastName}
                 placeholder="Enter your last name"
                 placeholderTextColor={Colors.textSecondary}
               />
+              <Text style={styles.hint}>
+                Must match your Government ID for KYC verification
+              </Text>
             </View>
 
             {/* Email (Read-only) */}
