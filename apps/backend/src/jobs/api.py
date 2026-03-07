@@ -6068,6 +6068,8 @@ def get_backjob_status(request, job_id: int):
                 "backjob_started": dispute.backjobStarted,
                 "worker_marked_complete": dispute.workerMarkedBackjobComplete,
                 "client_confirmed": dispute.clientConfirmedBackjob,
+                "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
             }
         }
         
@@ -6146,7 +6148,17 @@ def request_backjob_renegotiation(request, job_id: int):
         dispute.status = "OPEN"
         dispute.in_negotiation_at = None
         dispute.scheduled_date = None
-        dispute.save(update_fields=["status", "in_negotiation_at", "scheduled_date", "resolution", "updatedAt"])
+        dispute.workerScheduleConfirmed = False
+        dispute.workerScheduleConfirmedAt = None
+        dispute.save(update_fields=[
+            "status",
+            "in_negotiation_at",
+            "scheduled_date",
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "resolution",
+            "updatedAt",
+        ])
 
         JobLog.objects.create(
             jobID=job,
@@ -6220,6 +6232,228 @@ def request_backjob_renegotiation(request, job_id: int):
         return Response({"error": f"Failed to request re-negotiation: {str(e)}"}, status=500)
 
 
+@router.post("/{job_id}/backjob/set-scheduled-date", auth=dual_auth)
+@require_kyc
+def set_backjob_scheduled_date_by_client(request, job_id: int):
+    """
+    Client proposes or updates the backjob scheduled date during negotiation.
+    Worker/agency confirmation is required before the dispute transitions to UNDER_REVIEW.
+    """
+    try:
+        print(f"📅 Client setting backjob schedule for job {job_id}")
+
+        body = json.loads(request.body) if request.body else {}
+        scheduled_date_str = (body.get("scheduled_date") or "").strip()
+        if not scheduled_date_str:
+            return Response({"error": "scheduled_date is required (YYYY-MM-DD)"}, status=400)
+
+        from datetime import date
+
+        try:
+            scheduled_date = date.fromisoformat(scheduled_date_str)
+        except ValueError:
+            return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+
+        if scheduled_date < timezone.localdate():
+            return Response({"error": "Scheduled date cannot be in the past"}, status=400)
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the client can set backjob scheduled date"}, status=403)
+
+        dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=["IN_NEGOTIATION", "UNDER_REVIEW"],
+        ).first()
+        if not dispute:
+            return Response({"error": "Backjob must be in IN_NEGOTIATION or UNDER_REVIEW to set schedule"}, status=400)
+
+        if dispute.backjobStarted or dispute.workerMarkedBackjobComplete or dispute.clientConfirmedBackjob:
+            return Response({"error": "Cannot edit schedule after backjob work has started or been completed"}, status=400)
+
+        is_update = dispute.scheduled_date is not None
+        old_dispute_status = dispute.status
+        dispute.scheduled_date = scheduled_date
+        dispute.workerScheduleConfirmed = False
+        dispute.workerScheduleConfirmedAt = None
+
+        # If date is edited after prior confirmation, move back to negotiation until reconfirmed.
+        if dispute.status == "UNDER_REVIEW":
+            dispute.status = "IN_NEGOTIATION"
+
+        dispute.save(update_fields=[
+            "scheduled_date",
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "status",
+            "updatedAt",
+        ])
+
+        formatted_date = scheduled_date.strftime("%B %d, %Y")
+        action_word = "updated" if is_update else "set"
+
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_SCHED",
+            changedBy=request.auth,
+            notes=(
+                f"Client {action_word} backjob schedule to {formatted_date}; "
+                f"waiting for worker confirmation"
+                + (" (reopened negotiation)" if old_dispute_status == "UNDER_REVIEW" else "")
+            )
+        )
+
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"📅 Client {action_word} backjob schedule to {formatted_date}. Waiting for worker confirmation."
+                + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
+            )
+
+        # Notify worker/agency
+        worker_account = None
+        if job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        elif job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+
+        if worker_account:
+            Notification.objects.create(
+                accountFK=worker_account,
+                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                title="Backjob Schedule Proposed",
+                message=f"Client {action_word} backjob schedule for '{job.title}' to {formatted_date}. Please confirm.",
+                relatedJobID=job.jobID,
+            )
+
+        return {
+            "success": True,
+            "message": f"Backjob schedule {action_word} to {formatted_date}. Waiting for worker confirmation.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+        }
+
+    except Exception as e:
+        print(f"❌ Error setting backjob scheduled date: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to set scheduled date: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/backjob/confirm-scheduled-date", auth=dual_auth)
+@require_kyc
+def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
+    """
+    Worker/agency confirms the client-proposed backjob date.
+    This transitions the dispute from IN_NEGOTIATION to UNDER_REVIEW.
+    """
+    try:
+        print(f"✅ Worker confirming backjob schedule for job {job_id}")
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_assigned_worker or is_assigned_agency):
+            return Response({"error": "Only the assigned worker or agency can confirm this schedule"}, status=403)
+
+        dispute = JobDispute.objects.filter(jobID=job, status="IN_NEGOTIATION").first()
+        if not dispute:
+            return Response({"error": "Backjob must be in IN_NEGOTIATION to confirm schedule"}, status=400)
+
+        if not dispute.scheduled_date:
+            return Response({"error": "Client must set a scheduled date first"}, status=400)
+
+        if dispute.workerScheduleConfirmed:
+            return {
+                "success": True,
+                "message": "Scheduled date is already confirmed",
+                "job_id": job.jobID,
+                "dispute_id": dispute.disputeID,
+                "status": "UNDER_REVIEW",
+                "scheduled_date": dispute.scheduled_date.isoformat(),
+                "worker_schedule_confirmed": True,
+            }
+
+        dispute.workerScheduleConfirmed = True
+        dispute.workerScheduleConfirmedAt = timezone.now()
+        dispute.status = "UNDER_REVIEW"
+        dispute.save(update_fields=[
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "status",
+            "updatedAt",
+        ])
+
+        formatted_date = dispute.scheduled_date.strftime("%B %d, %Y")
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_APPR",
+            changedBy=request.auth,
+            notes=f"Worker confirmed backjob schedule ({formatted_date}); dispute moved to UNDER_REVIEW"
+        )
+
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"✅ Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
+            )
+
+        # Notify client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType=Notification.NotificationType.BACKJOB_APPROVED,
+            title="Backjob Schedule Confirmed",
+            message=f"Worker confirmed backjob schedule for '{job.title}' on {formatted_date}.",
+            relatedJobID=job.jobID,
+        )
+
+        return {
+            "success": True,
+            "message": f"Backjob scheduled date confirmed for {formatted_date}.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+            "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+        }
+
+    except Exception as e:
+        print(f"❌ Error confirming backjob scheduled date: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to confirm scheduled date: {str(e)}"}, status=500)
+
+
 @router.post("/{job_id}/backjob/confirm-started", auth=dual_auth)
 @require_kyc
 def confirm_backjob_started(request, job_id: int):
@@ -6256,6 +6490,22 @@ def confirm_backjob_started(request, job_id: int):
             return Response({"error": "No active backjob found for this job"}, status=404)
         
         print(f"   Found dispute {dispute.disputeID}, backjobStarted={dispute.backjobStarted}")
+
+        if not dispute.scheduled_date:
+            return Response({"error": "Backjob schedule is not set yet"}, status=400)
+
+        if not dispute.workerScheduleConfirmed:
+            return Response({"error": "Worker must confirm the scheduled date before backjob can start"}, status=400)
+
+        today = timezone.localdate()
+        if today < dispute.scheduled_date:
+            return Response(
+                {
+                    "error": "Backjob cannot be started before the scheduled date",
+                    "scheduled_date": dispute.scheduled_date.isoformat(),
+                },
+                status=400,
+            )
         
         # Check if already confirmed
         if dispute.backjobStarted:
@@ -6265,7 +6515,7 @@ def confirm_backjob_started(request, job_id: int):
         # Confirm backjob work has started
         dispute.backjobStarted = True
         dispute.backjobStartedAt = timezone.now()
-        dispute.save()
+        dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
         
         print(f"✅ Client confirmed backjob work started for job {job_id}")
         

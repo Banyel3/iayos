@@ -632,6 +632,10 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/backjob/mark-complete`,
   BACKJOB_APPROVE_COMPLETION: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/backjob/approve-completion`,
+  BACKJOB_SET_SCHEDULED_DATE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/backjob/set-scheduled-date`,
+  BACKJOB_CONFIRM_SCHEDULED_DATE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/backjob/confirm-scheduled-date`,
   BACKJOB_REQUEST_RENEGOTIATION: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/backjob/request-renegotiation`,
 

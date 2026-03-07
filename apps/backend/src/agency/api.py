@@ -2064,7 +2064,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         # Get messages
         messages = Message.objects.filter(
             conversationID=conv
-        ).select_related('sender__accountFK', 'senderAgency').order_by('createdAt')
+        ).select_related('sender__accountFK', 'senderAgency', 'sender_admin').order_by('createdAt')
         
         # Mark messages as read (agency is worker side)
         Message.objects.filter(
@@ -2171,6 +2171,10 @@ def get_agency_conversation_messages(request, conversation_id: int):
         base_url = f"{scheme}://{host}"
         
         for msg in messages:
+            # Hide admin-authored negotiation messages from participant chat views.
+            if msg.sender_admin:
+                continue
+
             # Check if message is from agency (either via senderAgency or via agency_profile)
             is_mine = (msg.senderAgency and msg.senderAgency == agency) or (msg.sender and msg.sender == agency_profile)
             sent_by_agency = is_mine

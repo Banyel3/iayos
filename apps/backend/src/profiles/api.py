@@ -1175,6 +1175,8 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
                 "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
         
@@ -1373,7 +1375,7 @@ def get_conversation_messages(request, conversation_id: int):
         # Get all messages with attachments
         messages = Message.objects.filter(
             conversationID=conversation
-        ).select_related('sender__accountFK').prefetch_related('attachments').order_by('createdAt')
+        ).select_related('sender__accountFK', 'sender_admin').prefetch_related('attachments').order_by('createdAt')
         
         # Mark unread messages as read and reset unread count
         # For agency conversations, mark all messages not from current user as read
@@ -1414,6 +1416,10 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         current_account_id = getattr(request.auth, 'accountID', None)
         for msg in messages:
+            # Hide admin-authored negotiation messages from participant chat views.
+            if msg.sender_admin:
+                continue
+
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
@@ -1422,13 +1428,6 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
-            elif msg.sender is None and msg.senderAgency is None and msg.sender_admin:
-                # Admin message (negotiation chat)
-                is_mine = False
-                sender_name = "Admin"
-                sender_avatar = None
-                sender_type = "admin"
-                print(f"   Admin message from {msg.sender_admin.email}")
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
@@ -1810,6 +1809,8 @@ def get_conversation_messages(request, conversation_id: int):
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
                 "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 

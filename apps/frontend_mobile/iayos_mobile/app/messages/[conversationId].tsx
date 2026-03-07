@@ -55,6 +55,8 @@ import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
+  useSetBackjobScheduledDate,
+  useConfirmBackjobScheduledDate,
   useRequestBackjobRenegotiation,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
@@ -103,14 +105,6 @@ import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
-type ReportReason =
-  | "spam"
-  | "harassment"
-  | "fraud"
-  | "inappropriate"
-  | "fake_profile"
-  | "other";
-
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const conversationId = parseInt(params.conversationId as string);
@@ -118,8 +112,6 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
-  const [negotiationPanelExpanded, setNegotiationPanelExpanded] =
-    useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
@@ -148,6 +140,9 @@ export default function ChatScreen() {
     icon?: string;
     iconColor?: string;
   } | null>(null);
+  const [showBackjobScheduleModal, setShowBackjobScheduleModal] =
+    useState(false);
+  const [backjobScheduleInput, setBackjobScheduleInput] = useState("");
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -172,10 +167,6 @@ export default function ChatScreen() {
     jobId: number;
   } | null>(null);
   const [priceInputText, setPriceInputText] = useState("");
-  const [reportReasonModal, setReportReasonModal] = useState<{
-    type: "user" | "job" | "message";
-    reportedUserId?: number;
-  } | null>(null);
   // For team jobs: track current worker being reviewed
   const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
@@ -261,53 +252,11 @@ export default function ChatScreen() {
     ((conversation.my_role === "CLIENT" &&
       (conversation.is_team_job
         ? !conversation.all_team_workers_reviewed
-        : conversation.is_agency_job
-          ? !(
-              conversation.all_employees_reviewed &&
-              conversation.job.agencyReviewed
-            )
-          : !conversation.job.clientReviewed)) ||
-      ((conversation.my_role === "WORKER" ||
-        conversation.my_role === "AGENCY") &&
-        !conversation.job.workerReviewed))
+        : !conversation.job.clientReviewed)) ||
+      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
   );
 
-  const promptReviewBeforeExit = useCallback(() => {
-    Alert.alert(
-      "Review Required",
-      "Please leave a review before exiting this conversation.",
-      [
-        { text: "Stay", style: "cancel" },
-        {
-          text: "Leave Review",
-          onPress: () => setShowReviewModal(true),
-        },
-      ],
-      { cancelable: false },
-    );
-  }, []);
-
-  const handleAttemptExitConversation = useCallback(() => {
-    if (needsReview) {
-      promptReviewBeforeExit();
-      return;
-    }
-    safeGoBack(routerHook, "/(tabs)/messages");
-  }, [needsReview, promptReviewBeforeExit, routerHook]);
-
-  // Block hardware back button when review is required (all job flows)
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (!needsReview) return false;
-        promptReviewBeforeExit();
-        return true;
-      },
-    );
-
-    return () => subscription.remove();
-  }, [needsReview, promptReviewBeforeExit]);
+  // Block hardware back button when review is needed - REMOVED to allow users to exit freely
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -346,6 +295,8 @@ export default function ChatScreen() {
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
+  const setBackjobScheduledDateMutation = useSetBackjobScheduledDate();
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
   const requestBackjobRenegotiationMutation = useRequestBackjobRenegotiation();
 
   const parseScheduledDate = (dateStr?: string | null): Date | null => {
@@ -456,13 +407,6 @@ export default function ChatScreen() {
     };
     loadPending();
   }, [conversationId]);
-
-  // Auto-expand negotiation panel when negotiation goes live
-  useEffect(() => {
-    if (hasActiveNegotiation) {
-      setNegotiationPanelExpanded(true);
-    }
-  }, [hasActiveNegotiation]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -906,6 +850,63 @@ export default function ChatScreen() {
     );
   };
 
+  const handleOpenBackjobScheduleModal = () => {
+    if (!conversation) return;
+    const initialDate = conversation.backjob?.scheduled_date || "";
+    setBackjobScheduleInput(initialDate);
+    setShowBackjobScheduleModal(true);
+  };
+
+  const handleSubmitBackjobScheduleDate = () => {
+    if (!conversation) return;
+
+    const scheduleValue = backjobScheduleInput.trim();
+    if (!scheduleValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      Alert.alert("Invalid Date", "Use YYYY-MM-DD format.");
+      return;
+    }
+
+    const selectedDate = parseScheduledDate(scheduleValue);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!selectedDate || selectedDate < today) {
+      Alert.alert("Invalid Date", "Scheduled date cannot be in the past.");
+      return;
+    }
+
+    setBackjobScheduledDateMutation.mutate(
+      {
+        jobId: conversation.job.id,
+        scheduledDate: scheduleValue,
+      },
+      {
+        onSuccess: () => {
+          setShowBackjobScheduleModal(false);
+        },
+      },
+    );
+  };
+
+  const handleConfirmBackjobScheduledDate = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Schedule",
+      `Confirm backjob scheduled date: ${conversation.backjob?.scheduled_date}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            confirmBackjobScheduledDateMutation.mutate({
+              jobId: conversation.job.id,
+            });
+          },
+        },
+      ],
+    );
+  };
+
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation) return;
@@ -1270,7 +1271,13 @@ export default function ChatScreen() {
   const submitConversationReport = useCallback(
     (
       type: "user" | "job" | "message",
-      reason: ReportReason,
+      reason:
+        | "spam"
+        | "harassment"
+        | "fraud"
+        | "inappropriate"
+        | "fake_profile"
+        | "other",
       reportedUserId?: number,
     ) => {
       const jobId = conversation?.job?.id;
@@ -1352,9 +1359,33 @@ export default function ChatScreen() {
         return;
       }
 
-      // Android Alert supports limited button actions; use a custom modal so all
-      // report reasons are visible and users can always dismiss it.
-      setReportReasonModal({ type, reportedUserId });
+      Alert.alert("Select report reason", "Choose a reason", [
+        {
+          text: "Spam",
+          onPress: () => submitConversationReport(type, "spam", reportedUserId),
+        },
+        {
+          text: "Harassment",
+          onPress: () =>
+            submitConversationReport(type, "harassment", reportedUserId),
+        },
+        {
+          text: "Fraud/Scam",
+          onPress: () =>
+            submitConversationReport(type, "fraud", reportedUserId),
+        },
+        {
+          text: "Inappropriate",
+          onPress: () =>
+            submitConversationReport(type, "inappropriate", reportedUserId),
+        },
+        {
+          text: "Fake Profile",
+          onPress: () =>
+            submitConversationReport(type, "fake_profile", reportedUserId),
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
     },
     [submitConversationReport],
   );
@@ -1414,7 +1445,7 @@ export default function ChatScreen() {
         onPress: () => openReportReasonPicker("message"),
       },
       { text: "Cancel", style: "cancel" },
-    ], { cancelable: true });
+    ]);
   }, [conversation, openReportReasonPicker]);
 
   // Pick image from camera
@@ -1742,7 +1773,23 @@ export default function ChatScreen() {
       {/* Custom Header */}
       <View style={styles.customHeader}>
         <TouchableOpacity
-          onPress={handleAttemptExitConversation}
+          onPress={() => {
+            if (needsReview) {
+              Alert.alert(
+                "Review Required",
+                "Please leave a review before exiting this conversation.",
+                [
+                  {
+                    text: "Leave Review",
+                    onPress: () => setShowReviewModal(true),
+                  },
+                ],
+                { cancelable: false },
+              );
+            } else {
+              safeGoBack(routerHook, "/(tabs)/messages");
+            }
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
@@ -5360,84 +5407,102 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
-            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION (live) or after if admin messages exist (history) */}
-            {(hasActiveNegotiation ||
-              conversation.messages.some(
-                (m: any) => m.sender_type === "admin",
-              )) && (
-              <View style={styles.negotiationPanel}>
-                <TouchableOpacity
-                  style={styles.negotiationPanelHeader}
-                  onPress={() =>
-                    setNegotiationPanelExpanded(!negotiationPanelExpanded)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="shield-half-outline"
-                    size={13}
-                    color="#7C3AED"
-                  />
-                  <Text style={styles.negotiationPanelHeaderText}>
-                    {hasActiveNegotiation
-                      ? "Negotiation Chat"
-                      : "Negotiation History"}
-                  </Text>
-                  {hasActiveNegotiation && (
-                    <View style={styles.negotiationLiveBadge}>
-                      <Text style={styles.negotiationLiveBadgeText}>LIVE</Text>
+            {hasActiveNegotiation && (
+              <View style={styles.backjobActionButtonsCompact}>
+                {conversation.backjob?.scheduled_date ? (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Proposed Date: {conversation.backjob.scheduled_date}
+                      </Text>
                     </View>
-                  )}
-                  <Ionicons
-                    name={
-                      negotiationPanelExpanded ? "chevron-up" : "chevron-down"
-                    }
-                    size={13}
-                    color="#7C3AED"
-                  />
-                </TouchableOpacity>
 
-                {negotiationPanelExpanded && (
-                  <ScrollView
-                    style={styles.negotiationPanelBody}
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {conversation.messages.filter(
-                      (m: any) => m.sender_type === "admin",
-                    ).length === 0 ? (
-                      <Text style={styles.negotiationEmptyText}>
-                        Waiting for admin to join the negotiation…
+                    {conversation.backjob.worker_schedule_confirmed ? (
+                      <Text style={styles.backjobScheduledNoticeText}>
+                        Worker confirmed this schedule. Backjob is ready for start on the scheduled date.
                       </Text>
                     ) : (
-                      conversation.messages
-                        .filter((m: any) => m.sender_type === "admin")
-                        .map((msg: any, idx: number) => (
-                          <View
-                            key={msg.message_id || idx}
-                            style={styles.negotiationMessage}
-                          >
-                            <Ionicons
-                              name="shield-checkmark-outline"
-                              size={12}
-                              color="#7C3AED"
-                            />
-                            <View style={styles.negotiationMessageContent}>
-                              <Text style={styles.negotiationMessageSender}>
-                                Admin
-                              </Text>
-                              <Text style={styles.negotiationMessageText}>
-                                {msg.message_text}
-                              </Text>
-                              <Text style={styles.negotiationMessageTime}>
-                                {format(new Date(msg.created_at), "h:mm a")}
-                              </Text>
-                            </View>
-                          </View>
-                        ))
+                      <Text style={styles.backjobScheduledNoticeText}>
+                        Waiting for worker confirmation.
+                      </Text>
                     )}
-                  </ScrollView>
+                  </View>
+                ) : null}
+
+                {conversation.my_role === "CLIENT" && (
+                  <TouchableOpacity
+                    style={[
+                      styles.backjobActionButtonCompact,
+                      { backgroundColor: Colors.warning },
+                    ]}
+                    onPress={handleOpenBackjobScheduleModal}
+                    disabled={setBackjobScheduledDateMutation.isPending}
+                  >
+                    {setBackjobScheduledDateMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="calendar-number"
+                          size={16}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.backjobActionButtonText}>
+                          {conversation.backjob?.scheduled_date
+                            ? "Update Schedule"
+                            : "Set Schedule"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 )}
+
+                {conversation.my_role !== "CLIENT" &&
+                  !conversation.backjob?.scheduled_date && (
+                    <View style={styles.backjobWaitingBadge}>
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.backjobWaitingText}>
+                        Waiting for client to set date...
+                      </Text>
+                    </View>
+                  )}
+
+                {conversation.my_role !== "CLIENT" &&
+                  !!conversation.backjob?.scheduled_date &&
+                  !conversation.backjob?.worker_schedule_confirmed && (
+                    <TouchableOpacity
+                      style={[
+                        styles.backjobActionButtonCompact,
+                        { backgroundColor: Colors.success },
+                      ]}
+                      onPress={handleConfirmBackjobScheduledDate}
+                      disabled={confirmBackjobScheduledDateMutation.isPending}
+                    >
+                      {confirmBackjobScheduledDateMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-done"
+                            size={16}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.backjobActionButtonText}>
+                            Confirm Schedule
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
               </View>
             )}
 
@@ -5623,16 +5688,10 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Messages List — admin messages are filtered out when a backjob exists; they appear in the negotiation panel instead */}
+        {/* Messages List */}
         <FlatList
           ref={flatListRef}
-          data={
-            conversation.backjob?.has_backjob
-              ? conversation.messages.filter(
-                  (m: any) => m.sender_type !== "admin",
-                )
-              : conversation.messages
-          }
+          data={conversation.messages}
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
@@ -5671,6 +5730,54 @@ export default function ChatScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showBackjobScheduleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBackjobScheduleModal(false)}
+      >
+        <View style={styles.priceModalBackdrop}>
+          <View style={styles.priceModalCard}>
+            <Text style={styles.priceModalTitle}>Set Backjob Schedule</Text>
+            <Text style={styles.priceModalSubtitle}>
+              Enter date in YYYY-MM-DD format.
+            </Text>
+
+            <TextInput
+              style={styles.priceInput}
+              value={backjobScheduleInput}
+              onChangeText={setBackjobScheduleInput}
+              placeholder="YYYY-MM-DD"
+              keyboardType="numbers-and-punctuation"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.priceModalActions}>
+              <TouchableOpacity
+                style={[styles.priceButton, styles.cancelButton]}
+                onPress={() => setShowBackjobScheduleModal(false)}
+                disabled={setBackjobScheduledDateMutation.isPending}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.priceButton, styles.submitButton]}
+                onPress={handleSubmitBackjobScheduleDate}
+                disabled={setBackjobScheduledDateMutation.isPending}
+              >
+                {setBackjobScheduledDateMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.submitButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Photo Preview Modal */}
       <Modal
@@ -5876,70 +5983,6 @@ export default function ChatScreen() {
           iconColor={countdownConfig.iconColor}
         />
       )}
-
-      {/* Report Reason Modal (Android) */}
-      <Modal
-        visible={!!reportReasonModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setReportReasonModal(null)}
-      >
-        <TouchableWithoutFeedback onPress={() => setReportReasonModal(null)}>
-          <View style={styles.reportReasonModalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.reportReasonModalContent}>
-                <View style={styles.reportReasonModalHeader}>
-                  <Text style={styles.reportReasonModalTitle}>
-                    Select report reason
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setReportReasonModal(null)}
-                    style={styles.reportReasonCloseButton}
-                  >
-                    <Ionicons name="close" size={20} color={Colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                {[
-                  { label: "Spam", value: "spam" as ReportReason },
-                  { label: "Harassment", value: "harassment" as ReportReason },
-                  { label: "Fraud/Scam", value: "fraud" as ReportReason },
-                  { label: "Inappropriate", value: "inappropriate" as ReportReason },
-                  { label: "Fake Profile", value: "fake_profile" as ReportReason },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.value}
-                    style={styles.reportReasonOption}
-                    onPress={() => {
-                      if (!reportReasonModal) return;
-                      submitConversationReport(
-                        reportReasonModal.type,
-                        item.value,
-                        reportReasonModal.reportedUserId,
-                      );
-                      setReportReasonModal(null);
-                    }}
-                  >
-                    <Text style={styles.reportReasonOptionText}>{item.label}</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={Colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                ))}
-
-                <TouchableOpacity
-                  style={styles.reportReasonCancelButton}
-                  onPress={() => setReportReasonModal(null)}
-                >
-                  <Text style={styles.reportReasonCancelButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
 
       {/* Price Input Modal - cross-platform replacement for Alert.prompt (iOS-only) */}
       <Modal
@@ -6858,58 +6901,66 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontWeight: "600",
   },
-  reportReasonModalOverlay: {
+  // Backjob schedule modal styles
+  priceModalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
   },
-  reportReasonModalContent: {
+  priceModalCard: {
     width: "100%",
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.large,
-    paddingVertical: Spacing.md,
-  },
-  reportReasonModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  reportReasonModalTitle: {
-    ...Typography.body.medium,
-    color: Colors.textPrimary,
-    fontWeight: "700",
-  },
-  reportReasonCloseButton: {
-    padding: 4,
-  },
-  reportReasonOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  reportReasonOptionText: {
-    ...Typography.body.medium,
-    color: Colors.textPrimary,
-  },
-  reportReasonCancelButton: {
-    marginTop: Spacing.sm,
-    marginHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.medium,
-    backgroundColor: Colors.backgroundSecondary,
-    alignItems: "center",
+    padding: Spacing.lg,
   },
-  reportReasonCancelButtonText: {
+  priceModalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  priceModalSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  priceInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  priceModalActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  priceButton: {
+    flex: 1,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cancelButtonText: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  submitButton: {
+    backgroundColor: Colors.primary,
+  },
+  submitButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
     fontWeight: "600",
   },
   // Cash Upload Modal Styles

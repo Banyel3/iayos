@@ -1084,7 +1084,7 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
     Returns dispute info, evidence images, and negotiation chat metadata.
     """
     from accounts.models import JobDispute
-    from profiles.models import Conversation, ConversationParticipant
+    from profiles.models import Conversation
     try:
         dispute = JobDispute.objects.select_related(
             'jobID',
@@ -1103,20 +1103,11 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
         worker = job.assignedWorkerID
         agency = getattr(job, 'assignedAgencyFK', None)
 
-        # Negotiation chat should only be exposed while dispute is actively in negotiation
+        # Admin can always audit conversation history for this job dispute.
         conversation = Conversation.objects.filter(
             relatedJobPosting=job
         ).order_by('-conversationID').first()
-        can_admin_chat = False
-        negotiation_conversation_id = None
-        if dispute.status == 'IN_NEGOTIATION' and conversation:
-            can_admin_chat = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                admin_account=request.auth,
-                participant_type='ADMIN'
-            ).exists()
-            if can_admin_chat:
-                negotiation_conversation_id = conversation.conversationID
+        negotiation_conversation_id = conversation.conversationID if conversation else None
 
         # Evidence images
         evidence = [
@@ -1165,12 +1156,14 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
                 'in_negotiation_at': dispute.in_negotiation_at.isoformat() if dispute.in_negotiation_at else None,
                 'admin_rejection_reason': dispute.adminRejectionReason,
                 'conversation_id': negotiation_conversation_id,
-                'can_admin_chat': can_admin_chat,
+                'can_admin_chat': False,
                 'evidence': evidence,
                 'backjob_started': dispute.backjobStarted,
                 'worker_marked_complete': dispute.workerMarkedBackjobComplete,
                 'client_confirmed': dispute.clientConfirmedBackjob,
                 'scheduled_date': dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+                'worker_schedule_confirmed': dispute.workerScheduleConfirmed,
+                'worker_schedule_confirmed_at': dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
             }
         }
     except JobDispute.DoesNotExist:
@@ -1186,10 +1179,11 @@ def accept_negotiation(request, dispute_id: int):
     """
     Admin accepts a backjob request into negotiation.
     Changes status from OPEN to IN_NEGOTIATION.
-    Opens a 3-party (admin + client + worker) chat inside the existing job conversation.
+    Moves dispute from OPEN to IN_NEGOTIATION so client and worker/agency can negotiate schedule.
+    Admin remains read-only and can audit the conversation from admin panel.
     """
     from accounts.models import JobDispute, Notification, JobLog
-    from profiles.models import Conversation, Message, ConversationParticipant
+    from profiles.models import Conversation, Message
     from django.db import transaction
     from django.utils import timezone
 
@@ -1231,7 +1225,7 @@ def accept_negotiation(request, dispute_id: int):
                 request=request
             )
 
-            # Reopen or create conversation and add admin as participant
+            # Reopen or create participant conversation
             conversation = Conversation.objects.filter(relatedJobPosting=job).first()
             if conversation:
                 conversation.status = Conversation.ConversationStatus.ACTIVE
@@ -1253,17 +1247,10 @@ def accept_negotiation(request, dispute_id: int):
             from profiles.conversation_service import unarchive_conversation
             unarchive_conversation(conversation)
 
-            # Add admin as participant (idempotent)
-            ConversationParticipant.objects.get_or_create(
-                conversation=conversation,
-                admin_account=request.auth,
-                defaults={'participant_type': 'ADMIN'}
-            )
-
-            # System message to announce negotiation
+            # System message to announce negotiation state
             Message.create_system_message(
                 conversation,
-                "⚖️ Negotiation started — an admin has joined this conversation to help resolve the backjob request."
+                "⚖️ Negotiation started. Client and worker/agency should agree on a backjob schedule date."
             )
 
             # Notify client + worker
@@ -1272,7 +1259,7 @@ def accept_negotiation(request, dispute_id: int):
                     accountFK=job.clientID.profileID.accountFK,
                     notificationType="BACKJOB_NEGOTIATION",
                     title="Backjob Negotiation Started",
-                    message=f"An admin has joined the conversation for '{job.title}' to help resolve your backjob request.",
+                    message=f"Backjob negotiation has started for '{job.title}'. Please coordinate schedule with the worker/agency.",
                     relatedJobID=job.jobID
                 )
             worker_account = None
@@ -1285,13 +1272,13 @@ def accept_negotiation(request, dispute_id: int):
                     accountFK=worker_account,
                     notificationType="BACKJOB_NEGOTIATION",
                     title="Backjob Negotiation Started",
-                    message=f"An admin has joined the conversation for '{job.title}' to discuss the backjob request.",
+                    message=f"Backjob negotiation has started for '{job.title}'. Please coordinate schedule with the client.",
                     relatedJobID=job.jobID
                 )
 
         return {
             "success": True,
-            "message": "Backjob accepted into negotiation. Admin chat is now open.",
+            "message": "Backjob accepted into negotiation.",
             "dispute_id": dispute.disputeID,
             "status": dispute.status,
             "conversation_id": conversation.conversationID
@@ -1309,30 +1296,15 @@ def accept_negotiation(request, dispute_id: int):
 @router.get("/conversations/{conv_id}/messages", auth=cookie_auth)
 def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_size: int = 50):
     """
-    Admin: fetch paginated message history for a conversation (for backjob negotiation panel).
+    Admin: fetch paginated message history for conversation audit.
+    This is read-only and not limited to IN_NEGOTIATION status.
     """
-    from profiles.models import Conversation, Message, ConversationParticipant
-    from accounts.models import JobDispute
+    from profiles.models import Conversation, Message
 
     try:
         conversation = Conversation.objects.get(conversationID=conv_id)
     except Conversation.DoesNotExist:
         return {"success": False, "error": "Conversation not found"}
-
-    active_dispute = JobDispute.objects.filter(
-        jobID=conversation.relatedJobPosting,
-        status='IN_NEGOTIATION'
-    ).first()
-    if not active_dispute:
-        return {"success": False, "error": "Negotiation chat is no longer active"}
-
-    is_admin_participant = ConversationParticipant.objects.filter(
-        conversation=conversation,
-        admin_account=request.auth,
-        participant_type='ADMIN'
-    ).exists()
-    if not is_admin_participant:
-        return {"success": False, "error": "You are no longer a participant in this negotiation"}
 
     messages_qs = Message.objects.filter(conversationID=conversation).select_related(
         'sender', 'senderAgency', 'sender_admin'
@@ -1382,121 +1354,31 @@ def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_s
 @router.post("/conversations/{conv_id}/send-message", auth=cookie_auth)
 def admin_send_message(request, conv_id: int):
     """
-    Admin sends a message into a conversation (for backjob negotiation).
+    Deprecated: admin is no longer a participant in backjob chat.
     """
-    from profiles.models import Conversation, Message, ConversationParticipant
-    from accounts.models import JobDispute
-
-    try:
-        body = json.loads(request.body.decode('utf-8')) if request.body else {}
-        text = (body.get('text') or '').strip()
-        if not text:
-            return {"success": False, "error": "Message text is required"}
-
-        try:
-            conversation = Conversation.objects.get(conversationID=conv_id)
-        except Conversation.DoesNotExist:
-            return {"success": False, "error": "Conversation not found"}
-
-        active_dispute = JobDispute.objects.filter(
-            jobID=conversation.relatedJobPosting,
-            status='IN_NEGOTIATION'
-        ).first()
-        if not active_dispute:
-            return {"success": False, "error": "Negotiation chat is no longer active"}
-
-        is_admin_participant = ConversationParticipant.objects.filter(
-            conversation=conversation,
-            admin_account=request.auth,
-            participant_type='ADMIN'
-        ).exists()
-        if not is_admin_participant:
-            return {"success": False, "error": "You are no longer a participant in this negotiation"}
-
-        msg = Message.objects.create(
-            conversationID=conversation,
-            sender=None,
-            senderAgency=None,
-            sender_admin=request.auth,
-            messageText=text,
-            messageType=Message.MessageType.TEXT,
-        )
-
-        return {
-            "success": True,
-            "message": {
-                "id": msg.messageID,
-                "text": msg.messageText,
-                "type": msg.messageType,
-                "sender_type": "admin",
-                "sender_name": f"Admin ({request.auth.email})",
-                "created_at": msg.createdAt.isoformat(),
-            }
-        }
-
-    except Exception as e:
-        print(f"❌ Error sending admin message: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
+    return {
+        "success": False,
+        "error": "Admin messaging is disabled. Client and worker/agency must negotiate directly.",
+    }
 
 
 @router.post("/jobs/disputes/{dispute_id}/finish-negotiation", auth=cookie_auth)
 def finish_negotiation(request, dispute_id: int):
     """
-    Admin explicitly finishes mediation.
-    Keeps dispute state as IN_NEGOTIATION but removes admin from negotiation chat.
+    Deprecated: admin no longer joins negotiation chat.
+    Kept for backwards compatibility as a no-op.
     """
-    from accounts.models import JobDispute, JobLog
-    from profiles.models import Conversation, ConversationParticipant, Message
-    from django.db import transaction
+    from accounts.models import JobDispute
 
     try:
         dispute = JobDispute.objects.select_related('jobID').get(disputeID=dispute_id)
 
-        if dispute.status != 'IN_NEGOTIATION':
-            return {"success": False, "error": "Dispute must be IN_NEGOTIATION to finish mediation"}
-
-        conversation = Conversation.objects.filter(relatedJobPosting=dispute.jobID).first()
-        if not conversation:
-            return {"success": False, "error": "Negotiation conversation not found"}
-
-        with transaction.atomic():
-            deleted_count, _ = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                participant_type='ADMIN'
-            ).delete()
-
-            Message.create_system_message(
-                conversation,
-                "ℹ️ Negotiation mediation finished — admin has left this negotiation chat."
-            )
-
-            JobLog.objects.create(
-                jobID=dispute.jobID,
-                oldStatus=dispute.jobID.status,
-                newStatus="BACKJOB_NEGO_FINISHED",
-                changedBy=request.auth,
-                notes="Admin finished negotiation mediation and left the chat"
-            )
-
-            log_action(
-                admin=request.auth,
-                action="backjob_finish_negotiation",
-                entity_type="job",
-                entity_id=str(dispute_id),
-                details={"job_id": dispute.jobID.jobID, "job_title": dispute.jobID.title},
-                before_value={"admin_chat_active": True},
-                after_value={"admin_chat_active": False},
-                request=request
-            )
-
         return {
             "success": True,
-            "message": "Negotiation mediation finished. Admin can no longer chat in this dispute.",
+            "message": "Negotiation remains active between client and worker/agency.",
             "dispute_id": dispute.disputeID,
             "status": dispute.status,
-            "admin_participants_removed": deleted_count,
+            "admin_participants_removed": 0,
         }
 
     except JobDispute.DoesNotExist:
@@ -1692,82 +1574,13 @@ def approve_backjob(request, dispute_id: int):
 @router.post("/jobs/disputes/{dispute_id}/set-scheduled-date", auth=cookie_auth)
 def set_backjob_scheduled_date(request, dispute_id: int):
     """
-    Admin sets or updates the scheduled date for a backjob.
-    Can be set/updated while dispute is IN_NEGOTIATION or UNDER_REVIEW.
-    Notifies both parties (client and worker/agency) of the scheduled date.
+    Deprecated endpoint.
+    Scheduled date must be set by the client via participant API and confirmed by worker/agency.
     """
-    from accounts.models import JobDispute, Notification
-    import datetime
-
-    try:
-        data = json.loads(request.body)
-        scheduled_date_str = data.get("scheduled_date", "").strip()
-
-        if not scheduled_date_str:
-            return {"success": False, "error": "scheduled_date is required (YYYY-MM-DD format)"}
-
-        try:
-            scheduled_date = datetime.date.fromisoformat(scheduled_date_str)
-        except ValueError:
-            return {"success": False, "error": "Invalid date format. Use YYYY-MM-DD"}
-
-        dispute = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__clientID__profileID__accountFK',
-            'jobID__assignedWorkerID__profileID__accountFK',
-            'jobID__assignedAgencyFK__accountFK',
-        ).get(disputeID=dispute_id)
-
-        if dispute.status not in ["IN_NEGOTIATION", "UNDER_REVIEW"]:
-            return {"success": False, "error": f"Cannot set scheduled date when dispute is in '{dispute.status}' status. Must be IN_NEGOTIATION or UNDER_REVIEW."}
-
-        is_update = dispute.scheduled_date is not None
-        dispute.scheduled_date = scheduled_date
-        dispute.save(update_fields=["scheduled_date"])
-
-        job = dispute.jobID
-        formatted_date = scheduled_date.strftime("%B %d, %Y")
-        action_word = "updated" if is_update else "set"
-
-        # Notify client
-        client_account = job.clientID.profileID.accountFK if job.clientID else None
-        if client_account:
-            Notification.objects.create(
-                accountFK=client_account,
-                title="Backjob Scheduled Date " + action_word.capitalize(),
-                message=f"The admin has {action_word} the scheduled date for your backjob to {formatted_date}.",
-                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
-                relatedJobID=job.jobID,
-            )
-
-        # Notify worker or agency
-        worker_account = None
-        if job.assignedAgencyFK:
-            worker_account = job.assignedAgencyFK.accountFK
-        elif job.assignedWorkerID:
-            worker_account = job.assignedWorkerID.profileID.accountFK
-
-        if worker_account:
-            Notification.objects.create(
-                accountFK=worker_account,
-                title="Backjob Scheduled Date " + action_word.capitalize(),
-                message=f"The admin has {action_word} the scheduled date for the backjob \"{job.title}\" to {formatted_date}.",
-                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
-                relatedJobID=job.jobID,
-            )
-
-        return {
-            "success": True,
-            "scheduled_date": dispute.scheduled_date.isoformat(),
-            "message": f"Scheduled date {action_word} to {formatted_date}"
-        }
-
-    except JobDispute.DoesNotExist:
-        return {"success": False, "error": "Dispute not found"}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
+    return {
+        "success": False,
+        "error": "Deprecated endpoint. Client must set the schedule in participant chat and worker/agency must confirm it.",
+    }
 
 
 @router.post("/jobs/disputes/{dispute_id}/reject-backjob", auth=cookie_auth)
