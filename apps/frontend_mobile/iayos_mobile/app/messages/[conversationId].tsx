@@ -261,11 +261,53 @@ export default function ChatScreen() {
     ((conversation.my_role === "CLIENT" &&
       (conversation.is_team_job
         ? !conversation.all_team_workers_reviewed
-        : !conversation.job.clientReviewed)) ||
-      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
+        : conversation.is_agency_job
+          ? !(
+              conversation.all_employees_reviewed &&
+              conversation.job.agencyReviewed
+            )
+          : !conversation.job.clientReviewed)) ||
+      ((conversation.my_role === "WORKER" ||
+        conversation.my_role === "AGENCY") &&
+        !conversation.job.workerReviewed))
   );
 
-  // Block hardware back button when review is needed - REMOVED to allow users to exit freely
+  const promptReviewBeforeExit = useCallback(() => {
+    Alert.alert(
+      "Review Required",
+      "Please leave a review before exiting this conversation.",
+      [
+        { text: "Stay", style: "cancel" },
+        {
+          text: "Leave Review",
+          onPress: () => setShowReviewModal(true),
+        },
+      ],
+      { cancelable: false },
+    );
+  }, []);
+
+  const handleAttemptExitConversation = useCallback(() => {
+    if (needsReview) {
+      promptReviewBeforeExit();
+      return;
+    }
+    safeGoBack(routerHook, "/(tabs)/messages");
+  }, [needsReview, promptReviewBeforeExit, routerHook]);
+
+  // Block hardware back button when review is required (all job flows)
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (!needsReview) return false;
+        promptReviewBeforeExit();
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [needsReview, promptReviewBeforeExit]);
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -1700,23 +1742,7 @@ export default function ChatScreen() {
       {/* Custom Header */}
       <View style={styles.customHeader}>
         <TouchableOpacity
-          onPress={() => {
-            if (needsReview) {
-              Alert.alert(
-                "Review Required",
-                "Please leave a review before exiting this conversation.",
-                [
-                  {
-                    text: "Leave Review",
-                    onPress: () => setShowReviewModal(true),
-                  },
-                ],
-                { cancelable: false },
-              );
-            } else {
-              safeGoBack(routerHook, "/(tabs)/messages");
-            }
-          }}
+          onPress={handleAttemptExitConversation}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
