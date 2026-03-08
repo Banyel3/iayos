@@ -523,7 +523,7 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Application submitted successfully! You can view your application status in My Applications.",
+        "Application submitted successfully! You can view your application status in Jobs > Applied tab.",
       );
       setShowApplicationModal(false);
       setProposalMessage("");
@@ -533,7 +533,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
-      safeGoBack(router, "/(tabs)/jobs");
+      router.push({ pathname: "/(tabs)/jobs", params: { tab: "applications" } } as any);
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);

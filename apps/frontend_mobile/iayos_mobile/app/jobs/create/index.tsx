@@ -447,6 +447,13 @@ export default function CreateJobScreen() {
     return TITLE_SUGGESTIONS[effectiveCategory.name] || [];
   }, [effectiveCategory]);
 
+  const selectedCategoryNames = React.useMemo(() => {
+    if (!skillSlots.length) return [] as string[];
+    return skillSlots
+      .map((slot) => categories.find((c) => c.id === slot.specialization_id)?.name)
+      .filter((name): name is string => Boolean(name));
+  }, [skillSlots, categories]);
+
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
     // Clear existing timeout
@@ -454,13 +461,27 @@ export default function CreateJobScreen() {
       clearTimeout(predictionTimeoutRef.current);
     }
 
-    // Only predict if we have enough data
-    if (title.length >= 5 && description.length >= 10 && effectiveCategoryId) {
+    // For agency hiring, use category-based fallback text so prediction is still available
+    // even before full title/description are typed.
+    const hasEnoughUserText = title.length >= 5 && description.length >= 10;
+    const fallbackTitle = selectedCategoryNames.length
+      ? `Need ${selectedCategoryNames.join(", ")} services`
+      : "Service request";
+    const fallbackDescription = selectedCategoryNames.length
+      ? `Job request for ${selectedCategoryNames.join(", ")} based on selected categories and worker requirements.`
+      : "General service request based on selected category.";
+
+    const predictionTitle = hasEnoughUserText ? title : fallbackTitle;
+    const predictionDescription = hasEnoughUserText
+      ? description
+      : fallbackDescription;
+
+    if (effectiveCategoryId) {
       // Debounce prediction by 800ms to avoid too many API calls
       predictionTimeoutRef.current = setTimeout(() => {
         predictPrice({
-          title,
-          description,
+          title: predictionTitle,
+          description: predictionDescription,
           category_id: effectiveCategoryId,
           urgency: urgency ?? undefined,
           skill_level: skillLevel ?? undefined,
@@ -483,6 +504,7 @@ export default function CreateJobScreen() {
     title,
     description,
     effectiveCategoryId,
+    selectedCategoryNames,
     urgency,
     skillLevel,
     jobScope,
@@ -2080,8 +2102,7 @@ export default function CreateJobScreen() {
 
               {/* AI Price Suggestion Card - Only for PROJECT model */}
               {paymentModel === "PROJECT" &&
-                effectiveCategoryId &&
-                (title.length >= 5 || description.length >= 10) && (
+                effectiveCategoryId && (
                   <PriceSuggestionCard
                     minPrice={pricePrediction?.min_price}
                     suggestedPrice={pricePrediction?.suggested_price}

@@ -362,11 +362,11 @@ class DailyPaymentService:
         
         # Create notification
         Notification.objects.create(
-            accountID=worker_account,
-            notificationType='DAILY_PAYMENT',
+            accountFK=worker_account,
+            notificationType='PAYMENT_RECEIVED',
             title='Daily Payment Received',
-            message=f'₱{amount} earned for {attendance.date} has been added to your pending earnings.',
-            relatedJobID=job
+            message=f'P{float(amount):,.2f} earned for {attendance.date} has been added to your pending earnings.',
+            relatedJobID=job.jobID
         )
         
         return {
