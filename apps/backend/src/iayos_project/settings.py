@@ -175,6 +175,13 @@ LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 TESTING = os.environ.get('TESTING', 'false').lower() == 'true'
 JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
 
+# KYC selfie anti-eyewear check (resource-efficient heuristic detector)
+# strict_confidence: hard reject when glasses confidence >= this threshold
+# review_confidence: flag for manual review when confidence is below strict but >= review
+KYC_SELFIE_GLASSES_BLOCK = os.environ.get('KYC_SELFIE_GLASSES_BLOCK', 'true').lower() == 'true'
+KYC_SELFIE_GLASSES_STRICT_CONFIDENCE = float(os.environ.get('KYC_SELFIE_GLASSES_STRICT_CONFIDENCE', '0.70'))
+KYC_SELFIE_GLASSES_REVIEW_CONFIDENCE = float(os.environ.get('KYC_SELFIE_GLASSES_REVIEW_CONFIDENCE', '0.45'))
+
 # Rate limiting
 RATE_LIMIT_DISABLED = os.environ.get('RATE_LIMIT_DISABLED', 'false').lower() == 'true'
 

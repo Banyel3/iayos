@@ -330,6 +330,9 @@ class DocumentVerificationService:
             # Step 2: Face detection (if required)
             face_detection_skipped = False
             face_detection_warning = None
+            glasses_detection = None
+            glasses_manual_review = False
+            glasses_warning = None
             
             if require_face:
                 face_result = self._detect_face(file_data)
@@ -355,6 +358,48 @@ class DocumentVerificationService:
                         }
                 else:
                     logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
+
+            # Step 3 (SELFIE only): lightweight eyewear check.
+            # This enforces policy server-side without heavy additional models.
+            if document_type.upper() == "SELFIE" and getattr(settings, "KYC_SELFIE_GLASSES_BLOCK", True):
+                glasses_detection = self._detect_selfie_glasses_heuristic(file_data)
+
+                if glasses_detection.get("skipped"):
+                    glasses_manual_review = True
+                    glasses_warning = "Eyewear check unavailable. Your selfie will be reviewed manually."
+                    logger.warning(
+                        "   ⚠️ Glasses detection skipped: %s",
+                        glasses_detection.get("reason"),
+                    )
+                elif glasses_detection.get("detected"):
+                    confidence = float(glasses_detection.get("confidence", 0.0))
+                    strict_threshold = float(getattr(settings, "KYC_SELFIE_GLASSES_STRICT_CONFIDENCE", 0.70))
+                    review_threshold = float(getattr(settings, "KYC_SELFIE_GLASSES_REVIEW_CONFIDENCE", 0.45))
+
+                    if confidence >= strict_threshold:
+                        logger.warning(
+                            "   ❌ Eyewear detected in selfie (confidence=%.2f >= %.2f)",
+                            confidence,
+                            strict_threshold,
+                        )
+                        return {
+                            "valid": False,
+                            "error": "Please remove glasses or sunglasses and retake your selfie.",
+                            "details": {
+                                "resolution": f"{width}x{height}",
+                                "quality": quality_result,
+                                "face_detection": face_result if require_face else None,
+                                "glasses_detection": glasses_detection,
+                            },
+                        }
+
+                    if confidence >= review_threshold:
+                        glasses_manual_review = True
+                        glasses_warning = "Possible eyewear detected. Your submission may require manual review."
+                        logger.warning(
+                            "   ⚠️ Possible eyewear detected in selfie (confidence=%.2f)",
+                            confidence,
+                        )
             
             # All checks passed (or face detection was skipped for manual review)
             if face_detection_skipped:
@@ -366,6 +411,10 @@ class DocumentVerificationService:
             warnings = quality_result.get("warnings", [])
             if face_detection_warning:
                 warnings.append(face_detection_warning)
+            if glasses_warning:
+                warnings.append(glasses_warning)
+
+            needs_manual_review = face_detection_skipped or glasses_manual_review
             
             return {
                 "valid": True,
@@ -375,7 +424,8 @@ class DocumentVerificationService:
                     "quality_score": quality_result.get("score", 0),
                     "warnings": warnings,
                     "face_detection_skipped": face_detection_skipped,
-                    "needs_manual_review": face_detection_skipped
+                    "glasses_detection": glasses_detection,
+                    "needs_manual_review": needs_manual_review
                 }
             }
             
@@ -785,6 +835,211 @@ class DocumentVerificationService:
             "skipped": True,
             "error": "All face detection methods failed"
         }
+
+    def _detect_selfie_glasses_heuristic(self, image_data: bytes) -> Dict[str, Any]:
+        """
+        Lightweight eyewear detector for SELFIE images.
+
+        Uses face landmarks and simple local image statistics around eyes. This
+        avoids introducing heavier ML models while still enabling policy checks.
+        """
+        try:
+            from .face_detection_service import _get_face_recognition, _bytes_to_image
+        except Exception as import_err:
+            return {
+                "detected": False,
+                "confidence": 0.0,
+                "skipped": True,
+                "reason": f"Detector import failed: {import_err}",
+            }
+
+        fr = _get_face_recognition()
+        if fr is None:
+            return {
+                "detected": False,
+                "confidence": 0.0,
+                "skipped": True,
+                "reason": "face_recognition models unavailable",
+            }
+
+        try:
+            np_image = _bytes_to_image(image_data, max_dim=1024)
+            face_locations = fr.face_locations(np_image, model="hog")
+            if not face_locations:
+                return {
+                    "detected": False,
+                    "confidence": 0.0,
+                    "skipped": True,
+                    "reason": "No face found for eyewear analysis",
+                }
+
+            landmarks_list = fr.face_landmarks(np_image, [face_locations[0]])
+            if not landmarks_list:
+                return {
+                    "detected": False,
+                    "confidence": 0.0,
+                    "skipped": True,
+                    "reason": "No face landmarks found",
+                }
+
+            landmarks = landmarks_list[0]
+            left_eye = landmarks.get("left_eye")
+            right_eye = landmarks.get("right_eye")
+            if not left_eye or not right_eye:
+                return {
+                    "detected": False,
+                    "confidence": 0.0,
+                    "skipped": True,
+                    "reason": "Eye landmarks missing",
+                }
+
+            left_metrics = self._compute_eye_region_metrics(np_image, left_eye)
+            right_metrics = self._compute_eye_region_metrics(np_image, right_eye)
+            bridge_metrics = self._compute_bridge_metrics(np_image, left_eye, right_eye)
+
+            avg_dark_ratio = (left_metrics["dark_ratio"] + right_metrics["dark_ratio"]) / 2.0
+            avg_bright_ratio = (left_metrics["bright_ratio"] + right_metrics["bright_ratio"]) / 2.0
+            avg_edge_ratio = (left_metrics["edge_ratio"] + right_metrics["edge_ratio"]) / 2.0
+            avg_brightness = (left_metrics["mean_brightness"] + right_metrics["mean_brightness"]) / 2.0
+
+            sunglasses_signal = avg_dark_ratio >= 0.58 and avg_brightness <= 90.0
+            eyeglasses_signal = (
+                (avg_bright_ratio >= 0.025 and avg_edge_ratio >= 0.16)
+                or (
+                    bridge_metrics["dark_ratio"] >= 0.24
+                    and bridge_metrics["edge_ratio"] >= 0.15
+                    and avg_edge_ratio >= 0.12
+                )
+            )
+
+            sunglasses_conf = min(
+                1.0,
+                max(0.0, ((avg_dark_ratio - 0.50) / 0.50) * 0.7)
+                + max(0.0, ((100.0 - avg_brightness) / 100.0) * 0.3),
+            )
+            eyeglasses_conf = min(
+                1.0,
+                max(0.0, ((avg_bright_ratio - 0.015) / 0.06) * 0.45)
+                + max(0.0, ((avg_edge_ratio - 0.10) / 0.20) * 0.35)
+                + max(0.0, ((bridge_metrics["dark_ratio"] - 0.15) / 0.35) * 0.20),
+            )
+
+            detected = bool(sunglasses_signal or eyeglasses_signal)
+            confidence = max(
+                sunglasses_conf if sunglasses_signal else 0.0,
+                eyeglasses_conf if eyeglasses_signal else 0.0,
+            )
+
+            eyewear_type = "none"
+            if detected:
+                eyewear_type = "sunglasses" if sunglasses_conf >= eyeglasses_conf else "eyeglasses"
+
+            return {
+                "detected": detected,
+                "confidence": round(float(confidence), 4),
+                "type": eyewear_type,
+                "skipped": False,
+                "metrics": {
+                    "avg_dark_ratio": round(float(avg_dark_ratio), 4),
+                    "avg_bright_ratio": round(float(avg_bright_ratio), 4),
+                    "avg_edge_ratio": round(float(avg_edge_ratio), 4),
+                    "avg_brightness": round(float(avg_brightness), 2),
+                    "bridge_dark_ratio": round(float(bridge_metrics["dark_ratio"]), 4),
+                    "bridge_edge_ratio": round(float(bridge_metrics["edge_ratio"]), 4),
+                },
+            }
+        except Exception as detect_err:
+            logger.warning(f"Selfie glasses heuristic failed: {detect_err}")
+            return {
+                "detected": False,
+                "confidence": 0.0,
+                "skipped": True,
+                "reason": str(detect_err),
+            }
+
+    def _compute_eye_region_metrics(self, np_image: np.ndarray, eye_points: List[Tuple[int, int]]) -> Dict[str, float]:
+        """Compute simple brightness and edge metrics in an expanded eye ROI."""
+        xs = [p[0] for p in eye_points]
+        ys = [p[1] for p in eye_points]
+
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+
+        eye_w = max(1, max_x - min_x)
+        eye_h = max(1, max_y - min_y)
+        pad_x = max(4, int(eye_w * 0.45))
+        pad_y = max(4, int(eye_h * 1.00))
+
+        h, w = np_image.shape[:2]
+        x1 = max(0, min_x - pad_x)
+        x2 = min(w, max_x + pad_x)
+        y1 = max(0, min_y - pad_y)
+        y2 = min(h, max_y + pad_y)
+
+        roi = np_image[y1:y2, x1:x2]
+        if roi.size == 0:
+            return {
+                "mean_brightness": 0.0,
+                "dark_ratio": 0.0,
+                "bright_ratio": 0.0,
+                "edge_ratio": 0.0,
+            }
+
+        gray = np.dot(roi[..., :3], [0.299, 0.587, 0.114]).astype(np.float32)
+        mean_brightness = float(np.mean(gray))
+        dark_ratio = float(np.mean(gray < 50.0))
+        bright_ratio = float(np.mean(gray > 235.0))
+
+        grad_y, grad_x = np.gradient(gray)
+        grad_mag = np.sqrt((grad_x * grad_x) + (grad_y * grad_y))
+        edge_ratio = float(np.mean(grad_mag > 22.0))
+
+        return {
+            "mean_brightness": mean_brightness,
+            "dark_ratio": dark_ratio,
+            "bright_ratio": bright_ratio,
+            "edge_ratio": edge_ratio,
+        }
+
+    def _compute_bridge_metrics(
+        self,
+        np_image: np.ndarray,
+        left_eye_points: List[Tuple[int, int]],
+        right_eye_points: List[Tuple[int, int]],
+    ) -> Dict[str, float]:
+        """Compute darkness and edge density on the bridge strip between eyes."""
+        left_center_x = int(sum(p[0] for p in left_eye_points) / len(left_eye_points))
+        right_center_x = int(sum(p[0] for p in right_eye_points) / len(right_eye_points))
+        eye_center_y = int(
+            (
+                sum(p[1] for p in left_eye_points) / len(left_eye_points)
+                + sum(p[1] for p in right_eye_points) / len(right_eye_points)
+            )
+            / 2.0
+        )
+
+        if right_center_x <= left_center_x + 4:
+            return {"dark_ratio": 0.0, "edge_ratio": 0.0}
+
+        h, w = np_image.shape[:2]
+        x1 = max(0, left_center_x + 2)
+        x2 = min(w, right_center_x - 2)
+        y1 = max(0, eye_center_y - 4)
+        y2 = min(h, eye_center_y + 4)
+
+        strip = np_image[y1:y2, x1:x2]
+        if strip.size == 0:
+            return {"dark_ratio": 0.0, "edge_ratio": 0.0}
+
+        gray = np.dot(strip[..., :3], [0.299, 0.587, 0.114]).astype(np.float32)
+        dark_ratio = float(np.mean(gray < 65.0))
+
+        if gray.shape[1] < 2:
+            return {"dark_ratio": dark_ratio, "edge_ratio": 0.0}
+
+        horiz_diff = np.abs(np.diff(gray, axis=1))
+        edge_ratio = float(np.mean(horiz_diff > 18.0))
+        return {"dark_ratio": dark_ratio, "edge_ratio": edge_ratio}
 
     def compare_faces(
         self, 
