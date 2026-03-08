@@ -326,6 +326,17 @@ export function useSendMessageMutation() {
   const queryClient = useQueryClient();
   const { sendMessage: sendViaWebSocket } = useSendMessage();
 
+  const invalidateConversationMessages = (conversationId: number) => {
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+        );
+      },
+    });
+  };
+
   return useMutation({
     mutationFn: async ({
       conversationId,
@@ -347,9 +358,7 @@ export function useSendMessageMutation() {
     },
     onSuccess: (_, variables) => {
       // Invalidate queries to refetch
-      queryClient.invalidateQueries({
-        queryKey: ["messages", variables.conversationId],
-      });
+      invalidateConversationMessages(variables.conversationId);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
@@ -360,6 +369,17 @@ export function useSendMessageMutation() {
  */
 export function useUploadImageMessage() {
   const queryClient = useQueryClient();
+
+  const invalidateConversationMessages = (conversationId: number) => {
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+        );
+      },
+    });
+  };
 
   return useMutation({
     mutationFn: async ({
@@ -395,9 +415,7 @@ export function useUploadImageMessage() {
       return response.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["messages", variables.conversationId],
-      });
+      invalidateConversationMessages(variables.conversationId);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
