@@ -258,7 +258,7 @@ export default function RootLayout() {
                         />
                         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                         <Stack.Screen
-                          name="messages/[conversationId]"
+                          name="conversation/[conversationId]"
                           options={{
                             headerShown: false,
                             presentation: "card",
