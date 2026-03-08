@@ -1174,6 +1174,9 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
         
@@ -1372,7 +1375,7 @@ def get_conversation_messages(request, conversation_id: int):
         # Get all messages with attachments
         messages = Message.objects.filter(
             conversationID=conversation
-        ).select_related('sender__accountFK').prefetch_related('attachments').order_by('createdAt')
+        ).select_related('sender__accountFK', 'sender_admin').prefetch_related('attachments').order_by('createdAt')
         
         # Mark unread messages as read and reset unread count
         # For agency conversations, mark all messages not from current user as read
@@ -1411,7 +1414,12 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Format messages
         formatted_messages = []
+        current_account_id = getattr(request.auth, 'accountID', None)
         for msg in messages:
+            # Hide admin-authored negotiation messages from participant chat views.
+            if msg.sender_admin:
+                continue
+
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
@@ -1420,13 +1428,6 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
-            elif msg.sender is None and msg.senderAgency is None and msg.sender_admin:
-                # Admin message (negotiation chat)
-                is_mine = False
-                sender_name = "Admin"
-                sender_avatar = None
-                sender_type = "admin"
-                print(f"   Admin message from {msg.sender_admin.email}")
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
@@ -1438,12 +1439,13 @@ def get_conversation_messages(request, conversation_id: int):
                 # Regular message from a Profile
                 is_mine = (
                     msg.sender is not None
-                    and msg.sender.accountFK_id == request.auth.id
+                    and current_account_id is not None
+                    and msg.sender.accountFK_id == current_account_id
                 )
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
                 sender_type = "profile"
-                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {request.auth.id})")
+                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {current_account_id})")
             
             # Get attachments for this message
             attachments = []
@@ -1673,6 +1675,9 @@ def get_conversation_messages(request, conversation_id: int):
                     "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
                     "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
                     "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
+                    "employeeMarkedComplete": getattr(assignment, 'employeeMarkedComplete', False),
+                    "employeeMarkedCompleteAt": assignment.employeeMarkedCompleteAt.isoformat() if getattr(assignment, 'employeeMarkedCompleteAt', None) else None,
+                    "marked_complete": getattr(assignment, 'agencyMarkedComplete', False) or getattr(assignment, 'employeeMarkedComplete', False),
                     # Per-employee approval tracking
                     "paymentAmount": float(assignment.paymentAmount) if getattr(assignment, 'paymentAmount', None) else None,
                     "clientApproved": getattr(assignment, 'clientApproved', False),
@@ -1696,6 +1701,9 @@ def get_conversation_messages(request, conversation_id: int):
                     "clientConfirmedArrivalAt": None,
                     "agencyMarkedComplete": False,
                     "agencyMarkedCompleteAt": None,
+                    "employeeMarkedComplete": False,
+                    "employeeMarkedCompleteAt": None,
+                    "marked_complete": False,
                     "paymentAmount": None,
                     "clientApproved": False,
                     "clientApprovedAt": None,
@@ -1800,6 +1808,9 @@ def get_conversation_messages(request, conversation_id: int):
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 
@@ -1992,6 +2003,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
+                "remainingPaymentPaid": job.remainingPaymentPaid,
                 "workerReviewed": worker_reviewed,
                 "clientReviewed": client_reviewed,
                 "employeeReviewed": employee_review_exists if is_agency_job_for_reviews else None,

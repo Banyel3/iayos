@@ -31,6 +31,7 @@ interface BackjobItem {
   opened_date: string | null;
   resolution: string | null;
   resolved_date: string | null;
+  scheduled_date: string | null;
   evidence_images: string[];
   client: {
     id: number;
@@ -259,6 +260,11 @@ export default function MyBackjobsScreen() {
         {item.opened_date && (
           <Text style={styles.dateText}>
             Requested: {formatDate(item.opened_date)}
+          </Text>
+        )}
+        {item.scheduled_date && (
+          <Text style={[styles.dateText, { color: Colors.warning, fontWeight: "600" }]}>
+            📅 Scheduled: {formatDate(item.scheduled_date)}
           </Text>
         )}
 

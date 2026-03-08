@@ -165,6 +165,7 @@ export interface DepositReceiptData {
   created_at: string;
   transaction_type_label?: string;
   reference_number?: string | null;
+  paymongo_payment_id?: string | null;
   balance_after?: number | null;
   job?: { id: number; title: string } | null;
 }
@@ -214,6 +215,11 @@ export async function downloadDepositReceiptPdf(transaction: DepositReceiptData)
         <tr class="details-row">
           <td class="details-label">Reference No.:</td>
           <td class="details-value">${transaction.reference_number}</td>
+        </tr>` : ''}
+        ${transaction.paymongo_payment_id ? `
+        <tr class="details-row">
+          <td class="details-label">PayMongo Ref.:</td>
+          <td class="details-value">${transaction.paymongo_payment_id}</td>
         </tr>` : ''}
         <tr class="details-row">
           <td class="details-label">Date & Time:</td>

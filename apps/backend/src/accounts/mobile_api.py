@@ -1761,6 +1761,7 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
                 "evidence_images": evidence_urls,
                 "client": {
                     "id": client.profileID if client else None,
@@ -4141,7 +4142,7 @@ def get_mobile_config(request):
             "auto_withdraw": True,
         },
         "platform": {
-            "min_deposit": 100,
+            "min_deposit": 10,
             "max_deposit": 100000,
             "min_withdraw": 100,
             "auto_withdraw_day": "Friday",
@@ -4640,6 +4641,7 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
                 'reference_number': t.referenceNumber or t.xenditExternalID or None,
                 'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
                 'paymongo_checkout_url': paymongo_checkout_url,
+                'paymongo_payment_id': t.paymongoPaymentId or None,
                 'job': job_data,
             })
         
@@ -4660,6 +4662,104 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
             {"error": "Failed to fetch transactions"},
             status=500
         )
+
+
+@mobile_router.get("/wallet/transactions/{transaction_id}", auth=jwt_auth)
+def mobile_get_transaction_detail(request, transaction_id: int):
+    """
+    Get a single transaction by ID with lazy PayMongo payment ID backfill.
+
+    If the transaction was a completed QR PH / PayMongo deposit but doesn't yet have
+    a ``paymongoPaymentId`` stored, this endpoint fetches it from PayMongo via
+    ``GET /v1/checkout_sessions/{cs_id}`` and persists the result before returning.
+    """
+    try:
+        from .models import Wallet, Transaction
+
+        wallet = Wallet.objects.filter(accountFK=request.auth).first()
+        if not wallet:
+            return Response({"error": "Not found"}, status=404)
+
+        try:
+            t = Transaction.objects.select_related('relatedJobPosting').get(
+                transactionID=transaction_id, walletID=wallet
+            )
+        except Transaction.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        # --- Lazy backfill: fetch pay_xxx if not yet stored ---
+        if (
+            not t.paymongoPaymentId
+            and t.xenditInvoiceID
+            and t.xenditInvoiceID.startswith("cs_")
+            and t.status == Transaction.TransactionStatus.COMPLETED
+        ):
+            try:
+                from .paymongo_service import PayMongoService
+                paymongo = PayMongoService()
+                pay_id = paymongo.get_checkout_session_payments(t.xenditInvoiceID)
+                if pay_id:
+                    t.paymongoPaymentId = pay_id
+                    t.save(update_fields=['paymongoPaymentId'])
+                    print(f"✅ [Mobile] Lazy-backfilled paymongoPaymentId={pay_id} for txn {t.transactionID}")
+            except Exception as backfill_err:
+                print(f"⚠️ [Mobile] Could not backfill paymongoPaymentId for txn {t.transactionID}: {backfill_err}")
+
+        # Build job context
+        job_data = None
+        if t.relatedJobPosting:
+            job_data = {
+                'id': t.relatedJobPosting.jobID,
+                'title': t.relatedJobPosting.title,
+                'status': t.relatedJobPosting.status,
+            }
+
+        # Only expose PayMongo checkout URL for completed deposits
+        paymongo_checkout_url = None
+        if (
+            t.status == 'COMPLETED'
+            and t.transactionType == Transaction.TransactionType.DEPOSIT
+            and t.invoiceURL
+        ):
+            paymongo_checkout_url = t.invoiceURL
+
+        TYPE_LABELS = {
+            'DEPOSIT': 'Wallet Deposit',
+            'WITHDRAWAL': 'Withdrawal',
+            'PAYMENT': 'Job Payment',
+            'REFUND': 'Refund',
+            'EARNING': 'Job Earning',
+            'PLATFORM_FEE': 'Platform Fee',
+            'ESCROW': 'Escrow Payment',
+            'ESCROW_RELEASE': 'Escrow Release',
+        }
+        type_display = t.transactionType
+        if t.transactionType == 'EARNING' or (t.transactionType == 'DEPOSIT' and t.amount > 0 and t.relatedJobPosting):
+            type_display = 'EARNING'
+
+        return {
+            'id': t.transactionID,
+            'type': type_display,
+            'transaction_type_label': TYPE_LABELS.get(t.transactionType, t.transactionType),
+            'title': t.description or TYPE_LABELS.get(t.transactionType, f'{t.transactionType} Transaction'),
+            'description': t.description or '',
+            'amount': float(t.amount),
+            'created_at': t.createdAt.isoformat(),
+            'status': t.status.lower() if t.status else 'pending',
+            'payment_method': t.paymentMethod or 'wallet',
+            'transaction_id': str(t.transactionID),
+            'reference_number': t.referenceNumber or t.xenditExternalID or None,
+            'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
+            'paymongo_checkout_url': paymongo_checkout_url,
+            'paymongo_payment_id': t.paymongoPaymentId or None,
+            'job': job_data,
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Error fetching transaction detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to fetch transaction detail"}, status=500)
 
 #endregion
 
@@ -5214,6 +5314,12 @@ def mobile_get_pending_reviews_alias(request):
     Stable alias endpoint for pending reviews.
     Avoids any potential path ambiguity with /reviews/pending/{job_id}.
     """
+    return mobile_get_pending_reviews(request)
+
+
+@mobile_router.post("/reviews/pending-jobs", auth=jwt_auth)
+def mobile_get_pending_reviews_alias_post(request):
+    """POST alias for clients hitting pending-jobs with wrong method."""
     return mobile_get_pending_reviews(request)
 
 #endregion
@@ -6529,18 +6635,19 @@ def mobile_get_payment_receipt(request, transaction_id: int):
 @require_kyc
 def mobile_create_final_payment(request):
     """
-    Create the final 50% payment for a completed job.
-    Called when the job is marked complete and client pays remaining balance.
+    Create the final 50% payment for a client-owned job.
+    Supports early payment while job is still IN_PROGRESS without marking the job complete.
     """
     from decimal import Decimal
     from django.utils import timezone
-    from .models import Profile, ClientProfile, Wallet, Transaction, Job
+    from .models import Profile, ClientProfile, Wallet, Transaction, Job, Notification
     
     try:
         import json
         body = json.loads(request.body)
         job_id = body.get('job_id')
-        payment_method = body.get('payment_method', 'WALLET')  # WALLET, GCASH, or CASH
+        payment_method = body.get('payment_method', 'WALLET')
+        payment_method_upper = str(payment_method).upper()  # WALLET or CASH
         
         if not job_id:
             return Response({"error": "job_id is required"}, status=400)
@@ -6567,9 +6674,17 @@ def mobile_create_final_payment(request):
         except Job.DoesNotExist:
             return Response({"error": "Job not found or you don't own this job"}, status=404)
         
-        # Check job status
-        if job.status != 'COMPLETED' and not job.workerMarkedComplete:
-            return Response({"error": "Job must be completed before final payment"}, status=400)
+        # Check payment method
+        if payment_method_upper not in ['WALLET', 'CASH']:
+            return Response({"error": "Invalid payment method. Use WALLET or CASH"}, status=400)
+
+        # Ensure escrow was paid first
+        if not job.escrowPaid:
+            return Response({"error": "Escrow payment must be completed before final payment"}, status=400)
+
+        # Allow early final payment during ongoing work, and keep compatibility for completed jobs
+        if job.status not in ['IN_PROGRESS', 'COMPLETED']:
+            return Response({"error": f"Final payment is only available for IN_PROGRESS or COMPLETED jobs (current: {job.status})"}, status=400)
         
         # Check if final payment already made
         if job.remainingPaymentPaid:
@@ -6578,7 +6693,7 @@ def mobile_create_final_payment(request):
         final_amount = job.remainingPayment or (Decimal(str(job.budget)) * Decimal('0.5'))
         
         # For wallet payments, check balance and process
-        if payment_method == 'WALLET':
+        if payment_method_upper == 'WALLET':
             from django.db import transaction as db_transaction
             with db_transaction.atomic():
                 wallet, _ = Wallet.objects.select_for_update().get_or_create(
@@ -6608,7 +6723,7 @@ def mobile_create_final_payment(request):
                     relatedJobPosting=job,
                     paymentMethod='WALLET'
                 )
-        elif payment_method == 'CASH':
+        elif payment_method_upper == 'CASH':
             # Cash is handled outside the app — create a pending transaction for auditing
             wallet, _ = Wallet.objects.get_or_create(
                 accountFK=request.auth,
@@ -6628,9 +6743,40 @@ def mobile_create_final_payment(request):
         # Update job payment status
         job.remainingPaymentPaid = True
         job.remainingPaymentPaidAt = timezone.now()
-        job.finalPaymentMethod = payment_method
+        job.finalPaymentMethod = payment_method_upper
         job.paymentMethodSelectedAt = timezone.now()
         job.save()
+
+        # Broadcast live update to job/chat websocket groups so conversation UI updates immediately.
+        try:
+            from jobs.api import broadcast_job_status_update
+
+            broadcast_job_status_update(job.jobID, {
+                "job_id": job.jobID,
+                "status": job.status,
+                "remaining_payment_paid": job.remainingPaymentPaid,
+                "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                "payment_method": payment_method_upper,
+                "event": "final_payment_completed",
+            })
+        except Exception as ws_error:
+            print(f"⚠️ [MOBILE] Final payment websocket broadcast failed: {str(ws_error)}")
+
+        # Notify assigned worker/agency that final payment has already been completed.
+        recipient_account = None
+        if getattr(job, 'assignedWorkerID', None) and job.assignedWorkerID.profileID:
+            recipient_account = job.assignedWorkerID.profileID.accountFK
+        elif getattr(job, 'assignedAgencyFK', None):
+            recipient_account = job.assignedAgencyFK.accountFK
+
+        if recipient_account:
+            Notification.objects.create(
+                accountFK=recipient_account,
+                notificationType="FINAL_PAYMENT_COMPLETED",
+                title="Final Payment Received",
+                message=f"Client completed final payment for '{job.title}'.",
+                relatedJobID=job.jobID,
+            )
         
         print(f"✅ [MOBILE] Final payment ₱{final_amount} completed for job {job_id}")
         
@@ -6638,7 +6784,7 @@ def mobile_create_final_payment(request):
             "success": True,
             "message": "Final payment processed successfully",
             "amount": float(final_amount),
-            "payment_method": payment_method,
+            "payment_method": payment_method_upper,
             "job_id": job_id
         }
         

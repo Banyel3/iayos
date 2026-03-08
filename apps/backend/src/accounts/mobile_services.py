@@ -3531,7 +3531,13 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
 
-            can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
+            # Keep list visibility in sync with edit authorization logic.
+            now = timezone.now()
+            within_24h = (now - review.createdAt) <= timedelta(hours=24)
+            within_backjob_window = (
+                review.backjob_edit_deadline is not None and now < review.backjob_edit_deadline
+            )
+            can_edit = within_24h or within_backjob_window
 
             review_list.append({
                 'review_id': review.reviewID,
@@ -3549,6 +3555,7 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                'backjob_edit_deadline': review.backjob_edit_deadline.isoformat() if review.backjob_edit_deadline else None,
                 # Multi-criteria category ratings (default 0 for old reviews)
                 'rating_quality': float(review.rating_quality or 0),
                 'rating_communication': float(review.rating_communication or 0),
@@ -3595,7 +3602,13 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 profile_name = f"{reviewee_profile.firstName} {reviewee_profile.lastName}".strip()
                 profile_img = reviewee_profile.profileImg
 
-            can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
+            # Keep list visibility in sync with edit authorization logic.
+            now = timezone.now()
+            within_24h = (now - review.createdAt) <= timedelta(hours=24)
+            within_backjob_window = (
+                review.backjob_edit_deadline is not None and now < review.backjob_edit_deadline
+            )
+            can_edit = within_24h or within_backjob_window
 
             given_list.append({
                 'review_id': review.reviewID,
@@ -3615,6 +3628,7 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                'backjob_edit_deadline': review.backjob_edit_deadline.isoformat() if review.backjob_edit_deadline else None,
                 'rating_quality': float(review.rating_quality or 0),
                 'rating_communication': float(review.rating_communication or 0),
                 'rating_punctuality': float(review.rating_punctuality or 0),

@@ -1206,6 +1206,7 @@ class Notification(models.Model):
         BACKJOB_REJECTED = "BACKJOB_REJECTED", "Backjob Rejected"
         BACKJOB_COMPLETED = "BACKJOB_COMPLETED", "Backjob Completed"
         BACKJOB_NEGOTIATION = "BACKJOB_NEGOTIATION", "Backjob In Negotiation"
+        BACKJOB_SCHEDULED = "BACKJOB_SCHEDULED", "Backjob Scheduled"
 
         # Certification Notifications
         CERTIFICATION_APPROVED = "CERTIFICATION_APPROVED", "Certification Approved"
@@ -2240,7 +2241,25 @@ class JobDispute(models.Model):
         null=True,
         help_text="When admin accepted this dispute into negotiation"
     )
-    
+
+    # Client-proposed date for backjob completion (confirmed by worker/agency)
+    scheduled_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Client-set date for when the backjob will be completed, pending worker/agency confirmation"
+    )
+
+    # Worker/agency must explicitly confirm the proposed schedule before activation
+    workerScheduleConfirmed = models.BooleanField(
+        default=False,
+        help_text="True when the assigned worker/agency confirms the proposed backjob schedule"
+    )
+    workerScheduleConfirmedAt = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp when worker/agency confirmed the proposed backjob schedule"
+    )
+
     # Timestamps
     openedDate = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -2657,6 +2676,10 @@ class Transaction(models.Model):
     xenditPaymentMethod = models.CharField(max_length=50, blank=True, null=True)   # e.g., "EWALLET"
     invoiceURL = models.URLField(max_length=500, blank=True, null=True)  # Payment redirect URL
     xenditExternalID = models.CharField(max_length=255, blank=True, null=True)  # Our internal reference
+    paymongoPaymentId = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="PayMongo pay_xxx payment ID (from webhook payments[] or lazy-fetched via checkout session)"
+    )
     
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)

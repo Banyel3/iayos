@@ -762,7 +762,7 @@ def get_transactions_list_optimized(
         queryset = queryset.filter(
             Q(walletID__accountFK__email__icontains=search) |
             Q(xenditPaymentID__icontains=search) |
-            Q(paymongoPaymentID__icontains=search) |
+            Q(paymongoPaymentId__icontains=search) |
             Q(referenceNumber__icontains=search)
         )
     

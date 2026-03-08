@@ -1930,6 +1930,9 @@ def get_agency_conversations(request, filter: str = "all"):
                     "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
                     "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
                     "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
+                    "employeeMarkedComplete": getattr(assignment, 'employeeMarkedComplete', False),
+                    "employeeMarkedCompleteAt": assignment.employeeMarkedCompleteAt.isoformat() if getattr(assignment, 'employeeMarkedCompleteAt', None) else None,
+                    "marked_complete": getattr(assignment, 'agencyMarkedComplete', False) or getattr(assignment, 'employeeMarkedComplete', False),
                 })
             
             # Fallback: if no M2M assignments but legacy field is set
@@ -1950,6 +1953,9 @@ def get_agency_conversations(request, filter: str = "all"):
                     "clientConfirmedArrivalAt": None,
                     "agencyMarkedComplete": False,
                     "agencyMarkedCompleteAt": None,
+                    "employeeMarkedComplete": False,
+                    "employeeMarkedCompleteAt": None,
+                    "marked_complete": False,
                 })
             
             # Get client info
@@ -2058,7 +2064,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         # Get messages
         messages = Message.objects.filter(
             conversationID=conv
-        ).select_related('sender__accountFK', 'senderAgency').order_by('createdAt')
+        ).select_related('sender__accountFK', 'senderAgency', 'sender_admin').order_by('createdAt')
         
         # Mark messages as read (agency is worker side)
         Message.objects.filter(
@@ -2123,6 +2129,9 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
                 "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
                 "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
+                "employeeMarkedComplete": getattr(assignment, 'employeeMarkedComplete', False),
+                "employeeMarkedCompleteAt": assignment.employeeMarkedCompleteAt.isoformat() if getattr(assignment, 'employeeMarkedCompleteAt', None) else None,
+                "marked_complete": getattr(assignment, 'agencyMarkedComplete', False) or getattr(assignment, 'employeeMarkedComplete', False),
             })
         
         # Fallback: if no M2M assignments but legacy field is set
@@ -2143,6 +2152,9 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "clientConfirmedArrivalAt": None,
                 "agencyMarkedComplete": False,
                 "agencyMarkedCompleteAt": None,
+                "employeeMarkedComplete": False,
+                "employeeMarkedCompleteAt": None,
+                "marked_complete": False,
             })
         
         # Check review status
@@ -2159,6 +2171,10 @@ def get_agency_conversation_messages(request, conversation_id: int):
         base_url = f"{scheme}://{host}"
         
         for msg in messages:
+            # Hide admin-authored negotiation messages from participant chat views.
+            if msg.sender_admin:
+                continue
+
             # Check if message is from agency (either via senderAgency or via agency_profile)
             is_mine = (msg.senderAgency and msg.senderAgency == agency) or (msg.sender and msg.sender == agency_profile)
             sent_by_agency = is_mine
@@ -4239,8 +4255,10 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         # Mark as complete
         assignment.agencyMarkedComplete = True
         assignment.agencyMarkedCompleteAt = timezone.now()
+        assignment.employeeMarkedComplete = True
+        assignment.employeeMarkedCompleteAt = assignment.agencyMarkedCompleteAt
         assignment.completionNotes = notes or ""
-        assignment.save(update_fields=['agencyMarkedComplete', 'agencyMarkedCompleteAt', 'completionNotes'])
+        assignment.save(update_fields=['agencyMarkedComplete', 'agencyMarkedCompleteAt', 'employeeMarkedComplete', 'employeeMarkedCompleteAt', 'completionNotes'])
         
         # POST-SAVE VERIFICATION: Re-read from DB to confirm the save persisted
         try:

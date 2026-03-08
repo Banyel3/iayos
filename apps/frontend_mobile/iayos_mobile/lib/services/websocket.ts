@@ -236,14 +236,39 @@ class WebSocketService {
     }
   }
 
+  // Unsubscribe from a conversation's WebSocket group when leaving chat screen
+  unsubscribeFromConversation(conversationId: number) {
+    if (!this.isConnected()) {
+      return;
+    }
+
+    try {
+      const payload = {
+        action: "unsubscribe",
+        conversation_id: conversationId,
+      };
+
+      this.ws!.send(JSON.stringify(payload));
+      console.log(
+        `[WebSocket] 📡 Unsubscribe request sent for conversation ${conversationId}`
+      );
+    } catch (error) {
+      console.error(
+        `[WebSocket] ❌ Failed to unsubscribe from conversation ${conversationId}:`,
+        error
+      );
+    }
+  }
+
   // Send typing indicator
   sendTyping(conversationId: number) {
     if (!this.isConnected()) return;
 
     try {
       const payload = {
-        type: "typing",
+        action: "typing",
         conversation_id: conversationId,
+        is_typing: true,
       };
 
       this.ws!.send(JSON.stringify(payload));
@@ -261,7 +286,7 @@ class WebSocketService {
 
     try {
       const payload = {
-        type: "mark_read",
+        action: "mark_read",
         message_id: messageId,
       };
 

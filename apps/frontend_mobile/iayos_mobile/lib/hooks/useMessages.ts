@@ -87,6 +87,7 @@ export type ConversationDetail = {
     clientConfirmedWorkStarted: boolean;
     workerMarkedComplete: boolean;
     clientMarkedComplete: boolean;
+    remainingPaymentPaid?: boolean;
     workerReviewed: boolean;
     clientReviewed: boolean;
     // Agency job review tracking - null for non-agency jobs
@@ -140,6 +141,9 @@ export type ConversationDetail = {
     clientConfirmedArrivalAt?: string | null;
     agencyMarkedComplete?: boolean;
     agencyMarkedCompleteAt?: string | null;
+    employeeMarkedComplete?: boolean;
+    employeeMarkedCompleteAt?: string | null;
+    marked_complete?: boolean;
     // Per-employee approval tracking
     paymentAmount?: number | null;
     clientApproved?: boolean;
@@ -185,6 +189,9 @@ export type ConversationDetail = {
       | "APPROVED"
       | "REJECTED"
       | "COMPLETED";
+    scheduled_date?: string | null;
+    worker_schedule_confirmed?: boolean;
+    worker_schedule_confirmed_at?: string | null;
     backjob_started?: boolean;
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;
@@ -246,7 +253,10 @@ export type ConversationDetail = {
  * Auto-marks messages as read on fetch
  * Uses polling as fallback when WebSocket is unavailable
  */
-export function useMessages(conversationId: number, viewerKey: string = "default") {
+export function useMessages(
+  conversationId: number,
+  viewerKey: string = "default",
+) {
   return useQuery({
     queryKey: ["messages", conversationId, viewerKey],
     queryFn: async (): Promise<ConversationDetail> => {
@@ -255,7 +265,11 @@ export function useMessages(conversationId: number, viewerKey: string = "default
 
       if (!response.ok) {
         const message = await parseApiError(response);
-        throw new ApiResponseError(message, response.status, response.statusText);
+        throw new ApiResponseError(
+          message,
+          response.status,
+          response.statusText,
+        );
       }
 
       const data = (await response.json()) as ConversationDetail;
@@ -312,6 +326,17 @@ export function useSendMessageMutation() {
   const queryClient = useQueryClient();
   const { sendMessage: sendViaWebSocket } = useSendMessage();
 
+  const invalidateConversationMessages = (conversationId: number) => {
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+        );
+      },
+    });
+  };
+
   return useMutation({
     mutationFn: async ({
       conversationId,
@@ -333,9 +358,7 @@ export function useSendMessageMutation() {
     },
     onSuccess: (_, variables) => {
       // Invalidate queries to refetch
-      queryClient.invalidateQueries({
-        queryKey: ["messages", variables.conversationId],
-      });
+      invalidateConversationMessages(variables.conversationId);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
@@ -346,6 +369,17 @@ export function useSendMessageMutation() {
  */
 export function useUploadImageMessage() {
   const queryClient = useQueryClient();
+
+  const invalidateConversationMessages = (conversationId: number) => {
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+        );
+      },
+    });
+  };
 
   return useMutation({
     mutationFn: async ({
@@ -381,9 +415,7 @@ export function useUploadImageMessage() {
       return response.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["messages", variables.conversationId],
-      });
+      invalidateConversationMessages(variables.conversationId);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });

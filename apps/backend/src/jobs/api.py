@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, JobEmployeeAssignment, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -1569,8 +1569,10 @@ def get_worker_schedule(request):
     Includes:
     - Direct assignments via Job.assignedWorkerID
     - Team assignments via JobWorkerAssignment
+    - Agency employee assignments via JobEmployeeAssignment
 
-    Excludes jobs without both preferredStartDate and scheduled_end_date.
+    Jobs without an end date are treated as single-day entries
+    (scheduled_end_date falls back to preferredStartDate).
     """
     try:
         from accounts.models import WorkerProfile
@@ -1581,30 +1583,40 @@ def get_worker_schedule(request):
             profileID__accountFK=request.auth
         ).select_related('profileID').first()
 
-        if not worker_profile:
-            return {
-                "success": True,
-                "jobs": [],
-                "message": "No worker profile found for this account"
-            }
-
         # Direct worker assignments
-        direct_job_ids = list(
-            JobPosting.objects.filter(assignedWorkerID=worker_profile).values_list("jobID", flat=True)
-        )
+        direct_job_ids = []
+        if worker_profile:
+            direct_job_ids = list(
+                JobPosting.objects.filter(assignedWorkerID=worker_profile).values_list("jobID", flat=True)
+            )
 
         # Team job assignments for this worker
-        team_job_ids = list(
-            JobWorkerAssignment.objects.filter(
-                workerID=worker_profile,
-                assignment_status__in=[
-                    JobWorkerAssignment.AssignmentStatus.ACTIVE,
-                    JobWorkerAssignment.AssignmentStatus.COMPLETED,
+        team_job_ids = []
+        if worker_profile:
+            team_job_ids = list(
+                JobWorkerAssignment.objects.filter(
+                    workerID=worker_profile,
+                    assignment_status__in=[
+                        JobWorkerAssignment.AssignmentStatus.ACTIVE,
+                        JobWorkerAssignment.AssignmentStatus.COMPLETED,
+                    ],
+                ).values_list("jobID", flat=True)
+            )
+
+        # Agency-employee assignment path. This captures accounts that work as
+        # agency-managed employees and may not have a WorkerProfile row.
+        agency_employee_job_ids = list(
+            JobEmployeeAssignment.objects.filter(
+                employee__agency=request.auth,
+                status__in=[
+                    JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                    JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                    JobEmployeeAssignment.AssignmentStatus.COMPLETED,
                 ],
-            ).values_list("jobID", flat=True)
+            ).values_list("job__jobID", flat=True)
         )
 
-        relevant_job_ids = set(direct_job_ids + team_job_ids)
+        relevant_job_ids = set(direct_job_ids + team_job_ids + agency_employee_job_ids)
         if not relevant_job_ids:
             return {"success": True, "jobs": []}
 
@@ -1612,17 +1624,21 @@ def get_worker_schedule(request):
             jobID__in=relevant_job_ids,
             status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
             preferredStartDate__isnull=False,
-            scheduled_end_date__isnull=False,
         ).select_related('clientID__profileID').order_by('preferredStartDate', 'jobID')
 
-        return {
-            "success": True,
-            "jobs": [
+        payload_jobs = []
+        for j in jobs:
+            start_date = j.preferredStartDate
+            if not start_date:
+                continue
+
+            end_date = j.scheduled_end_date or start_date
+            payload_jobs.append(
                 {
                     "id": j.jobID,
                     "title": j.title,
-                    "preferred_start_date": j.preferredStartDate.isoformat()[:10] if j.preferredStartDate else None,
-                    "scheduled_end_date": j.scheduled_end_date.isoformat()[:10] if j.scheduled_end_date else None,
+                    "preferred_start_date": start_date.isoformat()[:10],
+                    "scheduled_end_date": end_date.isoformat()[:10],
                     "status": j.status,
                     "client_name": (
                         f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
@@ -1633,8 +1649,11 @@ def get_worker_schedule(request):
                     "location": j.location,
                     "budget": float(j.budget),
                 }
-                for j in jobs
-            ],
+            )
+
+        return {
+            "success": True,
+            "jobs": payload_jobs,
         }
     except Exception as e:
         return Response({"error": str(e)}, status=500)
@@ -1769,6 +1788,7 @@ def get_my_backjobs(request, status: Optional[str] = None):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
                 "evidence_images": evidence_urls,
                 "client": {
                     "id": client.profileID if client else None,
@@ -3827,6 +3847,25 @@ def worker_mark_job_complete(request, job_id: int):
         job.workerMarkedComplete = True
         job.workerMarkedCompleteAt = timezone.now()
         job.save()
+
+        # Agency web currently uses this generic endpoint. For agency jobs,
+        # also sync per-employee completion flags so mobile client UI can switch
+        # from "employees working on site" to approve/pay actions.
+        if is_agency_job:
+            from accounts.models import JobEmployeeAssignment
+
+            synced_count = JobEmployeeAssignment.objects.filter(
+                job=job,
+                agencyMarkedComplete=False,
+            ).exclude(
+                status='REMOVED'
+            ).update(
+                agencyMarkedComplete=True,
+                agencyMarkedCompleteAt=timezone.now(),
+            )
+            print(
+                f"✅ Synced agencyMarkedComplete=True for {synced_count} assignment(s) on job #{job_id}"
+            )
 
         print(f"✅ Job {job_id} marked as complete by {worker_name}. Waiting for client approval.")
         
@@ -6024,13 +6063,395 @@ def get_backjob_status(request, job_id: int):
                 "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
                 "resolution": dispute.resolution,
                 "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
-                "evidence_images": evidence_urls
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+                "evidence_images": evidence_urls,
+                "backjob_started": dispute.backjobStarted,
+                "worker_marked_complete": dispute.workerMarkedBackjobComplete,
+                "client_confirmed": dispute.clientConfirmedBackjob,
+                "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
             }
         }
         
     except Exception as e:
         print(f"❌ Error fetching backjob status: {str(e)}")
         return Response({"error": "Failed to fetch backjob status"}, status=500)
+
+
+@router.post("/{job_id}/backjob/request-renegotiation", auth=dual_auth)
+@require_kyc
+def request_backjob_renegotiation(request, job_id: int):
+    """
+    Request re-negotiation for the SAME active backjob record.
+
+    Intended flow:
+    - Backjob is already approved (UNDER_REVIEW)
+    - Admin has set scheduled_date
+    - Before work starts, either party can ask admin to reopen negotiation
+
+    This endpoint does NOT create a new dispute record.
+    It reuses the existing dispute and transitions it back to OPEN for admin review.
+    """
+    try:
+        print(f"🔁 Backjob re-negotiation requested for job {job_id}")
+
+        note = ""
+        try:
+            body = json.loads(request.body) if request.body else {}
+            note = (body.get("reason") or body.get("note") or "").strip()
+        except Exception:
+            note = ""
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        # Allow only actual participants
+        is_client = bool(job.clientID and job.clientID.profileID.accountFK == request.auth)
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_client or is_assigned_worker or is_assigned_agency):
+            return Response({"error": "Only job participants can request re-negotiation"}, status=403)
+
+        # Re-negotiate ONLY the current approved backjob record
+        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        if not dispute:
+            return Response({"error": "No active approved backjob found to renegotiate"}, status=404)
+
+        # Prevent re-negotiation after work already started/completed
+        if dispute.backjobStarted or dispute.workerMarkedBackjobComplete or dispute.clientConfirmedBackjob:
+            return Response({
+                "error": "Cannot renegotiate after backjob work has started or been completed"
+            }, status=400)
+
+        requester_role = "CLIENT" if is_client else ("AGENCY" if is_assigned_agency else "WORKER")
+        requester_name = request.auth.email
+
+        # Keep audit trail by appending into resolution notes
+        ts = timezone.now().strftime("%Y-%m-%d %H:%M")
+        renegotiation_line = (
+            f"[{ts}] Re-negotiation requested by {requester_role} ({requester_name})"
+            + (f": {note}" if note else ".")
+        )
+        dispute.resolution = f"{dispute.resolution}\n{renegotiation_line}" if dispute.resolution else renegotiation_line
+
+        # Reopen admin workflow on the same dispute record
+        dispute.status = "OPEN"
+        dispute.in_negotiation_at = None
+        dispute.scheduled_date = None
+        dispute.workerScheduleConfirmed = False
+        dispute.workerScheduleConfirmedAt = None
+        dispute.save(update_fields=[
+            "status",
+            "in_negotiation_at",
+            "scheduled_date",
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "resolution",
+            "updatedAt",
+        ])
+
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_RENEGO",
+            changedBy=request.auth,
+            notes=renegotiation_line
+        )
+
+        # Post system message to job conversation so both parties see context immediately
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"🔁 Re-negotiation requested by {requester_role}. Admin review is required before a new schedule is set."
+            )
+
+        # Notify all admins
+        from accounts.models import Accounts as AccountsModel, Notification
+        admin_accounts = AccountsModel.objects.filter(is_staff=True)
+        for admin_acct in admin_accounts:
+            Notification.objects.create(
+                accountFK=admin_acct,
+                notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                title="Backjob Re-negotiation Requested",
+                message=f"Dispute #{dispute.disputeID} for '{job.title}' requested re-negotiation.",
+                relatedJobID=job.jobID,
+            )
+
+        # Notify other participant(s)
+        if is_client:
+            if job.assignedAgencyFK:
+                Notification.objects.create(
+                    accountFK=job.assignedAgencyFK.accountFK,
+                    notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                    title="Backjob Re-negotiation Requested",
+                    message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                    relatedJobID=job.jobID,
+                )
+            elif job.assignedWorkerID:
+                Notification.objects.create(
+                    accountFK=job.assignedWorkerID.profileID.accountFK,
+                    notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                    title="Backjob Re-negotiation Requested",
+                    message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                    relatedJobID=job.jobID,
+                )
+        else:
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                title="Backjob Re-negotiation Requested",
+                message=f"{requester_role} requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                relatedJobID=job.jobID,
+            )
+
+        return {
+            "success": True,
+            "message": "Re-negotiation request submitted. Admin will review and coordinate a new schedule.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": None,
+        }
+
+    except Exception as e:
+        print(f"❌ Error requesting backjob re-negotiation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to request re-negotiation: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/backjob/set-scheduled-date", auth=dual_auth)
+@require_kyc
+def set_backjob_scheduled_date_by_client(request, job_id: int):
+    """
+    Client proposes or updates the backjob scheduled date during negotiation.
+    Worker/agency confirmation is required before the dispute transitions to UNDER_REVIEW.
+    """
+    try:
+        print(f"📅 Client setting backjob schedule for job {job_id}")
+
+        body = json.loads(request.body) if request.body else {}
+        scheduled_date_str = (body.get("scheduled_date") or "").strip()
+        if not scheduled_date_str:
+            return Response({"error": "scheduled_date is required (YYYY-MM-DD)"}, status=400)
+
+        from datetime import date
+
+        try:
+            scheduled_date = date.fromisoformat(scheduled_date_str)
+        except ValueError:
+            return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+
+        if scheduled_date < timezone.localdate():
+            return Response({"error": "Scheduled date cannot be in the past"}, status=400)
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the client can set backjob scheduled date"}, status=403)
+
+        dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=["IN_NEGOTIATION", "UNDER_REVIEW"],
+        ).first()
+        if not dispute:
+            return Response({"error": "Backjob must be in IN_NEGOTIATION or UNDER_REVIEW to set schedule"}, status=400)
+
+        if dispute.backjobStarted or dispute.workerMarkedBackjobComplete or dispute.clientConfirmedBackjob:
+            return Response({"error": "Cannot edit schedule after backjob work has started or been completed"}, status=400)
+
+        is_update = dispute.scheduled_date is not None
+        old_dispute_status = dispute.status
+        dispute.scheduled_date = scheduled_date
+        dispute.workerScheduleConfirmed = False
+        dispute.workerScheduleConfirmedAt = None
+
+        # If date is edited after prior confirmation, move back to negotiation until reconfirmed.
+        if dispute.status == "UNDER_REVIEW":
+            dispute.status = "IN_NEGOTIATION"
+
+        dispute.save(update_fields=[
+            "scheduled_date",
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "status",
+            "updatedAt",
+        ])
+
+        formatted_date = scheduled_date.strftime("%B %d, %Y")
+        action_word = "updated" if is_update else "set"
+
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_SCHED",
+            changedBy=request.auth,
+            notes=(
+                f"Client {action_word} backjob schedule to {formatted_date}; "
+                f"waiting for worker confirmation"
+                + (" (reopened negotiation)" if old_dispute_status == "UNDER_REVIEW" else "")
+            )
+        )
+
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"📅 Client {action_word} backjob schedule to {formatted_date}. Waiting for worker confirmation."
+                + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
+            )
+
+        # Notify worker/agency
+        worker_account = None
+        if job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        elif job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+
+        if worker_account:
+            Notification.objects.create(
+                accountFK=worker_account,
+                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                title="Backjob Schedule Proposed",
+                message=f"Client {action_word} backjob schedule for '{job.title}' to {formatted_date}. Please confirm.",
+                relatedJobID=job.jobID,
+            )
+
+        return {
+            "success": True,
+            "message": f"Backjob schedule {action_word} to {formatted_date}. Waiting for worker confirmation.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+        }
+
+    except Exception as e:
+        print(f"❌ Error setting backjob scheduled date: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to set scheduled date: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/backjob/confirm-scheduled-date", auth=dual_auth)
+@require_kyc
+def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
+    """
+    Worker/agency confirms the client-proposed backjob date.
+    This transitions the dispute from IN_NEGOTIATION to UNDER_REVIEW.
+    """
+    try:
+        print(f"✅ Worker confirming backjob schedule for job {job_id}")
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_assigned_worker or is_assigned_agency):
+            return Response({"error": "Only the assigned worker or agency can confirm this schedule"}, status=403)
+
+        dispute = JobDispute.objects.filter(jobID=job, status="IN_NEGOTIATION").first()
+        if not dispute:
+            return Response({"error": "Backjob must be in IN_NEGOTIATION to confirm schedule"}, status=400)
+
+        if not dispute.scheduled_date:
+            return Response({"error": "Client must set a scheduled date first"}, status=400)
+
+        if dispute.workerScheduleConfirmed:
+            return {
+                "success": True,
+                "message": "Scheduled date is already confirmed",
+                "job_id": job.jobID,
+                "dispute_id": dispute.disputeID,
+                "status": "UNDER_REVIEW",
+                "scheduled_date": dispute.scheduled_date.isoformat(),
+                "worker_schedule_confirmed": True,
+            }
+
+        dispute.workerScheduleConfirmed = True
+        dispute.workerScheduleConfirmedAt = timezone.now()
+        dispute.status = "UNDER_REVIEW"
+        dispute.save(update_fields=[
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "status",
+            "updatedAt",
+        ])
+
+        formatted_date = dispute.scheduled_date.strftime("%B %d, %Y")
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_APPR",
+            changedBy=request.auth,
+            notes=f"Worker confirmed backjob schedule ({formatted_date}); dispute moved to UNDER_REVIEW"
+        )
+
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"✅ Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
+            )
+
+        # Notify client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType=Notification.NotificationType.BACKJOB_APPROVED,
+            title="Backjob Schedule Confirmed",
+            message=f"Worker confirmed backjob schedule for '{job.title}' on {formatted_date}.",
+            relatedJobID=job.jobID,
+        )
+
+        return {
+            "success": True,
+            "message": f"Backjob scheduled date confirmed for {formatted_date}.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+            "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+        }
+
+    except Exception as e:
+        print(f"❌ Error confirming backjob scheduled date: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to confirm scheduled date: {str(e)}"}, status=500)
 
 
 @router.post("/{job_id}/backjob/confirm-started", auth=dual_auth)
@@ -6069,6 +6490,22 @@ def confirm_backjob_started(request, job_id: int):
             return Response({"error": "No active backjob found for this job"}, status=404)
         
         print(f"   Found dispute {dispute.disputeID}, backjobStarted={dispute.backjobStarted}")
+
+        if not dispute.scheduled_date:
+            return Response({"error": "Backjob schedule is not set yet"}, status=400)
+
+        if not dispute.workerScheduleConfirmed:
+            return Response({"error": "Worker must confirm the scheduled date before backjob can start"}, status=400)
+
+        today = timezone.localdate()
+        if today < dispute.scheduled_date:
+            return Response(
+                {
+                    "error": "Backjob cannot be started before the scheduled date",
+                    "scheduled_date": dispute.scheduled_date.isoformat(),
+                },
+                status=400,
+            )
         
         # Check if already confirmed
         if dispute.backjobStarted:
@@ -6078,7 +6515,7 @@ def confirm_backjob_started(request, job_id: int):
         # Confirm backjob work has started
         dispute.backjobStarted = True
         dispute.backjobStartedAt = timezone.now()
-        dispute.save()
+        dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
         
         print(f"✅ Client confirmed backjob work started for job {job_id}")
         
@@ -6433,11 +6870,17 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
         print(f"📋 Creating team job: {payload.title}")
         print(f"   Skill slots: {len(payload.skill_slots)}")
         
-        # Get client profile
-        from accounts.models import Profile
-        profile = Profile.objects.filter(accountFK=request.auth).first()
+        # Get client profile (role-aware for accounts with multiple profiles)
+        profile = get_user_profile(request)
         if not profile:
             return Response({"error": "Profile not found"}, status=404)
+        if profile.profileType != "CLIENT":
+            return Response(
+                {
+                    "error": f"Only clients can create team jobs. Your profile type is: {profile.profileType}"
+                },
+                status=403,
+            )
         
         # Convert skill slots to dict format
         skill_slots_data = [

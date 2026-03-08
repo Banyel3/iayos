@@ -55,6 +55,9 @@ import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
+  useSetBackjobScheduledDate,
+  useConfirmBackjobScheduledDate,
+  useRequestBackjobRenegotiation,
 } from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
 import { useSubmitReport } from "../../lib/hooks/useReports";
@@ -83,6 +86,7 @@ import {
   useUploadPurchaseProof,
   useSkipMaterialsStep,
 } from "../../lib/hooks/useJobMaterials";
+import { useCreateFinalPayment } from "../../lib/hooks/useFinalPayment";
 
 const AGORA_AVAILABLE = true;
 import type { JobMaterialItem } from "../../lib/hooks/useMessages";
@@ -109,10 +113,11 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
-  const [negotiationPanelExpanded, setNegotiationPanelExpanded] =
-    useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentActionMode, setPaymentActionMode] = useState<
+    "APPROVE_COMPLETION" | "PAY_NOW"
+  >("APPROVE_COMPLETION");
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
@@ -139,6 +144,9 @@ export default function ChatScreen() {
     icon?: string;
     iconColor?: string;
   } | null>(null);
+  const [showBackjobScheduleModal, setShowBackjobScheduleModal] =
+    useState(false);
+  const [backjobScheduleInput, setBackjobScheduleInput] = useState("");
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -273,6 +281,7 @@ export default function ChatScreen() {
   const approveAgencyProjectJobMutation = useApproveAgencyProjectJob();
   const approveAgencyProjectEmployeeMutation =
     useApproveAgencyProjectEmployee();
+  const createFinalPaymentMutation = useCreateFinalPayment();
 
   // Daily attendance mutations
   const workerCheckInMutation = useWorkerCheckIn();
@@ -291,6 +300,39 @@ export default function ChatScreen() {
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
+  const setBackjobScheduledDateMutation = useSetBackjobScheduledDate();
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
+  const requestBackjobRenegotiationMutation = useRequestBackjobRenegotiation();
+
+  const parseScheduledDate = (dateStr?: string | null): Date | null => {
+    if (!dateStr) return null;
+
+    // Preserve date-only semantics from YYYY-MM-DD without timezone drift.
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]) - 1;
+      const day = Number(match[3]);
+      return new Date(year, month, day);
+    }
+
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
+  };
+
+  const scheduledBackjobDate = parseScheduledDate(
+    conversation?.backjob?.scheduled_date,
+  );
+  const todayLocal = new Date();
+  todayLocal.setHours(0, 0, 0, 0);
+  const isBackjobScheduledForFuture =
+    !!hasApprovedBackjob &&
+    !!scheduledBackjobDate &&
+    !conversation?.backjob?.backjob_started &&
+    todayLocal < scheduledBackjobDate;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -470,9 +512,47 @@ export default function ChatScreen() {
       countdownSeconds: 7,
       onConfirm: () => {
         setCountdownConfig(null);
+        setPaymentActionMode("APPROVE_COMPLETION");
         setShowPaymentModal(true);
       },
       icon: "wallet",
+      iconColor: Colors.warning,
+    });
+  };
+
+  // Handle early pay-now while job is still in progress (CLIENT only)
+  const handlePayNow = () => {
+    if (!conversation) return;
+
+    const baseRemaining = conversation.job.budget
+      ? conversation.job.budget * 0.5
+      : 0;
+    const materialsCost = conversation.job.materials_cost ?? 0;
+    const totalRemaining = baseRemaining + materialsCost;
+    const formattedAmount = totalRemaining.toFixed(2);
+
+    const materialsNote =
+      materialsCost > 0
+        ? `\n(includes ₱${materialsCost.toLocaleString()} materials reimbursement)`
+        : "";
+
+    setCountdownConfig({
+      visible: true,
+      title: "Pay Worker Now",
+      message:
+        `You are about to pay the final amount early:\n\n₱${formattedAmount}${materialsNote}\n\n` +
+        "Important:\n" +
+        "- This payment is not reversible.\n" +
+        "- This does NOT mark the job complete.\n" +
+        "- You must still approve completion later.",
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setPaymentActionMode("PAY_NOW");
+        setShowPaymentModal(true);
+      },
+      icon: "warning",
       iconColor: Colors.warning,
     });
   };
@@ -582,6 +662,30 @@ export default function ChatScreen() {
 
     setShowPaymentModal(false);
 
+    if (paymentActionMode === "PAY_NOW") {
+      if (method === "CASH") {
+        Alert.alert(
+          "Wallet Only",
+          "Early Pay Now currently supports WALLET payment only. You can use CASH when approving completion.",
+        );
+        return;
+      }
+
+      const baseRemaining = conversation.job.budget
+        ? conversation.job.budget * 0.5
+        : 0;
+      const materialsCostVal = conversation.job.materials_cost ?? 0;
+      const totalRemaining = baseRemaining + materialsCostVal;
+
+      createFinalPaymentMutation.mutate({
+        jobId: conversation.job.id,
+        amount: totalRemaining,
+        paymentMethod: "wallet",
+      });
+      setPaymentActionMode("APPROVE_COMPLETION");
+      return;
+    }
+
     if (method === "CASH") {
       // Show cash amount confirmation before opening upload modal
       const baseRemaining = conversation.job.budget
@@ -654,6 +758,8 @@ export default function ChatScreen() {
         paymentMethod: method,
       });
     }
+
+    setPaymentActionMode("APPROVE_COMPLETION");
   };
 
   // Handle cash proof image selection
@@ -783,6 +889,86 @@ export default function ChatScreen() {
           text: "Approve & Close",
           onPress: () => {
             approveBackjobCompletionMutation.mutate({
+              jobId: conversation.job.id,
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  // Request re-negotiation before the scheduled backjob date.
+  const handleRequestBackjobRenegotiation = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Request Re-negotiation",
+      "This will notify admin to reopen negotiation and set a new backjob schedule.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send Request",
+          onPress: () => {
+            requestBackjobRenegotiationMutation.mutate({
+              jobId: conversation.job.id,
+              reason:
+                "Requested schedule re-negotiation before planned backjob date.",
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const handleOpenBackjobScheduleModal = () => {
+    if (!conversation) return;
+    const initialDate = conversation.backjob?.scheduled_date || "";
+    setBackjobScheduleInput(initialDate);
+    setShowBackjobScheduleModal(true);
+  };
+
+  const handleSubmitBackjobScheduleDate = () => {
+    if (!conversation) return;
+
+    const scheduleValue = backjobScheduleInput.trim();
+    if (!scheduleValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      Alert.alert("Invalid Date", "Use YYYY-MM-DD format.");
+      return;
+    }
+
+    const selectedDate = parseScheduledDate(scheduleValue);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!selectedDate || selectedDate < today) {
+      Alert.alert("Invalid Date", "Scheduled date cannot be in the past.");
+      return;
+    }
+
+    setBackjobScheduledDateMutation.mutate(
+      {
+        jobId: conversation.job.id,
+        scheduledDate: scheduleValue,
+      },
+      {
+        onSuccess: () => {
+          setShowBackjobScheduleModal(false);
+        },
+      },
+    );
+  };
+
+  const handleConfirmBackjobScheduledDate = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Schedule",
+      `Confirm backjob scheduled date: ${conversation.backjob?.scheduled_date}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            confirmBackjobScheduledDateMutation.mutate({
               jobId: conversation.job.id,
             });
           },
@@ -1155,7 +1341,13 @@ export default function ChatScreen() {
   const submitConversationReport = useCallback(
     (
       type: "user" | "job" | "message",
-      reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other",
+      reason:
+        | "spam"
+        | "harassment"
+        | "fraud"
+        | "inappropriate"
+        | "fake_profile"
+        | "other",
       reportedUserId?: number,
     ) => {
       const jobId = conversation?.job?.id;
@@ -1188,7 +1380,9 @@ export default function ChatScreen() {
           onError: (error) => {
             Alert.alert(
               "Report Failed",
-              error instanceof Error ? error.message : "Failed to submit report",
+              error instanceof Error
+                ? error.message
+                : "Failed to submit report",
             );
           },
         },
@@ -1220,22 +1414,46 @@ export default function ChatScreen() {
                   : "Report Conversation",
           },
           (index) => {
-            if (index === 1) submitConversationReport(type, "spam", reportedUserId);
-            if (index === 2) submitConversationReport(type, "harassment", reportedUserId);
-            if (index === 3) submitConversationReport(type, "fraud", reportedUserId);
-            if (index === 4) submitConversationReport(type, "inappropriate", reportedUserId);
-            if (index === 5) submitConversationReport(type, "fake_profile", reportedUserId);
+            if (index === 1)
+              submitConversationReport(type, "spam", reportedUserId);
+            if (index === 2)
+              submitConversationReport(type, "harassment", reportedUserId);
+            if (index === 3)
+              submitConversationReport(type, "fraud", reportedUserId);
+            if (index === 4)
+              submitConversationReport(type, "inappropriate", reportedUserId);
+            if (index === 5)
+              submitConversationReport(type, "fake_profile", reportedUserId);
           },
         );
         return;
       }
 
       Alert.alert("Select report reason", "Choose a reason", [
-        { text: "Spam", onPress: () => submitConversationReport(type, "spam", reportedUserId) },
-        { text: "Harassment", onPress: () => submitConversationReport(type, "harassment", reportedUserId) },
-        { text: "Fraud/Scam", onPress: () => submitConversationReport(type, "fraud", reportedUserId) },
-        { text: "Inappropriate", onPress: () => submitConversationReport(type, "inappropriate", reportedUserId) },
-        { text: "Fake Profile", onPress: () => submitConversationReport(type, "fake_profile", reportedUserId) },
+        {
+          text: "Spam",
+          onPress: () => submitConversationReport(type, "spam", reportedUserId),
+        },
+        {
+          text: "Harassment",
+          onPress: () =>
+            submitConversationReport(type, "harassment", reportedUserId),
+        },
+        {
+          text: "Fraud/Scam",
+          onPress: () =>
+            submitConversationReport(type, "fraud", reportedUserId),
+        },
+        {
+          text: "Inappropriate",
+          onPress: () =>
+            submitConversationReport(type, "inappropriate", reportedUserId),
+        },
+        {
+          text: "Fake Profile",
+          onPress: () =>
+            submitConversationReport(type, "fake_profile", reportedUserId),
+        },
         { text: "Cancel", style: "cancel" },
       ]);
     },
@@ -1284,10 +1502,18 @@ export default function ChatScreen() {
 
     Alert.alert("Report", "Choose what to report", [
       ...(reportUserTargetId
-        ? [{ text: "Report User", onPress: () => openReportReasonPicker("user", reportUserTargetId) }]
+        ? [
+            {
+              text: "Report User",
+              onPress: () => openReportReasonPicker("user", reportUserTargetId),
+            },
+          ]
         : []),
       { text: "Report Job", onPress: () => openReportReasonPicker("job") },
-      { text: "Report Conversation", onPress: () => openReportReasonPicker("message") },
+      {
+        text: "Report Conversation",
+        onPress: () => openReportReasonPicker("message"),
+      },
       { text: "Cancel", style: "cancel" },
     ]);
   }, [conversation, openReportReasonPicker]);
@@ -1569,7 +1795,8 @@ export default function ChatScreen() {
         errorBody = "This conversation no longer exists or is unavailable.";
       } else if (error.status >= 500) {
         errorTitle = "Server Error";
-        errorBody = "The server failed to load the conversation. Please try again.";
+        errorBody =
+          "The server failed to load the conversation. Please try again.";
         actionLabel = "Retry";
         actionHandler = () => {
           void refetch();
@@ -1603,10 +1830,7 @@ export default function ChatScreen() {
             color={Colors.error}
           />
           <Text style={styles.errorText}>{errorBody}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={actionHandler}
-          >
+          <TouchableOpacity style={styles.retryButton} onPress={actionHandler}>
             <Text style={styles.retryButtonText}>{actionLabel}</Text>
           </TouchableOpacity>
         </View>
@@ -1742,11 +1966,7 @@ export default function ChatScreen() {
             {submitReportMutation.isPending ? (
               <ActivityIndicator size="small" color={Colors.error} />
             ) : (
-              <Ionicons
-                name="flag-outline"
-                size={22}
-                color={Colors.error}
-              />
+              <Ionicons name="flag-outline" size={22} color={Colors.error} />
             )}
           </TouchableOpacity>
         </View>
@@ -3439,6 +3659,63 @@ export default function ChatScreen() {
                     </View>
                   )}
 
+                {/* CLIENT: Optional early pay-now while job is ongoing (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
+                  conversation.my_role === "CLIENT" &&
+                  !conversation.job.clientMarkedComplete &&
+                  !conversation.job.remainingPaymentPaid && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.waitingButton]}
+                      onPress={handlePayNow}
+                      disabled={createFinalPaymentMutation.isPending}
+                    >
+                      {createFinalPaymentMutation.isPending ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.textPrimary}
+                        />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="flash"
+                            size={20}
+                            color={Colors.textPrimary}
+                          />
+                          <Text
+                            style={[
+                              styles.waitingButtonText,
+                              { color: Colors.textPrimary },
+                            ]}
+                          >
+                            Pay Now (Optional)
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* Final payment already done, but completion still pending */}
+                {!conversation.is_team_job &&
+                  !conversation.is_agency_job &&
+                  conversation.job?.payment_model !== "DAILY" &&
+                  conversation.job?.remainingPaymentPaid &&
+                  !conversation.job.clientMarkedComplete && (
+                    <View style={[styles.actionButton, styles.completedAction]}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={Colors.success}
+                      />
+                      <Text
+                        style={[styles.actionButtonText, { color: Colors.success }]}
+                      >
+                        Final payment completed. You can approve completion anytime.
+                      </Text>
+                    </View>
+                  )}
+
                 {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
@@ -3485,6 +3762,8 @@ export default function ChatScreen() {
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
                       employee.agencyMarkedComplete ||
+                      employee.employeeMarkedComplete ||
+                      employee.marked_complete ||
                       employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
@@ -3685,6 +3964,8 @@ export default function ChatScreen() {
                   (() => {
                     const isEmployeeComplete = (employee: any) =>
                       employee.agencyMarkedComplete ||
+                      employee.employeeMarkedComplete ||
+                      employee.marked_complete ||
                       employee.status === "COMPLETED";
 
                     const allDispatched = conversation.assigned_employees.every(
@@ -5253,120 +5534,64 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
-            {/* Negotiation Panel — collapsible, shown during IN_NEGOTIATION or after if admin messages exist */}
-            {!hasActiveNegotiation &&
-              conversation.messages.some(
-                (m: any) => m.sender_type === "admin",
-              ) && (
-                <View style={styles.negotiationPanel}>
-                  <TouchableOpacity
-                    style={styles.negotiationPanelHeader}
-                    onPress={() =>
-                      setNegotiationPanelExpanded(!negotiationPanelExpanded)
-                    }
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="shield-half-outline"
-                      size={13}
-                      color="#7C3AED"
-                    />
-                    <Text style={styles.negotiationPanelHeaderText}>
-                      {hasActiveNegotiation
-                        ? "Negotiation Chat"
-                        : "Negotiation History"}
-                    </Text>
-                    {hasActiveNegotiation && (
-                      <View style={styles.negotiationLiveBadge}>
-                        <Text style={styles.negotiationLiveBadgeText}>
-                          LIVE
-                        </Text>
-                      </View>
-                    )}
-                    <Ionicons
-                      name={
-                        negotiationPanelExpanded ? "chevron-up" : "chevron-down"
-                      }
-                      size={13}
-                      color="#7C3AED"
-                    />
-                  </TouchableOpacity>
-
-                  {negotiationPanelExpanded && (
-                    <View style={styles.negotiationPanelBody}>
-                      {conversation.messages.filter(
-                        (m: any) => m.sender_type === "admin",
-                      ).length === 0 ? (
-                        <Text style={styles.negotiationEmptyText}>
-                          Waiting for admin to join the negotiation…
-                        </Text>
-                      ) : (
-                        conversation.messages
-                          .filter((m: any) => m.sender_type === "admin")
-                          .map((msg: any, idx: number) => (
-                            <View
-                              key={msg.message_id || idx}
-                              style={styles.negotiationMessage}
-                            >
-                              <Ionicons
-                                name="shield-checkmark-outline"
-                                size={12}
-                                color="#7C3AED"
-                              />
-                              <View style={styles.negotiationMessageContent}>
-                                <Text style={styles.negotiationMessageSender}>
-                                  Admin
-                                </Text>
-                                <Text style={styles.negotiationMessageText}>
-                                  {msg.message_text}
-                                </Text>
-                                <Text style={styles.negotiationMessageTime}>
-                                  {format(new Date(msg.created_at), "h:mm a")}
-                                </Text>
-                              </View>
-                            </View>
-                          ))
-                      )}
-                    </View>
-                  )}
-                </View>
-              )}
-
-            {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
-            {hasApprovedBackjob && (
+            {hasActiveNegotiation && (
               <View style={styles.backjobActionButtonsCompact}>
-                {/* CLIENT: Confirm Backjob Started Button */}
-                {conversation.my_role === "CLIENT" &&
-                  !conversation.backjob?.backjob_started && (
-                    <TouchableOpacity
-                      style={[
-                        styles.backjobActionButtonCompact,
-                        { backgroundColor: Colors.warning },
-                      ]}
-                      onPress={handleConfirmBackjobStarted}
-                      disabled={confirmBackjobStartedMutation.isPending}
-                    >
-                      {confirmBackjobStartedMutation.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={16}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.backjobActionButtonText}>
-                            Confirm Started
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
+                {conversation.backjob?.scheduled_date ? (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Proposed Date: {conversation.backjob.scheduled_date}
+                      </Text>
+                    </View>
 
-                {/* CLIENT: Waiting for Worker to Complete Backjob */}
-                {conversation.my_role === "CLIENT" &&
-                  conversation.backjob?.backjob_started &&
-                  !conversation.backjob?.worker_marked_complete && (
+                    {conversation.backjob.worker_schedule_confirmed ? (
+                      <Text style={styles.backjobScheduledNoticeText}>
+                        Worker confirmed this schedule. Backjob is ready for
+                        start on the scheduled date.
+                      </Text>
+                    ) : (
+                      <Text style={styles.backjobScheduledNoticeText}>
+                        Waiting for worker confirmation.
+                      </Text>
+                    )}
+                  </View>
+                ) : null}
+
+                {conversation.my_role === "CLIENT" && (
+                  <TouchableOpacity
+                    style={[
+                      styles.backjobActionButtonCompact,
+                      { backgroundColor: Colors.warning },
+                    ]}
+                    onPress={handleOpenBackjobScheduleModal}
+                    disabled={setBackjobScheduledDateMutation.isPending}
+                  >
+                    {setBackjobScheduledDateMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="calendar-number"
+                          size={16}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.backjobActionButtonText}>
+                          {conversation.backjob?.scheduled_date
+                            ? "Update Schedule"
+                            : "Set Schedule"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {conversation.my_role !== "CLIENT" &&
+                  !conversation.backjob?.scheduled_date && (
                     <View style={styles.backjobWaitingBadge}>
                       <Ionicons
                         name="time-outline"
@@ -5374,39 +5599,23 @@ export default function ChatScreen() {
                         color={Colors.textSecondary}
                       />
                       <Text style={styles.backjobWaitingText}>
-                        Waiting for worker...
+                        Waiting for client to set date...
                       </Text>
                     </View>
                   )}
 
-                {/* WORKER: Waiting for Client Confirmation */}
-                {conversation.my_role === "WORKER" &&
-                  !conversation.backjob?.backjob_started && (
-                    <View style={styles.backjobWaitingBadge}>
-                      <Ionicons
-                        name="time-outline"
-                        size={14}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.backjobWaitingText}>
-                        Waiting for client...
-                      </Text>
-                    </View>
-                  )}
-
-                {/* WORKER: Mark Backjob Complete Button */}
-                {conversation.my_role === "WORKER" &&
-                  conversation.backjob?.backjob_started &&
-                  !conversation.backjob?.worker_marked_complete && (
+                {conversation.my_role !== "CLIENT" &&
+                  !!conversation.backjob?.scheduled_date &&
+                  !conversation.backjob?.worker_schedule_confirmed && (
                     <TouchableOpacity
                       style={[
                         styles.backjobActionButtonCompact,
-                        { backgroundColor: Colors.warning },
+                        { backgroundColor: Colors.success },
                       ]}
-                      onPress={handleMarkBackjobComplete}
-                      disabled={markBackjobCompleteMutation.isPending}
+                      onPress={handleConfirmBackjobScheduledDate}
+                      disabled={confirmBackjobScheduledDateMutation.isPending}
                     >
-                      {markBackjobCompleteMutation.isPending ? (
+                      {confirmBackjobScheduledDateMutation.isPending ? (
                         <ActivityIndicator size="small" color={Colors.white} />
                       ) : (
                         <>
@@ -5416,57 +5625,203 @@ export default function ChatScreen() {
                             color={Colors.white}
                           />
                           <Text style={styles.backjobActionButtonText}>
-                            Mark Complete
+                            Confirm Schedule
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
                   )}
+              </View>
+            )}
 
-                {/* WORKER: Waiting for Client Approval */}
-                {conversation.my_role === "WORKER" &&
-                  conversation.backjob?.worker_marked_complete &&
-                  !conversation.backjob?.client_confirmed_complete && (
-                    <View style={styles.backjobWaitingBadge}>
+            {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
+            {hasApprovedBackjob && (
+              <View style={styles.backjobActionButtonsCompact}>
+                {isBackjobScheduledForFuture && (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
                       <Ionicons
-                        name="time-outline"
+                        name="calendar-outline"
                         size={14}
-                        color={Colors.textSecondary}
+                        color={Colors.warning}
                       />
-                      <Text style={styles.backjobWaitingText}>
-                        Awaiting approval...
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Backjob starts on{" "}
+                        {scheduledBackjobDate?.toLocaleDateString()}
                       </Text>
                     </View>
-                  )}
-
-                {/* CLIENT: Approve Backjob Completion Button */}
-                {conversation.my_role === "CLIENT" &&
-                  conversation.backjob?.worker_marked_complete &&
-                  !conversation.backjob?.client_confirmed_complete && (
+                    <Text style={styles.backjobScheduledNoticeText}>
+                      Workflow actions will activate on the scheduled date. Need
+                      a new date? Send a re-negotiation request.
+                    </Text>
                     <TouchableOpacity
-                      style={[
-                        styles.backjobActionButtonCompact,
-                        { backgroundColor: Colors.success },
-                      ]}
-                      onPress={handleApproveBackjobCompletion}
-                      disabled={approveBackjobCompletionMutation.isPending}
+                      style={styles.backjobRenegotiateButton}
+                      onPress={handleRequestBackjobRenegotiation}
+                      disabled={requestBackjobRenegotiationMutation.isPending}
                     >
-                      {approveBackjobCompletionMutation.isPending ? (
+                      {requestBackjobRenegotiationMutation.isPending ? (
                         <ActivityIndicator size="small" color={Colors.white} />
                       ) : (
                         <>
                           <Ionicons
-                            name="checkmark-circle"
-                            size={16}
+                            name="refresh-circle"
+                            size={15}
                             color={Colors.white}
                           />
-                          <Text style={styles.backjobActionButtonText}>
-                            Approve & Close
+                          <Text style={styles.backjobRenegotiateButtonText}>
+                            Re-negotiate Schedule
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
-                  )}
+                  </View>
+                )}
+
+                {!isBackjobScheduledForFuture && (
+                  <>
+                    {/* CLIENT: Confirm Backjob Started Button */}
+                    {conversation.my_role === "CLIENT" &&
+                      !conversation.backjob?.backjob_started && (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.warning },
+                          ]}
+                          onPress={handleConfirmBackjobStarted}
+                          disabled={confirmBackjobStartedMutation.isPending}
+                        >
+                          {confirmBackjobStartedMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Confirm Started
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                    {/* CLIENT: Waiting for Worker to Complete Backjob */}
+                    {conversation.my_role === "CLIENT" &&
+                      conversation.backjob?.backjob_started &&
+                      !conversation.backjob?.worker_marked_complete && (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for worker...
+                          </Text>
+                        </View>
+                      )}
+
+                    {/* WORKER: Waiting for Client Confirmation */}
+                    {conversation.my_role === "WORKER" &&
+                      !conversation.backjob?.backjob_started && (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for client...
+                          </Text>
+                        </View>
+                      )}
+
+                    {/* WORKER: Mark Backjob Complete Button */}
+                    {conversation.my_role === "WORKER" &&
+                      conversation.backjob?.backjob_started &&
+                      !conversation.backjob?.worker_marked_complete && (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.warning },
+                          ]}
+                          onPress={handleMarkBackjobComplete}
+                          disabled={markBackjobCompleteMutation.isPending}
+                        >
+                          {markBackjobCompleteMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-done"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Mark Complete
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                    {/* WORKER: Waiting for Client Approval */}
+                    {conversation.my_role === "WORKER" &&
+                      conversation.backjob?.worker_marked_complete &&
+                      !conversation.backjob?.client_confirmed_complete && (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Awaiting approval...
+                          </Text>
+                        </View>
+                      )}
+
+                    {/* CLIENT: Approve Backjob Completion Button */}
+                    {conversation.my_role === "CLIENT" &&
+                      conversation.backjob?.worker_marked_complete &&
+                      !conversation.backjob?.client_confirmed_complete && (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.success },
+                          ]}
+                          onPress={handleApproveBackjobCompletion}
+                          disabled={approveBackjobCompletionMutation.isPending}
+                        >
+                          {approveBackjobCompletionMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Approve & Close
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -5515,6 +5870,54 @@ export default function ChatScreen() {
         )}
       </KeyboardAvoidingView>
 
+      <Modal
+        visible={showBackjobScheduleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBackjobScheduleModal(false)}
+      >
+        <View style={styles.priceModalBackdrop}>
+          <View style={styles.priceModalCard}>
+            <Text style={styles.priceModalTitle}>Set Backjob Schedule</Text>
+            <Text style={styles.priceModalSubtitle}>
+              Enter date in YYYY-MM-DD format.
+            </Text>
+
+            <TextInput
+              style={styles.priceInput}
+              value={backjobScheduleInput}
+              onChangeText={setBackjobScheduleInput}
+              placeholder="YYYY-MM-DD"
+              keyboardType="numbers-and-punctuation"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.priceModalActions}>
+              <TouchableOpacity
+                style={[styles.priceButton, styles.cancelButton]}
+                onPress={() => setShowBackjobScheduleModal(false)}
+                disabled={setBackjobScheduledDateMutation.isPending}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.priceButton, styles.submitButton]}
+                onPress={handleSubmitBackjobScheduleDate}
+                disabled={setBackjobScheduledDateMutation.isPending}
+              >
+                {setBackjobScheduledDateMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.submitButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Photo Preview Modal */}
       <Modal
         visible={!!pendingImageUri}
@@ -5560,13 +5963,18 @@ export default function ChatScreen() {
         visible={showPaymentModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowPaymentModal(false)}
+        onRequestClose={() => {
+          setShowPaymentModal(false);
+          setPaymentActionMode("APPROVE_COMPLETION");
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select Payment Method</Text>
             <Text style={styles.modalSubtitle}>
-              Choose how you want to pay the remaining 50%
+              {paymentActionMode === "PAY_NOW"
+                ? "Choose how you want to pay early final payment"
+                : "Choose how you want to pay the remaining 50%"}
             </Text>
 
             <TouchableOpacity
@@ -5577,7 +5985,9 @@ export default function ChatScreen() {
               <View style={styles.paymentOptionText}>
                 <Text style={styles.paymentOptionTitle}>Wallet</Text>
                 <Text style={styles.paymentOptionDesc}>
-                  Pay instantly from your iAyos wallet
+                  {paymentActionMode === "PAY_NOW"
+                    ? "Pay now and keep completion approval separate"
+                    : "Pay instantly from your iAyos wallet"}
                 </Text>
               </View>
               <Ionicons
@@ -5588,14 +5998,19 @@ export default function ChatScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.paymentOption}
+              style={[
+                styles.paymentOption,
+                paymentActionMode === "PAY_NOW" && { opacity: 0.55 },
+              ]}
               onPress={() => handlePaymentMethodSelect("CASH")}
             >
               <Ionicons name="cash" size={24} color={Colors.primary} />
               <View style={styles.paymentOptionText}>
                 <Text style={styles.paymentOptionTitle}>Cash</Text>
                 <Text style={styles.paymentOptionDesc}>
-                  Upload proof of cash payment
+                  {paymentActionMode === "PAY_NOW"
+                    ? "Available on completion approval"
+                    : "Upload proof of cash payment"}
                 </Text>
               </View>
               <Ionicons
@@ -5607,7 +6022,10 @@ export default function ChatScreen() {
 
             <TouchableOpacity
               style={styles.modalCancelButton}
-              onPress={() => setShowPaymentModal(false)}
+              onPress={() => {
+                setShowPaymentModal(false);
+                setPaymentActionMode("APPROVE_COMPLETION");
+              }}
             >
               <Text style={styles.modalCancelButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -5683,9 +6101,14 @@ export default function ChatScreen() {
                   !selectedImage && styles.cashModalSubmitButtonDisabled,
                 ]}
                 onPress={handleCashProofSubmit}
-                disabled={!selectedImage || approveCompletionMutation.isPending}
+                disabled={
+                  !selectedImage ||
+                  approveCompletionMutation.isPending ||
+                  createFinalPaymentMutation.isPending
+                }
               >
-                {approveCompletionMutation.isPending ? (
+                {approveCompletionMutation.isPending ||
+                createFinalPaymentMutation.isPending ? (
                   <ActivityIndicator size="small" color={Colors.white} />
                 ) : (
                   <Text style={styles.cashModalSubmitButtonText}>Submit</Text>
@@ -6412,6 +6835,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 8, // Reduced padding
   },
+  completedAction: {
+    backgroundColor: "#E8F5E9",
+    borderWidth: 1,
+    borderColor: Colors.success,
+    justifyContent: "flex-start",
+  },
   waitingButtonText: {
     ...Typography.body.small, // Reduced from medium
     fontSize: 13, // Explicit compact size
@@ -6635,6 +7064,68 @@ const styles = StyleSheet.create({
   modalCancelButtonText: {
     ...Typography.body.medium,
     color: Colors.error,
+    fontWeight: "600",
+  },
+  // Backjob schedule modal styles
+  priceModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  priceModalCard: {
+    width: "100%",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.lg,
+  },
+  priceModalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  priceModalSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  priceInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  priceModalActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  priceButton: {
+    flex: 1,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cancelButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  submitButton: {
+    backgroundColor: Colors.primary,
+  },
+  submitButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
     fontWeight: "600",
   },
   // Cash Upload Modal Styles
@@ -7210,10 +7701,50 @@ const styles = StyleSheet.create({
   backjobActionButtonsCompact: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     backgroundColor: "#FFF8E1",
     gap: Spacing.sm,
+  },
+  backjobScheduledNoticeCard: {
+    width: "100%",
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    borderWidth: 1,
+    borderColor: Colors.warning + "55",
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  backjobScheduledNoticeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  backjobScheduledNoticeTitle: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "700",
+  },
+  backjobScheduledNoticeText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  backjobRenegotiateButton: {
+    marginTop: Spacing.xs,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.warning,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+  },
+  backjobRenegotiateButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
   },
   backjobActionButtonCompact: {
     flexDirection: "row",
