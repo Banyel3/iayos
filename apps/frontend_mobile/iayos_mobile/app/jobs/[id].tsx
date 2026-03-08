@@ -132,6 +132,7 @@ interface JobDetail {
   total_workers_assigned?: number;
   // Missing fields
   preferred_start_date?: string;
+  scheduled_end_date?: string;
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
@@ -445,6 +446,7 @@ export default function JobDetailScreen() {
         total_workers_assigned: jobData.total_workers_assigned,
         // Missing fields mapping
         preferred_start_date: jobData.preferred_start_date,
+        scheduled_end_date: jobData.scheduled_end_date,
         payment_model:
           jobData.payment_model ||
           (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
@@ -1420,7 +1422,10 @@ export default function JobDetailScreen() {
             />
             <Text style={styles.jobStartDate}>
               {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
+                (job.scheduled_end_date
+                  ? ` - End: ${new Date(job.scheduled_end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                  : "")
                 : `Posted ${job.postedAt}`}
             </Text>
           </View>
