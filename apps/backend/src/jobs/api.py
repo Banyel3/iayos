@@ -8880,12 +8880,12 @@ def approve_agency_project_employee(
             payment_amount = remaining / total_employees if total_employees > 0 else remaining
         
         with transaction.atomic():
+            # Keep a wallet transaction trail for all payment methods.
+            client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
+
             # Handle payment
             if payment_method == 'WALLET':
-                try:
-                    client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
-                except Wallet.DoesNotExist:
-                    return Response({"error": "Client wallet not found"}, status=404)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 if client_wallet.balance < payment_amount:
                     return Response({
@@ -8898,23 +8898,40 @@ def approve_agency_project_employee(
                 client_wallet.save()
                 
                 Transaction.objects.create(
-                    senderWallet=client_wallet,
+                    walletID=client_wallet,
                     amount=payment_amount,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Payment for {employee.fullName} - {job.title}',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
+                )
+            elif payment_method == 'GCASH':
+                # Placeholder until direct GCash checkout is wired for this flow.
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='PENDING',
+                    description=f'GCash payment pending for {employee.fullName} - {job.title}',
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='GCASH',
                 )
             elif payment_method == 'CASH':
                 job.cashProofImage = cash_proof_image
                 job.save()
                 
                 Transaction.objects.create(
+                    walletID=client_wallet,
                     amount=payment_amount,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Cash payment for {employee.fullName} - {job.title} (proof uploaded)',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='CASH',
                 )
             
             # Mark this employee as approved
@@ -9108,15 +9125,12 @@ def approve_agency_project_job(
         remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
         
         with transaction.atomic():
+            # Keep a wallet transaction trail for all payment methods.
+            client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
+
             # Handle payment
             if payment_method == 'WALLET':
-                # Get client wallet
-                try:
-                    client_wallet = Wallet.objects.select_for_update().get(
-                        accountFK=request.auth
-                    )
-                except Wallet.DoesNotExist:
-                    return Response({"error": "Client wallet not found"}, status=404)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 # Check sufficient balance
                 if client_wallet.balance < remaining_balance:
@@ -9132,18 +9146,27 @@ def approve_agency_project_job(
                 
                 # Create payment transaction
                 Transaction.objects.create(
-                    senderWallet=client_wallet,
+                    walletID=client_wallet,
                     amount=remaining_balance,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Final payment for job: {job.title}',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
                 )
             
             elif payment_method == 'GCASH':
-                # TODO: Integrate with Xendit GCash payment
-                # For now, mark as pending payment
-                pass
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='PENDING',
+                    description=f'GCash final payment pending for job: {job.title}',
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='GCASH',
+                )
             
             elif payment_method == 'CASH':
                 # Store cash proof
@@ -9151,11 +9174,14 @@ def approve_agency_project_job(
                 
                 # Create transaction record for cash payment
                 Transaction.objects.create(
+                    walletID=client_wallet,
                     amount=remaining_balance,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Cash payment for job: {job.title} (proof uploaded)',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='CASH',
                 )
             
             # Mark all assignments as completed
