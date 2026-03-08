@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Agency Hiring Price Suggestion + Approve & Pay Stability + Applied Tab Guidance**
   - Enabled AI price suggestion card for agency-hire PROJECT jobs even when title/description are still short by using selected-category fallback context
   - Fixed agency approve-and-pay backend transaction creation using correct `Transaction` model fields (`walletID`, `relatedJobPosting`, `balanceAfter`, `paymentMethod`)
   - Fixed cash and GCash approval paths to create valid transaction records instead of raising internal server errors
@@ -17,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated post-application success guidance from "My Applications" to `Jobs > Applied` and deep-linked navigation to the `applications` tab
   - **Impact**: Clients can complete approve-and-pay flows reliably, agency hires get usable price suggestions, and workers are routed to the correct application status tab
 
-- **Conversation Real-Time Sync Reliability (WebSocket + Cache)**
+- **KYC Selfie Policy Alignment**
+  - Removed "hold ID in selfie" requirement from mobile KYC guidance and capture checklist.
+  - Updated selfie capture flow to require clear face + no glasses only, matching backend face-match verification against submitted ID front image.
+  - **Impact**: Reduces false rejects and user friction while preserving strict identity verification.
+
   - Fixed mobile message cache invalidation to target active conversation queries keyed by `viewerKey` (prevents stale chat UI that required refresh/reopen)
   - Standardized inbox websocket payloads to emit explicit event types (`chat_message`, `typing_indicator`, `message_read`) so mobile listeners process events consistently
   - Added dynamic websocket unsubscribe when leaving a conversation to prevent stale subscriptions and missed/current-thread update conflicts

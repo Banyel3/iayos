@@ -256,14 +256,14 @@ export const DOCUMENT_TYPES: Record<KYCDocumentType, DocumentTypeConfig> = {
   // Supporting Documents
   SELFIE: {
     type: "SELFIE",
-    label: "Selfie with ID",
-    description: "Selfie holding your ID",
+    label: "Selfie",
+    description: "Clear selfie photo",
     category: "SUPPORTING",
     required: true,
     icon: "person-outline",
     instructions:
-      "Take a selfie holding your ID next to your face. Ensure both your face and ID are clearly visible.",
-    examples: ["Selfie with National ID", "Selfie with valid ID"],
+      "Take a clear selfie of your face. Remove glasses and face coverings, and use good lighting.",
+    examples: ["Clear front-facing selfie"],
     maxSizeMB: 10,
     allowedFormats: ["image/jpeg", "image/png"],
     requiresBothSides: false,
