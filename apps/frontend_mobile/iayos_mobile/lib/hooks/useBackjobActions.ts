@@ -23,7 +23,9 @@ export function useConfirmBackjobStarted() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to confirm backjob started"));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm backjob started"),
+        );
       }
 
       return response.json();
@@ -59,13 +61,7 @@ export function useMarkBackjobComplete() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      jobId,
-      notes,
-    }: {
-      jobId: number;
-      notes?: string;
-    }) => {
+    mutationFn: async ({ jobId, notes }: { jobId: number; notes?: string }) => {
       const url = ENDPOINTS.BACKJOB_MARK_COMPLETE(jobId);
       const response = await apiRequest(url, {
         method: "POST",
@@ -74,7 +70,9 @@ export function useMarkBackjobComplete() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to mark backjob complete"));
+        throw new Error(
+          getErrorMessage(error, "Failed to mark backjob complete"),
+        );
       }
 
       return response.json();
@@ -110,13 +108,7 @@ export function useApproveBackjobCompletion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      jobId,
-      notes,
-    }: {
-      jobId: number;
-      notes?: string;
-    }) => {
+    mutationFn: async ({ jobId, notes }: { jobId: number; notes?: string }) => {
       const url = ENDPOINTS.BACKJOB_APPROVE_COMPLETION(jobId);
       const response = await apiRequest(url, {
         method: "POST",
@@ -125,7 +117,9 @@ export function useApproveBackjobCompletion() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to approve backjob completion"));
+        throw new Error(
+          getErrorMessage(error, "Failed to approve backjob completion"),
+        );
       }
 
       return response.json();
@@ -256,7 +250,13 @@ export function useRequestBackjobRenegotiation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, reason }: { jobId: number; reason?: string }) => {
+    mutationFn: async ({
+      jobId,
+      reason,
+    }: {
+      jobId: number;
+      reason?: string;
+    }) => {
       const url = ENDPOINTS.BACKJOB_REQUEST_RENEGOTIATION(jobId);
       const response = await apiRequest(url, {
         method: "POST",
