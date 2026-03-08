@@ -4966,6 +4966,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
+                revieweeProfileID=reviewee_profile,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -5079,6 +5080,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
+                revieweeProfileID=reviewee_profile,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -8938,6 +8940,12 @@ def approve_agency_project_employee(
             assignment.clientApprovedAt = timezone.now()
             assignment.status = 'COMPLETED'
             assignment.save()
+
+            # Track employee completion stats when this specific assignment is completed
+            employee.totalJobsCompleted = (employee.totalJobsCompleted or 0) + 1
+            if payment_amount > 0:
+                employee.totalEarnings = (employee.totalEarnings or Decimal('0.00')) + payment_amount
+            employee.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
         
         # Send system message
         try:
@@ -8961,6 +8969,11 @@ def approve_agency_project_employee(
             job.status = 'COMPLETED'
             job.clientMarkedComplete = True
             job.workerMarkedComplete = True
+            # Final payment has been completed once all employee approvals/payments are done.
+            # This unblocks the review endpoint for clients.
+            if payment_method in ['WALLET', 'CASH']:
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
             job.save()
             
             # Close conversation
@@ -9185,11 +9198,25 @@ def approve_agency_project_job(
             
             # Mark all assignments as completed
             assignments.update(status='COMPLETED')
+
+            # Track employee completion stats per assignment in this bulk approval path
+            employee_count = assignments.count()
+            per_employee_earning = remaining_balance / employee_count if employee_count > 0 else Decimal('0.00')
+            for assignment in assignments:
+                emp = assignment.employee
+                emp.totalJobsCompleted = (emp.totalJobsCompleted or 0) + 1
+                if per_employee_earning > 0:
+                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + per_employee_earning
+                emp.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
             
             # Mark job as completed
             job.status = 'COMPLETED'
             job.clientMarkedComplete = True
             job.workerMarkedComplete = True  # Agency job - worker side is agency completion
+            # Final payment is complete in wallet/cash successful paths.
+            if payment_method in ['WALLET', 'CASH']:
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
             job.save()
         
         # Close the conversation for this job
