@@ -88,7 +88,8 @@ import {
 } from "../../lib/hooks/useJobMaterials";
 import { useCreateFinalPayment } from "../../lib/hooks/useFinalPayment";
 
-const AGORA_AVAILABLE = true;
+const AGORA_AVAILABLE =
+  process.env.EXPO_PUBLIC_ENABLE_VOICE_CALLS !== "false";
 import type { JobMaterialItem } from "../../lib/hooks/useMessages";
 import {
   Colors,
@@ -294,7 +295,7 @@ export default function ChatScreen() {
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
 
   // Voice calling
-  const { initiateCall, callStatus } = useAgoraCall();
+  const { initiateCall, callStatus, error: callError } = useAgoraCall();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -1921,7 +1922,7 @@ export default function ChatScreen() {
           {/* Voice Call Button - supports both 1-on-1 and group (team job) calls */}
           {!isConversationClosed && (
             <TouchableOpacity
-              onPress={() => {
+              onPress={async () => {
                 if (!AGORA_AVAILABLE) {
                   Alert.alert(
                     "Voice Calling Unavailable",
@@ -1934,7 +1935,19 @@ export default function ChatScreen() {
                   conversation.other_participant?.name ||
                   (conversation.is_team_job ? "Group Call" : "Unknown");
                 const isGroupCall = conversation.is_team_job === true;
-                initiateCall(conversationId, recipientName, isGroupCall);
+                const started = await initiateCall(
+                  conversationId,
+                  recipientName,
+                  isGroupCall,
+                );
+
+                if (!started) {
+                  Alert.alert(
+                    "Call Failed",
+                    callError ||
+                      "Could not start voice call. Please check your internet, microphone permission, and account verification.",
+                  );
+                }
               }}
               style={styles.callButton}
               disabled={callStatus !== "idle"}

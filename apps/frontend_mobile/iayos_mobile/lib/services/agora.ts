@@ -419,5 +419,6 @@ class AgoraService {
 }
 
 // Singleton instance
-export const AGORA_AVAILABLE = true;
+export const AGORA_AVAILABLE =
+  process.env.EXPO_PUBLIC_ENABLE_VOICE_CALLS !== "false";
 export const agoraService = new AgoraService();

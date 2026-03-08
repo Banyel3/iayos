@@ -1114,22 +1114,33 @@ class CallConsumer(AsyncWebsocketConsumer):
         try:
             conversation = Conversation.objects.get(conversationID=self.conversation_id)
             profile = Profile.objects.filter(accountFK=self.user).first()
-            
-            if not profile:
-                return False
-            
-            # Check if user is client or worker
-            is_client = conversation.client and conversation.client.profileID == profile.profileID
-            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
-            
-            # Check ConversationParticipant for team jobs
-            from .models import ConversationParticipant
-            is_participant = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                profile=profile
-            ).exists()
-            
-            return is_client or is_worker or is_participant
+
+            is_client = False
+            is_worker = False
+            is_participant = False
+
+            if profile:
+                # Check if user is client or worker
+                is_client = conversation.client and conversation.client.profileID == profile.profileID
+                is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+
+                # Check ConversationParticipant for team jobs
+                from .models import ConversationParticipant
+                is_participant = ConversationParticipant.objects.filter(
+                    conversation=conversation,
+                    profile=profile
+                ).exists()
+
+            # Agency conversations use accounts.Agency instead of Profile.worker
+            from accounts.models import Agency
+            agency = Agency.objects.filter(accountFK=self.user).first()
+            is_agency = bool(
+                conversation.agency
+                and agency
+                and conversation.agency.agencyId == agency.agencyId
+            )
+
+            return is_client or is_worker or is_participant or is_agency
         except Conversation.DoesNotExist:
             return False
         except Exception as e:

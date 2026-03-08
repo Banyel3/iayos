@@ -43,6 +43,10 @@ import {
   WifiOff,
   Wifi,
   MoreVertical,
+  Phone,
+  PhoneOff,
+  Mic,
+  MicOff,
   Briefcase,
   MapPin,
   User,
@@ -60,6 +64,7 @@ import {
 import { format, isSameDay } from "date-fns";
 import { toast } from "sonner";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
+import { useAgencyVoiceCall } from "@/lib/hooks/useAgencyVoiceCall";
 
 export default function AgencyChatScreen() {
   const router = useRouter();
@@ -129,6 +134,19 @@ export default function AgencyChatScreen() {
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
 
+  const {
+    callStatus,
+    incomingCall,
+    durationSeconds,
+    error: callError,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+  } = useAgencyVoiceCall();
+  const [isMuted, setIsMuted] = useState(false);
+
   // WebSocket: Listen for new messages
   useMessageListener(conversationId);
 
@@ -163,6 +181,22 @@ export default function AgencyChatScreen() {
       text,
       type: "TEXT",
     });
+  };
+
+  const formatCallDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleStartCall = async () => {
+    const started = await initiateCall(
+      conversationId,
+      Boolean(conversation?.assigned_employees && conversation.assigned_employees.length > 1),
+    );
+    if (!started) {
+      toast.error(callError || "Could not start voice call.");
+    }
   };
 
   // Handle image upload
@@ -491,6 +525,15 @@ export default function AgencyChatScreen() {
 
             {/* Right: Status badges */}
             <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleStartCall}
+                disabled={callStatus !== "idle" && callStatus !== "ended"}
+                title="Start voice call"
+              >
+                <Phone className="h-4 w-4 text-green-600" />
+              </Button>
               {isConnected ? (
                 <Badge variant="default" className="bg-green-500">
                   <Wifi className="h-3 w-3 mr-1" />
@@ -1351,6 +1394,83 @@ export default function AgencyChatScreen() {
             isConnected ? "Type a message..." : "Reconnecting... Please wait"
           }
         />
+      )}
+
+      {/* Incoming call modal */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="w-full max-w-sm">
+            <CardContent className="pt-6 space-y-4 text-center">
+              <p className="text-sm text-gray-500">Incoming voice call</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {incomingCall.callerName}
+              </h3>
+              <div className="flex items-center justify-center gap-3">
+                <Button
+                  variant="outline"
+                  className="border-red-500 text-red-700 hover:bg-red-50"
+                  onClick={() => {
+                    rejectCall();
+                  }}
+                >
+                  <PhoneOff className="h-4 w-4 mr-1" />
+                  Decline
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={async () => {
+                    const accepted = await acceptCall();
+                    if (!accepted) {
+                      toast.error(callError || "Failed to accept call.");
+                    }
+                  }}
+                >
+                  <Phone className="h-4 w-4 mr-1" />
+                  Answer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Active call HUD */}
+      {(callStatus === "connecting" || callStatus === "connected" || callStatus === "ringing") && (
+        <div className="fixed bottom-4 right-4 z-40">
+          <Card className="shadow-xl border-green-200">
+            <CardContent className="py-3 px-4 flex items-center gap-3">
+              <Badge className="bg-green-600">
+                {callStatus === "connected"
+                  ? `In call ${formatCallDuration(durationSeconds)}`
+                  : callStatus === "ringing"
+                    ? "Ringing..."
+                    : "Connecting..."}
+              </Badge>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  const muted = toggleMute();
+                  setIsMuted(muted);
+                }}
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => {
+                  endCall();
+                  setIsMuted(false);
+                }}
+                title="End call"
+              >
+                <PhoneOff className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Image modal */}

@@ -2565,22 +2565,33 @@ def get_call_token(request, conversation_id: int):
         except Conversation.DoesNotExist:
             return Response({"error": "Conversation not found"}, status=404)
         
-        # Check if user is a participant
+        # Check if user is a participant (profile-based or agency-based)
         profile = Profile.objects.filter(accountFK=user).first()
-        if not profile:
-            return Response({"error": "Profile not found"}, status=404)
-        
-        is_client = conversation.client and conversation.client.profileID == profile.profileID
-        is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
-        
-        # Also check ConversationParticipant for team jobs
-        from .models import ConversationParticipant
-        is_participant = ConversationParticipant.objects.filter(
-            conversation=conversation,
-            profile=profile
-        ).exists()
-        
-        if not (is_client or is_worker or is_participant):
+        from accounts.models import Agency
+        agency = Agency.objects.filter(accountFK=user).first()
+
+        is_client = False
+        is_worker = False
+        is_participant = False
+
+        if profile:
+            is_client = conversation.client and conversation.client.profileID == profile.profileID
+            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+
+            # Also check ConversationParticipant for team jobs
+            from .models import ConversationParticipant
+            is_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=profile
+            ).exists()
+
+        is_agency = bool(
+            conversation.agency
+            and agency
+            and conversation.agency.agencyId == agency.agencyId
+        )
+
+        if not (is_client or is_worker or is_participant or is_agency):
             return Response({"error": "You are not a participant in this conversation"}, status=403)
         
         # Generate token
