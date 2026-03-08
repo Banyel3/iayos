@@ -4,6 +4,8 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant admin-theme (&:is(.admin-theme *));
+@custom-variant agency-verified (&:is(.agency-verified *));
 
 @theme inline {
   --color-background: var(--background);
@@ -75,11 +77,9 @@ body {
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(66.98% 0.124 242.37);
-  --primary-gradient: linear-gradient(
-    92.45deg,
-    #2e9ad5 -0.89%,
-    #f0ed87 165.03%
-  );
+  --primary-gradient: linear-gradient(92.45deg,
+      #2e9ad5 -0.89%,
+      #f0ed87 165.03%);
   --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -144,21 +144,17 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
 }
 
-/* Admin theme: white background for all admin pages */
+/* Admin theme: sidebar background for all admin pages */
 .admin-theme main,
-.admin-theme main > div:first-child {
-  background-color: white !important;
+.admin-theme main>div:first-child {
+  background-color: var(--sidebar) !important;
   background-image: none !important;
-}
-
-/* Admin theme: make cards match dashboard stat cards (sky blue background and blue border) */
-.admin-theme [data-slot="card"] {
-  @apply bg-sky-100 border-blue-400;
 }
 
 /* Agency verified theme: when agency is verified, tint cards with a blue accent */
@@ -185,10 +181,13 @@ body {
 
 /* Hide scrollbar while keeping functionality */
 .scrollbar-hide {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
+  /* Chrome, Safari, Opera */
 }

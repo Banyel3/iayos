@@ -158,7 +158,7 @@ export default function RegisterScreen() {
         setTimeout(() => {
           try {
             (fieldRef as any).focus?.();
-          } catch (e) {}
+          } catch (e) { }
         }, 50);
       }
     });
@@ -166,7 +166,7 @@ export default function RegisterScreen() {
     return () => {
       try {
         subscription.remove();
-      } catch (e) {}
+      } catch (e) { }
     };
   }, []);
 
@@ -213,23 +213,23 @@ export default function RegisterScreen() {
     const sanitizedContact = contactNumber.trim();
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const nameRegex = /^[A-Za-z]+$/;
-    const middleNameRegex = /^[A-Za-z]*$/;
+    const nameRegex = /^[A-Za-z\s\-.]+$/;
+    const middleNameRegex = /^[A-Za-z\s\-.]*$/;
     const postalRegex = /^\d{4}$/;
     const contactRegex = /^\d{11}$/;
 
     if (!nameRegex.test(trimmedFirst)) {
-      Alert.alert("Error", "First name must contain letters only");
+      Alert.alert("Error", "First name must contain letters, spaces, hyphens, or periods only");
       return;
     }
 
     if (trimmedMiddle && !middleNameRegex.test(trimmedMiddle)) {
-      Alert.alert("Error", "Middle name must contain letters only");
+      Alert.alert("Error", "Middle name must contain letters, spaces, hyphens, or periods only");
       return;
     }
 
     if (!nameRegex.test(trimmedLast)) {
-      Alert.alert("Error", "Last name must contain letters only");
+      Alert.alert("Error", "Last name must contain letters, spaces, hyphens, or periods only");
       return;
     }
 
@@ -419,7 +419,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeIconContainer,
                       profileType === "CLIENT" &&
-                        styles.profileTypeIconContainerSelected,
+                      styles.profileTypeIconContainerSelected,
                     ]}
                   >
                     <Ionicons
@@ -434,7 +434,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeCardTitle,
                       profileType === "CLIENT" &&
-                        styles.profileTypeCardTitleSelected,
+                      styles.profileTypeCardTitleSelected,
                     ]}
                   >
                     Hire Workers
@@ -467,7 +467,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeIconContainer,
                       profileType === "WORKER" &&
-                        styles.profileTypeIconContainerSelected,
+                      styles.profileTypeIconContainerSelected,
                     ]}
                   >
                     <Ionicons
@@ -482,7 +482,7 @@ export default function RegisterScreen() {
                     style={[
                       styles.profileTypeCardTitle,
                       profileType === "WORKER" &&
-                        styles.profileTypeCardTitleSelected,
+                      styles.profileTypeCardTitleSelected,
                     ]}
                   >
                     Find Work
@@ -995,7 +995,7 @@ export default function RegisterScreen() {
                       style={[
                         styles.barangayItemText,
                         barangay === item.name &&
-                          styles.barangayItemTextSelected,
+                        styles.barangayItemTextSelected,
                       ]}
                     >
                       {item.name}
