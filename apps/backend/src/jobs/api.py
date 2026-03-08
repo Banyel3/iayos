@@ -8811,8 +8811,7 @@ def approve_agency_project_employee(
         try:
             job = Job.objects.select_related(
                 'clientID__profileID__accountFK',
-                'assignedAgencyFK__accountFK',
-                'agencyID__owner'
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
@@ -8981,10 +8980,10 @@ def approve_agency_project_employee(
             
             # Notify agency owner
             try:
-                if job.agencyID and job.agencyID.owner:
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                     client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
                     Notification.objects.create(
-                        accountFK=job.agencyID.owner,
+                        accountFK=job.assignedAgencyFK.accountFK,
                         notificationType="JOB_COMPLETED_CLIENT",
                         title="Job Completed! 🎉",
                         message=f"{client_name} has approved all employees for '{job.title}'.",
@@ -9215,10 +9214,10 @@ def approve_agency_project_job(
         from accounts.models import Notification
         try:
             # Notify agency owner
-            if job.agencyID and job.agencyID.owner:
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                 client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
                 Notification.objects.create(
-                    accountFK=job.agencyID.owner,
+                    accountFK=job.assignedAgencyFK.accountFK,
                     notificationType="JOB_COMPLETED_CLIENT",
                     title="Job Completion Approved! 🎉",
                     message=f"{client_name} has approved the completion of '{job.title}'. Payment of ₱{float(remaining_balance):,.2f} processed.",
