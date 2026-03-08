@@ -104,6 +104,7 @@ import {
 } from "../../lib/services/offline-queue";
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
 export default function ChatScreen() {
@@ -147,6 +148,12 @@ export default function ChatScreen() {
   const [showBackjobScheduleModal, setShowBackjobScheduleModal] =
     useState(false);
   const [backjobScheduleInput, setBackjobScheduleInput] = useState("");
+  const [backjobScheduleDate, setBackjobScheduleDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -930,7 +937,12 @@ export default function ChatScreen() {
   const handleSubmitBackjobScheduleDate = () => {
     if (!conversation) return;
 
-    const scheduleValue = backjobScheduleInput.trim();
+    // Use current date state if input is empty (for picker)
+    let scheduleValue = backjobScheduleInput.trim();
+    if (!scheduleValue) {
+      scheduleValue = format(backjobScheduleDate, "yyyy-MM-dd");
+    }
+
     if (!scheduleValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
       Alert.alert("Invalid Date", "Use YYYY-MM-DD format.");
       return;
@@ -952,6 +964,10 @@ export default function ChatScreen() {
       {
         onSuccess: () => {
           setShowBackjobScheduleModal(false);
+          setBackjobScheduleInput("");
+          const d = new Date();
+          d.setHours(0, 0, 0, 0);
+          setBackjobScheduleDate(d);
         },
       },
     );
@@ -5868,15 +5884,50 @@ export default function ChatScreen() {
               Enter date in YYYY-MM-DD format.
             </Text>
 
-            <TextInput
-              style={styles.priceInput}
-              value={backjobScheduleInput}
-              onChangeText={setBackjobScheduleInput}
-              placeholder="YYYY-MM-DD"
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            {Platform.OS === "ios" ? (
+              <View style={{ marginVertical: Spacing.m, alignItems: "center" }}>
+                <DateTimePicker
+                  value={backjobScheduleDate}
+                  mode="date"
+                  display="inline"
+                  onChange={(event, date) => {
+                    if (date) {
+                      setBackjobScheduleDate(date);
+                      setBackjobScheduleInput(format(date, "yyyy-MM-dd"));
+                    }
+                  }}
+                  minimumDate={new Date()}
+                  themeVariant="light"
+                />
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.priceInput, { justifyContent: "center" }]}
+                  onPress={() => setShowAndroidDatePicker(true)}
+                >
+                  <Text style={{ color: backjobScheduleInput ? Colors.textPrimary : Colors.textSecondary }}>
+                    {backjobScheduleInput || "Select Date"}
+                  </Text>
+                </TouchableOpacity>
+
+                {showAndroidDatePicker && (
+                  <DateTimePicker
+                    value={backjobScheduleDate}
+                    mode="date"
+                    display="default"
+                    onChange={(event, date) => {
+                      setShowAndroidDatePicker(false);
+                      if (date) {
+                        setBackjobScheduleDate(date);
+                        setBackjobScheduleInput(format(date, "yyyy-MM-dd"));
+                      }
+                    }}
+                    minimumDate={new Date()}
+                  />
+                )}
+              </>
+            )}
 
             <View style={styles.priceModalActions}>
               <TouchableOpacity
