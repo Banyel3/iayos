@@ -1642,6 +1642,8 @@ export default function CreateJobScreen() {
                   setIsOneDayJob(next);
                   if (next) {
                     setScheduledEndDate(null);
+                    // Force PROJECT payment model for one-day jobs
+                    setPaymentModel("PROJECT");
                   }
                 }}
                 activeOpacity={0.7}
@@ -1660,13 +1662,16 @@ export default function CreateJobScreen() {
                   <Text style={styles.label}>Expected Duration (Optional)</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g., 2-3 hours, half a day"
+                    placeholder="e.g., 1-3 hours, half a day"
                     value={duration}
                     onChangeText={setDuration}
                     placeholderTextColor={Colors.textHint}
                   />
                   <SuggestionBubbles
-                    suggestions={durationSuggestions}
+                    suggestions={durationSuggestions.filter(s =>
+                      !s.text.toLowerCase().includes("1 day") &&
+                      !s.text.toLowerCase().includes("2 days")
+                    )}
                     onSelect={setDuration}
                     isLoading={loadingSuggestionFields.has('duration')}
                     label="Common durations"
@@ -1945,14 +1950,17 @@ export default function CreateJobScreen() {
                     style={[
                       styles.optionButton,
                       paymentModel === "DAILY" && styles.optionButtonActive,
+                      isOneDayJob && styles.optionButtonDisabled,
                     ]}
-                    onPress={() => setPaymentModel("DAILY")}
+                    onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
+                    disabled={isOneDayJob}
                   >
                     <Text
                       style={[
                         styles.optionButtonText,
                         paymentModel === "DAILY" &&
                         styles.optionButtonTextActive,
+                        isOneDayJob && styles.optionButtonTextDisabled,
                       ]}
                     >
                       Daily Rate
@@ -1960,9 +1968,11 @@ export default function CreateJobScreen() {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.hint}>
-                  {paymentModel === "PROJECT"
-                    ? "Pay for the entire project (50% downpayment, 50% on completion)"
-                    : "Pay per day of work (100% escrow upfront)"}
+                  {isOneDayJob
+                    ? "Daily rate is unavailable for one-day jobs (Fixed Budget only)"
+                    : paymentModel === "PROJECT"
+                      ? "Pay for the entire project (50% downpayment, 50% on completion)"
+                      : "Pay per day of work (100% escrow upfront)"}
                 </Text>
               </View>
 
@@ -2044,7 +2054,7 @@ export default function CreateJobScreen() {
                     <Text style={styles.hint}>
                       {startDate && (scheduledEndDate || isOneDayJob)
                         ? "Auto-calculated based on selected dates"
-                        : "Estimated number of working hours/days"}
+                        : "Number of working days"}
                     </Text>
                   </View>
                 </>
@@ -3368,6 +3378,14 @@ const styles = StyleSheet.create({
   optionButtonTextActive: {
     color: Colors.primary,
     fontWeight: "700",
+  },
+  optionButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: Colors.backgroundSecondary,
+    borderColor: Colors.border,
+  },
+  optionButtonTextDisabled: {
+    color: Colors.textHint,
   },
   dailyNote: {
     fontSize: 13,
