@@ -181,7 +181,7 @@ export default function WorkerCalendarModal({
 
                               onClose();
                               if (data?.success && data?.conversation_id) {
-                                router.push(`/messages/${data.conversation_id}` as any);
+                                router.push(`/conversation/${data.conversation_id}` as any);
                               } else {
                                 router.push(`/messages` as any);
                               }

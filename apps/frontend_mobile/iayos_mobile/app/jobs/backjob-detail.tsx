@@ -90,9 +90,9 @@ export default function BackjobDetailScreen() {
           category: jobData.category?.name || jobData.category || "Unknown",
           client: jobData.client
             ? {
-                ...jobData.client,
-                avatar: getAbsoluteMediaUrl(jobData.client.avatar),
-              }
+              ...jobData.client,
+              avatar: getAbsoluteMediaUrl(jobData.client.avatar),
+            }
             : null,
         });
       }
@@ -115,7 +115,7 @@ export default function BackjobDetailScreen() {
         const data = await response.json();
         if (data.conversation_id) {
           // Navigate to the conversation
-          router.push(`/messages/${data.conversation_id}` as any);
+          router.push(`/conversation/${data.conversation_id}` as any);
         } else {
           Alert.alert("Error", "Could not find or create conversation");
         }
@@ -531,7 +531,7 @@ export default function BackjobDetailScreen() {
                 size={28}
                 color={
                   selectedImageIndex ===
-                  (dispute.evidence_images?.length || 1) - 1
+                    (dispute.evidence_images?.length || 1) - 1
                     ? "#666"
                     : "#FFF"
                 }
