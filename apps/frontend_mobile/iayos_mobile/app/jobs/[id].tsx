@@ -205,27 +205,27 @@ const getWorkEnvironmentInfo = (env: string) => {
 const WORKER_PAYMENT_INFO_ITEMS = [
   {
     icon: "lock-closed-outline" as const,
-    label: "Your earnings are secured",
+    label: "Secured Payment",
     description:
-      "The client's escrow payment is held before you even start working — your pay is guaranteed.",
+      "Client funds are held in escrow.",
   },
   {
     icon: "checkmark-circle-outline" as const,
-    label: "Client approval releases payment",
+    label: "Client Approval",
     description:
-      "Once you complete the job and the client approves, payment moves to your Pending Earnings.",
+      "Payment moves to Pending after job completion.",
   },
   {
     icon: "time-outline" as const,
-    label: "7-day buffer period",
+    label: "7-day Hold",
     description:
-      "A brief hold for dispute protection before earnings are released to your wallet.",
+      "Short hold for dispute protection before funds are released.",
   },
   {
     icon: "card-outline" as const,
-    label: "Withdraw anytime",
+    label: "Withdraw Anytime",
     description:
-      "Transfer your wallet balance to your registered GCash account whenever you're ready.",
+      "Send your earnings to your GCash.",
   },
 ];
 
@@ -3432,8 +3432,7 @@ export default function JobDetailScreen() {
           setPendingApply(false);
           setShowApplicationModal(true);
         }}
-        title="How Your Earnings Work 💰"
-        subtitle="Here's what happens after you're hired"
+        title="How It Works"
         items={WORKER_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
