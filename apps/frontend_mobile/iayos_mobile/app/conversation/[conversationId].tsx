@@ -5637,7 +5637,7 @@ export default function ChatScreen() {
                       <Ionicons
                         name="calendar-outline"
                         size={14}
-                        color={Colors.warning}
+                        color={Colors.white}
                       />
                       <Text style={styles.backjobScheduledNoticeTitle}>
                         Backjob starts on{" "}
@@ -5645,8 +5645,7 @@ export default function ChatScreen() {
                       </Text>
                     </View>
                     <Text style={styles.backjobScheduledNoticeText}>
-                      Workflow actions will activate on the scheduled date. Need
-                      a new date? Send a re-negotiation request.
+                      Workflow actions will activate on the scheduled date.
                     </Text>
                     <TouchableOpacity
                       style={styles.backjobRenegotiateButton}
@@ -7738,10 +7737,8 @@ const styles = StyleSheet.create({
   },
   backjobScheduledNoticeCard: {
     width: "100%",
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: Colors.warning,
     borderRadius: BorderRadius.small,
-    borderWidth: 1,
-    borderColor: Colors.warning + "55",
     padding: Spacing.sm,
     gap: Spacing.xs,
   },
@@ -7752,20 +7749,22 @@ const styles = StyleSheet.create({
   },
   backjobScheduledNoticeTitle: {
     ...Typography.body.small,
-    color: Colors.warning,
+    color: Colors.white,
     fontWeight: "700",
   },
   backjobScheduledNoticeText: {
     ...Typography.body.small,
-    color: Colors.textSecondary,
+    color: Colors.white,
   },
   backjobRenegotiateButton: {
     marginTop: Spacing.xs,
-    alignSelf: "flex-start",
+    alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: Colors.warning,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.white,
     borderRadius: BorderRadius.small,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,

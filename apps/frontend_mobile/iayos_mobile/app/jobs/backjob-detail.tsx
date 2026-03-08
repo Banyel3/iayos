@@ -192,17 +192,20 @@ export default function BackjobDetailScreen() {
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
+  const formatDate = (dateStr: string | null, includeTime: boolean = true) => {
     if (!dateStr) return "N/A";
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
+    const options: Intl.DateTimeFormatOptions = {
       weekday: "short",
       month: "short",
       day: "numeric",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    };
+    if (includeTime) {
+      options.hour = "2-digit";
+      options.minute = "2-digit";
+    }
+    return date.toLocaleDateString("en-US", options);
   };
 
   if (isLoading) {
@@ -465,46 +468,29 @@ export default function BackjobDetailScreen() {
                   </View>
                 )}
 
-                {/* 4. Worker Confirmed Schedule */}
-                {dispute.worker_schedule_confirmed && (
+                {/* 4. Scheduled Date / Worker Confirmed Schedule */}
+                {dispute.scheduled_date && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
                       <View style={[
                         styles.timelineDot,
-                        { backgroundColor: Colors.success, borderColor: Colors.success },
+                        { backgroundColor: dispute.worker_schedule_confirmed ? Colors.success : Colors.warning, borderColor: dispute.worker_schedule_confirmed ? Colors.success : Colors.warning },
                         (dispute.status === "RESOLVED" || dispute.backjob_started) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
                       ]} />
                       <View style={styles.timelineConnector} />
                     </View>
                     <View style={styles.timelineContent}>
                       <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
-                        Worker Confirmed Schedule
+                        {dispute.worker_schedule_confirmed ? "Worker Confirmed Schedule" : "⏳ Pending Negotiation"}
                       </Text>
-                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
-                        {formatDate(dispute.worker_schedule_confirmed_at)}
+                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.backjob_started) ? styles.timelineDoneText : (dispute.worker_schedule_confirmed ? { color: Colors.textPrimary } : { color: Colors.warning })]}>
+                        📅 {formatDate(dispute.scheduled_date, false)}
                       </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* 5. Scheduled Date / Pending Negotiation */}
-                {dispute.scheduled_date && (
-                  <View style={styles.timelineItem}>
-                    <View style={styles.timelineLineContainer}>
-                      <View style={[
-                        styles.timelineDot,
-                        { backgroundColor: Colors.warning, borderColor: Colors.warning },
-                        (dispute.status === "RESOLVED" || dispute.worker_schedule_confirmed) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
-                      ]} />
-                      <View style={styles.timelineConnector} />
-                    </View>
-                    <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.worker_schedule_confirmed) && styles.timelineDoneText]}>
-                        {dispute.worker_schedule_confirmed ? "📅 Scheduled Date" : "⏳ Pending Negotiation"}
-                      </Text>
-                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.worker_schedule_confirmed) ? styles.timelineDoneText : { color: Colors.warning }]}>
-                        {formatDate(dispute.scheduled_date)}
-                      </Text>
+                      {dispute.worker_schedule_confirmed && dispute.worker_schedule_confirmed_at && (
+                        <Text style={[styles.timelineSubText, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
+                          Confirmed on {formatDate(dispute.worker_schedule_confirmed_at)}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 )}
@@ -996,6 +982,11 @@ const styles = StyleSheet.create({
   timelineDoneText: {
     color: Colors.textSecondary,
     opacity: 0.7,
+  },
+  timelineSubText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   completeButton: {
     flexDirection: "row",
