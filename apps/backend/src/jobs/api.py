@@ -8841,10 +8841,10 @@ def approve_agency_project_employee(
             return Response({"error": "Cash payment requires proof image", "requires_proof": True}, status=400)
         
         # Get the employee's assignment
-        from agency.models import agencyemployee
+        from agency.models import AgencyEmployee
         try:
-            employee = agencyemployee.objects.get(employeeID=employee_id)
-        except agencyemployee.DoesNotExist:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
             return Response({"error": "Employee not found"}, status=404)
         
         try:
