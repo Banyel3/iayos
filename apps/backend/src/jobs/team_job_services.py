@@ -16,6 +16,63 @@ from accounts.models import (
 from profiles.models import Conversation, ConversationParticipant
 
 
+def _job_date_window(job) -> tuple:
+    """Return (start_date, end_date) for overlap checks; end falls back to start."""
+    start_date = getattr(job, 'preferredStartDate', None)
+    if not start_date:
+        return (None, None)
+    end_date = getattr(job, 'scheduled_end_date', None) or start_date
+    return (start_date, end_date)
+
+
+def _windows_overlap(start_a, end_a, start_b, end_b) -> bool:
+    """Inclusive overlap between two date windows."""
+    if not all([start_a, end_a, start_b, end_b]):
+        return False
+    return start_a <= end_b and end_a >= start_b
+
+
+def find_worker_schedule_conflict(worker_profile: WorkerProfile, target_job: Job, exclude_job_id: Optional[int] = None):
+    """
+    Find a conflicting assigned job for a worker using date-window overlap.
+
+    Returns the first conflicting Job instance or None.
+    """
+    target_start, target_end = _job_date_window(target_job)
+    if not target_start:
+        return None
+
+    direct_jobs = Job.objects.filter(
+        assignedWorkerID=worker_profile,
+        status__in=[Job.JobStatus.ACTIVE, Job.JobStatus.IN_PROGRESS],
+        preferredStartDate__isnull=False,
+    )
+    if exclude_job_id:
+        direct_jobs = direct_jobs.exclude(jobID=exclude_job_id)
+
+    for job in direct_jobs:
+        start_date, end_date = _job_date_window(job)
+        if _windows_overlap(start_date, end_date, target_start, target_end):
+            return job
+
+    team_assignments = JobWorkerAssignment.objects.filter(
+        workerID=worker_profile,
+        assignment_status='ACTIVE',
+        jobID__status__in=[Job.JobStatus.ACTIVE, Job.JobStatus.IN_PROGRESS],
+        jobID__preferredStartDate__isnull=False,
+    ).select_related('jobID')
+    if exclude_job_id:
+        team_assignments = team_assignments.exclude(jobID__jobID=exclude_job_id)
+
+    for assignment in team_assignments:
+        job = assignment.jobID
+        start_date, end_date = _job_date_window(job)
+        if _windows_overlap(start_date, end_date, target_start, target_end):
+            return job
+
+    return None
+
+
 def calculate_budget_allocation(total_budget: Decimal, skill_slots: list, allocation_type: str) -> list:
     """
     Calculate budget allocation for each skill slot based on allocation type.
@@ -83,6 +140,7 @@ def create_team_job(
     team_start_threshold: float = 100.0,
     urgency: str = 'MEDIUM',
     preferred_start_date: Optional[str] = None,
+    scheduled_end_date: Optional[str] = None,
     materials_needed: Optional[list] = None,
     payment_method: str = 'WALLET',
     job_scope: str = 'MODERATE_PROJECT',
@@ -165,6 +223,12 @@ def create_team_job(
         except Wallet.DoesNotExist:
             return {'success': False, 'error': 'Wallet not found'}
     
+    preferred_start_date_obj = datetime.strptime(preferred_start_date, '%Y-%m-%d').date() if preferred_start_date else None
+    scheduled_end_date_obj = datetime.strptime(scheduled_end_date, '%Y-%m-%d').date() if scheduled_end_date else preferred_start_date_obj
+
+    if preferred_start_date_obj and scheduled_end_date_obj and scheduled_end_date_obj < preferred_start_date_obj:
+        return {'success': False, 'error': 'scheduled_end_date cannot be earlier than preferred_start_date'}
+
     # Create the job
     job = Job.objects.create(
         clientID=client_profile_record,
@@ -173,7 +237,8 @@ def create_team_job(
         location=location,
         budget=Decimal(str(total_budget)),
         urgency=urgency,
-        preferredStartDate=datetime.strptime(preferred_start_date, '%Y-%m-%d').date() if preferred_start_date else None,
+        preferredStartDate=preferred_start_date_obj,
+        scheduled_end_date=scheduled_end_date_obj,
         materialsNeeded=materials_needed or [],
         jobType='LISTING',  # Team jobs are listings
         status='ACTIVE',
@@ -346,55 +411,18 @@ def apply_to_skill_slot(
     if job.status != 'ACTIVE':
         return {'success': False, 'error': f'Job is not accepting applications (status: {job.status})'}
 
-    # Block workers from applying while currently working on another active assignment
-    active_regular_job = Job.objects.filter(
-        assignedWorkerID=worker_profile,
-        status=Job.JobStatus.IN_PROGRESS,
-    ).exclude(jobID=job.jobID).first()
-    if active_regular_job:
-        Notification.objects.create(
-            accountFK=worker_profile.profileID.accountFK,
-            notificationType="JOB_APPLICATION_BLOCKED",
-            title="Application blocked: active job in progress",
-            message=(
-                f"You can't apply right now because you're currently working on "
-                f"'{active_regular_job.title}'. Complete it first, then apply again."
-            ),
-            relatedJobID=active_regular_job.jobID,
-        )
+    # Date-overlap policy parity: workers can handle multiple jobs when schedules do not overlap.
+    scheduled_conflict = find_worker_schedule_conflict(worker_profile, job, exclude_job_id=job.jobID)
+    if scheduled_conflict:
+        conflict_start, conflict_end = _job_date_window(scheduled_conflict)
         return {
             'success': False,
             'error': (
-                f"You already have an active job: '{active_regular_job.title}'. "
-                "Complete it before applying to another job."
+                f"Schedule conflict: you already have '{scheduled_conflict.title}' on overlapping dates "
+                f"({conflict_start} - {conflict_end})."
             ),
-            'active_job_id': active_regular_job.jobID,
-            'active_job_title': active_regular_job.title,
-        }
-
-    active_team_assignment = JobWorkerAssignment.objects.filter(
-        workerID=worker_profile,
-        assignment_status='ACTIVE',
-    ).select_related('jobID').first()
-    if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
-        Notification.objects.create(
-            accountFK=worker_profile.profileID.accountFK,
-            notificationType="JOB_APPLICATION_BLOCKED",
-            title="Application blocked: active team assignment",
-            message=(
-                f"You can't apply right now because you're currently assigned to "
-                f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
-            ),
-            relatedJobID=active_team_assignment.jobID.jobID,
-        )
-        return {
-            'success': False,
-            'error': (
-                f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
-                "Complete it before applying to another job."
-            ),
-            'active_job_id': active_team_assignment.jobID.jobID,
-            'active_job_title': active_team_assignment.jobID.title,
+            'conflicting_job_id': scheduled_conflict.jobID,
+            'conflicting_job_title': scheduled_conflict.title,
         }
     
     try:
@@ -508,6 +536,20 @@ def accept_team_application(
     
     if application.status != 'PENDING':
         return {'success': False, 'error': f'Application is not pending (status: {application.status})'}
+
+    # Re-check schedule overlap at accept time to prevent race conditions.
+    scheduled_conflict = find_worker_schedule_conflict(application.workerID, job, exclude_job_id=job.jobID)
+    if scheduled_conflict:
+        conflict_start, conflict_end = _job_date_window(scheduled_conflict)
+        return {
+            'success': False,
+            'error': (
+                f"Cannot accept application: worker has schedule conflict with '{scheduled_conflict.title}' "
+                f"({conflict_start} - {conflict_end})."
+            ),
+            'conflicting_job_id': scheduled_conflict.jobID,
+            'conflicting_job_title': scheduled_conflict.title,
+        }
 
     # Enforce required specialization before acceptance (handles older applications)
     worker_has_required_skill = workerSpecialization.objects.filter(

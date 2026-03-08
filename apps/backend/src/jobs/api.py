@@ -6907,6 +6907,7 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             team_start_threshold=payload.team_start_threshold or 100.0,
             urgency=payload.urgency or 'MEDIUM',
             preferred_start_date=payload.preferred_start_date,
+            scheduled_end_date=payload.scheduled_end_date,
             materials_needed=payload.materials_needed,
             payment_method=payload.payment_method or 'WALLET',
             job_scope=payload.job_scope or 'MODERATE_PROJECT',
