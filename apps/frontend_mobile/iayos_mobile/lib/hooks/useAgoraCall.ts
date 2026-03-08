@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { router } from "expo-router";
 import { agoraService, CallState } from "../services/agora";
 import { ENDPOINTS, WS_BASE_URL, apiRequest } from "../api/config";
+import { getAccessToken } from "../utils/tokenStorage";
 
 // Call signaling timeout (30 seconds for unanswered calls)
 const CALL_TIMEOUT_MS = 30000;
@@ -144,14 +145,21 @@ export function useAgoraCall(): UseAgoraCallReturn {
 
   // Connect WebSocket for call signaling
   const connectSignaling = useCallback(
-    (conversationId: number): Promise<any> => {
+    async (conversationId: number): Promise<any> => {
       return new Promise((resolve, reject) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           resolve(wsRef.current);
           return;
         }
 
-        const url = `${WS_BASE_URL}/ws/call/${conversationId}/`;
+        const connect = async () => {
+          const token = await getAccessToken();
+          if (!token) {
+            reject(new Error("Not authenticated. Please log in again."));
+            return;
+          }
+
+          const url = `${WS_BASE_URL}/ws/call/${conversationId}/?token=${encodeURIComponent(token)}`;
         console.log("[Call] Connecting signaling WebSocket:", url);
 
         const ws = new WebSocket(url);
@@ -164,7 +172,7 @@ export function useAgoraCall(): UseAgoraCallReturn {
 
         ws.onerror = (err) => {
           console.error("[Call] ❌ WebSocket error:", err);
-          reject(new Error("Failed to connect signaling"));
+          reject(new Error("Failed to connect call signaling"));
         };
 
         ws.onclose = () => {
@@ -180,6 +188,11 @@ export function useAgoraCall(): UseAgoraCallReturn {
             console.error("[Call] Failed to parse signal:", err);
           }
         };
+        };
+
+        connect().catch((error) => {
+          reject(error instanceof Error ? error : new Error("Failed to connect call signaling"));
+        });
       });
     },
     []
