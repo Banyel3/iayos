@@ -320,6 +320,43 @@ export default function CreateJobScreen() {
   // Debounce timer ref for price prediction
   const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Fetch categories
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading,
+    isError: categoriesLoadError,
+    error: categoriesError,
+  } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const response = await fetchJson<{ categories: Category[] }>(
+        ENDPOINTS.GET_CATEGORIES,
+      );
+      return response.categories || [];
+    },
+  });
+
+  const categories = categoriesData || [];
+
+  // Derive category from first skill slot (universal for all job types)
+  const primaryCategoryId = React.useMemo(() => {
+    return skillSlots[0]?.specialization_id ?? null;
+  }, [skillSlots]);
+
+  const primaryCategory = React.useMemo(() => {
+    if (!primaryCategoryId || !categories) return null;
+    return categories.find((c) => c.id === primaryCategoryId) ?? null;
+  }, [primaryCategoryId, categories]);
+
+  // Category always derived from the first skill slot
+  const effectiveCategoryId = primaryCategoryId;
+  const effectiveCategory = primaryCategory;
+
+  const suggestions = React.useMemo(() => {
+    if (!effectiveCategory) return [];
+    return TITLE_SUGGESTIONS[effectiveCategory.name] || [];
+  }, [effectiveCategory]);
+
   // Database-driven job field suggestions
   const {
     mutate: fetchSuggestions,
@@ -410,42 +447,7 @@ export default function CreateJobScreen() {
     };
   }, [effectiveCategoryId, fetchSuggestions]);
 
-  // Fetch categories
-  const {
-    data: categoriesData,
-    isLoading: categoriesLoading,
-    isError: categoriesLoadError,
-    error: categoriesError,
-  } = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => {
-      const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES,
-      );
-      return response.categories || [];
-    },
-  });
 
-  const categories = categoriesData || [];
-
-  // Derive category from first skill slot (universal for all job types)
-  const primaryCategoryId = React.useMemo(() => {
-    return skillSlots[0]?.specialization_id ?? null;
-  }, [skillSlots]);
-
-  const primaryCategory = React.useMemo(() => {
-    if (!primaryCategoryId || !categories) return null;
-    return categories.find((c) => c.id === primaryCategoryId) ?? null;
-  }, [primaryCategoryId, categories]);
-
-  // Category always derived from the first skill slot
-  const effectiveCategoryId = primaryCategoryId;
-  const effectiveCategory = primaryCategory;
-
-  const suggestions = React.useMemo(() => {
-    if (!effectiveCategory) return [];
-    return TITLE_SUGGESTIONS[effectiveCategory.name] || [];
-  }, [effectiveCategory]);
 
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
@@ -605,26 +607,14 @@ export default function CreateJobScreen() {
     return Number.isFinite(parsed) ? parsed : null;
   }, []);
 
-  // Filter categories to only show worker's skills when hiring specific worker
-  // Categories available in slot modal: filter to worker's skills for invite jobs, all for listing
+  // Filter categories (search only)
+  // Categories available in slot modal: all for both invite jobs and standard listing
   const filteredCategories = React.useMemo(() => {
     if (!categories || !Array.isArray(categories)) {
       return [];
     }
 
     let list = categories;
-    if (workerId && workerDetailsData?.skills) {
-      // For INVITE jobs, only show worker's skills
-      const workerSkillIds = (workerDetailsData.skills as any[])
-        .map((s) => getWorkerSkillSpecializationId(s))
-        .filter((id): id is number => id !== null);
-
-      // If worker skill IDs are missing/malformed, fallback to all categories
-      // so clients can still proceed instead of getting a blank category list.
-      if (workerSkillIds.length > 0) {
-        list = categories.filter((cat) => workerSkillIds.includes(cat.id));
-      }
-    }
 
     if (categorySearch.trim()) {
       const search = categorySearch.toLowerCase();

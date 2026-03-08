@@ -584,7 +584,7 @@ export default function WorkerDetailScreen() {
               </Text>
 
               <View style={styles.aboutFooterDetails}>
-                {(data.city || data.province) && (
+                {Boolean(data.city || data.province) && (
                   <View style={styles.locationRow}>
                     <Ionicons
                       name="location"
@@ -594,7 +594,7 @@ export default function WorkerDetailScreen() {
                     <Text style={styles.locationText}>
                       {[data.city, data.province].filter(Boolean).join(", ")}
                     </Text>
-                    {data.distance && (
+                    {data.distance !== undefined && data.distance !== null && (
                       <Text style={styles.distanceText}>
                         • {data.distance.toFixed(1)}km away
                       </Text>
