@@ -5537,37 +5537,11 @@ export default function ChatScreen() {
 
             {hasActiveNegotiation && (
               <View style={styles.backjobActionButtonsCompact}>
-                {conversation.backjob?.scheduled_date ? (
-                  <View style={styles.backjobScheduledNoticeCard}>
-                    <View style={styles.backjobScheduledNoticeHeader}>
-                      <Ionicons
-                        name="calendar-outline"
-                        size={14}
-                        color={Colors.warning}
-                      />
-                      <Text style={styles.backjobScheduledNoticeTitle}>
-                        Proposed Date: {conversation.backjob.scheduled_date}
-                      </Text>
-                    </View>
-
-                    {conversation.backjob.worker_schedule_confirmed ? (
-                      <Text style={styles.backjobScheduledNoticeText}>
-                        Worker confirmed this schedule. Backjob is ready for
-                        start on the scheduled date.
-                      </Text>
-                    ) : (
-                      <Text style={styles.backjobScheduledNoticeText}>
-                        Waiting for worker confirmation.
-                      </Text>
-                    )}
-                  </View>
-                ) : null}
-
                 {conversation.my_role === "CLIENT" && (
                   <TouchableOpacity
                     style={[
                       styles.backjobActionButtonCompact,
-                      { backgroundColor: Colors.warning },
+                      { backgroundColor: Colors.warning, width: "100%", flexDirection: "column", paddingVertical: 12, gap: 0 },
                     ]}
                     onPress={handleOpenBackjobScheduleModal}
                     disabled={setBackjobScheduledDateMutation.isPending}
@@ -5576,16 +5550,30 @@ export default function ChatScreen() {
                       <ActivityIndicator size="small" color={Colors.white} />
                     ) : (
                       <>
-                        <Ionicons
-                          name="calendar-number"
-                          size={16}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.backjobActionButtonText}>
-                          {conversation.backjob?.scheduled_date
-                            ? "Update Schedule"
-                            : "Set Schedule"}
-                        </Text>
+                        {conversation.backjob?.scheduled_date && (
+                          <>
+                            <Text style={[styles.backjobActionButtonText, { fontWeight: "400", lineHeight: 14 }]}>
+                              Proposed Date: {format(parseScheduledDate(conversation.backjob.scheduled_date) || new Date(), "MMMM d (EEEE)")}
+                            </Text>
+                            {!conversation.backjob.worker_schedule_confirmed && (
+                              <Text style={[styles.backjobActionButtonText, { fontSize: 10, fontWeight: "400", lineHeight: 12 }]}>
+                                Waiting for Worker Confirmation
+                              </Text>
+                            )}
+                          </>
+                        )}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Ionicons
+                            name="calendar-number"
+                            size={16}
+                            color={Colors.white}
+                          />
+                          <Text style={[styles.backjobActionButtonText, { fontWeight: "700", lineHeight: 20 }]}>
+                            {conversation.backjob?.scheduled_date
+                              ? "Tap to Update Schedule"
+                              : "Set Schedule"}
+                          </Text>
+                        </View>
                       </>
                     )}
                   </TouchableOpacity>
@@ -5611,7 +5599,7 @@ export default function ChatScreen() {
                     <TouchableOpacity
                       style={[
                         styles.backjobActionButtonCompact,
-                        { backgroundColor: Colors.success },
+                        { backgroundColor: Colors.success, width: "100%", flexDirection: "column", paddingVertical: 12, gap: 0 },
                       ]}
                       onPress={handleConfirmBackjobScheduledDate}
                       disabled={confirmBackjobScheduledDateMutation.isPending}
@@ -5620,14 +5608,19 @@ export default function ChatScreen() {
                         <ActivityIndicator size="small" color={Colors.white} />
                       ) : (
                         <>
-                          <Ionicons
-                            name="checkmark-done"
-                            size={16}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.backjobActionButtonText}>
-                            Confirm Schedule
+                          <Text style={[styles.backjobActionButtonText, { fontWeight: "400", lineHeight: 14 }]}>
+                            Proposed Date: {format(parseScheduledDate(conversation.backjob.scheduled_date) || new Date(), "MMMM d (EEEE)")}
                           </Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Ionicons
+                              name="checkmark-done"
+                              size={16}
+                              color={Colors.white}
+                            />
+                            <Text style={[styles.backjobActionButtonText, { fontWeight: "700", lineHeight: 20 }]}>
+                              Tap to Confirm Schedule
+                            </Text>
+                          </View>
                         </>
                       )}
                     </TouchableOpacity>
@@ -7738,10 +7731,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    paddingVertical: Spacing.sm,
+    paddingVertical: 6,
     paddingHorizontal: Spacing.md,
     backgroundColor: "#FFF8E1",
-    gap: Spacing.sm,
+    gap: 4,
   },
   backjobScheduledNoticeCard: {
     width: "100%",
@@ -7785,15 +7778,14 @@ const styles = StyleSheet.create({
   backjobActionButtonCompact: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.small,
-    gap: 4,
   },
   backjobActionButtonText: {
     ...Typography.body.small,
     color: Colors.white,
-    fontWeight: "600",
+    textAlign: "center",
   },
   backjobWaitingBadge: {
     flexDirection: "row",

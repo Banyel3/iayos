@@ -32,6 +32,13 @@ interface BackjobDetail {
     resolved_date: string | null;
     scheduled_date: string | null;
     evidence_images: string[];
+    backjob_started: boolean;
+    worker_marked_complete: boolean;
+    client_confirmed: boolean;
+    worker_schedule_confirmed: boolean;
+    worker_schedule_confirmed_at: string | null;
+    admin_rejected_at: string | null;
+    admin_rejection_reason: string | null;
   } | null;
 }
 
@@ -399,7 +406,7 @@ export default function BackjobDetailScreen() {
               <Text style={styles.subSectionTitle}>Timeline</Text>
               <View style={styles.timeline}>
                 {/* 1. Completed (Newest) */}
-                {dispute.resolved_date && (
+                {dispute.status === "RESOLVED" && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
                       <View style={[styles.timelineDot, { backgroundColor: Colors.success }]} />
@@ -414,36 +421,106 @@ export default function BackjobDetailScreen() {
                   </View>
                 )}
 
-                {/* 2. Scheduled Date */}
-                {dispute.scheduled_date && (
+                {/* 2. Worker Marked Complete */}
+                {dispute.worker_marked_complete && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
                       <View style={[
                         styles.timelineDot,
-                        { backgroundColor: Colors.warning, borderColor: Colors.warning },
+                        { backgroundColor: Colors.success, borderColor: Colors.success },
                         dispute.status === "RESOLVED" && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
                       ]} />
                       <View style={styles.timelineConnector} />
                     </View>
                     <View style={styles.timelineContent}>
                       <Text style={[styles.timelineLabel, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
-                        📅 Scheduled Date
+                        Worker Marked Complete
                       </Text>
-                      <Text style={[styles.timelineDate, dispute.status === "RESOLVED" ? styles.timelineDoneText : { color: Colors.warning }]}>
+                      <Text style={[styles.timelineDate, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
+                        Waiting for client approval
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 3. Work Started */}
+                {dispute.backjob_started && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: Colors.info, borderColor: Colors.info },
+                        (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && styles.timelineDoneText]}>
+                        Backjob Work Started
+                      </Text>
+                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && styles.timelineDoneText]}>
+                        Worker has begun working on the backjob
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 4. Worker Confirmed Schedule */}
+                {dispute.worker_schedule_confirmed && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: Colors.success, borderColor: Colors.success },
+                        (dispute.status === "RESOLVED" || dispute.backjob_started) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
+                        Worker Confirmed Schedule
+                      </Text>
+                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
+                        {formatDate(dispute.worker_schedule_confirmed_at)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 5. Scheduled Date / Pending Negotiation */}
+                {dispute.scheduled_date && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: Colors.warning, borderColor: Colors.warning },
+                        (dispute.status === "RESOLVED" || dispute.worker_schedule_confirmed) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.worker_schedule_confirmed) && styles.timelineDoneText]}>
+                        {dispute.worker_schedule_confirmed ? "📅 Scheduled Date" : "⏳ Pending Negotiation"}
+                      </Text>
+                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.worker_schedule_confirmed) ? styles.timelineDoneText : { color: Colors.warning }]}>
                         {formatDate(dispute.scheduled_date)}
                       </Text>
                     </View>
                   </View>
                 )}
 
-                {/* 3. Pending Admin Banner (if OPEN) */}
-                {dispute.status === "OPEN" && (
-                  <View style={styles.timelineItem}>
-                    <View style={styles.timelineLineContainer}>
-                      <View style={[styles.timelineDot, { backgroundColor: Colors.warning }]} />
-                      <View style={styles.timelineConnector} />
-                    </View>
-                    <View style={styles.timelineContent}>
+                {/* 6. Admin Reviewed / Pending Admin Banner */}
+                <View style={styles.timelineItem}>
+                  <View style={styles.timelineLineContainer}>
+                    <View style={[
+                      styles.timelineDot,
+                      { backgroundColor: dispute.status === "OPEN" ? Colors.warning : (dispute.admin_rejected_at ? Colors.error : Colors.textSecondary) },
+                      dispute.status !== "OPEN" && { borderColor: dispute.admin_rejected_at ? Colors.error : Colors.textSecondary }
+                    ]} />
+                    <View style={styles.timelineConnector} />
+                  </View>
+                  <View style={styles.timelineContent}>
+                    {dispute.status === "OPEN" ? (
                       <View style={styles.pendingAdminBanner}>
                         <View style={styles.pendingAdminBannerHeader}>
                           <Ionicons name="hourglass-outline" size={16} color={Colors.warning} />
@@ -453,11 +530,24 @@ export default function BackjobDetailScreen() {
                           Waiting for admin to approve backjob request. You will be notified once work is approved.
                         </Text>
                       </View>
-                    </View>
+                    ) : (
+                      <>
+                        <Text style={[
+                          styles.timelineLabel,
+                          styles.timelineDoneText,
+                          dispute.admin_rejected_at && { color: Colors.error }
+                        ]}>
+                          Admin Reviewed: {dispute.admin_rejected_at ? "Denied" : "Approved"}
+                        </Text>
+                        <Text style={[styles.timelineDate, styles.timelineDoneText]}>
+                          {dispute.admin_rejection_reason || (dispute.admin_rejected_at ? "Backjob request was denied by admin" : "Backjob request has been approved by admin")}
+                        </Text>
+                      </>
+                    )}
                   </View>
-                )}
+                </View>
 
-                {/* 4. Requested (Oldest) */}
+                {/* 7. Requested (Oldest) */}
                 <View style={[styles.timelineItem, { marginBottom: 0 }]}>
                   <View style={styles.timelineLineContainer}>
                     <View style={[styles.timelineDot, { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }]} />
