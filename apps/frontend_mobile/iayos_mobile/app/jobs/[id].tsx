@@ -559,7 +559,7 @@ export default function JobDetailScreen() {
       console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
 
       if (data.success && data.conversation_id) {
-        const route = `/messages/${data.conversation_id}`;
+        const route = `/conversation/${data.conversation_id}`;
         console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
       } else {

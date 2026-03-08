@@ -81,7 +81,7 @@ export default function NotificationsScreen() {
       } else if (notification.notificationType === "MESSAGE") {
         // Deep-link to specific conversation when ID is available, else open inbox
         if (notification.relatedConversationID) {
-          router.push(`/messages/${notification.relatedConversationID}` as any);
+          router.push(`/conversation/${notification.relatedConversationID}` as any);
         } else {
           router.push("/messages" as any);
         }
