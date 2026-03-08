@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import AgencyShell from "./components/AgencyShell";
 import KycGateClient from "./components/KycGateClient";
+import GlobalIncomingCallGate from "./components/GlobalIncomingCallGate";
 
 export default async function AgencyLayout({
   children,
@@ -107,6 +108,7 @@ export default async function AgencyLayout({
         submissionStatus={submissionStatus}
         submissionNotes={submissionNotes}
       >
+        <GlobalIncomingCallGate />
         {children}
       </KycGateClient>
     </AgencyShell>

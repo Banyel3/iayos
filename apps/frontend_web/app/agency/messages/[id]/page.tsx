@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   useAgencyMessages,
   useAgencySendMessage,
@@ -69,6 +69,7 @@ import { useAgencyVoiceCall } from "@/lib/hooks/useAgencyVoiceCall";
 export default function AgencyChatScreen() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const conversationId = parseInt(params.id as string);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -144,6 +145,7 @@ export default function AgencyChatScreen() {
     rejectCall,
     endCall,
     toggleMute,
+    hydrateIncomingCall,
   } = useAgencyVoiceCall();
   const [isMuted, setIsMuted] = useState(false);
 
@@ -188,6 +190,38 @@ export default function AgencyChatScreen() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  useEffect(() => {
+    if (searchParams.get("incoming_call") !== "1") {
+      return;
+    }
+
+    const raw = localStorage.getItem("agency_pending_call");
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const pending = JSON.parse(raw) as {
+        conversationId?: number;
+        callerName?: string;
+        isGroupCall?: boolean;
+      };
+
+      if (Number(pending.conversationId) !== conversationId) {
+        return;
+      }
+
+      hydrateIncomingCall({
+        conversationId,
+        callerName: pending.callerName || "Unknown",
+        isGroupCall: Boolean(pending.isGroupCall),
+      });
+      localStorage.removeItem("agency_pending_call");
+    } catch {
+      localStorage.removeItem("agency_pending_call");
+    }
+  }, [conversationId, hydrateIncomingCall, searchParams]);
 
   const handleStartCall = async () => {
     const started = await initiateCall(
