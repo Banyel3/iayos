@@ -160,6 +160,8 @@ export default function ChatScreen() {
     "EMPLOYEE",
   );
   const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
+  // Prevent stale review flags from trapping the modal while backend state is syncing.
+  const [reviewStatusSyncing, setReviewStatusSyncing] = useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
 
@@ -219,6 +221,13 @@ export default function ChatScreen() {
     conversation?.all_employees_reviewed,
   ]);
 
+  // Clear temporary review-sync bypass once server flags are updated.
+  useEffect(() => {
+    if (conversation?.job?.clientReviewed) {
+      setReviewStatusSyncing(false);
+    }
+  }, [conversation?.job?.clientReviewed]);
+
   // Check if conversation is closed (both parties reviewed)
   // BUT if there's an APPROVED backjob (UNDER_REVIEW status), conversation should stay open
   // OPEN status means waiting for admin approval - conversation should remain closed
@@ -250,6 +259,8 @@ export default function ChatScreen() {
   // Force review: user must review before leaving conversation after payment/completion
   const needsReview = !!(
     conversation?.job &&
+    !reviewStatusSyncing &&
+    (conversation.my_role !== "CLIENT" || conversation.job.remainingPaymentPaid) &&
     (conversation.job.clientMarkedComplete ||
       conversation.job.status === "COMPLETED") &&
     !isConversationClosed &&
@@ -1134,21 +1145,40 @@ export default function ChatScreen() {
             review_target: "AGENCY",
           },
           {
-            onSuccess: () => {
+            onSuccess: async () => {
               setRatingQuality(0);
               setRatingCommunication(0);
               setRatingPunctuality(0);
               setRatingProfessionalism(0);
               setReviewComment("");
+              setReviewStatusSyncing(true);
               setShowReviewModal(false);
-              refetch();
+              await refetch();
               Alert.alert("Thank You!", "Your reviews have been submitted.");
             },
-            onError: (error: unknown) => {
-              Alert.alert(
-                "Error",
-                getErrorMessage(error, "Failed to submit review"),
+            onError: async (error: unknown) => {
+              const errorMessage = getErrorMessage(
+                error,
+                "Failed to submit review",
               );
+
+              // If backend says this was already reviewed, recover to a consistent UI state.
+              if (errorMessage.toLowerCase().includes("already reviewed")) {
+                setRatingQuality(0);
+                setRatingCommunication(0);
+                setRatingPunctuality(0);
+                setRatingProfessionalism(0);
+                setReviewComment("");
+                setReviewStatusSyncing(true);
+                setShowReviewModal(false);
+                await refetch();
+                Alert.alert(
+                  "Already Reviewed",
+                  "Your agency review is already recorded. Refreshing conversation status.",
+                );
+              } else {
+                Alert.alert("Error", errorMessage);
+              }
             },
           },
         );
@@ -4399,7 +4429,7 @@ export default function ChatScreen() {
             animationType="slide"
             presentationStyle="pageSheet"
             onRequestClose={() => {
-              if (!needsReview) setShowReviewModal(false);
+              if (!needsReview || reviewStatusSyncing) setShowReviewModal(false);
               // Block dismiss when review is required
             }}
           >
@@ -4408,7 +4438,7 @@ export default function ChatScreen() {
               <View style={styles.reviewModalHeader}>
                 <TouchableOpacity
                   onPress={() => {
-                    if (!needsReview) {
+                    if (!needsReview || reviewStatusSyncing) {
                       setShowReviewModal(false);
                     } else {
                       Alert.alert(
