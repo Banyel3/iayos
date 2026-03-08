@@ -4,6 +4,7 @@ from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import Conversation, ConversationParticipant, Message, Profile
+from .content_filter import censor_contact_info
 from accounts.models import Job, JobReview, Agency
 
 User = get_user_model()
@@ -432,6 +433,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
     def save_message(self, conversation_id, message_text, message_type):
         """Save a message - supports both Profile and Agency senders"""
         try:
+            sanitized_text = censor_contact_info(message_text)
             conversation = Conversation.objects.get(conversationID=conversation_id)
             
             # Try to get profile for sender
@@ -464,7 +466,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 conversationID=conversation, 
                 sender=profile,  # None if agency user
                 senderAgency=agency,  # None if profile user
-                messageText=message_text, 
+                messageText=sanitized_text,
                 messageType=message_type, 
                 isRead=False
             )
@@ -794,6 +796,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, message_text, message_type):
         try:
+            sanitized_text = censor_contact_info(message_text)
             print(f"[WebSocket] 🔍 Looking up profile for user: {self.user.email}")
             profile_type = getattr(self.user, 'profile_type', None)
             if profile_type:
@@ -812,7 +815,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.create(
                 conversationID=conversation, 
                 sender=profile, 
-                messageText=message_text, 
+                messageText=sanitized_text,
                 messageType=message_type, 
                 isRead=False
             )

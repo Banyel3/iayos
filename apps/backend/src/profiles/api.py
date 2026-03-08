@@ -17,6 +17,7 @@ from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
+from .content_filter import censor_contact_info
 
 
 router = Router()
@@ -2117,12 +2118,14 @@ def send_message(request, data: SendMessageSchema):
                 status=403
             )
         
+        sanitized_text = censor_contact_info(data.message_text)
+
         # Create the message (sender=None for agency, senderAgency=None for profile)
         message = Message.objects.create(
             conversationID=conversation,
             sender=sender_profile,
             senderAgency=sender_agency,
-            messageText=data.message_text,
+            messageText=sanitized_text,
             messageType=data.message_type or "TEXT"
         )
         
