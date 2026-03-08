@@ -2,6 +2,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from .models import Conversation, ConversationParticipant, Message, Profile
 from accounts.models import Job, JobReview, Agency
 
@@ -81,6 +82,16 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 await self.handle_subscribe(data)
                 return
 
+            # Check if this is an unsubscribe request for a conversation
+            if action == 'unsubscribe':
+                await self.handle_unsubscribe(data)
+                return
+
+            # Check if this is a read receipt update
+            if action == 'mark_read':
+                await self.handle_mark_read(data)
+                return
+
             conversation_id = data.get('conversation_id')
             message_text = data.get('message', '')
             message_type = data.get('type', 'TEXT')
@@ -138,22 +149,34 @@ class InboxConsumer(AsyncWebsocketConsumer):
             traceback.print_exc()
 
     async def chat_message(self, event):
-        """Send message to WebSocket - compute is_mine per socket before sending"""
+        """Send chat message with explicit type for mobile listeners."""
         message = event['message']
         message['is_mine'] = (self.user.pk == event.get('sender_account_id'))
         print(f"[InboxWS] 📤 Sending message for conversation {message.get('conversation_id')}")
-        await self.send(text_data=json.dumps(message))
+        await self.send(text_data=json.dumps({
+            'type': 'chat_message',
+            'message': message
+        }))
 
     async def typing_indicator(self, event):
         """Send typing indicator to WebSocket"""
         data = event['data']
         print(f"[InboxWS] 📤 Sending typing indicator for conversation {data.get('conversation_id')}")
         await self.send(text_data=json.dumps({
+            'type': 'typing_indicator',
             'action': 'typing',
             'conversation_id': data['conversation_id'],
             'user_id': data['user_id'],
             'user_name': data['user_name'],
             'is_typing': data['is_typing']
+        }))
+
+    async def message_read(self, event):
+        """Forward read-receipt events to WebSocket clients."""
+        data = event.get('data', {})
+        await self.send(text_data=json.dumps({
+            'type': 'message_read',
+            'data': data
         }))
 
     async def job_status_update(self, event):
@@ -193,6 +216,40 @@ class InboxConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(group_name, self.channel_name)
         self.conversation_groups.append(group_name)
         print(f"[InboxWS] ✅ Dynamically subscribed to {group_name}")
+
+    async def handle_unsubscribe(self, data):
+        """Dynamically unsubscribe from a conversation group."""
+        conversation_id = data.get('conversation_id')
+        if not conversation_id:
+            return
+
+        group_name = f'chat_{conversation_id}'
+        if group_name not in self.conversation_groups:
+            return
+
+        await self.channel_layer.group_discard(group_name, self.channel_name)
+        self.conversation_groups.remove(group_name)
+        print(f"[InboxWS] ✅ Dynamically unsubscribed from {group_name}")
+
+    async def handle_mark_read(self, data):
+        """Mark a message as read and broadcast receipt to chat group."""
+        message_id = data.get('message_id')
+        if not message_id:
+            return
+
+        read_info = await self.mark_message_as_read(message_id)
+        if not read_info:
+            return
+
+        conversation_id = read_info['conversation_id']
+        room_group_name = f'chat_{conversation_id}'
+        await self.channel_layer.group_send(
+            room_group_name,
+            {
+                'type': 'message_read',
+                'data': read_info
+            }
+        )
 
     async def handle_typing_indicator(self, data):
         """Handle typing indicator events"""
@@ -418,6 +475,57 @@ class InboxConsumer(AsyncWebsocketConsumer):
             import traceback
             traceback.print_exc()
             raise
+
+    @database_sync_to_async
+    def mark_message_as_read(self, message_id):
+        """Mark message read if user has access to the conversation."""
+        try:
+            message = Message.objects.select_related('conversationID').get(messageID=message_id)
+            conversation_id = message.conversationID.conversationID
+
+            # Only allow read update for accessible conversations
+            conversation = message.conversationID
+            has_access = False
+
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+
+            if profile:
+                is_direct_participant = (
+                    (conversation.client and conversation.client.profileID == profile.profileID)
+                    or (conversation.worker and conversation.worker.profileID == profile.profileID)
+                )
+                is_team_participant = ConversationParticipant.objects.filter(
+                    conversation=conversation,
+                    profile=profile,
+                ).exists()
+                has_access = is_direct_participant or is_team_participant
+
+            if not has_access:
+                agency = Agency.objects.filter(accountFK=self.user).first()
+                if agency and conversation.agency and conversation.agency.agencyId == agency.agencyId:
+                    has_access = True
+
+            if not has_access:
+                return None
+
+            if not message.isRead:
+                message.isRead = True
+                message.save(update_fields=['isRead'])
+
+            return {
+                'message_id': message.messageID,
+                'conversation_id': conversation_id,
+                'read_at': timezone.now().isoformat(),
+            }
+        except Message.DoesNotExist:
+            return None
+        except Exception as e:
+            print(f"[InboxWS] ❌ Error marking message as read: {str(e)}")
+            return None
 
     async def handle_get_messages(self, data):
         """Handle WebSocket request for message history"""

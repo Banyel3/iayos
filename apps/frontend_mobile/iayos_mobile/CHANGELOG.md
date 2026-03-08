@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Conversation Real-Time Sync Reliability (WebSocket + Cache)**
+  - Fixed mobile message cache invalidation to target active conversation queries keyed by `viewerKey` (prevents stale chat UI that required refresh/reopen)
+  - Standardized inbox websocket payloads to emit explicit event types (`chat_message`, `typing_indicator`, `message_read`) so mobile listeners process events consistently
+  - Added dynamic websocket unsubscribe when leaving a conversation to prevent stale subscriptions and missed/current-thread update conflicts
+  - Aligned outgoing typing/read actions (`action: typing`, `action: mark_read`) with backend consumer protocol and added backend read-receipt handling/broadcast
+  - Added websocket job-status broadcast after mobile final payment so conversation payment state updates instantly without manual refresh
+  - **Impact**: Conversation screens now reflect new messages, typing, read receipts, and payment status changes in real time more reliably
+
 - **Production Skip-Day Request Workflow for DAILY Jobs**
   - Added worker-initiated skip-day requests in conversation Daily Attendance section
   - Team DAILY jobs now require all ACTIVE workers to request before client can review

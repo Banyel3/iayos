@@ -6747,6 +6747,21 @@ def mobile_create_final_payment(request):
         job.paymentMethodSelectedAt = timezone.now()
         job.save()
 
+        # Broadcast live update to job/chat websocket groups so conversation UI updates immediately.
+        try:
+            from jobs.api import broadcast_job_status_update
+
+            broadcast_job_status_update(job.jobID, {
+                "job_id": job.jobID,
+                "status": job.status,
+                "remaining_payment_paid": job.remainingPaymentPaid,
+                "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                "payment_method": payment_method_upper,
+                "event": "final_payment_completed",
+            })
+        except Exception as ws_error:
+            print(f"⚠️ [MOBILE] Final payment websocket broadcast failed: {str(ws_error)}")
+
         # Notify assigned worker/agency that final payment has already been completed.
         recipient_account = None
         if getattr(job, 'assignedWorkerID', None) and job.assignedWorkerID.profileID:

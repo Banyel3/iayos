@@ -9,6 +9,20 @@ import websocketService, {
   ConnectionState,
 } from "../services/websocket";
 
+function invalidateConversationMessageQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  conversationId: number,
+) {
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const key = query.queryKey;
+      return (
+        Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+      );
+    },
+  });
+}
+
 /**
  * Hook to manage WebSocket connection state
  * Automatically connects on mount and disconnects on unmount
@@ -96,9 +110,7 @@ export function useSendMessage() {
       if (sent) {
         // Invalidate queries to trigger refetch
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
-        queryClient.invalidateQueries({
-          queryKey: ["messages", conversationId],
-        });
+        invalidateConversationMessageQueries(queryClient, conversationId);
         return true;
       }
 
@@ -120,9 +132,7 @@ export function useSendMessage() {
 
         if (response.ok) {
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
-          queryClient.invalidateQueries({
-            queryKey: ["messages", conversationId],
-          });
+          invalidateConversationMessageQueries(queryClient, conversationId);
           return true;
         }
 
@@ -165,6 +175,9 @@ export function useMessageListener(conversationId?: number) {
     });
 
     return () => {
+      if (conversationId && websocketService.isConnected()) {
+        websocketService.unsubscribeFromConversation(conversationId);
+      }
       unsubConnect();
     };
   }, [conversationId]);
@@ -180,9 +193,7 @@ export function useMessageListener(conversationId?: number) {
 
         // Update messages cache if we're in this conversation
         if (conversationId && message.conversation_id === conversationId) {
-          queryClient.invalidateQueries({
-            queryKey: ["messages", conversationId],
-          });
+          invalidateConversationMessageQueries(queryClient, conversationId);
         }
       }
 
@@ -191,10 +202,13 @@ export function useMessageListener(conversationId?: number) {
       if (data.type === "job_status_update") {
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         if (conversationId) {
-          queryClient.invalidateQueries({
-            queryKey: ["messages", conversationId],
-          });
+          invalidateConversationMessageQueries(queryClient, conversationId);
         }
+      }
+
+      if (data.type === "message_read" && conversationId) {
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        invalidateConversationMessageQueries(queryClient, conversationId);
       }
     });
 
@@ -276,9 +290,7 @@ export function useMarkAsRead() {
       websocketService.markAsRead(messageId);
 
       // Update cache optimistically
-      queryClient.invalidateQueries({
-        queryKey: ["messages", conversationId],
-      });
+      invalidateConversationMessageQueries(queryClient, conversationId);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
     [queryClient]
