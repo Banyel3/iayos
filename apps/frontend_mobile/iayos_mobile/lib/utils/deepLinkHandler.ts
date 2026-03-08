@@ -16,8 +16,12 @@ export interface DeepLinkData {
  * Handle deep link from notification tap
  */
 export function handleNotificationDeepLink(notification: Notification) {
-  const { notificationType, relatedJobID, relatedApplicationID, relatedKYCLogID } =
-    notification;
+  const {
+    notificationType,
+    relatedJobID,
+    relatedApplicationID,
+    relatedConversationID,
+  } = notification;
 
   try {
     // Job-related notifications
@@ -67,9 +71,23 @@ export function handleNotificationDeepLink(notification: Notification) {
       return;
     }
 
+    // Incoming call notifications
+    if (notificationType === 'CALL_INCOMING') {
+      if (relatedConversationID) {
+        router.push(`/conversation/${relatedConversationID}?incoming_call=1` as any);
+      } else {
+        router.push('/(tabs)/messages' as any);
+      }
+      return;
+    }
+
     // Message notifications
     if (notificationType === 'MESSAGE') {
-      router.push('/(tabs)/messages' as any);
+      if (relatedConversationID) {
+        router.push(`/conversation/${relatedConversationID}` as any);
+      } else {
+        router.push('/(tabs)/messages' as any);
+      }
       return;
     }
 
@@ -132,7 +150,12 @@ export function parseDeepLink(url: string): DeepLinkData | null {
  * Build deep link URL for notification
  */
 export function buildDeepLink(notification: Notification): string {
-  const { notificationType, relatedJobID, relatedApplicationID } = notification;
+  const {
+    notificationType,
+    relatedJobID,
+    relatedApplicationID,
+    relatedConversationID,
+  } = notification;
 
   const baseUrl = 'iayosmobile://';
 
@@ -147,6 +170,10 @@ export function buildDeepLink(notification: Notification): string {
     return `${baseUrl}jobs/${relatedJobID}`;
   }
 
+  if (notificationType === 'CALL_INCOMING' && relatedConversationID) {
+    return `${baseUrl}conversation/${relatedConversationID}?incoming_call=1`;
+  }
+
   // Application-related
   if (relatedApplicationID) {
     return `${baseUrl}applications/${relatedApplicationID}`;
@@ -158,6 +185,9 @@ export function buildDeepLink(notification: Notification): string {
   }
 
   if (notificationType === 'MESSAGE') {
+    if (relatedConversationID) {
+      return `${baseUrl}conversation/${relatedConversationID}`;
+    }
     return `${baseUrl}messages`;
   }
 
