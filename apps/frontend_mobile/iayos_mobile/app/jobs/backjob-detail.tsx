@@ -68,29 +68,55 @@ export default function BackjobDetailScreen() {
   }, [jobId]);
 
   const fetchBackjobDetails = async () => {
+    setIsLoading(true);
     try {
+      if (__DEV__) console.log(`[BackjobDetail] Fetching backjob status for jobId: ${jobId}`);
+
       // Fetch backjob status
       const backjobResponse = await apiRequest(
         ENDPOINTS.BACKJOB_STATUS(parseInt(jobId))
       );
-      if (backjobResponse.ok) {
-        const data = (await backjobResponse.json()) as BackjobDetail;
+
+      if (backjobResponse.status === 404) {
+        if (__DEV__) console.warn(`[BackjobDetail] Backjob 404 Not Found for jobId: ${jobId}`);
+        setBackjob({ has_backjob: false, dispute: null });
+      } else if (backjobResponse.ok) {
+        const result = (await backjobResponse.json()) as any;
+        const data = (result.data || result) as BackjobDetail;
+
+        if (__DEV__) console.log(`[BackjobDetail] Backjob status loaded:`, data.has_backjob);
+
+        // Process absolute URLs for evidence images
+        if (data.dispute?.evidence_images) {
+          data.dispute.evidence_images = data.dispute.evidence_images.map(img =>
+            getAbsoluteMediaUrl(img)
+          ) as string[];
+        }
+
         setBackjob(data);
+      } else {
+        console.error(`[BackjobDetail] Backjob status fetch failed: ${backjobResponse.status}`);
       }
 
       // Fetch job details
+      if (__DEV__) console.log(`[BackjobDetail] Fetching job details for jobId: ${jobId}`);
       const jobResponse = await apiRequest(
         ENDPOINTS.JOB_DETAILS(parseInt(jobId))
       );
+
       if (jobResponse.ok) {
-        const jobData = (await jobResponse.json()) as any;
+        const result = (await jobResponse.json()) as any;
+        const jobData = result.data || result;
+
+        if (__DEV__) console.log(`[BackjobDetail] Job details loaded: ${jobData.title}`);
+
         setJob({
           id: jobData.id || jobData.jobID,
           title: jobData.title,
           description: jobData.description,
           budget: jobData.budget,
           location: jobData.location,
-          category: jobData.category?.name || jobData.category || "Unknown",
+          category: jobData.category?.name || jobData.category || "General",
           client: jobData.client
             ? {
               ...jobData.client,
@@ -98,10 +124,12 @@ export default function BackjobDetailScreen() {
             }
             : null,
         });
+      } else {
+        console.error(`[BackjobDetail] Job details fetch failed: ${jobResponse.status}`);
       }
     } catch (error) {
-      console.error("Error fetching backjob details:", error);
-      Alert.alert("Error", "Failed to load backjob details");
+      console.error("[BackjobDetail] Error fetching backjob details:", error);
+      // Alert.alert("Error", "Failed to load backjob details");
     } finally {
       setIsLoading(false);
     }
