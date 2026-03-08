@@ -984,6 +984,8 @@ class CallConsumer(AsyncWebsocketConsumer):
     async def handle_call_initiate(self, data):
         """Handle call initiation - broadcast to other participant"""
         caller_name = await self.get_user_name()
+        channel_name = data.get('channel_name', f'iayos_call_{self.conversation_id}')
+        is_group = bool(data.get('is_group', False))
         
         # Broadcast call invitation to the group
         await self.channel_layer.group_send(
@@ -994,8 +996,17 @@ class CallConsumer(AsyncWebsocketConsumer):
                 'caller_id': self.user.id,
                 'caller_name': caller_name,
                 'conversation_id': self.conversation_id,
-                'channel_name': data.get('channel_name', f'iayos_call_{self.conversation_id}'),
+                'channel_name': channel_name,
+                'is_group': is_group,
             }
+        )
+
+        # Also send device-level push notification so users can receive call alerts
+        # while outside the active conversation screen.
+        await self.send_incoming_call_push_notifications(
+            caller_name=caller_name,
+            channel_name=channel_name,
+            is_group=is_group,
         )
         
         print(f"[CallWS] 📞 Call initiated by {caller_name} in conversation {self.conversation_id}")
@@ -1098,6 +1109,7 @@ class CallConsumer(AsyncWebsocketConsumer):
                 'channel_name': event.get('channel_name'),
                 'reason': event.get('reason'),
                 'duration': event.get('duration'),
+                'is_group': event.get('is_group', False),
             }
         }))
     
@@ -1172,3 +1184,93 @@ class CallConsumer(AsyncWebsocketConsumer):
             print(f"[CallWS] Created system message: {text}")
         except Exception as e:
             print(f"[CallWS] Error creating system message: {str(e)}")
+
+    @database_sync_to_async
+    def get_call_recipient_account_ids(self):
+        """Get recipient account IDs for this conversation (excluding caller)."""
+        try:
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            recipient_ids = set()
+            caller_account_id = self.user.accountID
+
+            if conversation.client and conversation.client.accountFK_id:
+                recipient_ids.add(conversation.client.accountFK_id)
+
+            if conversation.worker and conversation.worker.accountFK_id:
+                recipient_ids.add(conversation.worker.accountFK_id)
+
+            if conversation.agency and conversation.agency.accountFK_id:
+                recipient_ids.add(conversation.agency.accountFK_id)
+
+            # Include all explicit participants (team jobs / group conversations).
+            participant_profiles = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile__isnull=False
+            ).select_related('profile__accountFK')
+            for participant in participant_profiles:
+                if participant.profile and participant.profile.accountFK_id:
+                    recipient_ids.add(participant.profile.accountFK_id)
+
+            recipient_ids.discard(caller_account_id)
+            return list(recipient_ids)
+        except Exception as e:
+            print(f"[CallWS] Error getting recipient account IDs: {str(e)}")
+            return []
+
+    @database_sync_to_async
+    def create_incoming_call_notifications(self, recipient_account_ids, caller_name):
+        """Create in-app notification records for incoming calls."""
+        from accounts.models import Notification
+
+        if not recipient_account_ids:
+            return
+
+        try:
+            conversation = Conversation.objects.filter(conversationID=self.conversation_id).first()
+            related_job = conversation.relatedJobPosting if conversation else None
+
+            Notification.objects.bulk_create([
+                Notification(
+                    accountFK_id=account_id,
+                    notificationType='MESSAGE',
+                    title='Incoming voice call',
+                    message=f'{caller_name} is calling you',
+                    relatedJobID=related_job,
+                )
+                for account_id in recipient_account_ids
+            ])
+        except Exception as e:
+            print(f"[CallWS] Error creating incoming call notifications: {str(e)}")
+
+    async def send_incoming_call_push_notifications(self, caller_name, channel_name, is_group=False):
+        """Create in-app notification records and send device push alerts for call invites."""
+        try:
+            recipient_account_ids = await self.get_call_recipient_account_ids()
+            if not recipient_account_ids:
+                return
+
+            await self.create_incoming_call_notifications(recipient_account_ids, caller_name)
+
+            from accounts.services import send_device_push_notification
+
+            payload = {
+                'notificationType': 'CALL_INCOMING',
+                'conversation_id': self.conversation_id,
+                'relatedConversationID': self.conversation_id,
+                'caller_id': self.user.id,
+                'caller_name': caller_name,
+                'channel_name': channel_name,
+                'is_group': bool(is_group),
+                'screen': 'conversation',
+            }
+
+            send_result = await database_sync_to_async(send_device_push_notification)(
+                user_account_ids=recipient_account_ids,
+                title='Incoming voice call',
+                body=f'{caller_name} is calling you',
+                data=payload,
+                category='messages',
+            )
+            print(f"[CallWS] 📲 Push call alert sent: {send_result}")
+        except Exception as e:
+            print(f"[CallWS] Error sending call push notifications: {str(e)}")
