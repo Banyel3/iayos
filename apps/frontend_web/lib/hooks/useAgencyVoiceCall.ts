@@ -279,6 +279,12 @@ export function useAgencyVoiceCall() {
     return agoraWebService.toggleMute();
   }, []);
 
+  const hydrateIncomingCall = useCallback((payload: IncomingCall) => {
+    setIncomingCall(payload);
+    setCallStatus("ringing");
+    setError(null);
+  }, []);
+
   useEffect(() => {
     return () => {
       clearTimeoutRef();
@@ -300,6 +306,7 @@ export function useAgencyVoiceCall() {
     rejectCall,
     endCall,
     toggleMute,
+    hydrateIncomingCall,
     remoteParticipantCount: agoraWebService.getRemoteParticipantCount(),
   };
 }
