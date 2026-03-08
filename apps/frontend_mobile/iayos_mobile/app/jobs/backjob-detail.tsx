@@ -60,6 +60,9 @@ export default function BackjobDetailScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
+  // Expansion state
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+
   useEffect(() => {
     fetchBackjobDetails();
   }, [jobId]);
@@ -104,30 +107,6 @@ export default function BackjobDetailScreen() {
     }
   };
 
-  const handleContactClient = async () => {
-    try {
-      // Get or create conversation for this job, reopen if closed (for backjob)
-      const response = await apiRequest(
-        ENDPOINTS.CONVERSATION_BY_JOB(parseInt(jobId), true)
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.conversation_id) {
-          // Navigate to the conversation
-          router.push(`/conversation/${data.conversation_id}` as any);
-        } else {
-          Alert.alert("Error", "Could not find or create conversation");
-        }
-      } else {
-        const error = await response.json();
-        Alert.alert("Error", error.error || "Failed to open conversation");
-      }
-    } catch (error) {
-      console.error("Error opening conversation:", error);
-      Alert.alert("Error", "Failed to open conversation");
-    }
-  };
 
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
@@ -237,242 +216,250 @@ export default function BackjobDetailScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Status Card */}
-        <View
-          style={[styles.statusCard, { borderLeftColor: statusInfo.color }]}
-        >
-          <View style={styles.statusHeader}>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: `${statusInfo.color}20` },
-              ]}
-            >
-              <Ionicons
-                name={statusInfo.icon as any}
-                size={18}
-                color={statusInfo.color}
-              />
-              <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                {statusInfo.label}
-              </Text>
+        {/* SECTION: BACKJOB OVERVIEW */}
+        <View style={[styles.mainSection, !isDetailsExpanded && { paddingBottom: 12 }]}>
+          <TouchableOpacity
+            style={[
+              styles.mainSectionHeader,
+              !isDetailsExpanded && { marginBottom: 0 }
+            ]}
+            onPress={() => setIsDetailsExpanded(!isDetailsExpanded)}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+              <Text style={styles.mainSectionTitle}>Details</Text>
             </View>
-            <View
-              style={[
-                styles.priorityBadge,
-                { backgroundColor: `${priorityInfo.color}15` },
-              ]}
-            >
-              <Text
-                style={[styles.priorityText, { color: priorityInfo.color }]}
-              >
-                {priorityInfo.label}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.statusDescription}>
-            {dispute.status === "UNDER_REVIEW"
-              ? "Please review and complete the backjob work requested by the client."
-              : dispute.status === "RESOLVED"
-                ? "This backjob has been completed successfully."
-                : "This backjob request is pending admin review."}
-          </Text>
-          {dispute.scheduled_date && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: "#fff3cd", borderRadius: 8, padding: 10 }}>
-              <Ionicons name="calendar-outline" size={16} color={Colors.warning} />
-              <Text style={{ color: Colors.warning, fontWeight: "600", fontSize: 13 }}>
-                Scheduled: {formatDate(dispute.scheduled_date)}
-              </Text>
-            </View>
+            <Ionicons
+              name={isDetailsExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={Colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {isDetailsExpanded && (
+            <>
+              <View style={styles.sectionDivider} />
+
+              {/* Job Info */}
+              {job && (
+                <View style={styles.subSection}>
+                  <Text style={styles.subSectionTitle}>Related Job</Text>
+                  <View style={styles.jobCard}>
+                    <Text style={styles.jobTitle}>{job.title}</Text>
+                    <View style={styles.jobMeta}>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.metaText}>
+                          ₱{job.budget?.toLocaleString()}
+                        </Text>
+                      </View>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="pricetag-outline"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.metaText}>{job.category}</Text>
+                      </View>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {job.location}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Client Info */}
+              {job?.client && (
+                <View style={styles.subSection}>
+                  <Text style={styles.subSectionTitle}>Client</Text>
+                  <View style={styles.clientCard}>
+                    {job.client.avatar ? (
+                      <Image
+                        source={{ uri: job.client.avatar }}
+                        style={styles.clientAvatar}
+                      />
+                    ) : (
+                      <View style={[styles.clientAvatar, styles.avatarPlaceholder]}>
+                        <Ionicons
+                          name="person"
+                          size={24}
+                          color={Colors.textSecondary}
+                        />
+                      </View>
+                    )}
+                    <View style={styles.clientInfo}>
+                      <Text style={styles.clientName}>{job.client.name}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Backjob Reason */}
+              <View style={styles.subSection}>
+                <Text style={styles.subSectionTitle}>Reason for Backjob</Text>
+                <View style={styles.infoCard}>
+                  <Text style={styles.reason}>{dispute.reason}</Text>
+                </View>
+              </View>
+
+              {/* Description */}
+              <View style={styles.subSection}>
+                <Text style={styles.subSectionTitle}>Detailed Description</Text>
+                <View style={styles.infoCard}>
+                  <Text style={styles.description}>{dispute.description}</Text>
+                </View>
+              </View>
+
+              {/* Evidence Images */}
+              {dispute.evidence_images && dispute.evidence_images.length > 0 && (
+                <View style={[styles.subSection, { marginBottom: 0 }]}>
+                  <Text style={styles.subSectionTitle}>
+                    Evidence Photos ({dispute.evidence_images.length})
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.evidenceScroll}
+                  >
+                    {dispute.evidence_images.map((uri, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.evidenceImageContainer}
+                        onPress={() => openImageViewer(index)}
+                      >
+                        <Image source={{ uri }} style={styles.evidenceImage} />
+                        <View style={styles.imageOverlay}>
+                          <Ionicons name="expand" size={20} color="#FFF" />
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </>
           )}
         </View>
 
-        {/* Job Info */}
-        {job && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Related Job</Text>
-            <View style={styles.jobCard}>
-              <Text style={styles.jobTitle}>{job.title}</Text>
-              <View style={styles.jobMeta}>
-                <View style={styles.metaItem}>
-                  <Ionicons
-                    name="cash-outline"
-                    size={14}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.metaText}>
-                    ₱{job.budget?.toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Ionicons
-                    name="pricetag-outline"
-                    size={14}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.metaText}>{job.category}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Ionicons
-                    name="location-outline"
-                    size={14}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {job.location}
-                  </Text>
-                </View>
-              </View>
+        {/* SECTION: STATUS & UPDATES */}
+        <View style={styles.mainSection}>
+          <View style={[styles.mainSectionHeader, { marginBottom: 12 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <Ionicons name="notifications-outline" size={18} color={Colors.primary} />
+              <Text style={styles.mainSectionTitle}>Status</Text>
             </View>
           </View>
-        )}
 
-        {/* Client Info */}
-        {job?.client && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Client</Text>
-            <View style={styles.clientCard}>
-              {job.client.avatar ? (
-                <Image
-                  source={{ uri: job.client.avatar }}
-                  style={styles.clientAvatar}
-                />
-              ) : (
-                <View style={[styles.clientAvatar, styles.avatarPlaceholder]}>
-                  <Ionicons
-                    name="person"
-                    size={24}
-                    color={Colors.textSecondary}
-                  />
-                </View>
-              )}
-              <View style={styles.clientInfo}>
-                <Text style={styles.clientName}>{job.client.name}</Text>
-                <TouchableOpacity
-                  style={styles.contactButton}
-                  onPress={handleContactClient}
-                >
-                  <Ionicons
-                    name="chatbubble-outline"
-                    size={14}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.contactButtonText}>Contact Client</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
+          <>
+            <View style={styles.sectionDivider} />
 
-        {/* Backjob Reason */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reason for Backjob</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.reason}>{dispute.reason}</Text>
-          </View>
-        </View>
 
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Detailed Description</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.description}>{dispute.description}</Text>
-          </View>
-        </View>
-
-        {/* Evidence Images */}
-        {dispute.evidence_images && dispute.evidence_images.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Evidence Photos ({dispute.evidence_images.length})
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.evidenceScroll}
-            >
-              {dispute.evidence_images.map((uri, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.evidenceImageContainer}
-                  onPress={() => openImageViewer(index)}
-                >
-                  <Image source={{ uri }} style={styles.evidenceImage} />
-                  <View style={styles.imageOverlay}>
-                    <Ionicons name="expand" size={20} color="#FFF" />
+            {/* Timeline */}
+            <View style={styles.subSection}>
+              <Text style={styles.subSectionTitle}>Timeline</Text>
+              <View style={styles.timeline}>
+                {/* 1. Completed (Newest) */}
+                {dispute.resolved_date && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[styles.timelineDot, { backgroundColor: Colors.success }]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={styles.timelineLabel}>Completed</Text>
+                      <Text style={styles.timelineDate}>
+                        {formatDate(dispute.resolved_date)}
+                      </Text>
+                    </View>
                   </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+                )}
 
-        {/* Timeline */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Timeline</Text>
-          <View style={styles.timeline}>
-            <View style={styles.timelineItem}>
-              <View
-                style={[styles.timelineDot, { backgroundColor: Colors.info }]}
-              />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabel}>Requested</Text>
-                <Text style={styles.timelineDate}>
-                  {formatDate(dispute.opened_date)}
-                </Text>
+                {/* 2. Scheduled Date */}
+                {dispute.scheduled_date && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: Colors.warning, borderColor: Colors.warning },
+                        dispute.status === "RESOLVED" && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
+                        📅 Scheduled Date
+                      </Text>
+                      <Text style={[styles.timelineDate, dispute.status === "RESOLVED" ? styles.timelineDoneText : { color: Colors.warning }]}>
+                        {formatDate(dispute.scheduled_date)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 3. Pending Admin Banner (if OPEN) */}
+                {dispute.status === "OPEN" && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[styles.timelineDot, { backgroundColor: Colors.warning }]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <View style={styles.pendingAdminBanner}>
+                        <View style={styles.pendingAdminBannerHeader}>
+                          <Ionicons name="hourglass-outline" size={16} color={Colors.warning} />
+                          <Text style={styles.pendingAdminBannerTitle}>Admin Review Pending</Text>
+                        </View>
+                        <Text style={styles.pendingAdminBannerText}>
+                          Waiting for admin to approve backjob request. You will be notified once work is approved.
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* 4. Requested (Oldest) */}
+                <View style={[styles.timelineItem, { marginBottom: 0 }]}>
+                  <View style={styles.timelineLineContainer}>
+                    <View style={[styles.timelineDot, { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }]} />
+                  </View>
+                  <View style={styles.timelineContent}>
+                    <Text style={[styles.timelineLabel, styles.timelineDoneText]}>Requested</Text>
+                    <Text style={[styles.timelineDate, styles.timelineDoneText]}>
+                      {formatDate(dispute.opened_date)}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
-            {dispute.scheduled_date && (
-              <View style={styles.timelineItem}>
+
+            {/* Resolution */}
+            {dispute.resolution && (
+              <View style={styles.subSection}>
+                <Text style={styles.subSectionTitle}>Resolution Notes</Text>
                 <View
                   style={[
-                    styles.timelineDot,
-                    { backgroundColor: Colors.warning },
+                    styles.infoCard,
+                    { backgroundColor: `${Colors.success}10` },
                   ]}
-                />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>📅 Scheduled Date</Text>
-                  <Text style={[styles.timelineDate, { color: Colors.warning }]}>
-                    {formatDate(dispute.scheduled_date)}
-                  </Text>
+                >
+                  <Text style={styles.resolution}>{dispute.resolution}</Text>
                 </View>
               </View>
             )}
-            {dispute.resolved_date && (
-              <View style={styles.timelineItem}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    { backgroundColor: Colors.success },
-                  ]}
-                />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>Completed</Text>
-                  <Text style={styles.timelineDate}>
-                    {formatDate(dispute.resolved_date)}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
+          </>
         </View>
-
-        {/* Resolution */}
-        {dispute.resolution && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Resolution Notes</Text>
-            <View
-              style={[
-                styles.infoCard,
-                { backgroundColor: `${Colors.success}10` },
-              ]}
-            >
-              <Text style={styles.resolution}>{dispute.resolution}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Contact Client Button - Completion happens in conversation */}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -540,7 +527,7 @@ export default function BackjobDetailScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </View >
   );
 }
 
@@ -669,6 +656,71 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  mainSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.xl,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mainSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 8,
+  },
+  mainSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    letterSpacing: 0.3,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginBottom: 20,
+    opacity: 0.5,
+  },
+  subSection: {
+    marginBottom: 24,
+  },
+  subSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  pendingAdminBanner: {
+    backgroundColor: `${Colors.warning}10`,
+    borderRadius: BorderRadius.lg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: `${Colors.warning}30`,
+  },
+  pendingAdminBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 8,
+  },
+  pendingAdminBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.warning,
+  },
+  pendingAdminBannerText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
   jobCard: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: BorderRadius.lg,
@@ -725,16 +777,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: 4,
   },
-  contactButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  contactButtonText: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: "500",
-  },
   infoCard: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: BorderRadius.lg,
@@ -786,36 +828,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timeline: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.lg,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingTop: 8,
   },
   timelineItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 16,
+    marginBottom: 0,
+    minHeight: 60,
+  },
+  timelineLineContainer: {
+    alignItems: "center",
+    width: 20,
+    marginRight: 12,
+    alignSelf: "stretch",
   },
   timelineDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginTop: 4,
-    marginRight: 12,
+    zIndex: 2,
+    backgroundColor: Colors.background,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  timelineConnector: {
+    position: "absolute",
+    top: 12,
+    bottom: 0,
+    width: 2,
+    backgroundColor: Colors.border,
+    zIndex: 1,
+    left: 9, // Centered in 20px container
   },
   timelineContent: {
     flex: 1,
+    paddingBottom: 24,
   },
   timelineLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: Colors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   timelineDate: {
     fontSize: 13,
     color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  timelineDoneText: {
+    color: Colors.textSecondary,
+    opacity: 0.7,
   },
   completeButton: {
     flexDirection: "row",

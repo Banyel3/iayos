@@ -9,6 +9,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { router } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
@@ -221,179 +223,188 @@ export default function CreateDisputeScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="alert-circle" size={48} color="#EF4444" />
-        <Text style={styles.headerTitle}>Report a Dispute</Text>
-        <Text style={styles.headerSubtitle}>
-          Please provide as much detail as possible to help us resolve your
-          issue quickly.
-        </Text>
-      </View>
-
-      {/* Dispute Type */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Dispute Type <Text style={styles.required}>*</Text>
-        </Text>
-        <View style={styles.disputeTypeGrid}>
-          {disputeTypes.map((type) => (
-            <TouchableOpacity
-              key={type.id}
-              style={[
-                styles.disputeTypeButton,
-                disputeType === type.id && styles.disputeTypeButtonActive,
-              ]}
-              onPress={() => setDisputeType(type.id)}
-            >
-              <Ionicons
-                name={type.icon as any}
-                size={24}
-                color={disputeType === type.id ? "#3B82F6" : "#6B7280"}
-              />
-              <Text
-                style={[
-                  styles.disputeTypeText,
-                  disputeType === type.id && styles.disputeTypeTextActive,
-                ]}
-              >
-                {type.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+    >
+      <ScrollView
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <Ionicons name="alert-circle" size={48} color="#EF4444" />
+          <Text style={styles.headerTitle}>Report a Dispute</Text>
+          <Text style={styles.headerSubtitle}>
+            Please provide as much detail as possible to help us resolve your
+            issue quickly.
+          </Text>
         </View>
-      </View>
 
-      {/* Job ID (Optional) */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Job ID (Optional)</Text>
-        <Text style={styles.sectionHint}>
-          If this dispute is related to a specific job, enter the Job ID
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., 12345"
-          value={jobId}
-          onChangeText={setJobId}
-          keyboardType="numeric"
-        />
-      </View>
-
-      {/* Subject */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Subject <Text style={styles.required}>*</Text>
-        </Text>
-        <Text style={styles.sectionHint}>
-          Brief summary of the issue (10-100 characters)
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., Payment not received after job completion"
-          value={subject}
-          onChangeText={setSubject}
-          maxLength={100}
-        />
-        <Text style={styles.charCounter}>{subject.length} / 100</Text>
-      </View>
-
-      {/* Description */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Description <Text style={styles.required}>*</Text>
-        </Text>
-        <Text style={styles.sectionHint}>
-          Detailed explanation of what happened (50-1000 characters)
-        </Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Describe the issue in detail. Include dates, times, and any relevant information that will help us understand and resolve the dispute..."
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          numberOfLines={8}
-          maxLength={1000}
-          textAlignVertical="top"
-        />
-        <Text style={styles.charCounter}>{description.length} / 1000</Text>
-      </View>
-
-      {/* Evidence */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Evidence (Optional)</Text>
-        <Text style={styles.sectionHint}>
-          Upload screenshots, photos, or documents (up to 5 files, max 5MB each)
-        </Text>
-
-        {evidence.length > 0 && (
-          <View style={styles.evidenceGrid}>
-            {evidence.map((item, index) => (
-              <View key={index} style={styles.evidenceItem}>
-                <Image
-                  source={{ uri: item.uri }}
-                  style={styles.evidenceImage}
+        {/* Dispute Type */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Dispute Type <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.disputeTypeGrid}>
+            {disputeTypes.map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.disputeTypeButton,
+                  disputeType === type.id && styles.disputeTypeButtonActive,
+                ]}
+                onPress={() => setDisputeType(type.id)}
+              >
+                <Ionicons
+                  name={type.icon as any}
+                  size={24}
+                  color={disputeType === type.id ? "#3B82F6" : "#6B7280"}
                 />
-                <TouchableOpacity
-                  style={styles.evidenceRemove}
-                  onPress={() => removeEvidence(index)}
+                <Text
+                  style={[
+                    styles.disputeTypeText,
+                    disputeType === type.id && styles.disputeTypeTextActive,
+                  ]}
                 >
-                  <Ionicons name="close-circle" size={24} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
             ))}
           </View>
-        )}
+        </View>
 
-        {evidence.length < 5 && (
-          <TouchableOpacity
-            style={styles.addEvidenceButton}
-            onPress={addEvidence}
-          >
-            <Ionicons name="camera-outline" size={24} color="#3B82F6" />
-            <Text style={styles.addEvidenceText}>Add Evidence</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        {/* Job ID (Optional) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Job ID (Optional)</Text>
+          <Text style={styles.sectionHint}>
+            If this dispute is related to a specific job, enter the Job ID
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., 12345"
+            value={jobId}
+            onChangeText={setJobId}
+            keyboardType="numeric"
+          />
+        </View>
 
-      {/* Important Information */}
-      <View style={styles.infoBox}>
-        <Ionicons name="information-circle" size={20} color="#3B82F6" />
-        <Text style={styles.infoText}>
-          <Text style={styles.infoBold}>Important:</Text> False or malicious
-          disputes may result in account suspension. Please ensure all
-          information is accurate and truthful.
-        </Text>
-      </View>
+        {/* Subject */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Subject <Text style={styles.required}>*</Text>
+          </Text>
+          <Text style={styles.sectionHint}>
+            Brief summary of the issue (10-100 characters)
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Payment not received after job completion"
+            value={subject}
+            onChangeText={setSubject}
+            maxLength={100}
+          />
+          <Text style={styles.charCounter}>{subject.length} / 100</Text>
+        </View>
 
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={[
-          styles.submitButton,
-          isSubmitting && styles.submitButtonDisabled,
-        ]}
-        onPress={submitDispute}
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? (
-          <>
-            <ActivityIndicator color="#FFFFFF" size="small" />
-            <Text style={styles.submitButtonText}>Submitting...</Text>
-          </>
-        ) : (
-          <>
-            <Ionicons name="send" size={20} color="#FFFFFF" />
-            <Text style={styles.submitButtonText}>Submit Dispute</Text>
-          </>
-        )}
-      </TouchableOpacity>
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Description <Text style={styles.required}>*</Text>
+          </Text>
+          <Text style={styles.sectionHint}>
+            Detailed explanation of what happened (50-1000 characters)
+          </Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Describe the issue in detail. Include dates, times, and any relevant information that will help us understand and resolve the dispute..."
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={8}
+            maxLength={1000}
+            textAlignVertical="top"
+          />
+          <Text style={styles.charCounter}>{description.length} / 1000</Text>
+        </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Our support team typically responds within 1-3 business days. You will
-          receive notifications about your dispute status.
-        </Text>
-      </View>
-    </ScrollView>
+        {/* Evidence */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Evidence (Optional)</Text>
+          <Text style={styles.sectionHint}>
+            Upload screenshots, photos, or documents (up to 5 files, max 5MB each)
+          </Text>
+
+          {evidence.length > 0 && (
+            <View style={styles.evidenceGrid}>
+              {evidence.map((item, index) => (
+                <View key={index} style={styles.evidenceItem}>
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.evidenceImage}
+                  />
+                  <TouchableOpacity
+                    style={styles.evidenceRemove}
+                    onPress={() => removeEvidence(index)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {evidence.length < 5 && (
+            <TouchableOpacity
+              style={styles.addEvidenceButton}
+              onPress={addEvidence}
+            >
+              <Ionicons name="camera-outline" size={24} color="#3B82F6" />
+              <Text style={styles.addEvidenceText}>Add Evidence</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Important Information */}
+        <View style={styles.infoBox}>
+          <Ionicons name="information-circle" size={20} color="#3B82F6" />
+          <Text style={styles.infoText}>
+            <Text style={styles.infoBold}>Important:</Text> False or malicious
+            disputes may result in account suspension. Please ensure all
+            information is accurate and truthful.
+          </Text>
+        </View>
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+            isSubmitting && styles.submitButtonDisabled,
+          ]}
+          onPress={submitDispute}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={styles.submitButtonText}>Submitting...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="send" size={20} color="#FFFFFF" />
+              <Text style={styles.submitButtonText}>Submit Dispute</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Our support team typically responds within 1-3 business days. You will
+            receive notifications about your dispute status.
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

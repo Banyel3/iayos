@@ -81,7 +81,7 @@ export const RequestExtensionModal: React.FC<RequestExtensionModalProps> = ({
     >
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.container}>
           {/* Header */}
@@ -190,24 +190,24 @@ export const RequestExtensionModal: React.FC<RequestExtensionModalProps> = ({
             {effectiveDays > 0 && (
               <View style={styles.costSummary}>
                 <Text style={styles.costTitle}>Extension Summary</Text>
-                
+
                 <View style={styles.costRow}>
                   <Text style={styles.costLabel}>Additional Days</Text>
                   <Text style={styles.costValue}>+{effectiveDays} days</Text>
                 </View>
-                
+
                 <View style={styles.costRow}>
                   <Text style={styles.costLabel}>New Total Duration</Text>
                   <Text style={styles.costValue}>{newDuration} days</Text>
                 </View>
-                
+
                 <View style={styles.costDivider} />
-                
+
                 <View style={styles.costRow}>
                   <Text style={styles.costLabel}>Daily Rate</Text>
                   <Text style={styles.costValue}>₱{dailyRate.toLocaleString()}/day</Text>
                 </View>
-                
+
                 <View style={[styles.costRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>Additional Escrow Required</Text>
                   <Text style={styles.totalValue}>₱{additionalEscrow.toLocaleString()}</Text>

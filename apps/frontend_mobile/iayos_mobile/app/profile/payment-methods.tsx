@@ -238,7 +238,7 @@ export default function PaymentMethodsScreen() {
     if (selectedType === "GCASH" || selectedType === "MAYA") {
       // Remove spaces/dashes
       cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
-      
+
       // Validate PH mobile number format (11 digits starting with 09)
       if (!/^09\d{9}$/.test(cleanAccountNumber)) {
         Alert.alert("Error", `Invalid ${selectedType === "GCASH" ? "GCash" : "Maya"} number format (e.g., 09123456789)`);
@@ -380,9 +380,9 @@ export default function PaymentMethodsScreen() {
           <Text style={styles.methodNumber}>
             {method.type === "GCASH"
               ? method.account_number.replace(
-                  /(\d{4})(\d{3})(\d{4})/,
-                  "$1 $2 $3",
-                )
+                /(\d{4})(\d{3})(\d{4})/,
+                "$1 $2 $3",
+              )
               : method.account_number}
           </Text>
         </View>
@@ -415,7 +415,7 @@ export default function PaymentMethodsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboardView}
       >
         {/* Header */}
@@ -609,8 +609,8 @@ export default function PaymentMethodsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>
                   {selectedType === "GCASH" ||
-                  selectedType === "MAYA" ||
-                  selectedType === "GRABPAY"
+                    selectedType === "MAYA" ||
+                    selectedType === "GRABPAY"
                     ? "Mobile Number"
                     : selectedType === "BANK"
                       ? "Account Number"
@@ -620,8 +620,8 @@ export default function PaymentMethodsScreen() {
                   style={styles.input}
                   placeholder={
                     selectedType === "GCASH" ||
-                    selectedType === "MAYA" ||
-                    selectedType === "GRABPAY"
+                      selectedType === "MAYA" ||
+                      selectedType === "GRABPAY"
                       ? "09123456789"
                       : selectedType === "BANK"
                         ? "1234567890"
@@ -632,8 +632,8 @@ export default function PaymentMethodsScreen() {
                   keyboardType="numeric"
                   maxLength={
                     selectedType === "GCASH" ||
-                    selectedType === "MAYA" ||
-                    selectedType === "GRABPAY"
+                      selectedType === "MAYA" ||
+                      selectedType === "GRABPAY"
                       ? 11
                       : selectedType === "BANK"
                         ? 20

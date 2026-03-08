@@ -633,9 +633,9 @@ export default function ChatScreen() {
       ? paymentAmount.toFixed(2)
       : conversation.job.budget
         ? (
-            (conversation.job.budget * 0.5) /
-            (conversation.assigned_employees?.length || 1)
-          ).toFixed(2)
+          (conversation.job.budget * 0.5) /
+          (conversation.assigned_employees?.length || 1)
+        ).toFixed(2)
         : "0.00";
 
     setApprovingEmployeeId(employeeId);
@@ -696,14 +696,14 @@ export default function ChatScreen() {
       const remainingAmount =
         approvingEmployeeId && approvingEmployeeName
           ? (
-              conversation.assigned_employees?.find(
-                (e) => e.id === approvingEmployeeId,
-              )?.paymentAmount ??
-              (conversation.job.budget
-                ? (conversation.job.budget * 0.5) /
-                  (conversation.assigned_employees?.length || 1)
-                : 0)
-            ).toFixed(2)
+            conversation.assigned_employees?.find(
+              (e) => e.id === approvingEmployeeId,
+            )?.paymentAmount ??
+            (conversation.job.budget
+              ? (conversation.job.budget * 0.5) /
+              (conversation.assigned_employees?.length || 1)
+              : 0)
+          ).toFixed(2)
           : (baseRemaining + materialsCostVal).toFixed(2);
 
       const workerText = approvingEmployeeId
@@ -1503,11 +1503,11 @@ export default function ChatScreen() {
     Alert.alert("Report", "Choose what to report", [
       ...(reportUserTargetId
         ? [
-            {
-              text: "Report User",
-              onPress: () => openReportReasonPicker("user", reportUserTargetId),
-            },
-          ]
+          {
+            text: "Report User",
+            onPress: () => openReportReasonPicker("user", reportUserTargetId),
+          },
+        ]
         : []),
       { text: "Report Job", onPress: () => openReportReasonPicker("job") },
       {
@@ -1651,7 +1651,7 @@ export default function ChatScreen() {
       index === 0 ||
       Math.abs(
         new Date(item.created_at).getTime() -
-          new Date(conversation!.messages[index - 1].created_at).getTime(),
+        new Date(conversation!.messages[index - 1].created_at).getTime(),
       ) > 60000;
 
     // Extract image URL from attachments if present
@@ -2025,18 +2025,18 @@ export default function ChatScreen() {
                 {(isLoading ||
                   (conversation.job.estimatedCompletion &&
                     conversation.job.status !== "COMPLETED")) && (
-                  <EstimatedTimeCard
-                    prediction={conversation?.job?.estimatedCompletion || null}
-                    compact={true}
-                    countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                    jobStartTime={
-                      conversation?.job?.clientConfirmedWorkStarted
-                        ? new Date().toISOString()
-                        : undefined
-                    }
-                    isLoading={isLoading}
-                  />
-                )}
+                    <EstimatedTimeCard
+                      prediction={conversation?.job?.estimatedCompletion || null}
+                      compact={true}
+                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                      jobStartTime={
+                        conversation?.job?.clientConfirmedWorkStarted
+                          ? new Date().toISOString()
+                          : undefined
+                      }
+                      isLoading={isLoading}
+                    />
+                  )}
               </View>
             </TouchableOpacity>
 
@@ -2184,7 +2184,7 @@ export default function ChatScreen() {
                               style={[
                                 styles.teamWorkerCardCompact,
                                 assignment.client_confirmed_arrival &&
-                                  styles.teamWorkerCardConfirmed,
+                                styles.teamWorkerCardConfirmed,
                               ]}
                             >
                               <View style={styles.teamWorkerInfoCompact}>
@@ -2790,7 +2790,7 @@ export default function ChatScreen() {
                         contentContainerStyle={styles.teamWorkersScrollContent}
                       >
                         {conversation.attendance_today &&
-                        conversation.attendance_today.length > 0 ? (
+                          conversation.attendance_today.length > 0 ? (
                           conversation.attendance_today.map(
                             (attendance: any) => (
                               <View
@@ -2798,7 +2798,7 @@ export default function ChatScreen() {
                                 style={[
                                   styles.teamWorkerCardCompact,
                                   attendance.client_confirmed &&
-                                    styles.teamWorkerCardConfirmed,
+                                  styles.teamWorkerCardConfirmed,
                                 ]}
                               >
                                 <View style={styles.teamWorkerInfoCompact}>
@@ -3148,8 +3148,8 @@ export default function ChatScreen() {
                     const completedCount = conversation.job.workerMarkedComplete
                       ? conversation.team_worker_assignments.length
                       : conversation.team_worker_assignments.filter(
-                          (a) => a.worker_marked_complete,
-                        ).length;
+                        (a) => a.worker_marked_complete,
+                      ).length;
 
                     // Show waiting for arrivals if not all arrived
                     if (!allWorkersArrived) {
@@ -3443,7 +3443,7 @@ export default function ChatScreen() {
                       {/* WORKER: Mark buying / Skip buttons */}
                       {conversation.my_role === "WORKER" &&
                         conversation.job.materials_status ===
-                          "PENDING_PURCHASE" && (
+                        "PENDING_PURCHASE" && (
                           <View style={styles.materialsActions}>
                             <TouchableOpacity
                               style={styles.materialsBuyingBtn}
@@ -3495,13 +3495,13 @@ export default function ChatScreen() {
                   !conversation.is_agency_job &&
                   conversation.job?.preferred_start_date &&
                   new Date() <
-                    (() => {
-                      const d = new Date(
-                        conversation.job!.preferred_start_date!,
-                      );
-                      d.setHours(0, 0, 0, 0);
-                      return d;
-                    })() && (
+                  (() => {
+                    const d = new Date(
+                      conversation.job!.preferred_start_date!,
+                    );
+                    d.setHours(0, 0, 0, 0);
+                    return d;
+                  })() && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
                         name="lock-closed-outline"
@@ -3532,13 +3532,13 @@ export default function ChatScreen() {
                   conversation.my_role === "CLIENT" &&
                   (!conversation.job?.preferred_start_date ||
                     new Date() >=
-                      (() => {
-                        const d = new Date(
-                          conversation.job.preferred_start_date!,
-                        );
-                        d.setHours(0, 0, 0, 0);
-                        return d;
-                      })()) &&
+                    (() => {
+                      const d = new Date(
+                        conversation.job.preferred_start_date!,
+                      );
+                      d.setHours(0, 0, 0, 0);
+                      return d;
+                    })()) &&
                   !conversation.job.clientConfirmedWorkStarted &&
                   (conversation.job.materials_status === "NONE" ||
                     conversation.job.materials_status === "APPROVED" ||
@@ -4191,34 +4191,34 @@ export default function ChatScreen() {
                         {conversation.assigned_employees.filter(
                           (e) => e.clientApproved,
                         ).length > 0 && (
-                          <View style={styles.employeeActionsSection}>
-                            {conversation.assigned_employees
-                              .filter((e) => e.clientApproved)
-                              .map((employee) => (
-                                <View
-                                  key={`approved-${employee.id}`}
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                  ]}
-                                >
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={20}
-                                    color="#22c55e"
-                                  />
-                                  <Text
+                            <View style={styles.employeeActionsSection}>
+                              {conversation.assigned_employees
+                                .filter((e) => e.clientApproved)
+                                .map((employee) => (
+                                  <View
+                                    key={`approved-${employee.id}`}
                                     style={[
-                                      styles.waitingButtonText,
-                                      { color: "#22c55e" },
+                                      styles.actionButton,
+                                      styles.waitingButton,
                                     ]}
                                   >
-                                    ✓ {employee.name} — Approved & Paid
-                                  </Text>
-                                </View>
-                              ))}
-                          </View>
-                        )}
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={20}
+                                      color="#22c55e"
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.waitingButtonText,
+                                        { color: "#22c55e" },
+                                      ]}
+                                    >
+                                      ✓ {employee.name} — Approved & Paid
+                                    </Text>
+                                  </View>
+                                ))}
+                            </View>
+                          )}
                       </>
                     );
                   })()}
@@ -4315,12 +4315,12 @@ export default function ChatScreen() {
                   (conversation.is_team_job
                     ? conversation.all_team_workers_reviewed
                     : conversation.job.clientReviewed)) ||
-                (conversation.my_role === "WORKER" &&
-                  conversation.job.workerReviewed)
+                  (conversation.my_role === "WORKER" &&
+                    conversation.job.workerReviewed)
                   ? // Review submitted banner removed - replaced with View Reviews button
-                    null
+                  null
                   : // Redundant review banner removed - use header button instead
-                    null}
+                  null}
 
                 {/* Team job worker review checklist - show who's been reviewed */}
                 {conversation.is_team_job &&
@@ -4360,7 +4360,7 @@ export default function ChatScreen() {
                                 style={[
                                   styles.teamReviewChecklistName,
                                   isReviewed &&
-                                    styles.teamReviewChecklistNameDone,
+                                  styles.teamReviewChecklistNameDone,
                                 ]}
                                 numberOfLines={1}
                               >
@@ -4467,49 +4467,49 @@ export default function ChatScreen() {
                           const categories =
                             conversation.my_role === "CLIENT"
                               ? [
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Punctuality",
-                                    icon: "⏰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Reliability",
-                                    icon: "✅",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Skill",
-                                    icon: "🔧",
-                                  },
-                                  {
-                                    key: "rating_communication",
-                                    label: "Workmanship",
-                                    icon: "🛠️",
-                                  },
-                                ]
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Punctuality",
+                                  icon: "⏰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Reliability",
+                                  icon: "✅",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Skill",
+                                  icon: "🔧",
+                                },
+                                {
+                                  key: "rating_communication",
+                                  label: "Workmanship",
+                                  icon: "🛠️",
+                                },
+                              ]
                               : [
-                                  {
-                                    key: "rating_communication",
-                                    label: "Communication",
-                                    icon: "💬",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Clarity of Job Details",
-                                    icon: "📋",
-                                  },
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Payment Reliability",
-                                    icon: "💰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Respect & Professionalism",
-                                    icon: "🤝",
-                                  },
-                                ];
+                                {
+                                  key: "rating_communication",
+                                  label: "Communication",
+                                  icon: "💬",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Clarity of Job Details",
+                                  icon: "📋",
+                                },
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Payment Reliability",
+                                  icon: "💰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Respect & Professionalism",
+                                  icon: "🤝",
+                                },
+                              ];
 
                           return (
                             <View style={styles.reviewCard}>
@@ -4556,9 +4556,9 @@ export default function ChatScreen() {
                                         key={star}
                                         name={
                                           star <=
-                                          (myReview[
-                                            cat.key as keyof typeof myReview
-                                          ] as number)
+                                            (myReview[
+                                              cat.key as keyof typeof myReview
+                                            ] as number)
                                             ? "star"
                                             : "star-outline"
                                         }
@@ -4576,7 +4576,7 @@ export default function ChatScreen() {
                                     >
                                       {
                                         myReview[
-                                          cat.key as keyof typeof myReview
+                                        cat.key as keyof typeof myReview
                                         ]
                                       }
                                       /5
@@ -4697,49 +4697,49 @@ export default function ChatScreen() {
                           const categories =
                             conversation.my_role === "CLIENT"
                               ? [
-                                  {
-                                    key: "rating_communication",
-                                    label: "Communication",
-                                    icon: "💬",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Clarity of Job Details",
-                                    icon: "📋",
-                                  },
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Payment Reliability",
-                                    icon: "💰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Respect & Professionalism",
-                                    icon: "🤝",
-                                  },
-                                ]
+                                {
+                                  key: "rating_communication",
+                                  label: "Communication",
+                                  icon: "💬",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Clarity of Job Details",
+                                  icon: "📋",
+                                },
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Payment Reliability",
+                                  icon: "💰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Respect & Professionalism",
+                                  icon: "🤝",
+                                },
+                              ]
                               : [
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Punctuality",
-                                    icon: "⏰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Reliability",
-                                    icon: "✅",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Skill",
-                                    icon: "🔧",
-                                  },
-                                  {
-                                    key: "rating_communication",
-                                    label: "Workmanship",
-                                    icon: "🛠️",
-                                  },
-                                ];
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Punctuality",
+                                  icon: "⏰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Reliability",
+                                  icon: "✅",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Skill",
+                                  icon: "🔧",
+                                },
+                                {
+                                  key: "rating_communication",
+                                  label: "Workmanship",
+                                  icon: "🛠️",
+                                },
+                              ];
 
                           return (
                             <View style={styles.reviewCard}>
@@ -4786,9 +4786,9 @@ export default function ChatScreen() {
                                         key={star}
                                         name={
                                           star <=
-                                          (otherReview[
-                                            cat.key as keyof typeof otherReview
-                                          ] as number)
+                                            (otherReview[
+                                              cat.key as keyof typeof otherReview
+                                            ] as number)
                                             ? "star"
                                             : "star-outline"
                                         }
@@ -4806,7 +4806,7 @@ export default function ChatScreen() {
                                     >
                                       {
                                         otherReview[
-                                          cat.key as keyof typeof otherReview
+                                        cat.key as keyof typeof otherReview
                                         ]
                                       }
                                       /5
@@ -4848,9 +4848,9 @@ export default function ChatScreen() {
                       </View>
                     </View>
                   ) : (conversation.my_role === "CLIENT" &&
-                      (conversation.is_team_job
-                        ? conversation.all_team_workers_reviewed
-                        : conversation.job.clientReviewed)) ||
+                    (conversation.is_team_job
+                      ? conversation.all_team_workers_reviewed
+                      : conversation.job.clientReviewed)) ||
                     (conversation.my_role !== "CLIENT" &&
                       conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
@@ -4862,7 +4862,7 @@ export default function ChatScreen() {
                       />
                       <Text style={styles.reviewWaitingTitle}>
                         {conversation.is_team_job &&
-                        conversation.my_role === "CLIENT"
+                          conversation.my_role === "CLIENT"
                           ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
                           : "Thank you for your review!"}
                       </Text>
@@ -4870,21 +4870,21 @@ export default function ChatScreen() {
                         !conversation.job.workerReviewed) ||
                         (conversation.my_role !== "CLIENT" &&
                           !conversation.job.clientReviewed)) && (
-                        <Text style={styles.reviewWaitingText}>
-                          Waiting for{" "}
-                          {conversation.my_role === "CLIENT"
-                            ? "worker"
-                            : "client"}{" "}
-                          to review...
-                        </Text>
-                      )}
+                          <Text style={styles.reviewWaitingText}>
+                            Waiting for{" "}
+                            {conversation.my_role === "CLIENT"
+                              ? "worker"
+                              : "client"}{" "}
+                            to review...
+                          </Text>
+                        )}
                     </View>
                   ) : (
                     // User hasn't reviewed yet - show review form
                     <>
                       {/* Dynamic title based on agency job review step */}
                       {conversation.is_agency_job &&
-                      conversation.my_role === "CLIENT" ? (
+                        conversation.my_role === "CLIENT" ? (
                         <>
                           {/* Multi-employee support: show which employee is being reviewed */}
                           {(() => {
@@ -5048,9 +5048,9 @@ export default function ChatScreen() {
                                             style={[
                                               styles.teamReviewModalChecklistDot,
                                               isReviewed &&
-                                                styles.teamReviewModalChecklistDotDone,
+                                              styles.teamReviewModalChecklistDotDone,
                                               isCurrent &&
-                                                styles.teamReviewModalChecklistDotCurrent,
+                                              styles.teamReviewModalChecklistDotCurrent,
                                             ]}
                                           >
                                             {isReviewed ? (
@@ -5064,7 +5064,7 @@ export default function ChatScreen() {
                                                 style={[
                                                   styles.teamReviewModalChecklistDotText,
                                                   isCurrent &&
-                                                    styles.teamReviewModalChecklistDotTextCurrent,
+                                                  styles.teamReviewModalChecklistDotTextCurrent,
                                                 ]}
                                               >
                                                 {i + 1}
@@ -5270,8 +5270,7 @@ export default function ChatScreen() {
                                   Punctuality
                                 </Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Did the worker arrive on time and complete the
-                                  job within the agreed timeframe?
+                                  Arrived on time and finished within the agreed timeframe.
                                 </Text>
                               </View>
                             </View>
@@ -5309,8 +5308,7 @@ export default function ChatScreen() {
                                   Reliability
                                 </Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Was the worker dependable and consistent
-                                  throughout the job?
+                                  Dependable and consistent throughout the job.
                                 </Text>
                               </View>
                             </View>
@@ -5346,8 +5344,7 @@ export default function ChatScreen() {
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.criteriaLabel}>Skill</Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Did the worker demonstrate the necessary
-                                  skills and expertise for the job?
+                                  Demonstrated the required skills and expertise.
                                 </Text>
                               </View>
                             </View>
@@ -5385,8 +5382,7 @@ export default function ChatScreen() {
                                   Workmanship
                                 </Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Was the quality of work delivered to a high
-                                  standard?
+                                  Delivered high-quality work.
                                 </Text>
                               </View>
                             </View>
@@ -5442,7 +5438,7 @@ export default function ChatScreen() {
                             ratingProfessionalism === 0 ||
                             !reviewComment.trim() ||
                             submitReviewMutation.isPending) &&
-                            styles.submitReviewButtonDisabled,
+                          styles.submitReviewButtonDisabled,
                         ]}
                         onPress={() => {
                           Keyboard.dismiss();
@@ -5491,18 +5487,7 @@ export default function ChatScreen() {
         {/* Backjob Banner - shows when there's an active backjob */}
         {conversation.backjob?.has_backjob && (
           <View style={styles.backjobSectionCompact}>
-            {conversation.backjob.status === "OPEN" && (
-              <View style={styles.backjobPendingAdminBanner}>
-                <Ionicons
-                  name="hourglass-outline"
-                  size={14}
-                  color={Colors.warning}
-                />
-                <Text style={styles.backjobPendingAdminText}>
-                  Waiting for admin to approve backjob request
-                </Text>
-              </View>
-            )}
+
 
             {/* Compact Backjob Banner */}
             <TouchableOpacity
@@ -6108,7 +6093,7 @@ export default function ChatScreen() {
                 }
               >
                 {approveCompletionMutation.isPending ||
-                createFinalPaymentMutation.isPending ? (
+                  createFinalPaymentMutation.isPending ? (
                   <ActivityIndicator size="small" color={Colors.white} />
                 ) : (
                   <Text style={styles.cashModalSubmitButtonText}>Submit</Text>
