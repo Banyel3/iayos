@@ -6618,7 +6618,7 @@ def mark_backjob_complete(request, job_id: int):
     Notifies client to verify and confirm completion.
     """
     try:
-        print(f" Worker marking backjob complete for job {job_id}")
+        print(f"Worker marking backjob complete for job {job_id}")
         
         # Parse notes from JSON body
         notes = ""
