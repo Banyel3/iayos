@@ -10,6 +10,7 @@ export interface ProfileMetrics {
   rating?: number;
   total_reviews?: number;
   rating_breakdown?: Record<string, number> | null;
+  jobs_completed?: number;
   generated_at?: string;
 }
 

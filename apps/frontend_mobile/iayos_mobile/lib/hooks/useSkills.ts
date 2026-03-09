@@ -23,6 +23,8 @@ export interface WorkerSkill {
   description: string;
   experienceYears: number;
   certification: string;
+  skillType?: "PRIMARY" | "SECONDARY";
+  isPrimary?: boolean;
 }
 
 interface AvailableSkillsResponse {
@@ -45,6 +47,8 @@ interface AddSkillResponse {
     workerSkillId: number;
     name: string;
     experienceYears: number;
+    skillType?: "PRIMARY" | "SECONDARY";
+    isPrimary?: boolean;
   };
 }
 
@@ -55,6 +59,8 @@ interface UpdateSkillResponse {
     id: number;
     name: string;
     experienceYears: number;
+    skillType?: "PRIMARY" | "SECONDARY";
+    isPrimary?: boolean;
   };
 }
 
@@ -110,6 +116,7 @@ export function useAddSkill() {
     mutationFn: async (payload: {
       specialization_id: number;
       experience_years: number;
+      skill_type?: "PRIMARY" | "SECONDARY";
     }): Promise<AddSkillResponse> => {
       const response = await apiRequest(ENDPOINTS.ADD_SKILL, {
         method: "POST",
@@ -144,14 +151,18 @@ export function useUpdateSkill() {
   return useMutation({
     mutationFn: async (payload: {
       skill_id: number;
-      experience_years: number;
+      experience_years?: number;
+      skill_type?: "PRIMARY" | "SECONDARY";
     }): Promise<UpdateSkillResponse> => {
       const response = await apiRequest(
         ENDPOINTS.UPDATE_SKILL(payload.skill_id),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ experience_years: payload.experience_years }),
+          body: JSON.stringify({
+            experience_years: payload.experience_years,
+            skill_type: payload.skill_type,
+          }),
         },
       );
 

@@ -1337,6 +1337,7 @@ def mobile_my_skills(request):
     Returns: List of skills the worker has with id, name, experience years
     """
     from .models import WorkerProfile, workerSpecialization
+    from django.db.models import Case, IntegerField, Value, When
 
     try:
         user = request.auth
@@ -1353,7 +1354,13 @@ def mobile_my_skills(request):
         # Get worker's specializations
         worker_skills = workerSpecialization.objects.filter(
             workerID=worker_profile
-        ).select_related('specializationID').order_by('specializationID__specializationName')
+        ).select_related('specializationID').annotate(
+            primary_sort=Case(
+                When(skillType='PRIMARY', then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        ).order_by('primary_sort', 'specializationID__specializationName')
         
         skills_data = [
             {
@@ -1363,6 +1370,8 @@ def mobile_my_skills(request):
                 'description': ws.specializationID.description or '',
                 'experienceYears': ws.experienceYears,
                 'certification': ws.certification or '',
+                'skillType': ws.skillType,
+                'isPrimary': ws.skillType == 'PRIMARY',
             }
             for ws in worker_skills
         ]
@@ -1435,6 +1444,7 @@ def mobile_add_skill(request, payload: AddSkillSchema):
         # Get values from schema
         specialization_id = payload.specialization_id
         experience_years = payload.experience_years
+        requested_skill_type = (payload.skill_type or 'SECONDARY').upper()
         
         if not specialization_id:
             return Response(
@@ -1445,6 +1455,12 @@ def mobile_add_skill(request, payload: AddSkillSchema):
         if experience_years < 0 or experience_years > 50:
             return Response(
                 {"error": "experience_years must be between 0 and 50"},
+                status=400
+            )
+
+        if requested_skill_type not in ['PRIMARY', 'SECONDARY']:
+            return Response(
+                {"error": "skill_type must be PRIMARY or SECONDARY"},
                 status=400
             )
         
@@ -1476,12 +1492,24 @@ def mobile_add_skill(request, payload: AddSkillSchema):
                 status=400
             )
         
+        # First skill is always primary. Subsequent skills are secondary unless explicitly set.
+        has_existing_skills = workerSpecialization.objects.filter(workerID=worker_profile).exists()
+        skill_type_to_set = 'PRIMARY' if not has_existing_skills else requested_skill_type
+
+        # If setting a new primary skill, demote existing primary.
+        if skill_type_to_set == 'PRIMARY':
+            workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                skillType='PRIMARY'
+            ).update(skillType='SECONDARY')
+
         # Create worker specialization
         worker_skill = workerSpecialization.objects.create(
             workerID=worker_profile,
             specializationID=specialization,
             experienceYears=experience_years,
-            certification=''
+            certification='',
+            skillType=skill_type_to_set,
         )
         
         print(f"✅ [SKILL] Added skill '{specialization.specializationName}' to {user.email}")
@@ -1494,6 +1522,8 @@ def mobile_add_skill(request, payload: AddSkillSchema):
                 'workerSkillId': worker_skill.id,
                 'name': specialization.specializationName,
                 'experienceYears': experience_years,
+                'skillType': worker_skill.skillType,
+                'isPrimary': worker_skill.skillType == 'PRIMARY',
             }
         }
     except Exception as e:
@@ -1519,16 +1549,23 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
     try:
         user = request.auth
         experience_years = payload.experience_years
-        
-        if experience_years is None:
+        requested_skill_type = payload.skill_type.upper() if payload.skill_type else None
+
+        if experience_years is None and requested_skill_type is None:
             return Response(
-                {"error": "experience_years is required"},
+                {"error": "At least one field is required: experience_years or skill_type"},
                 status=400
             )
-        
-        if experience_years < 0 or experience_years > 50:
+
+        if experience_years is not None and (experience_years < 0 or experience_years > 50):
             return Response(
                 {"error": "experience_years must be between 0 and 50"},
+                status=400
+            )
+
+        if requested_skill_type and requested_skill_type not in ['PRIMARY', 'SECONDARY']:
+            return Response(
+                {"error": "skill_type must be PRIMARY or SECONDARY"},
                 status=400
             )
         
@@ -1559,8 +1596,18 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
                 status=404
             )
         
-        # Update experience years
-        worker_skill.experienceYears = experience_years
+        if experience_years is not None:
+            worker_skill.experienceYears = experience_years
+
+        if requested_skill_type == 'PRIMARY':
+            workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                skillType='PRIMARY'
+            ).exclude(id=worker_skill.id).update(skillType='SECONDARY')
+            worker_skill.skillType = 'PRIMARY'
+        elif requested_skill_type == 'SECONDARY':
+            worker_skill.skillType = 'SECONDARY'
+
         worker_skill.save()
         
         print(f"✅ [SKILL] Updated skill experience for {user.email}: {worker_skill.specializationID.specializationName} = {experience_years} years")
@@ -1571,7 +1618,9 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
             'data': {
                 'id': skill_id,
                 'name': worker_skill.specializationID.specializationName,
-                'experienceYears': experience_years,
+                'experienceYears': worker_skill.experienceYears,
+                'skillType': worker_skill.skillType,
+                'isPrimary': worker_skill.skillType == 'PRIMARY',
             }
         }
     except Exception as e:
