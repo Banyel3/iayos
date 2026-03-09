@@ -8448,6 +8448,27 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
             "error": "Cannot request skip day after check-in. Use attendance flow instead."
         }, status=400)
 
+    # Also block skip requests when attendance is already finalized by client
+    # (e.g., client used no-work quick action and confirmed ABSENT for the date).
+    if is_agency:
+        already_finalized = DailyAttendance.objects.filter(
+            jobID=job,
+            date=parsed_date,
+            client_confirmed=True,
+        ).exists()
+    else:
+        already_finalized = DailyAttendance.objects.filter(
+            jobID=job,
+            date=parsed_date,
+            workerID__profileID__accountFK=request.auth,
+            client_confirmed=True,
+        ).exists()
+
+    if already_finalized:
+        return Response({
+            "error": "Cannot request skip day because attendance is already finalized for this date."
+        }, status=400)
+
     requires_all_team_workers = bool(getattr(job, 'is_team_job', False) and not is_agency)
     total_required = 1
     if requires_all_team_workers:

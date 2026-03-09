@@ -1952,6 +1952,12 @@ export default function ChatScreen() {
   const hasAnyClientConfirmedToday = Boolean(
     conversation.attendance_today?.some((a) => Boolean(a.client_confirmed)),
   );
+  const hasNoWorkMarkedToday = Boolean(
+    myWorkerAttendanceToday &&
+      myWorkerAttendanceToday.client_confirmed &&
+      myWorkerAttendanceToday.status === "ABSENT" &&
+      !myWorkerAttendanceToday.time_in,
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -2605,6 +2611,17 @@ export default function ChatScreen() {
                     {/* Worker View: Skip Day Request */}
                     {conversation.my_role === "WORKER" && !hasCheckedInToday && (
                       <View style={styles.skipDayContainer}>
+                        {hasNoWorkMarkedToday ? (
+                          <View style={styles.skipDayStatusApproved}>
+                            <Text style={styles.skipDayStatusTitle}>
+                              No work already recorded
+                            </Text>
+                            <Text style={styles.skipDayStatusText}>
+                              Client already marked today as no-work/absent.
+                            </Text>
+                          </View>
+                        ) : (
+                          <>
                         <View style={styles.skipDayWarningCard}>
                           <Text style={styles.skipDayWarningText}>
                             Client approval is not guaranteed. If your skip-day
@@ -2740,6 +2757,8 @@ export default function ChatScreen() {
 
                           return null;
                         })()}
+                          </>
+                        )}
                       </View>
                     )}
 
