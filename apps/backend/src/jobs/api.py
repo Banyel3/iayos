@@ -6573,7 +6573,7 @@ def confirm_backjob_started(request, job_id: int):
                 conversationID=conversation,
                 sender=None,
                 senderAgency=None,
-                messageText=" Client confirmed backjob work has started. Worker can now mark backjob as complete when finished.",
+                messageText="Client confirmed backjob work has started. Worker can now mark backjob as complete when finished.",
                 messageType="SYSTEM"
             )
         
@@ -6603,7 +6603,7 @@ def confirm_backjob_started(request, job_id: int):
         }
         
     except Exception as e:
-        print(f" Error confirming backjob started: {str(e)}")
+        print(f"Error confirming backjob started: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to confirm backjob started: {str(e)}"}, status=500)

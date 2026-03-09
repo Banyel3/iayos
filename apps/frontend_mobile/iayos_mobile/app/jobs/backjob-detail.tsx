@@ -103,6 +103,7 @@ export default function BackjobDetailScreen() {
         setBackjob(data);
       } else {
         console.error(`[BackjobDetail] Backjob status fetch failed: ${backjobResponse.status}`);
+        setBackjob({ has_backjob: false, dispute: null });
       }
 
       // Fetch job details
@@ -136,7 +137,8 @@ export default function BackjobDetailScreen() {
       }
     } catch (error) {
       console.error("[BackjobDetail] Error fetching backjob details:", error);
-      // Alert.alert("Error", "Failed to load backjob details");
+      setBackjob({ has_backjob: false, dispute: null });
+      Alert.alert("Error", "Failed to load backjob details. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -636,7 +638,7 @@ export default function BackjobDetailScreen() {
           </View>
         </View>
       </Modal>
-    </View >
+    </View>
   );
 }
 

@@ -678,6 +678,7 @@ export default function JobDetailScreen() {
   const {
     data: applicationsData,
     isLoading: applicationsLoading,
+    error: applicationsError,
     refetch: refetchApplications,
   } = useQuery<{ applications: JobApplication[]; total: number }>({
     queryKey: ["job-applications", id],
@@ -2230,7 +2231,7 @@ export default function JobDetailScreen() {
                 <View style={{ padding: Spacing.xl, alignItems: "center" }}>
                   <ActivityIndicator size="small" color={Colors.primary} />
                 </View>
-              ) : error ? (
+              ) : applicationsError ? (
                 <View style={{ padding: Spacing.xl, alignItems: "center" }}>
                   <Ionicons
                     name="alert-circle-outline"

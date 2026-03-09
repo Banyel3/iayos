@@ -290,6 +290,8 @@ export default function ChatScreen() {
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
   const editReviewMutation = useEditReview();
+  const isReviewMutationPending =
+    submitReviewMutation.isPending || editReviewMutation.isPending;
   const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
@@ -4358,7 +4360,8 @@ export default function ChatScreen() {
           {conversation.my_role === "CLIENT" &&
             (conversation.job.status === "COMPLETED" ||
               !!conversation.job.clientMarkedComplete) &&
-            !conversation.backjob?.has_backjob && (
+            !conversation.backjob?.has_backjob &&
+            isConversationClosed && (
               <TouchableOpacity
                 style={styles.requestBackjobBanner}
                 onPress={() =>
@@ -4416,7 +4419,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={styles.requestBackjobBanner}
               onPress={() => {
-                setReviewModalMode("view");
+                setReviewModalMode("edit");
                 setShowReviewModal(true);
               }}
               activeOpacity={0.8}
@@ -5657,7 +5660,7 @@ export default function ChatScreen() {
                             ratingPunctuality === 0 ||
                             ratingProfessionalism === 0 ||
                             !reviewComment.trim() ||
-                            submitReviewMutation.isPending) &&
+                              isReviewMutationPending) &&
                           styles.submitReviewButtonDisabled,
                         ]}
                         onPress={() => {
@@ -5670,10 +5673,10 @@ export default function ChatScreen() {
                           ratingPunctuality === 0 ||
                           ratingProfessionalism === 0 ||
                           !reviewComment.trim() ||
-                          submitReviewMutation.isPending
+                          isReviewMutationPending
                         }
                       >
-                        {submitReviewMutation.isPending ? (
+                        {isReviewMutationPending ? (
                           <ActivityIndicator
                             size="small"
                             color={Colors.white}
