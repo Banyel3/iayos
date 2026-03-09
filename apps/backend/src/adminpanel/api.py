@@ -1250,7 +1250,7 @@ def accept_negotiation(request, dispute_id: int):
             # System message to announce negotiation state
             Message.create_system_message(
                 conversation,
-                "⚖️ Negotiation started. Client and worker/agency should agree on a backjob schedule date."
+                "Negotiation started. Client and worker/agency should agree on a backjob schedule date."
             )
 
             # Notify client + worker
@@ -1287,7 +1287,7 @@ def accept_negotiation(request, dispute_id: int):
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
-        print(f"❌ Error accepting negotiation: {str(e)}")
+        print(f"Error accepting negotiation: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1384,7 +1384,7 @@ def finish_negotiation(request, dispute_id: int):
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
-        print(f"❌ Error finishing negotiation: {str(e)}")
+        print(f"Error finishing negotiation: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1522,14 +1522,14 @@ def approve_backjob(request, dispute_id: int):
                         'archivedByWorker',
                         'updatedAt'
                     ])
-                    print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
+                    print(f"Reopened conversation {conversation.conversationID} (was {old_status})")
                     
                     # Add system message (no sender - renders as centered system bubble)
                     Message.create_system_message(
                         conversation,
-                        "🔄 Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
+                        "Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
                     )
-                    print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
+                    print(f"Added backjob approval message to conversation {conversation.conversationID}")
                 else:
                     # Create a new conversation if none exists
                     client_profile = job.clientID.profileID
@@ -1545,19 +1545,19 @@ def approve_backjob(request, dispute_id: int):
                         archivedByClient=False,
                         archivedByWorker=False
                     )
-                    print(f"💬 Created new conversation {conversation.conversationID} for backjob")
+                    print(f"Created new conversation {conversation.conversationID} for backjob")
                     
                     # Add system message (no sender - renders as centered system bubble)
                     Message.create_system_message(
                         conversation,
-                        "🔄 Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
+                        "Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
                     )
-                    print(f"📝 Added backjob approval message to conversation {conversation.conversationID}")
+                    print(f"Added backjob approval message to conversation {conversation.conversationID}")
                 
                 # Unarchive conversation so it appears in Active tab (inside transaction)
                 from profiles.conversation_service import unarchive_conversation
                 unarchive_result = unarchive_conversation(conversation)
-                print(f"📦 {unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+                print(f"{unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
 
                 # If transitioning from IN_NEGOTIATION, remove admin participant and post sign-off
                 if before_state["status"] == "IN_NEGOTIATION":
@@ -1567,14 +1567,14 @@ def approve_backjob(request, dispute_id: int):
                         admin_account=request.auth,
                         participant_type='ADMIN'
                     ).delete()
-                    print(f"🚪 Removed {deleted_count} admin participant(s) from conversation {conversation.conversationID}")
+                    print(f"Removed {deleted_count} admin participant(s) from conversation {conversation.conversationID}")
                     Message.create_system_message(
                         conversation,
-                        "✅ Negotiation complete — admin has left the conversation. Backjob is now approved and in progress."
+                        "Negotiation complete — admin has left the conversation. Backjob is now approved and in progress."
                     )
         
         except Exception as e:
-            print(f"❌ Error managing conversation for backjob: {str(e)}")
+            print(f"Error managing conversation for backjob: {str(e)}")
             import traceback
             traceback.print_exc()
             # Don't return error - conversation issue shouldn't block backjob approval
@@ -1589,7 +1589,7 @@ def approve_backjob(request, dispute_id: int):
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
-        print(f"❌ Error approving backjob: {str(e)}")
+        print(f"Error approving backjob: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1651,7 +1651,7 @@ def reject_backjob(request, dispute_id: int):
         # ============================================================
         payment_result = resume_payment_after_backjob_rejection(job)
         payment_released = payment_result.get('success', False) and payment_result.get('amount')
-        print(f"▶️ Payment buffer resumed for job #{job.jobID}. Released: {payment_released}")
+        print(f"Payment buffer resumed for job #{job.jobID}. Released: {payment_released}")
         # ============================================================
         
         # Create job log
@@ -1713,21 +1713,21 @@ def reject_backjob(request, dispute_id: int):
                 ).delete()
                 Message.create_system_message(
                     conversation,
-                    "ℹ️ Negotiation mediation ended — admin has left the chat."
+                    "Negotiation mediation ended — admin has left the chat."
                 )
             Message.objects.create(
                 conversationID=conversation,
                 sender=None,  # System message has no sender
                 senderAgency=None,
-                messageText=f"❌ Backjob Request Denied - Your backjob request was not approved. Reason: {rejection_reason}",
+                messageText=f"Backjob Request Denied - Your backjob request was not approved. Reason: {rejection_reason}",
                 messageType=Message.MessageType.SYSTEM
             )
-            print(f"📝 Added backjob rejection message to conversation {conversation.conversationID}")
+            print(f"Added backjob rejection message to conversation {conversation.conversationID}")
             
             # Auto-archive conversation since backjob was denied
             from profiles.conversation_service import archive_conversation
             archive_result = archive_conversation(conversation)
-            print(f"📦 {archive_result.get('message', 'Conversation archived after backjob denial')}")
+            print(f"{archive_result.get('message', 'Conversation archived after backjob denial')}")
         
         return {
             "success": True,
@@ -1741,7 +1741,7 @@ def reject_backjob(request, dispute_id: int):
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
-        print(f"❌ Error rejecting backjob: {str(e)}")
+        print(f"Error rejecting backjob: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1756,7 +1756,7 @@ def get_reviews_stats(request):
         stats = get_reviews_dashboard_stats()
         return {"success": True, "stats": stats}
     except Exception as e:
-        print(f"❌ Error fetching review stats: {str(e)}")
+        print(f"Error fetching review stats: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1778,7 +1778,7 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | N
         result = get_reviews_list_optimized(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
         return {"success": True, **result}
     except Exception as e:
-        print(f"❌ Error fetching all reviews: {str(e)}")
+        print(f"Error fetching all reviews: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1799,7 +1799,7 @@ def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str 
         result = get_job_reviews_list(page=page, page_size=page_size, status=status)
         return {"success": True, **result}
     except Exception as e:
-        print(f"❌ Error fetching job reviews: {str(e)}")
+        print(f"Error fetching job reviews: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1818,7 +1818,7 @@ def get_flagged_reviews(request, page: int = 1, page_size: int = 20):
         result = get_flagged_reviews_list(page=page, page_size=page_size)
         return {"success": True, **result}
     except Exception as e:
-        print(f"❌ Error fetching flagged reviews: {str(e)}")
+        print(f"Error fetching flagged reviews: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1851,7 +1851,7 @@ def suspend_user_account(request, account_id: str):
         return result
         
     except Exception as e:
-        print(f"❌ Error suspending account: {str(e)}")
+        print(f"Error suspending account: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1880,7 +1880,7 @@ def ban_user_account(request, account_id: str):
         return result
         
     except Exception as e:
-        print(f"❌ Error banning account: {str(e)}")
+        print(f"Error banning account: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}

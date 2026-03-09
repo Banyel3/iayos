@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import {
     Banknote,
     Search,
-    Download,
     Eye,
     AlertTriangle,
     Clock,
@@ -136,7 +135,7 @@ export default function DisputesPage() {
             case "pending":
                 return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">Pending Review</Badge>;
             case "in_negotiation":
-                return <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">⚖️ In Negotiation</Badge>;
+                return <Badge className="bg-sky-100 text-sky-700 border-sky-200 hover:bg-sky-100">In Negotiation</Badge>;
             case "under_review":
                 return <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">Under Review</Badge>;
             case "approved":
@@ -153,13 +152,13 @@ export default function DisputesPage() {
     const getPriorityBadge = (priority: string) => {
         switch (priority.toLowerCase()) {
             case "urgent":
-                return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">🔴 Urgent</Badge>;
+                return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">Urgent</Badge>;
             case "high":
-                return <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">🟠 High</Badge>;
+                return <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">High</Badge>;
             case "medium":
-                return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">🟡 Medium</Badge>;
+                return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">Medium</Badge>;
             case "low":
-                return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">🟢 Low</Badge>;
+                return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">Low</Badge>;
             default:
                 return null;
         }
@@ -189,123 +188,110 @@ export default function DisputesPage() {
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             <Sidebar />
             <main className={mainClass}>
-                <div className="max-w-7xl mx-auto space-y-8">
+                <div className="max-w-7xl mx-auto space-y-8 pt-10">
                     {/* Header */}
-                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
-                        <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-                        <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-                        <div className="relative">
-                            <div className="flex items-center gap-3 mb-2">
-                                <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
-                                <h1 className="text-2xl sm:text-4xl font-bold">Disputes & Back Jobs</h1>
-                            </div>
-                            <p className="text-blue-100 text-sm sm:text-lg">
-                                Dispute resolutions and back job request management
-                            </p>
+                    <div className="pb-6 border-b border-gray-100">
+                        <div className="flex items-center gap-3 mb-1">
+                            <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Disputes & Back Jobs</h1>
                         </div>
+                        <p className="text-gray-500 text-sm sm:text-base">
+                            Dispute resolutions and back job request management
+                        </p>
                     </div>
 
                     {/* Summary Cards */}
                     {stats && (
                         <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-5">
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                                <CardContent className="relative p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-orange-100 rounded-xl"><FileText className="h-6 w-6 text-orange-600" /></div>
-                                        <TrendingUp className="h-5 w-5 text-orange-600" />
+                                <CardContent className="py-1.5 px-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="p-2 bg-sky-100 rounded-lg"><FileText className="h-5 w-5 text-sky-600" /></div>
+                                        <TrendingUp className="h-4 w-4 text-sky-600" />
                                     </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Total Requests</p>
-                                    <p className="text-xl sm:text-3xl font-bold text-gray-900">{stats.total_disputes}</p>
+                                    <p className="text-xs font-medium text-gray-500 mb-0.5">Total Requests</p>
+                                    <p className="text-xl font-bold text-gray-900">{stats.total_disputes}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                                <CardContent className="relative p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-yellow-100 rounded-xl"><Clock className="h-6 w-6 text-yellow-600" /></div>
-                                        <div className="h-2 w-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                                <CardContent className="py-1.5 px-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="p-2 bg-yellow-100 rounded-lg"><Clock className="h-5 w-5 text-yellow-600" /></div>
+                                        <div className="h-1.5 w-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
                                     </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Pending Review</p>
-                                    <p className="text-xl sm:text-3xl font-bold text-yellow-600">{stats.open_disputes}</p>
+                                    <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Review</p>
+                                    <p className="text-xl font-bold text-yellow-600">{stats.open_disputes}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                                <CardContent className="relative p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-purple-100 rounded-xl"><MessageSquare className="h-6 w-6 text-purple-600" /></div>
-                                        <div className="h-2 w-2 bg-purple-500 rounded-full animate-pulse"></div>
+                                <CardContent className="py-1.5 px-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="p-2 bg-sky-100 rounded-lg"><MessageSquare className="h-5 w-5 text-sky-600" /></div>
+                                        <div className="h-1.5 w-1.5 bg-sky-500 rounded-full animate-pulse"></div>
                                     </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">In Negotiation</p>
-                                    <p className="text-xl sm:text-3xl font-bold text-purple-600">{stats.in_negotiation ?? 0}</p>
+                                    <p className="text-xs font-medium text-gray-500 mb-0.5">In Negotiation</p>
+                                    <p className="text-xl font-bold text-sky-600">{stats.in_negotiation ?? 0}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                                <CardContent className="relative p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-green-100 rounded-xl"><CheckCircle className="h-6 w-6 text-green-600" /></div>
+                                <CardContent className="py-1.5 px-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="p-2 bg-green-100 rounded-lg"><CheckCircle className="h-5 w-5 text-green-600" /></div>
+                                        <div className="h-1.5 w-1.5 bg-green-500 rounded-full opacity-50"></div>
                                     </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Approved</p>
-                                    <p className="text-xl sm:text-3xl font-bold text-green-600">{stats.resolved_disputes}</p>
+                                    <p className="text-xs font-medium text-gray-500 mb-0.5">Approved</p>
+                                    <p className="text-xl font-bold text-green-600">{stats.resolved_disputes}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                                <CardContent className="relative p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-red-100 rounded-xl"><AlertTriangle className="h-6 w-6 text-red-600" /></div>
+                                <CardContent className="py-1.5 px-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="p-2 bg-red-100 rounded-lg"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
+                                        <div className="h-1.5 w-1.5 bg-red-500 rounded-full opacity-50"></div>
                                     </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Urgent</p>
-                                    <p className="text-xl sm:text-3xl font-bold text-red-600">{stats.critical_disputes}</p>
+                                    <p className="text-xs font-medium text-gray-500 mb-0.5">Urgent</p>
+                                    <p className="text-xl font-bold text-red-600">{stats.critical_disputes}</p>
                                 </CardContent>
                             </Card>
                         </div>
                     )}
 
                     {/* Filters */}
-                    <Card className="border-0 shadow-lg">
-                        <CardContent className="p-6">
-                            <div className="flex flex-col md:flex-row gap-4">
-                                <div className="flex-1 relative group">
-                                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                                    <Input
-                                        placeholder="Search by title, party names, reason, or description..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-12 h-12 border-gray-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 rounded-xl"
-                                    />
-                                </div>
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="in_negotiation">In Negotiation</option>
-                                    <option value="under_review">Under Review</option>
-                                    <option value="approved">Approved</option>
-                                    <option value="rejected">Rejected</option>
-                                    <option value="completed">Completed</option>
-                                </select>
-                                <select
-                                    value={priorityFilter}
-                                    onChange={(e) => setPriorityFilter(e.target.value)}
-                                    className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                                >
-                                    <option value="all">All Priority</option>
-                                    <option value="urgent">Urgent</option>
-                                    <option value="high">High</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="low">Low</option>
-                                </select>
-                                <Button
-                                    variant="outline"
-                                    className="h-12 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium"
-                                >
-                                    <Download className="h-5 w-5 mr-2" />
-                                    Export
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div className="flex flex-col md:flex-row gap-4 mb-8">
+                        <div className="flex-1 relative group">
+                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                            <Input
+                                placeholder="Search by title, user, reason, or description..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+                            />
+                        </div>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="in_negotiation">In Negotiation</option>
+                            <option value="under_review">Under Review</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                        <select
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                            className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm"
+                        >
+                            <option value="all">All Priority</option>
+                            <option value="urgent">Urgent</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
 
                     {/* Job Cards */}
                     <div className="space-y-4">
@@ -324,8 +310,8 @@ export default function DisputesPage() {
                                                     </h3>
                                                     {getStatusBadge(job.status)}
                                                     {getPriorityBadge(job.priority)}
-                                                    <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
-                                                        👤 {job.requested_by === "client" ? "Client" : "Worker"} Request
+                                                    <Badge className="bg-sky-100 text-sky-700 border-sky-200 hover:bg-sky-100">
+                                                        {job.requested_by === "client" ? "Client" : "Worker"} Request
                                                     </Badge>
                                                 </div>
                                                 <div className="space-y-2">
@@ -336,23 +322,16 @@ export default function DisputesPage() {
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                 <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3">
-                                                    <div className="p-1.5 bg-emerald-100 rounded-lg"><Banknote className="h-4 w-4 text-emerald-600" /></div>
+                                                    <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg"><Banknote className="h-4 w-4 text-[#00BAF1]" /></div>
                                                     <div>
                                                         <p className="text-xs text-gray-500 font-medium">Job Amount</p>
                                                         <p className="font-bold text-gray-900">₱{(job.job_amount ?? 0).toLocaleString()}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3">
-                                                    <div className="p-1.5 bg-orange-100 rounded-lg"><Banknote className="h-4 w-4 text-orange-600" /></div>
-                                                    <div>
-                                                        <p className="text-xs text-gray-500 font-medium">Back Amount</p>
-                                                        <p className="font-bold text-gray-900">₱{(job.backjob_amount ?? job.job_amount ?? 0).toLocaleString()}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3">
-                                                    <div className="p-1.5 bg-blue-100 rounded-lg"><Calendar className="h-4 w-4 text-blue-600" /></div>
+                                                    <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg"><Calendar className="h-4 w-4 text-[#00BAF1]" /></div>
                                                     <div>
                                                         <p className="text-xs text-gray-500 font-medium">Requested</p>
                                                         <p className="font-semibold text-gray-900">
@@ -361,7 +340,7 @@ export default function DisputesPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3">
-                                                    <div className="p-1.5 bg-purple-100 rounded-lg"><FileText className="h-4 w-4 text-purple-600" /></div>
+                                                    <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg"><FileText className="h-4 w-4 text-[#00BAF1]" /></div>
                                                     <div>
                                                         <p className="text-xs text-gray-500 font-medium">Dispute ID</p>
                                                         <p className="font-bold text-gray-900">#{job.dispute_id}</p>
@@ -372,14 +351,14 @@ export default function DisputesPage() {
                                             <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-gray-500">Client:</span>
-                                                    <Link href={`/admin/users/clients/${job.client.id}`} className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
+                                                    <Link href={`/admin/users/clients/${job.client.id}`} className="text-sm font-semibold text-gray-700 hover:text-gray-900 hover:underline flex items-center gap-1">
                                                         {job.client.name}<ChevronRight className="h-3 w-3" />
                                                     </Link>
                                                 </div>
                                                 {job.worker && (
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-sm text-gray-500">→ Worker:</span>
-                                                        <Link href={`/admin/users/workers/${job.worker.id}`} className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
+                                                        <span className="text-sm text-gray-500">Worker:</span>
+                                                        <Link href={`/admin/users/workers/${job.worker.id}`} className="text-sm font-semibold text-gray-700 hover:text-gray-900 hover:underline flex items-center gap-1">
                                                             {job.worker.name}<ChevronRight className="h-3 w-3" />
                                                         </Link>
                                                     </div>

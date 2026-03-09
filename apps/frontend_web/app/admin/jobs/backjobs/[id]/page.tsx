@@ -76,31 +76,31 @@ function getStatusBadge(status: string) {
     case "open":
       return (
         <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-          \u23f3 Pending Review
+          Pending Review
         </Badge>
       );
     case "in_negotiation":
       return (
         <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-          \u2696\ufe0f In Negotiation
+          In Negotiation
         </Badge>
       );
     case "under_review":
       return (
         <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-          \U0001f50d Under Review
+          Under Review
         </Badge>
       );
     case "resolved":
       return (
         <Badge className="bg-green-100 text-green-700 border-green-200">
-          \u2705 Resolved
+          Resolved
         </Badge>
       );
     case "closed":
       return (
         <Badge className="bg-gray-100 text-gray-700 border-gray-200">
-          \U0001f6ab Closed
+          Closed
         </Badge>
       );
     default:
@@ -113,25 +113,25 @@ function getPriorityBadge(priority: string) {
     case "critical":
       return (
         <Badge className="bg-red-100 text-red-700 border-red-200">
-          \U0001f534 Critical
+          Critical
         </Badge>
       );
     case "high":
       return (
         <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-          \U0001f7e0 High
+          High
         </Badge>
       );
     case "medium":
       return (
         <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-          \U0001f7e1 Medium
+          Medium
         </Badge>
       );
     case "low":
       return (
         <Badge className="bg-green-100 text-green-700 border-green-200">
-          \U0001f7e2 Low
+          Low
         </Badge>
       );
     default:
@@ -177,6 +177,9 @@ export default function BackjobDetailPage() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const [showScheduledDateModal, setShowScheduledDateModal] = useState(false);
+  const [scheduledDateInput, setScheduledDateInput] = useState("");
 
   const fetchDispute = useCallback(async () => {
     try {
@@ -332,7 +335,7 @@ export default function BackjobDetailPage() {
         <Sidebar />
         <main className={mainClass}>
           <div className="flex items-center justify-center h-64">
-            <RefreshCw className="h-8 w-8 text-orange-500 animate-spin" />
+            <RefreshCw className="h-8 w-8 text-sky-500 animate-spin" />
           </div>
         </main>
       </div>
@@ -363,14 +366,14 @@ export default function BackjobDetailPage() {
   const isFinished = ["resolved", "closed"].includes(dispute.status);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-blue-50">
       <Sidebar />
 
       <main className={`${mainClass} p-6 space-y-6`}>
         <div className="flex items-center gap-2 text-sm">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-1 text-gray-500 hover:text-orange-600 transition-colors"
+            className="flex items-center gap-1 text-gray-500 hover:text-sky-600 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Backjobs
@@ -387,7 +390,6 @@ export default function BackjobDetailPage() {
         )}
 
         <Card className="border-0 shadow-xl overflow-hidden">
-          <div className="h-2 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500" />
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row md:items-start gap-4 justify-between">
               <div className="flex-1">
@@ -402,15 +404,15 @@ export default function BackjobDetailPage() {
                   {dispute.id} &middot; Opened {fmtDate(dispute.opened_date)}
                 </p>
                 {dispute.in_negotiation_at && (
-                  <p className="text-purple-600 text-sm mt-1">
+                  <p className="text-sky-600 text-sm mt-1">
                     Negotiation started {fmtDate(dispute.in_negotiation_at)}
                   </p>
                 )}
               </div>
               <div className="flex flex-wrap gap-3">
-                <div className="bg-orange-50 rounded-xl px-4 py-2 text-center min-w-[100px]">
+                <div className="bg-sky-50 rounded-xl px-4 py-2 text-center min-w-[100px]">
                   <p className="text-xs text-gray-500">Job Amount</p>
-                  <p className="font-bold text-orange-600">
+                  <p className="font-bold text-sky-600">
                     {formatCurrency(dispute.job_amount)}
                   </p>
                 </div>
@@ -432,7 +434,7 @@ export default function BackjobDetailPage() {
             <Card className="border-0 shadow-lg">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <FileText className="h-5 w-5 text-orange-500" />
+                  <FileText className="h-5 w-5 text-sky-500" />
                   Dispute Details
                 </CardTitle>
               </CardHeader>
@@ -489,11 +491,10 @@ export default function BackjobDetailPage() {
                     ].map((step, i, arr) => (
                       <div key={step.label} className="flex items-center gap-2">
                         <div
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                            step.done
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-400"
-                          }`}
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${step.done
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-400"
+                            }`}
                         >
                           {step.done ? (
                             <CheckCircle className="h-3 w-3" />
@@ -510,10 +511,10 @@ export default function BackjobDetailPage() {
                   </div>
                   {dispute.scheduled_date && (
                     <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-orange-600 uppercase tracking-wide">
-                        📅 Scheduled Date
+                      <span className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                        Scheduled Date
                       </span>
-                      <span className="text-sm font-semibold text-orange-700">
+                      <span className="text-sm font-semibold text-sky-700">
                         {fmtDate(dispute.scheduled_date)}
                       </span>
                     </div>
@@ -539,7 +540,7 @@ export default function BackjobDetailPage() {
               <Card className="border-0 shadow-lg">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Image className="h-5 w-5 text-orange-500" />
+                    <Image className="h-5 w-5 text-sky-500" />
                     Evidence ({dispute.evidence.length})
                   </CardTitle>
                 </CardHeader>
@@ -553,7 +554,7 @@ export default function BackjobDetailPage() {
                             withCacheBust(ev.image_url, dispute.updated_at),
                           )
                         }
-                        className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square focus:outline-none focus:ring-2 focus:ring-orange-400"
+                        className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square focus:outline-none focus:ring-2 focus:ring-sky-400"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -576,8 +577,8 @@ export default function BackjobDetailPage() {
             {dispute.conversation_id && (
               <Card className="border-0 shadow-xl">
                 <CardHeader className="pb-3 border-b border-gray-100">
-                  <CardTitle className="flex items-center gap-2 text-lg text-purple-700">
-                    <MessageSquare className="h-5 w-5 text-purple-500" />
+                  <CardTitle className="flex items-center gap-2 text-lg text-sky-700">
+                    <MessageSquare className="h-5 w-5 text-sky-500" />
                     Conversation Audit
                     <span className="ml-auto text-xs font-normal text-gray-400 flex items-center gap-1">
                       <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse" />
@@ -617,11 +618,10 @@ export default function BackjobDetailPage() {
                             className={`flex gap-2 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}
                           >
                             <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                                isAdmin
-                                  ? "bg-purple-100 text-purple-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
+                              className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isAdmin
+                                ? "bg-sky-100 text-sky-700"
+                                : "bg-gray-100 text-gray-600"
+                                }`}
                             >
                               {isAdmin ? (
                                 <Shield className="h-4 w-4" />
@@ -634,7 +634,7 @@ export default function BackjobDetailPage() {
                             >
                               <div className="flex items-center gap-1">
                                 <span
-                                  className={`text-xs font-semibold ${isAdmin ? "text-purple-600" : "text-gray-600"}`}
+                                  className={`text-xs font-semibold ${isAdmin ? "text-sky-600" : "text-gray-600"}`}
                                 >
                                   {isAdmin ? "Admin" : msg.sender_name}
                                 </span>
@@ -643,11 +643,10 @@ export default function BackjobDetailPage() {
                                 </span>
                               </div>
                               <div
-                                className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                                  isAdmin
-                                    ? "bg-purple-600 text-white rounded-tr-sm"
-                                    : "bg-gray-100 text-gray-800 rounded-tl-sm"
-                                }`}
+                                className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${isAdmin
+                                  ? "bg-sky-600 text-white rounded-tr-sm"
+                                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
+                                  }`}
                               >
                                 {msg.text}
                               </div>
@@ -669,7 +668,7 @@ export default function BackjobDetailPage() {
             <Card className="border-0 shadow-lg">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <User className="h-4 w-4 text-orange-500" />
+                  <User className="h-4 w-4 text-sky-500" />
                   Parties Involved
                 </CardTitle>
               </CardHeader>
@@ -726,7 +725,7 @@ export default function BackjobDetailPage() {
                       </p>
                     </div>
                     <Link href={`/admin/users/agencies/${dispute.agency.id}`}>
-                      <Badge className="bg-amber-100 text-amber-600 hover:bg-amber-200 cursor-pointer text-xs">
+                      <Badge className="bg-sky-100 text-sky-600 hover:bg-sky-200 cursor-pointer text-xs">
                         View
                       </Badge>
                     </Link>
@@ -738,7 +737,7 @@ export default function BackjobDetailPage() {
             <Card className="border-0 shadow-lg">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Calendar className="h-4 w-4 text-orange-500" />
+                  <Calendar className="h-4 w-4 text-sky-500" />
                   Timeline
                 </CardTitle>
               </CardHeader>
@@ -752,8 +751,8 @@ export default function BackjobDetailPage() {
                   </div>
                   {dispute.in_negotiation_at && (
                     <div className="flex justify-between items-center">
-                      <span className="text-purple-500">Negotiation</span>
-                      <span className="text-purple-700 font-medium">
+                      <span className="text-sky-500">Negotiation</span>
+                      <span className="text-sky-700 font-medium">
                         {fmtDate(dispute.in_negotiation_at)}
                       </span>
                     </div>
@@ -780,7 +779,7 @@ export default function BackjobDetailPage() {
               <Card className="border-0 shadow-lg">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Shield className="h-4 w-4 text-orange-500" />
+                    <Shield className="h-4 w-4 text-sky-500" />
                     Admin Actions
                   </CardTitle>
                 </CardHeader>
@@ -788,7 +787,7 @@ export default function BackjobDetailPage() {
                   {isOpen && (
                     <>
                       <Button
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        className="w-full bg-sky-600 hover:bg-sky-700 text-white"
                         disabled={actionLoading}
                         onClick={handleAcceptNegotiation}
                       >
@@ -815,7 +814,7 @@ export default function BackjobDetailPage() {
                   )}
                   {isNegotiating && (
                     <>
-                      <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-600">
+                      <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs text-sky-600">
                         Negotiation in progress between client and
                         worker/agency. Admin can monitor conversation and either
                         approve or reject.
@@ -844,10 +843,10 @@ export default function BackjobDetailPage() {
                         This dispute is under review.
                         {dispute.scheduled_date
                           ? ` Scheduled date: ${new Date(
-                              dispute.scheduled_date,
-                            ).toLocaleDateString("en-PH", {
-                              dateStyle: "medium",
-                            })}.`
+                            dispute.scheduled_date,
+                          ).toLocaleDateString("en-PH", {
+                            dateStyle: "medium",
+                          })}.`
                           : ""}
                         {dispute.worker_schedule_confirmed
                           ? " Worker/agency has confirmed the schedule."
@@ -871,11 +870,10 @@ export default function BackjobDetailPage() {
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-4">
                   <div
-                    className={`p-4 rounded-xl text-center ${
-                      dispute.status === "resolved"
-                        ? "bg-green-50 border border-green-200 text-green-600"
-                        : "bg-gray-50 border border-gray-200 text-gray-500"
-                    }`}
+                    className={`p-4 rounded-xl text-center ${dispute.status === "resolved"
+                      ? "bg-green-50 border border-green-200 text-green-600"
+                      : "bg-gray-50 border border-gray-200 text-gray-500"
+                      }`}
                   >
                     {dispute.status === "resolved" ? (
                       <>
