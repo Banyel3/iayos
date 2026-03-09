@@ -263,10 +263,10 @@ export default function CertificationForm({
         specializationId: selectedSkillId > 0 ? selectedSkillId : undefined,
         certificateFile: certificateImage
           ? {
-              uri: certificateImage.uri,
-              name: certificateImage?.fileName ?? "certificate.jpg",
-              type: certificateImage?.mimeType ?? "image/jpeg",
-            }
+            uri: certificateImage.uri,
+            name: certificateImage?.fileName ?? "certificate.jpg",
+            type: certificateImage?.mimeType ?? "image/jpeg",
+          }
           : undefined,
       };
 
@@ -367,7 +367,7 @@ export default function CertificationForm({
     >
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <Pressable style={styles.backdrop} onPress={handleClose} />
 
@@ -461,7 +461,7 @@ export default function CertificationForm({
                   {selectedSkillId === -1
                     ? "Select a skill"
                     : skills.find((s) => s.id === selectedSkillId)?.name ||
-                      "Select a skill"}
+                    "Select a skill"}
                 </Text>
                 {!isSkillLocked && (
                   <Ionicons
@@ -535,7 +535,7 @@ export default function CertificationForm({
                           style={[
                             styles.skillOption,
                             selectedSkillId === skill.id &&
-                              styles.skillOptionSelected,
+                            styles.skillOptionSelected,
                           ]}
                           onPress={() => {
                             setSelectedSkillId(skill.id);
@@ -678,10 +678,10 @@ export default function CertificationForm({
                   <Text style={styles.dateButtonText}>
                     {expiryDate
                       ? expiryDate.toLocaleDateString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        })
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })
                       : "Select date"}
                   </Text>
                 </Pressable>

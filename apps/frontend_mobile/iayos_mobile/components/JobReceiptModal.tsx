@@ -196,8 +196,11 @@ ${RECEIPT_DISCLAIMER_TEXT}
             {/* Receipt Header with Logo */}
             <View style={styles.receiptHeader}>
               <View style={styles.logoContainer}>
-                <Text style={styles.logoText}>iAyos</Text>
-                <Text style={styles.logoTagline}>May sira? May iAyos.</Text>
+                <Image
+                  source={require("../assets/logo.png")}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
               <View style={styles.receiptBadge}>
                 <Ionicons
@@ -387,7 +390,7 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
-                  {userRole === "CLIENT" ? "Total You Paid" : "Worker Earnings"}
+                  {userRole === "CLIENT" ? "Total You Paid" : "Your Earnings"}
                 </Text>
                 <Text style={styles.totalValue}>
                   {formatCurrency(
@@ -771,15 +774,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
   },
   logoContainer: {
     flex: 1,
   },
-  logoText: {
-    ...Typography.heading.h1,
-    color: Colors.primary,
-    fontWeight: "700",
+  logoImage: {
+    height: 48,
+    width: 140,
+    alignSelf: "flex-start",
   },
   logoTagline: {
     ...Typography.body.small,
@@ -893,11 +895,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: Colors.primaryLight,
     marginHorizontal: -Spacing.md,
-    marginBottom: -Spacing.md,
     marginTop: Spacing.sm,
     padding: Spacing.md,
-    borderBottomLeftRadius: BorderRadius.lg,
-    borderBottomRightRadius: BorderRadius.lg,
   },
   totalLabel: {
     ...Typography.heading.h4,
@@ -912,7 +911,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
   },
   paymentMethodText: {
     ...Typography.body.small,

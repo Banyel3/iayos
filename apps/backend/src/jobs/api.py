@@ -64,6 +64,11 @@ def get_effective_work_date(job: Job):
     if day_offset <= 0:
         return base_date
 
+    duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    if duration_days > 0:
+        max_offset = max(duration_days - 1, 0)
+        day_offset = min(day_offset, max_offset)
+
     return base_date + timedelta(days=day_offset)
 
 
@@ -2112,6 +2117,16 @@ def get_job_applications(request, job_id: int):
                 {"error": "You can only view applications for your own job postings"},
                 status=403
             )
+
+        # Applications are only valid for open LISTING jobs.
+        # INVITE jobs (direct worker/agency hires) should not expose this flow.
+        if job.jobType != JobPosting.JobType.LISTING:
+            return {
+                "success": True,
+                "applications": [],
+                "total": 0,
+                "message": "Applications are only available for listing jobs"
+            }
         
         # Get all applications for this job
         applications = JobApplication.objects.filter(
@@ -3988,8 +4003,8 @@ def client_approve_job_completion(
                     job_check = JobPosting.objects.get(jobID=job_id)
                     remaining_amount = job_check.remainingPayment
                     
-                    # Check if client has sufficient balance BEFORE proceeding
-                    if wallet_check.balance < remaining_amount:
+                    # Skip wallet re-validation if remaining payment was already paid earlier.
+                    if not job_check.remainingPaymentPaid and wallet_check.balance < remaining_amount:
                         print(f"❌ Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
                         return Response({
                             "error": "Insufficient wallet balance",
@@ -5819,7 +5834,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
     (before payment is released to worker). Also enforces cooldown after rejection.
     """
     try:
-        print(f"🔄 Backjob request for job {job_id} from user {request.auth.email}")
+        print(f"Backjob request for job {job_id} from user {request.auth.email}")
         
         # Validate terms acceptance (CRITICAL for legal compliance)
         if not terms_accepted:
@@ -5972,10 +5987,10 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                     accountFK=admin_acct,
                     notificationType="BACKJOB_NEW_REQUEST",
                     title="New Backjob Request",
-                    message=f"📢 New backjob request: Dispute #{dispute.disputeID} for job '{job.title}'. Please review.",
+                    message=f"New backjob request: Dispute #{dispute.disputeID} for job '{job.title}'. Please review.",
                     relatedJobID=job.jobID
                 )
-            print(f"📢 Notified {admin_accounts.count()} admin(s) about new backjob request for Job #{job.jobID}")
+            print(f"Notified {admin_accounts.count()} admin(s) about new backjob request for Job #{job.jobID}")
             
             # ============================================================
             # NOTIFY WORKER/AGENCY: Alert them about backjob request
@@ -5988,10 +6003,10 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                     accountFK=job.assignedWorkerID.profileID.accountFK,
                     notificationType="BACKJOB_REQUESTED",
                     title="Backjob Request Received",
-                    message=f"📋 Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
+                    message=f"Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
                     relatedJobID=job.jobID
                 )
-                print(f"📬 Notified worker {job.assignedWorkerID.profileID.accountFK.email} about backjob request")
+                print(f"Notified worker {job.assignedWorkerID.profileID.accountFK.email} about backjob request")
             
             # Notify assigned agency if exists
             if job.assignedAgencyFK:
@@ -5999,17 +6014,17 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                     accountFK=job.assignedAgencyFK.accountFK,
                     notificationType="BACKJOB_REQUESTED",
                     title="Backjob Request Received",
-                    message=f"📋 Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
+                    message=f"Client has requested a backjob for '{job.title}'. Admin is reviewing the request. Payment is on hold pending review.",
                     relatedJobID=job.jobID
                 )
-                print(f"📬 Notified agency {job.assignedAgencyFK.businessName} about backjob request")
+                print(f"Notified agency {job.assignedAgencyFK.businessName} about backjob request")
             # ============================================================
             
             # ============================================================
             # HOLD PAYMENT: Put payment on hold due to backjob request
             # ============================================================
             hold_payment_for_backjob(job)
-            print(f"⏸️ Payment for job #{job.jobID} now on BACKJOB_PENDING hold")
+            print(f"Payment for job #{job.jobID} now on BACKJOB_PENDING hold")
             # ============================================================
             
             # Create a log entry (newStatus max 15 chars)
@@ -6034,7 +6049,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         }
         
     except Exception as e:
-        print(f"❌ Error requesting backjob: {str(e)}")
+        print(f"Error requesting backjob: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to submit backjob request: {str(e)}"}, status=500)
@@ -6082,11 +6097,13 @@ def get_backjob_status(request, job_id: int):
                 "client_confirmed": dispute.clientConfirmedBackjob,
                 "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
                 "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+                "admin_rejected_at": dispute.adminRejectedAt.isoformat() if dispute.adminRejectedAt else None,
+                "admin_rejection_reason": dispute.adminRejectionReason,
             }
         }
         
     except Exception as e:
-        print(f"❌ Error fetching backjob status: {str(e)}")
+        print(f"Error fetching backjob status: {str(e)}")
         return Response({"error": "Failed to fetch backjob status"}, status=500)
 
 
@@ -6105,7 +6122,7 @@ def request_backjob_renegotiation(request, job_id: int):
     It reuses the existing dispute and transitions it back to OPEN for admin review.
     """
     try:
-        print(f"🔁 Backjob re-negotiation requested for job {job_id}")
+        print(f"Backjob re-negotiation requested for job {job_id}")
 
         note = ""
         try:
@@ -6192,7 +6209,7 @@ def request_backjob_renegotiation(request, job_id: int):
         if conversation:
             Message.create_system_message(
                 conversation,
-                f"🔁 Re-negotiation requested by {requester_role}. Admin review is required before a new schedule is set."
+                f"Re-negotiation requested by {requester_role}. Admin review is required before a new schedule is set."
             )
 
         # Notify all admins
@@ -6244,7 +6261,7 @@ def request_backjob_renegotiation(request, job_id: int):
         }
 
     except Exception as e:
-        print(f"❌ Error requesting backjob re-negotiation: {str(e)}")
+        print(f"Error requesting backjob re-negotiation: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to request re-negotiation: {str(e)}"}, status=500)
@@ -6258,7 +6275,7 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
     Worker/agency confirmation is required before the dispute transitions to UNDER_REVIEW.
     """
     try:
-        print(f"📅 Client setting backjob schedule for job {job_id}")
+        print(f"Client setting backjob schedule for job {job_id}")
 
         body = json.loads(request.body) if request.body else {}
         scheduled_date_str = (body.get("scheduled_date") or "").strip()
@@ -6335,7 +6352,7 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
         if conversation:
             Message.create_system_message(
                 conversation,
-                f"📅 Client {action_word} backjob schedule to {formatted_date}. Waiting for worker confirmation."
+                f"Client {action_word} backjob schedule to {formatted_date}. Waiting for worker confirmation."
                 + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
             )
 
@@ -6366,7 +6383,7 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
         }
 
     except Exception as e:
-        print(f"❌ Error setting backjob scheduled date: {str(e)}")
+        print(f"Error setting backjob scheduled date: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to set scheduled date: {str(e)}"}, status=500)
@@ -6380,7 +6397,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
     This transitions the dispute from IN_NEGOTIATION to UNDER_REVIEW.
     """
     try:
-        print(f"✅ Worker confirming backjob schedule for job {job_id}")
+        print(f"Worker confirming backjob schedule for job {job_id}")
 
         try:
             job = Job.objects.select_related(
@@ -6442,7 +6459,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         if conversation:
             Message.create_system_message(
                 conversation,
-                f"✅ Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
+                f"Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
             )
 
         # Notify client
@@ -6466,7 +6483,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         }
 
     except Exception as e:
-        print(f"❌ Error confirming backjob scheduled date: {str(e)}")
+        print(f"Error confirming backjob scheduled date: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to confirm scheduled date: {str(e)}"}, status=500)
@@ -6480,7 +6497,7 @@ def confirm_backjob_started(request, job_id: int):
     This must be done before worker can mark backjob as complete.
     """
     try:
-        print(f"✅ Client confirming backjob work started for job {job_id}")
+        print(f"Client confirming backjob work started for job {job_id}")
         print(f"   Request auth: {request.auth}")
         
         # Get the job first
@@ -6495,7 +6512,7 @@ def confirm_backjob_started(request, job_id: int):
         
         # Verify the requesting user is the client for this job
         if job.clientID.profileID.accountFK != request.auth:
-            print(f"   ❌ User {request.auth} is not the client for job {job_id}")
+            print(f"   User {request.auth} is not the client for job {job_id}")
             print(f"   Job client account: {job.clientID.profileID.accountFK}")
             return Response({"error": "Only the client who posted this job can confirm backjob work started"}, status=403)
         
@@ -6504,7 +6521,7 @@ def confirm_backjob_started(request, job_id: int):
         # Get the active dispute (backjob)
         dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
         if not dispute:
-            print(f"   ❌ No active backjob (UNDER_REVIEW dispute) found for job {job_id}")
+            print(f"   No active backjob (UNDER_REVIEW dispute) found for job {job_id}")
             return Response({"error": "No active backjob found for this job"}, status=404)
         
         print(f"   Found dispute {dispute.disputeID}, backjobStarted={dispute.backjobStarted}")
@@ -6527,7 +6544,7 @@ def confirm_backjob_started(request, job_id: int):
         
         # Check if already confirmed
         if dispute.backjobStarted:
-            print(f"   ❌ Backjob already confirmed as started at {dispute.backjobStartedAt}")
+            print(f"   Backjob already confirmed as started at {dispute.backjobStartedAt}")
             return Response({"error": "Backjob work has already been confirmed as started"}, status=400)
 
         # Require an agreed schedule before allowing work-start confirmation.
@@ -6552,7 +6569,7 @@ def confirm_backjob_started(request, job_id: int):
         dispute.backjobStartedAt = timezone.now()
         dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
         
-        print(f"✅ Client confirmed backjob work started for job {job_id}")
+        print(f"Client confirmed backjob work started for job {job_id}")
         
         # Create job log with distinct backjob status
         JobLog.objects.create(
@@ -6571,7 +6588,7 @@ def confirm_backjob_started(request, job_id: int):
                 conversationID=conversation,
                 sender=None,
                 senderAgency=None,
-                messageText="✅ Client confirmed backjob work has started. Worker can now mark backjob as complete when finished.",
+                messageText="Client confirmed backjob work has started. Worker can now mark backjob as complete when finished.",
                 messageType="SYSTEM"
             )
         
@@ -6601,7 +6618,7 @@ def confirm_backjob_started(request, job_id: int):
         }
         
     except Exception as e:
-        print(f"❌ Error confirming backjob started: {str(e)}")
+        print(f"Error confirming backjob started: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to confirm backjob started: {str(e)}"}, status=500)
@@ -6616,7 +6633,7 @@ def mark_backjob_complete(request, job_id: int):
     Notifies client to verify and confirm completion.
     """
     try:
-        print(f"✅ Worker marking backjob complete for job {job_id}")
+        print(f"Worker marking backjob complete for job {job_id}")
         
         # Parse notes from JSON body
         notes = ""
@@ -6674,7 +6691,7 @@ def mark_backjob_complete(request, job_id: int):
         dispute.workerMarkedBackjobCompleteAt = timezone.now()
         dispute.save()
         
-        print(f"✅ Worker marked backjob complete for job {job_id}")
+        print(f"Worker marked backjob complete for job {job_id}")
         
         # Create job log with distinct backjob status
         JobLog.objects.create(
@@ -6716,7 +6733,7 @@ def mark_backjob_complete(request, job_id: int):
         }
         
     except Exception as e:
-        print(f"❌ Error marking backjob complete: {str(e)}")
+        print(f"Error marking backjob complete: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to mark backjob complete: {str(e)}"}, status=500)
@@ -6731,7 +6748,7 @@ def approve_backjob_completion(request, job_id: int):
     No payment or reviews for backjobs.
     """
     try:
-        print(f"✅ Client approving backjob completion for job {job_id}")
+        print(f"Client approving backjob completion for job {job_id}")
         print(f"   Request auth: {request.auth}")
         
         # Get the job first
@@ -6746,10 +6763,10 @@ def approve_backjob_completion(request, job_id: int):
         
         # Verify the requesting user is the client for this job
         if job.clientID.profileID.accountFK != request.auth:
-            print(f"   ❌ User {request.auth} is not the client for job {job_id}")
+            print(f"   User {request.auth} is not the client for job {job_id}")
             return Response({"error": "Only the client who posted this job can approve backjob completion"}, status=403)
         
-        print(f"   ✓ Verified user is the job client")
+        print(f"   Verified user is the job client")
         
         # Get the active dispute (backjob)
         dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
@@ -6786,7 +6803,7 @@ def approve_backjob_completion(request, job_id: int):
                 jobID=job,
                 reviewerType='CLIENT'
             ).update(backjob_edit_deadline=review_deadline)
-            print(f"📝 Set backjob_edit_deadline on {updated_count} client review(s) for job #{job.jobID}")
+            print(f"Set backjob_edit_deadline on {updated_count} client review(s) for job #{job.jobID}")
             
             # Close the conversation
             from profiles.models import Conversation, Message
@@ -6800,14 +6817,14 @@ def approve_backjob_completion(request, job_id: int):
                     conversationID=conversation,
                     sender=None,
                     senderAgency=None,
-                    messageText="✅ Backjob completed and confirmed! This conversation is now closed. Thank you for using iAyos!",
+                    messageText="Backjob completed and confirmed! This conversation is now closed. Thank you for using iAyos!",
                     messageType="SYSTEM"
                 )
                 
                 # Auto-archive conversation after backjob completion
                 from profiles.conversation_service import archive_conversation
                 archive_result = archive_conversation(conversation)
-                print(f"📦 {archive_result.get('message', 'Conversation archived after backjob completion')}")
+                print(f"{archive_result.get('message', 'Conversation archived after backjob completion')}")
             
             # Create job log with distinct backjob status
             JobLog.objects.create(
@@ -6834,7 +6851,7 @@ def approve_backjob_completion(request, job_id: int):
                     relatedJobID=job.jobID
                 )
         
-        print(f"✅ Backjob completed and conversation closed for job {job_id}")
+        print(f"Backjob completed and conversation closed for job {job_id}")
         
         return {
             "success": True,
@@ -6847,7 +6864,7 @@ def approve_backjob_completion(request, job_id: int):
         }
         
     except Exception as e:
-        print(f"❌ Error approving backjob completion: {str(e)}")
+        print(f"Error approving backjob completion: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response({"error": f"Failed to approve backjob completion: {str(e)}"}, status=500)
@@ -6902,7 +6919,7 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
     Escrow (50% of total budget) is held on creation.
     """
     try:
-        print(f"📋 Creating team job: {payload.title}")
+        print(f"Creating team job: {payload.title}")
         print(f"   Skill slots: {len(payload.skill_slots)}")
         
         # Get client profile (role-aware for accounts with multiple profiles)
@@ -7184,7 +7201,7 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                 'created_at': app.createdAt.isoformat()
             })
         
-        return {'applications': result, 'count': len(result)}
+        return {'applications': result, 'count': len(result), 'total': len(result)}
         
     except Job.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)
@@ -7945,8 +7962,21 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
             "time_out": attendance.time_out.isoformat()
         }, status=400)
     
+    # Enforce minimum work duration before checkout (applies in QA and production).
+    now = timezone.now()
+    elapsed_seconds = (now - attendance.time_in).total_seconds()
+    minimum_seconds = 2 * 3600
+    if elapsed_seconds < minimum_seconds:
+        remaining_minutes = int((minimum_seconds - elapsed_seconds + 59) // 60)
+        return Response({
+            "error": "Checkout is allowed only after 2 hours of work",
+            "minimum_hours": 2,
+            "remaining_minutes": remaining_minutes,
+            "time_in": attendance.time_in.isoformat(),
+        }, status=400)
+
     # Set time_out (work ends now)
-    attendance.time_out = timezone.now()
+    attendance.time_out = now
     attendance.worker_confirmed = True  # Auto-confirm on checkout
     attendance.save()
     
@@ -8354,7 +8384,7 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
     Worker/agency requests a skip day for a DAILY job.
     """
     from datetime import date
-    from accounts.models import DailySkipDayRequest
+    from accounts.models import DailyAttendance, DailySkipDayRequest
 
     try:
         job = Job.objects.get(jobID=job_id)
@@ -8393,6 +8423,26 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
         return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
 
     requester_account_id = int(request.auth.accountID)
+
+    # Do not allow skip-day requests once work has started for that date.
+    if is_agency:
+        has_checked_in = DailyAttendance.objects.filter(
+            jobID=job,
+            date=parsed_date,
+            time_in__isnull=False,
+        ).exists()
+    else:
+        has_checked_in = DailyAttendance.objects.filter(
+            jobID=job,
+            date=parsed_date,
+            time_in__isnull=False,
+            workerID__profileID__accountFK=request.auth,
+        ).exists()
+
+    if has_checked_in:
+        return Response({
+            "error": "Cannot request skip day after check-in. Use attendance flow instead."
+        }, status=400)
 
     requires_all_team_workers = bool(getattr(job, 'is_team_job', False) and not is_agency)
     total_required = 1
@@ -8548,7 +8598,23 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         return Response({"error": "Only the job client can advance QA day"}, status=403)
 
     old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    max_offset = max(duration_days - 1, 0) if duration_days > 0 else None
+
+    if max_offset is not None and old_offset >= max_offset:
+        return Response({
+            "error": "Cannot advance QA day beyond configured duration_days",
+            "qa": {
+                "enabled": True,
+                "day_offset": old_offset,
+                "max_offset": max_offset,
+                "effective_work_date": (timezone.now().date() + timedelta(days=min(old_offset, max_offset))).isoformat(),
+            }
+        }, status=400)
+
     new_offset = old_offset + 1
+    if max_offset is not None:
+        new_offset = min(new_offset, max_offset)
 
     old_effective_date = timezone.now().date() + timedelta(days=old_offset)
     new_effective_date = timezone.now().date() + timedelta(days=new_offset)
@@ -8569,6 +8635,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 "testing": True,
                 "old_offset": old_offset,
                 "new_offset": new_offset,
+                "max_offset": max_offset,
                 "old_effective_date": old_effective_date.isoformat(),
                 "new_effective_date": new_effective_date.isoformat(),
                 "reason": (data.reason or "").strip() or "QA fast-forward",
@@ -8581,6 +8648,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         "qa": {
             "enabled": True,
             "day_offset": new_offset,
+            "max_offset": max_offset,
             "effective_work_date": new_effective_date.isoformat(),
         }
     }

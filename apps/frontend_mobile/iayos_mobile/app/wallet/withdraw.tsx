@@ -370,7 +370,7 @@ export default function WithdrawScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
         <ScrollView
@@ -491,7 +491,7 @@ export default function WithdrawScreen() {
                     style={[
                       styles.methodCard,
                       selectedMethodId === method.id &&
-                        styles.methodCardSelected,
+                      styles.methodCardSelected,
                     ]}
                     onPress={() => {
                       setSelectedMethodId(method.id);
@@ -520,9 +520,9 @@ export default function WithdrawScreen() {
                       <Text style={styles.methodNumber}>
                         {method.type === "GCASH"
                           ? method.account_number.replace(
-                              /(\d{4})(\d{3})(\d{4})/,
-                              "$1 $2 $3",
-                            )
+                            /(\d{4})(\d{3})(\d{4})/,
+                            "$1 $2 $3",
+                          )
                           : method.account_number}
                       </Text>
                     </View>

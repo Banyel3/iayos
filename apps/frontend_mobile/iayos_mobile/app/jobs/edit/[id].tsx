@@ -489,7 +489,7 @@ export default function EditJobScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -609,8 +609,8 @@ export default function EditJobScreen() {
                   style={[
                     styles.input,
                     hasPendingApplications &&
-                      budgetChanged &&
-                      styles.inputDisabled,
+                    budgetChanged &&
+                    styles.inputDisabled,
                   ]}
                   placeholder="Enter budget"
                   value={budget}
@@ -810,14 +810,14 @@ export default function EditJobScreen() {
                         level === "MEDIUM" && styles.urgencyMedium,
                         level === "HIGH" && styles.urgencyHigh,
                         urgency === level &&
-                          level === "LOW" &&
-                          styles.urgencyLowActive,
+                        level === "LOW" &&
+                        styles.urgencyLowActive,
                         urgency === level &&
-                          level === "MEDIUM" &&
-                          styles.urgencyMediumActive,
+                        level === "MEDIUM" &&
+                        styles.urgencyMediumActive,
                         urgency === level &&
-                          level === "HIGH" &&
-                          styles.urgencyHighActive,
+                        level === "HIGH" &&
+                        styles.urgencyHighActive,
                       ]}
                       onPress={() => {
                         setUrgency(level);
@@ -1008,7 +1008,7 @@ export default function EditJobScreen() {
               style={[
                 styles.submitButton,
                 (updateJobMutation.isPending || hasInsufficientBalance) &&
-                  styles.submitButtonDisabled,
+                styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}
               disabled={updateJobMutation.isPending || hasInsufficientBalance}

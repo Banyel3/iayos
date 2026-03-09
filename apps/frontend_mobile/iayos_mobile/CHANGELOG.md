@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+  - Fixed client→agency direct-hire flow: hidden listing applications for `INVITE` jobs and added agency worker suggestion CTA in job details
+  - Fixed agency payment UX in conversation: replaced per-employee "Approve & Pay" actions with a single agency-level approve-and-pay action
+  - Fixed client-side conversation closure for agency jobs by aligning backend agency review status calculation (supports `assignedAgencyFK` flows and no-employee agency assignments)
+  - **Impact**: Direct agency hires now follow correct B2B payment and closure behavior, with cleaner client job details UX
+
   - Enabled AI price suggestion card for agency-hire PROJECT jobs even when title/description are still short by using selected-category fallback context
   - Fixed agency approve-and-pay backend transaction creation using correct `Transaction` model fields (`walletID`, `relatedJobPosting`, `balanceAfter`, `paymentMethod`)
   - Fixed cash and GCash approval paths to create valid transaction records instead of raising internal server errors
@@ -67,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Users have a safety window to cancel before critical/financial actions execute
 
 - **BIR Receipt Disclaimer on All Transaction Summaries**
-  - Added amber compliance banner: "This is NOT an Official Receipt (O.R.) as defined by the Bureau of Internal Revenue (BIR)"
+  - Added amber compliance banner: "This is NOT an Official Receipt as defined by the Bureau of Internal Revenue (BIR)"
   - Applied to Job Receipt Modal, Payment Receipt Modal, and Withdrawal Success screen
   - Disclaimer text included in Share Receipt text output
   - **Impact**: Legal compliance — all in-app receipts clearly marked as non-O.R. transaction summaries

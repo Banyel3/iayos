@@ -48,7 +48,6 @@ import {
   useConfirmProjectArrival,
   useAgencyMarkProjectComplete,
   useApproveAgencyProjectJob,
-  useApproveAgencyProjectEmployee,
 } from "../../lib/hooks/useJobActions";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -59,13 +58,15 @@ import {
   useConfirmBackjobScheduledDate,
   useRequestBackjobRenegotiation,
 } from "../../lib/hooks/useBackjobActions";
-import { useSubmitReview } from "../../lib/hooks/useReviews";
+import { useSubmitReview, useEditReview } from "../../lib/hooks/useReviews";
 import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import {
   useWorkerCheckIn,
+  useWorkerCancelCheckIn,
   useWorkerCheckOut,
   useClientConfirmAttendance,
+  useClientMarkNoWork,
   useClientVerifyArrival,
   useClientMarkCheckout,
   useRequestDailySkipDay,
@@ -105,6 +106,7 @@ import {
 } from "../../lib/services/offline-queue";
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
 export default function ChatScreen() {
@@ -122,14 +124,8 @@ export default function ChatScreen() {
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
-  // Per-employee approval tracking
-  const [approvingEmployeeId, setApprovingEmployeeId] = useState<number | null>(
-    null,
-  );
-  const [approvingEmployeeName, setApprovingEmployeeName] =
-    useState<string>("");
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">(
+  const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view" | "edit">(
     "submit",
   );
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -148,6 +144,12 @@ export default function ChatScreen() {
   const [showBackjobScheduleModal, setShowBackjobScheduleModal] =
     useState(false);
   const [backjobScheduleInput, setBackjobScheduleInput] = useState("");
+  const [backjobScheduleDate, setBackjobScheduleDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -223,10 +225,31 @@ export default function ChatScreen() {
 
   // Clear temporary review-sync bypass once server flags are updated.
   useEffect(() => {
-    if (conversation?.job?.clientReviewed) {
+    if (!conversation) return;
+
+    const clientReviewDone = conversation.is_team_job
+      ? !!conversation.all_team_workers_reviewed
+      : conversation.is_agency_job
+        ? (conversation.job.agencyReviewed &&
+          ((conversation.all_employees_reviewed ?? false) ||
+            (conversation.job.employeeReviewed ?? false) ||
+            (conversation.pending_employee_reviews?.length ?? 0) === 0))
+        : !!conversation.job.clientReviewed;
+
+    if (clientReviewDone) {
       setReviewStatusSyncing(false);
     }
-  }, [conversation?.job?.clientReviewed]);
+  }, [
+    conversation,
+    conversation?.is_team_job,
+    conversation?.is_agency_job,
+    conversation?.all_team_workers_reviewed,
+    conversation?.all_employees_reviewed,
+    conversation?.pending_employee_reviews,
+    conversation?.job?.clientReviewed,
+    conversation?.job?.employeeReviewed,
+    conversation?.job?.agencyReviewed,
+  ]);
 
   // Check if conversation is closed (both parties reviewed)
   // BUT if there's an APPROVED backjob (UNDER_REVIEW status), conversation should stay open
@@ -238,11 +261,29 @@ export default function ChatScreen() {
   const hasActiveNegotiation =
     conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "IN_NEGOTIATION";
+
+  const hasAgencyEmployeeReviewsCompleted = !!(
+    conversation?.is_agency_job &&
+    ((conversation?.all_employees_reviewed ?? false) ||
+      (conversation?.job?.employeeReviewed ?? false) ||
+      (conversation?.pending_employee_reviews?.length ?? 0) === 0)
+  );
+
+  const clientHasReviewed = !!(conversation && (() => {
+    if (conversation.is_team_job) {
+      return !!conversation.all_team_workers_reviewed;
+    }
+
+    if (conversation.is_agency_job) {
+      return hasAgencyEmployeeReviewsCompleted && !!conversation.job.agencyReviewed;
+    }
+
+    return !!conversation.job.clientReviewed;
+  })());
+
   // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
-  const clientHasFullyReviewed = conversation?.is_team_job
-    ? !!conversation?.all_team_workers_reviewed
-    : !!conversation?.job?.clientReviewed;
+  const clientHasFullyReviewed = clientHasReviewed;
   const isConversationClosed =
     (conversation?.job?.clientMarkedComplete &&
       clientHasFullyReviewed &&
@@ -266,10 +307,9 @@ export default function ChatScreen() {
     !isConversationClosed &&
     !hasApprovedBackjob &&
     ((conversation.my_role === "CLIENT" &&
-      (conversation.is_team_job
-        ? !conversation.all_team_workers_reviewed
-        : !conversation.job.clientReviewed)) ||
-      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
+      !clientHasReviewed) ||
+      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed) ||
+      (conversation.my_role === "AGENCY" && !conversation.job.workerReviewed))
   );
 
   // Block hardware back button when review is needed - REMOVED to allow users to exit freely
@@ -282,6 +322,9 @@ export default function ChatScreen() {
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
+  const editReviewMutation = useEditReview();
+  const isReviewMutationPending =
+    submitReviewMutation.isPending || editReviewMutation.isPending;
   const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
@@ -291,14 +334,14 @@ export default function ChatScreen() {
   const confirmProjectArrivalMutation = useConfirmProjectArrival();
   const agencyMarkProjectCompleteMutation = useAgencyMarkProjectComplete();
   const approveAgencyProjectJobMutation = useApproveAgencyProjectJob();
-  const approveAgencyProjectEmployeeMutation =
-    useApproveAgencyProjectEmployee();
   const createFinalPaymentMutation = useCreateFinalPayment();
 
   // Daily attendance mutations
   const workerCheckInMutation = useWorkerCheckIn();
+  const workerCancelCheckInMutation = useWorkerCancelCheckIn();
   const workerCheckOutMutation = useWorkerCheckOut();
   const clientConfirmAttendanceMutation = useClientConfirmAttendance();
+  const clientMarkNoWorkMutation = useClientMarkNoWork();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
   const requestDailySkipDayMutation = useRequestDailySkipDay();
@@ -365,6 +408,15 @@ export default function ChatScreen() {
   const [hasAttemptedWsConnection, setHasAttemptedWsConnection] =
     useState(false);
   const [isTestingModeEnabled, setIsTestingModeEnabled] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -610,6 +662,28 @@ export default function ChatScreen() {
   const handleApproveCompletion = () => {
     if (!conversation) return;
 
+    // If final payment is already completed (via Pay Now), skip payment selection
+    // and only approve completion so the review flow can start.
+    if (conversation.job.remainingPaymentPaid) {
+      Alert.alert(
+        "Approve Completion",
+        "Final payment is already completed. Approve this job to proceed to reviews.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Approve",
+            onPress: () => {
+              approveCompletionMutation.mutate({
+                jobId: conversation.job.id,
+                paymentMethod: "WALLET",
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     // Calculate remaining amount (50% of total budget + materials cost)
     const baseRemaining = conversation.job.budget
       ? conversation.job.budget * 0.5
@@ -627,40 +701,6 @@ export default function ChatScreen() {
       visible: true,
       title: "Approve Completion & Pay",
       message: `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}${materialsNote}\n\nPlease select your payment method.`,
-      confirmLabel: "Continue",
-      countdownSeconds: 7,
-      onConfirm: () => {
-        setCountdownConfig(null);
-        setShowPaymentModal(true);
-      },
-      icon: "wallet",
-      iconColor: Colors.warning,
-    });
-  };
-
-  // Handle per-employee approve (CLIENT on agency PROJECT jobs)
-  const handleApproveEmployee = (
-    employeeId: number,
-    employeeName: string,
-    paymentAmount: number | null,
-  ) => {
-    if (!conversation) return;
-    const amount = paymentAmount
-      ? paymentAmount.toFixed(2)
-      : conversation.job.budget
-        ? (
-            (conversation.job.budget * 0.5) /
-            (conversation.assigned_employees?.length || 1)
-          ).toFixed(2)
-        : "0.00";
-
-    setApprovingEmployeeId(employeeId);
-    setApprovingEmployeeName(employeeName);
-
-    setCountdownConfig({
-      visible: true,
-      title: `Approve ${employeeName}`,
-      message: `Pay ₱${amount} for ${employeeName}'s completed work.\n\nSelect your payment method.`,
       confirmLabel: "Continue",
       countdownSeconds: 7,
       onConfirm: () => {
@@ -709,52 +749,25 @@ export default function ChatScreen() {
         : 0;
       const materialsCostVal = conversation.job.materials_cost ?? 0;
 
-      const remainingAmount =
-        approvingEmployeeId && approvingEmployeeName
-          ? (
-              conversation.assigned_employees?.find(
-                (e) => e.id === approvingEmployeeId,
-              )?.paymentAmount ??
-              (conversation.job.budget
-                ? (conversation.job.budget * 0.5) /
-                  (conversation.assigned_employees?.length || 1)
-                : 0)
-            ).toFixed(2)
-          : (baseRemaining + materialsCostVal).toFixed(2);
+      const remainingAmount = (baseRemaining + materialsCostVal).toFixed(2);
 
-      const workerText = approvingEmployeeId
-        ? approvingEmployeeName
-        : conversation.is_team_job
-          ? "the workers"
+      const workerText = conversation.is_team_job
+        ? "the workers"
+        : conversation.is_agency_job
+          ? "the agency"
           : "the worker";
 
       Alert.alert(
         "Cash Payment",
         `Please pay ₱${remainingAmount} to ${workerText} directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
         [
-          {
-            text: "Cancel",
-            style: "cancel",
-            onPress: () => {
-              setApprovingEmployeeId(null);
-              setApprovingEmployeeName("");
-            },
-          },
+          { text: "Cancel", style: "cancel" },
           {
             text: "Upload Proof",
             onPress: () => setShowCashUploadModal(true),
           },
         ],
       );
-    } else if (approvingEmployeeId && conversation.is_agency_job) {
-      // Per-employee agency PROJECT job approval
-      approveAgencyProjectEmployeeMutation.mutate({
-        jobId: conversation.job.id,
-        employeeId: approvingEmployeeId,
-        paymentMethod: method,
-      });
-      setApprovingEmployeeId(null);
-      setApprovingEmployeeName("");
     } else if (conversation.is_team_job) {
       // Team job approval
       approveTeamJobCompletionMutation.mutate({
@@ -795,17 +808,7 @@ export default function ChatScreen() {
   const handleCashProofSubmit = () => {
     if (!conversation || !selectedImage) return;
 
-    if (approvingEmployeeId && conversation.is_agency_job) {
-      // Per-employee agency PROJECT job cash proof
-      approveAgencyProjectEmployeeMutation.mutate({
-        jobId: conversation.job.id,
-        employeeId: approvingEmployeeId,
-        paymentMethod: "CASH",
-        cashProofImage: selectedImage,
-      });
-      setApprovingEmployeeId(null);
-      setApprovingEmployeeName("");
-    } else if (conversation.is_team_job) {
+    if (conversation.is_team_job) {
       // Team job cash proof
       approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
@@ -946,7 +949,12 @@ export default function ChatScreen() {
   const handleSubmitBackjobScheduleDate = () => {
     if (!conversation) return;
 
-    const scheduleValue = backjobScheduleInput.trim();
+    // Use current date state if input is empty (for picker)
+    let scheduleValue = backjobScheduleInput.trim();
+    if (!scheduleValue) {
+      scheduleValue = format(backjobScheduleDate, "yyyy-MM-dd");
+    }
+
     if (!scheduleValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
       Alert.alert("Invalid Date", "Use YYYY-MM-DD format.");
       return;
@@ -968,6 +976,10 @@ export default function ChatScreen() {
       {
         onSuccess: () => {
           setShowBackjobScheduleModal(false);
+          setBackjobScheduleInput("");
+          const d = new Date();
+          d.setHours(0, 0, 0, 0);
+          setBackjobScheduleDate(d);
         },
       },
     );
@@ -996,6 +1008,49 @@ export default function ChatScreen() {
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation) return;
+
+    if (reviewModalMode === "edit") {
+      const myReview =
+        conversation.my_role === "CLIENT"
+          ? conversation.client_review
+          : conversation.worker_review;
+
+      if (!myReview) {
+        Alert.alert("Error", "No review found to edit");
+        return;
+      }
+
+      // Calculate overall rating from multi-criteria
+      const overallRating =
+        (ratingQuality +
+          ratingCommunication +
+          ratingPunctuality +
+          ratingProfessionalism) /
+        4;
+
+      editReviewMutation.mutate(
+        {
+          reviewId: myReview.review_id,
+          rating: overallRating,
+          comment: reviewComment,
+        },
+        {
+          onSuccess: () => {
+            setShowReviewModal(false);
+            setReviewModalMode("view");
+            refetch();
+            Alert.alert("Success", "Review updated successfully");
+          },
+          onError: (error: unknown) => {
+            Alert.alert(
+              "Error",
+              getErrorMessage(error, "Failed to update review"),
+            );
+          },
+        },
+      );
+      return;
+    }
 
     // Check ratings based on role:
     // CLIENT reviewing WORKER: Punctuality, Reliability, Skill, Workmanship
@@ -1538,11 +1593,11 @@ export default function ChatScreen() {
     Alert.alert("Report", "Choose what to report", [
       ...(reportUserTargetId
         ? [
-            {
-              text: "Report User",
-              onPress: () => openReportReasonPicker("user", reportUserTargetId),
-            },
-          ]
+          {
+            text: "Report User",
+            onPress: () => openReportReasonPicker("user", reportUserTargetId),
+          },
+        ]
         : []),
       { text: "Report Job", onPress: () => openReportReasonPicker("job") },
       {
@@ -1686,7 +1741,7 @@ export default function ChatScreen() {
       index === 0 ||
       Math.abs(
         new Date(item.created_at).getTime() -
-          new Date(conversation!.messages[index - 1].created_at).getTime(),
+        new Date(conversation!.messages[index - 1].created_at).getTime(),
       ) > 60000;
 
     // Extract image URL from attachments if present
@@ -1872,6 +1927,29 @@ export default function ChatScreen() {
       </SafeAreaView>
     );
   }
+
+  const myWorkerAttendanceToday = conversation.attendance_today?.find(
+    (a) => a.worker_id === user?.profile_data?.workerProfileId,
+  );
+  const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
+  const hasCheckedOutToday = Boolean(myWorkerAttendanceToday?.time_out);
+  const checkInElapsedSeconds = myWorkerAttendanceToday?.time_in
+    ? Math.floor(
+        (currentTimeMs - new Date(myWorkerAttendanceToday.time_in).getTime()) /
+          1000,
+      )
+    : 0;
+  const canUndoCheckIn =
+    hasCheckedInToday &&
+    !hasCheckedOutToday &&
+    checkInElapsedSeconds >= 0 &&
+    checkInElapsedSeconds <= 10;
+  const hasAnyCheckedInToday = Boolean(
+    conversation.attendance_today?.some((a) => Boolean(a.time_in)),
+  );
+  const hasAnyClientConfirmedToday = Boolean(
+    conversation.attendance_today?.some((a) => Boolean(a.client_confirmed)),
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -2072,18 +2150,18 @@ export default function ChatScreen() {
                 {(isLoading ||
                   (conversation.job.estimatedCompletion &&
                     conversation.job.status !== "COMPLETED")) && (
-                  <EstimatedTimeCard
-                    prediction={conversation?.job?.estimatedCompletion || null}
-                    compact={true}
-                    countdownMode={conversation?.job?.status === "IN_PROGRESS"}
-                    jobStartTime={
-                      conversation?.job?.clientConfirmedWorkStarted
-                        ? new Date().toISOString()
-                        : undefined
-                    }
-                    isLoading={isLoading}
-                  />
-                )}
+                    <EstimatedTimeCard
+                      prediction={conversation?.job?.estimatedCompletion || null}
+                      compact={true}
+                      countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                      jobStartTime={
+                        conversation?.job?.clientConfirmedWorkStarted
+                          ? new Date().toISOString()
+                          : undefined
+                      }
+                      isLoading={isLoading}
+                    />
+                  )}
               </View>
             </TouchableOpacity>
 
@@ -2106,9 +2184,7 @@ export default function ChatScreen() {
                   onPress={() => {
                     const hasReviewed =
                       conversation.my_role === "CLIENT"
-                        ? conversation.is_team_job
-                          ? conversation.all_team_workers_reviewed
-                          : conversation.job.clientReviewed
+                        ? clientHasReviewed
                         : conversation.job.workerReviewed;
 
                     setReviewModalMode(hasReviewed ? "view" : "submit");
@@ -2126,9 +2202,7 @@ export default function ChatScreen() {
                     {(() => {
                       const hasReviewed =
                         conversation.my_role === "CLIENT"
-                          ? conversation.is_team_job
-                            ? conversation.all_team_workers_reviewed
-                            : conversation.job.clientReviewed
+                          ? clientHasReviewed
                           : conversation.job.workerReviewed;
 
                       if (hasReviewed) {
@@ -2231,7 +2305,7 @@ export default function ChatScreen() {
                               style={[
                                 styles.teamWorkerCardCompact,
                                 assignment.client_confirmed_arrival &&
-                                  styles.teamWorkerCardConfirmed,
+                                styles.teamWorkerCardConfirmed,
                               ]}
                             >
                               <View style={styles.teamWorkerInfoCompact}>
@@ -2344,13 +2418,7 @@ export default function ChatScreen() {
                     {conversation.my_role === "WORKER" && (
                       <View style={styles.dailyWorkerActions}>
                         {(() => {
-                          // Find today's attendance for this worker
-                          const todayAttendance =
-                            conversation.attendance_today?.find(
-                              (a) =>
-                                a.worker_id ===
-                                user?.profile_data?.workerProfileId,
-                            );
+                          const todayAttendance = myWorkerAttendanceToday;
 
                           // No attendance yet - show check-in button
                           if (!todayAttendance || !todayAttendance.time_in) {
@@ -2409,14 +2477,52 @@ export default function ChatScreen() {
                                     )}
                                   </Text>
                                 </View>
+                                {canUndoCheckIn && (
+                                  <TouchableOpacity
+                                    style={styles.undoCheckInButton}
+                                    onPress={() =>
+                                      workerCancelCheckInMutation.mutate(
+                                        conversation.job.id,
+                                      )
+                                    }
+                                    disabled={
+                                      workerCancelCheckInMutation.isPending
+                                    }
+                                  >
+                                    {workerCancelCheckInMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Text style={styles.undoCheckInButtonText}>
+                                        Undo Check-In ({10 - checkInElapsedSeconds}s)
+                                      </Text>
+                                    )}
+                                  </TouchableOpacity>
+                                )}
                                 <TouchableOpacity
                                   style={[
                                     styles.actionButton,
                                     styles.checkOutButton,
                                   ]}
                                   onPress={() =>
-                                    workerCheckOutMutation.mutate(
-                                      conversation.job.id,
+                                    Alert.alert(
+                                      "Check Out",
+                                      "Checkout is only allowed after at least 2 hours from check-in.",
+                                      [
+                                        {
+                                          text: "Cancel",
+                                          style: "cancel",
+                                        },
+                                        {
+                                          text: "Check Out",
+                                          onPress: () =>
+                                            workerCheckOutMutation.mutate(
+                                              conversation.job.id,
+                                            ),
+                                        },
+                                      ],
                                     )
                                   }
                                   disabled={workerCheckOutMutation.isPending}
@@ -2495,7 +2601,7 @@ export default function ChatScreen() {
                     )}
 
                     {/* Worker View: Skip Day Request */}
-                    {conversation.my_role === "WORKER" && (
+                    {conversation.my_role === "WORKER" && !hasCheckedInToday && (
                       <View style={styles.skipDayContainer}>
                         <View style={styles.skipDayWarningCard}>
                           <Text style={styles.skipDayWarningText}>
@@ -2830,6 +2936,48 @@ export default function ChatScreen() {
 
                     {/* Client View: Confirm attendance for each worker */}
                     {conversation.my_role === "CLIENT" && (
+                      <>
+                        {!conversation.is_team_job && !hasAnyCheckedInToday && !hasAnyClientConfirmedToday && (
+                          <TouchableOpacity
+                            style={styles.noWorkQuickButton}
+                            onPress={() =>
+                              Alert.alert(
+                                "Mark No Work Today",
+                                "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Confirm",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      clientMarkNoWorkMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        workerId:
+                                          conversation.attendance_today?.[0]
+                                            ?.worker_id,
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={clientMarkNoWorkMutation.isPending}
+                          >
+                            {clientMarkNoWorkMutation.isPending ? (
+                              <ActivityIndicator size="small" color={Colors.white} />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={16}
+                                  color={Colors.white}
+                                />
+                                <Text style={styles.noWorkQuickButtonText}>
+                                  Worker Didn't Work Today
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -2837,7 +2985,7 @@ export default function ChatScreen() {
                         contentContainerStyle={styles.teamWorkersScrollContent}
                       >
                         {conversation.attendance_today &&
-                        conversation.attendance_today.length > 0 ? (
+                          conversation.attendance_today.length > 0 ? (
                           conversation.attendance_today.map(
                             (attendance: any) => (
                               <View
@@ -2845,7 +2993,7 @@ export default function ChatScreen() {
                                 style={[
                                   styles.teamWorkerCardCompact,
                                   attendance.client_confirmed &&
-                                    styles.teamWorkerCardConfirmed,
+                                  styles.teamWorkerCardConfirmed,
                                 ]}
                               >
                                 <View style={styles.teamWorkerInfoCompact}>
@@ -2958,7 +3106,7 @@ export default function ChatScreen() {
                                     onPress={() =>
                                       Alert.alert(
                                         "Mark Checkout",
-                                        `Mark ${attendance.worker_name || "worker"} as done for today?`,
+                                        `Mark ${attendance.worker_name || "worker"} as done for today? (Minimum 2 hours after check-in)`,
                                         [
                                           { text: "Cancel", style: "cancel" },
                                           {
@@ -3066,6 +3214,7 @@ export default function ChatScreen() {
                           </View>
                         )}
                       </ScrollView>
+                      </>
                     )}
 
                     {/* Daily rate info */}
@@ -3195,8 +3344,8 @@ export default function ChatScreen() {
                     const completedCount = conversation.job.workerMarkedComplete
                       ? conversation.team_worker_assignments.length
                       : conversation.team_worker_assignments.filter(
-                          (a) => a.worker_marked_complete,
-                        ).length;
+                        (a) => a.worker_marked_complete,
+                      ).length;
 
                     // Show waiting for arrivals if not all arrived
                     if (!allWorkersArrived) {
@@ -3490,7 +3639,7 @@ export default function ChatScreen() {
                       {/* WORKER: Mark buying / Skip buttons */}
                       {conversation.my_role === "WORKER" &&
                         conversation.job.materials_status ===
-                          "PENDING_PURCHASE" && (
+                        "PENDING_PURCHASE" && (
                           <View style={styles.materialsActions}>
                             <TouchableOpacity
                               style={styles.materialsBuyingBtn}
@@ -3542,13 +3691,13 @@ export default function ChatScreen() {
                   !conversation.is_agency_job &&
                   conversation.job?.preferred_start_date &&
                   new Date() <
-                    (() => {
-                      const d = new Date(
-                        conversation.job!.preferred_start_date!,
-                      );
-                      d.setHours(0, 0, 0, 0);
-                      return d;
-                    })() && (
+                  (() => {
+                    const d = new Date(
+                      conversation.job!.preferred_start_date!,
+                    );
+                    d.setHours(0, 0, 0, 0);
+                    return d;
+                  })() && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
                         name="lock-closed-outline"
@@ -3579,13 +3728,13 @@ export default function ChatScreen() {
                   conversation.my_role === "CLIENT" &&
                   (!conversation.job?.preferred_start_date ||
                     new Date() >=
-                      (() => {
-                        const d = new Date(
-                          conversation.job.preferred_start_date!,
-                        );
-                        d.setHours(0, 0, 0, 0);
-                        return d;
-                      })()) &&
+                    (() => {
+                      const d = new Date(
+                        conversation.job.preferred_start_date!,
+                      );
+                      d.setHours(0, 0, 0, 0);
+                      return d;
+                    })()) &&
                   !conversation.job.clientConfirmedWorkStarted &&
                   (conversation.job.materials_status === "NONE" ||
                     conversation.job.materials_status === "APPROVED" ||
@@ -3783,12 +3932,18 @@ export default function ChatScreen() {
                       ) : (
                         <>
                           <Ionicons
-                            name="wallet"
+                            name={
+                              conversation.job.remainingPaymentPaid
+                                ? "checkmark-circle"
+                                : "wallet"
+                            }
                             size={20}
                             color={Colors.white}
                           />
                           <Text style={styles.actionButtonText}>
-                            Approve & Pay Final Amount
+                            {conversation.job.remainingPaymentPaid
+                              ? "Approve Completion"
+                              : "Approve & Pay Final Amount"}
                           </Text>
                         </>
                       )}
@@ -4176,96 +4331,78 @@ export default function ChatScreen() {
                           </View>
                         )}
 
-                        {/* Per-employee approve & pay buttons */}
-                        {conversation.assigned_employees.filter(
-                          (e) => isEmployeeComplete(e) && !e.clientApproved,
-                        ).length > 0 &&
-                          !conversation.job.clientMarkedComplete && (
-                            <View style={styles.employeeActionsSection}>
-                              <Text style={styles.actionSectionTitle}>
-                                Approve & Pay Employees
-                              </Text>
-                              {conversation.assigned_employees
-                                .filter(
-                                  (e) =>
-                                    isEmployeeComplete(e) && !e.clientApproved,
-                                )
-                                .map((employee) => (
-                                  <TouchableOpacity
-                                    key={`approve-${employee.id}`}
-                                    style={[
-                                      styles.actionButton,
-                                      styles.approveCompletionButton,
-                                    ]}
-                                    onPress={() =>
-                                      handleApproveEmployee(
-                                        employee.id,
-                                        employee.name,
-                                        employee.paymentAmount ?? null,
-                                      )
-                                    }
-                                    disabled={
-                                      approveAgencyProjectEmployeeMutation.isPending
-                                    }
-                                  >
-                                    {approveAgencyProjectEmployeeMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <>
-                                        <Ionicons
-                                          name="wallet"
-                                          size={20}
-                                          color={Colors.white}
-                                        />
-                                        <Text style={styles.actionButtonText}>
-                                          Approve & Pay: {employee.name} (₱
-                                          {(
-                                            employee.paymentAmount ?? 0
-                                          ).toLocaleString()}
-                                          )
-                                        </Text>
-                                      </>
-                                    )}
-                                  </TouchableOpacity>
-                                ))}
-                            </View>
-                          )}
+                        {/* Single agency-level approve & pay button */}
+                        {allComplete && !conversation.job.clientMarkedComplete && (
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Approve & Pay Agency
+                            </Text>
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                styles.approveCompletionButton,
+                              ]}
+                              onPress={handleApproveCompletion}
+                              disabled={approveAgencyProjectJobMutation.isPending}
+                            >
+                              {approveAgencyProjectJobMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="wallet"
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.actionButtonText}>
+                                    Approve & Pay Agency (₱
+                                    {(
+                                      (conversation.job.budget * 0.5) +
+                                      (conversation.job.materials_cost ?? 0)
+                                    ).toLocaleString()}
+                                    )
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        )}
 
                         {/* Show already-approved employees */}
                         {conversation.assigned_employees.filter(
                           (e) => e.clientApproved,
                         ).length > 0 && (
-                          <View style={styles.employeeActionsSection}>
-                            {conversation.assigned_employees
-                              .filter((e) => e.clientApproved)
-                              .map((employee) => (
-                                <View
-                                  key={`approved-${employee.id}`}
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                  ]}
-                                >
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={20}
-                                    color="#22c55e"
-                                  />
-                                  <Text
+                            <View style={styles.employeeActionsSection}>
+                              {conversation.assigned_employees
+                                .filter((e) => e.clientApproved)
+                                .map((employee) => (
+                                  <View
+                                    key={`approved-${employee.id}`}
                                     style={[
-                                      styles.waitingButtonText,
-                                      { color: "#22c55e" },
+                                      styles.actionButton,
+                                      styles.waitingButton,
                                     ]}
                                   >
-                                    ✓ {employee.name} — Approved & Paid
-                                  </Text>
-                                </View>
-                              ))}
-                          </View>
-                        )}
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={20}
+                                      color="#22c55e"
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.waitingButtonText,
+                                        { color: "#22c55e" },
+                                      ]}
+                                    >
+                                      ✓ {employee.name} — Approved & Paid
+                                    </Text>
+                                  </View>
+                                ))}
+                            </View>
+                          )}
                       </>
                     );
                   })()}
@@ -4293,7 +4430,8 @@ export default function ChatScreen() {
               </View>
             )}
 
-          {/* Request Backjob Banner - Only after both parties reviewed and conversation closed */}
+          {/* Backjob Banners - Request or Edit Feedback */}
+          {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
           {conversation.my_role === "CLIENT" &&
             (conversation.job.status === "COMPLETED" ||
               !!conversation.job.clientMarkedComplete) &&
@@ -4351,6 +4489,55 @@ export default function ChatScreen() {
               </TouchableOpacity>
             )}
 
+          {/* Edit Feedback Banner - BOTH CLIENT & WORKER - Only after a successful backjob */}
+          {conversation.backjob?.status === "COMPLETED" && (
+            <TouchableOpacity
+              style={styles.requestBackjobBanner}
+              onPress={() => {
+                setReviewModalMode("edit");
+                setShowReviewModal(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.requestBackjobContent,
+                  {
+                    backgroundColor: "#E8F5E9", // Light green background
+                    borderColor: "#C8E6C9", // Light green border
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.requestBackjobIconContainer,
+                    {
+                      backgroundColor: Colors.success, // Green icon container
+                    },
+                  ]}
+                >
+                  <Ionicons name="star" size={24} color={Colors.white} />
+                </View>
+                <View style={styles.requestBackjobText}>
+                  <Text
+                    style={[styles.requestBackjobTitle, { color: "#1B5E20" }]}
+                  >
+                    Satisfied with the backjob?
+                  </Text>
+                  <Text
+                    style={[
+                      styles.requestBackjobSubtitle,
+                      { color: "#2E7D32" },
+                    ]}
+                  >
+                    Wanna update your feedback?
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Review Section - Compact Banner that opens modal */}
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
           {(conversation.job.clientMarkedComplete ||
@@ -4359,15 +4546,13 @@ export default function ChatScreen() {
               <>
                 {/* Check if current user already reviewed */}
                 {(conversation.my_role === "CLIENT" &&
-                  (conversation.is_team_job
-                    ? conversation.all_team_workers_reviewed
-                    : conversation.job.clientReviewed)) ||
-                (conversation.my_role === "WORKER" &&
-                  conversation.job.workerReviewed)
+                  clientHasReviewed) ||
+                  (conversation.my_role === "WORKER" &&
+                    conversation.job.workerReviewed)
                   ? // Review submitted banner removed - replaced with View Reviews button
-                    null
+                  null
                   : // Redundant review banner removed - use header button instead
-                    null}
+                  null}
 
                 {/* Team job worker review checklist - show who's been reviewed */}
                 {conversation.is_team_job &&
@@ -4407,7 +4592,7 @@ export default function ChatScreen() {
                                 style={[
                                   styles.teamReviewChecklistName,
                                   isReviewed &&
-                                    styles.teamReviewChecklistNameDone,
+                                  styles.teamReviewChecklistNameDone,
                                 ]}
                                 numberOfLines={1}
                               >
@@ -4462,7 +4647,11 @@ export default function ChatScreen() {
                   />
                 </TouchableOpacity>
                 <Text style={styles.reviewModalTitle}>
-                  {reviewModalMode === "view" ? "Reviews" : "Leave a Review"}
+                  {reviewModalMode === "view"
+                    ? "Reviews"
+                    : reviewModalMode === "edit"
+                      ? "Edit Your Review"
+                      : "Leave a Review"}
                 </Text>
                 <View style={{ width: 40 }} />
               </View>
@@ -4480,9 +4669,69 @@ export default function ChatScreen() {
                     <View style={{ padding: Spacing.md }}>
                       {/* My Review Section */}
                       <View style={styles.reviewSection}>
-                        <Text style={styles.reviewSectionTitle}>
-                          Your Review
-                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: Spacing.sm,
+                          }}
+                        >
+                          <Text
+                            style={[styles.reviewSectionTitle, { marginBottom: 0 }]}
+                          >
+                            Your Review
+                          </Text>
+                          {conversation.backjob?.status === "COMPLETED" && (
+                            <TouchableOpacity
+                              onPress={() => {
+                                const myReview =
+                                  conversation.my_role === "CLIENT"
+                                    ? conversation.client_review
+                                    : conversation.worker_review;
+                                if (myReview) {
+                                  // Pre-fill ratings
+                                  setRatingQuality(myReview.rating_quality || 0);
+                                  setRatingCommunication(
+                                    myReview.rating_communication || 0
+                                  );
+                                  setRatingPunctuality(
+                                    myReview.rating_punctuality || 0
+                                  );
+                                  setRatingProfessionalism(
+                                    myReview.rating_professionalism || 0
+                                  );
+                                  setReviewComment(myReview.comment || "");
+                                  setReviewModalMode("edit");
+                                }
+                              }}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
+                                backgroundColor: Colors.primary + "10",
+                                paddingHorizontal: 10,
+                                paddingVertical: 5,
+                                borderRadius: 6,
+                              }}
+                            >
+                              <Ionicons
+                                name="pencil"
+                                size={14}
+                                color={Colors.primary}
+                              />
+                              <Text
+                                style={{
+                                  color: Colors.primary,
+                                  fontSize: 12,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Edit Review
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                         {(() => {
                           // Add null safety check for conversation
                           if (!conversation) {
@@ -4514,49 +4763,49 @@ export default function ChatScreen() {
                           const categories =
                             conversation.my_role === "CLIENT"
                               ? [
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Punctuality",
-                                    icon: "⏰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Reliability",
-                                    icon: "✅",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Skill",
-                                    icon: "🔧",
-                                  },
-                                  {
-                                    key: "rating_communication",
-                                    label: "Workmanship",
-                                    icon: "🛠️",
-                                  },
-                                ]
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Punctuality",
+                                  icon: "⏰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Reliability",
+                                  icon: "✅",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Skill",
+                                  icon: "🔧",
+                                },
+                                {
+                                  key: "rating_communication",
+                                  label: "Workmanship",
+                                  icon: "🛠️",
+                                },
+                              ]
                               : [
-                                  {
-                                    key: "rating_communication",
-                                    label: "Communication",
-                                    icon: "💬",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Clarity of Job Details",
-                                    icon: "📋",
-                                  },
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Payment Reliability",
-                                    icon: "💰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Respect & Professionalism",
-                                    icon: "🤝",
-                                  },
-                                ];
+                                {
+                                  key: "rating_communication",
+                                  label: "Communication",
+                                  icon: "💬",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Clarity of Job Details",
+                                  icon: "📋",
+                                },
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Payment Reliability",
+                                  icon: "💰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Respect & Professionalism",
+                                  icon: "🤝",
+                                },
+                              ];
 
                           return (
                             <View style={styles.reviewCard}>
@@ -4603,9 +4852,9 @@ export default function ChatScreen() {
                                         key={star}
                                         name={
                                           star <=
-                                          (myReview[
-                                            cat.key as keyof typeof myReview
-                                          ] as number)
+                                            (myReview[
+                                              cat.key as keyof typeof myReview
+                                            ] as number)
                                             ? "star"
                                             : "star-outline"
                                         }
@@ -4623,7 +4872,7 @@ export default function ChatScreen() {
                                     >
                                       {
                                         myReview[
-                                          cat.key as keyof typeof myReview
+                                        cat.key as keyof typeof myReview
                                         ]
                                       }
                                       /5
@@ -4697,7 +4946,7 @@ export default function ChatScreen() {
                           const hasReviewed =
                             conversation.my_role === "CLIENT"
                               ? conversation.job?.workerReviewed
-                              : conversation.job?.clientReviewed;
+                              : clientHasReviewed;
 
                           if (!hasReviewed) {
                             return (
@@ -4744,49 +4993,49 @@ export default function ChatScreen() {
                           const categories =
                             conversation.my_role === "CLIENT"
                               ? [
-                                  {
-                                    key: "rating_communication",
-                                    label: "Communication",
-                                    icon: "💬",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Clarity of Job Details",
-                                    icon: "📋",
-                                  },
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Payment Reliability",
-                                    icon: "💰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Respect & Professionalism",
-                                    icon: "🤝",
-                                  },
-                                ]
+                                {
+                                  key: "rating_communication",
+                                  label: "Communication",
+                                  icon: "💬",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Clarity of Job Details",
+                                  icon: "📋",
+                                },
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Payment Reliability",
+                                  icon: "💰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Respect & Professionalism",
+                                  icon: "🤝",
+                                },
+                              ]
                               : [
-                                  {
-                                    key: "rating_punctuality",
-                                    label: "Punctuality",
-                                    icon: "⏰",
-                                  },
-                                  {
-                                    key: "rating_professionalism",
-                                    label: "Reliability",
-                                    icon: "✅",
-                                  },
-                                  {
-                                    key: "rating_quality",
-                                    label: "Skill",
-                                    icon: "🔧",
-                                  },
-                                  {
-                                    key: "rating_communication",
-                                    label: "Workmanship",
-                                    icon: "🛠️",
-                                  },
-                                ];
+                                {
+                                  key: "rating_punctuality",
+                                  label: "Punctuality",
+                                  icon: "⏰",
+                                },
+                                {
+                                  key: "rating_professionalism",
+                                  label: "Reliability",
+                                  icon: "✅",
+                                },
+                                {
+                                  key: "rating_quality",
+                                  label: "Skill",
+                                  icon: "🔧",
+                                },
+                                {
+                                  key: "rating_communication",
+                                  label: "Workmanship",
+                                  icon: "🛠️",
+                                },
+                              ];
 
                           return (
                             <View style={styles.reviewCard}>
@@ -4833,9 +5082,9 @@ export default function ChatScreen() {
                                         key={star}
                                         name={
                                           star <=
-                                          (otherReview[
-                                            cat.key as keyof typeof otherReview
-                                          ] as number)
+                                            (otherReview[
+                                              cat.key as keyof typeof otherReview
+                                            ] as number)
                                             ? "star"
                                             : "star-outline"
                                         }
@@ -4853,7 +5102,7 @@ export default function ChatScreen() {
                                     >
                                       {
                                         otherReview[
-                                          cat.key as keyof typeof otherReview
+                                        cat.key as keyof typeof otherReview
                                         ]
                                       }
                                       /5
@@ -4895,9 +5144,7 @@ export default function ChatScreen() {
                       </View>
                     </View>
                   ) : (conversation.my_role === "CLIENT" &&
-                      (conversation.is_team_job
-                        ? conversation.all_team_workers_reviewed
-                        : conversation.job.clientReviewed)) ||
+                    clientHasReviewed) ||
                     (conversation.my_role !== "CLIENT" &&
                       conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
@@ -4909,29 +5156,29 @@ export default function ChatScreen() {
                       />
                       <Text style={styles.reviewWaitingTitle}>
                         {conversation.is_team_job &&
-                        conversation.my_role === "CLIENT"
+                          conversation.my_role === "CLIENT"
                           ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
                           : "Thank you for your review!"}
                       </Text>
                       {((conversation.my_role === "CLIENT" &&
                         !conversation.job.workerReviewed) ||
                         (conversation.my_role !== "CLIENT" &&
-                          !conversation.job.clientReviewed)) && (
-                        <Text style={styles.reviewWaitingText}>
-                          Waiting for{" "}
-                          {conversation.my_role === "CLIENT"
-                            ? "worker"
-                            : "client"}{" "}
-                          to review...
-                        </Text>
-                      )}
+                          !clientHasReviewed)) && (
+                          <Text style={styles.reviewWaitingText}>
+                            Waiting for{" "}
+                            {conversation.my_role === "CLIENT"
+                              ? "worker"
+                              : "client"}{" "}
+                            to review...
+                          </Text>
+                        )}
                     </View>
                   ) : (
                     // User hasn't reviewed yet - show review form
                     <>
                       {/* Dynamic title based on agency job review step */}
                       {conversation.is_agency_job &&
-                      conversation.my_role === "CLIENT" ? (
+                        conversation.my_role === "CLIENT" ? (
                         <>
                           {/* Multi-employee support: show which employee is being reviewed */}
                           {(() => {
@@ -4978,7 +5225,8 @@ export default function ChatScreen() {
 
                                 {/* Progress indicator */}
                                 {hasMultipleEmployees &&
-                                  reviewStep === "EMPLOYEE" && (
+                                  reviewStep === "EMPLOYEE" &&
+                                  pendingEmployees.length > 0 && (
                                     <View style={styles.stepIndicator}>
                                       <Ionicons
                                         name="people"
@@ -5095,9 +5343,9 @@ export default function ChatScreen() {
                                             style={[
                                               styles.teamReviewModalChecklistDot,
                                               isReviewed &&
-                                                styles.teamReviewModalChecklistDotDone,
+                                              styles.teamReviewModalChecklistDotDone,
                                               isCurrent &&
-                                                styles.teamReviewModalChecklistDotCurrent,
+                                              styles.teamReviewModalChecklistDotCurrent,
                                             ]}
                                           >
                                             {isReviewed ? (
@@ -5111,7 +5359,7 @@ export default function ChatScreen() {
                                                 style={[
                                                   styles.teamReviewModalChecklistDotText,
                                                   isCurrent &&
-                                                    styles.teamReviewModalChecklistDotTextCurrent,
+                                                  styles.teamReviewModalChecklistDotTextCurrent,
                                                 ]}
                                               >
                                                 {i + 1}
@@ -5317,8 +5565,7 @@ export default function ChatScreen() {
                                   Punctuality
                                 </Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Did the worker arrive on time and complete the
-                                  job within the agreed timeframe?
+                                  Arrived on time and finished within the agreed timeframe.
                                 </Text>
                               </View>
                             </View>
@@ -5356,8 +5603,7 @@ export default function ChatScreen() {
                                   Reliability
                                 </Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Was the worker dependable and consistent
-                                  throughout the job?
+                                  Dependable and consistent throughout the job.
                                 </Text>
                               </View>
                             </View>
@@ -5393,8 +5639,7 @@ export default function ChatScreen() {
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.criteriaLabel}>Skill</Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Did the worker demonstrate the necessary
-                                  skills and expertise for the job?
+                                  Demonstrated the required skills and expertise.
                                 </Text>
                               </View>
                             </View>
@@ -5432,8 +5677,7 @@ export default function ChatScreen() {
                                   Workmanship
                                 </Text>
                                 <Text style={styles.criteriaDescription}>
-                                  Was the quality of work delivered to a high
-                                  standard?
+                                  Delivered high-quality work.
                                 </Text>
                               </View>
                             </View>
@@ -5488,8 +5732,8 @@ export default function ChatScreen() {
                             ratingPunctuality === 0 ||
                             ratingProfessionalism === 0 ||
                             !reviewComment.trim() ||
-                            submitReviewMutation.isPending) &&
-                            styles.submitReviewButtonDisabled,
+                              isReviewMutationPending) &&
+                          styles.submitReviewButtonDisabled,
                         ]}
                         onPress={() => {
                           Keyboard.dismiss();
@@ -5501,10 +5745,10 @@ export default function ChatScreen() {
                           ratingPunctuality === 0 ||
                           ratingProfessionalism === 0 ||
                           !reviewComment.trim() ||
-                          submitReviewMutation.isPending
+                          isReviewMutationPending
                         }
                       >
-                        {submitReviewMutation.isPending ? (
+                        {isReviewMutationPending ? (
                           <ActivityIndicator
                             size="small"
                             color={Colors.white}
@@ -5517,7 +5761,7 @@ export default function ChatScreen() {
                               color={Colors.white}
                             />
                             <Text style={styles.submitReviewButtonText}>
-                              Submit Review
+                              {reviewModalMode === "edit" ? "Update Review" : "Submit Review"}
                             </Text>
                           </>
                         )}
@@ -5538,18 +5782,7 @@ export default function ChatScreen() {
         {/* Backjob Banner - shows when there's an active backjob */}
         {conversation.backjob?.has_backjob && (
           <View style={styles.backjobSectionCompact}>
-            {conversation.backjob.status === "OPEN" && (
-              <View style={styles.backjobPendingAdminBanner}>
-                <Ionicons
-                  name="hourglass-outline"
-                  size={14}
-                  color={Colors.warning}
-                />
-                <Text style={styles.backjobPendingAdminText}>
-                  Waiting for admin to approve backjob request
-                </Text>
-              </View>
-            )}
+
 
             {/* Compact Backjob Banner */}
             <TouchableOpacity
@@ -5583,37 +5816,11 @@ export default function ChatScreen() {
 
             {hasActiveNegotiation && (
               <View style={styles.backjobActionButtonsCompact}>
-                {conversation.backjob?.scheduled_date ? (
-                  <View style={styles.backjobScheduledNoticeCard}>
-                    <View style={styles.backjobScheduledNoticeHeader}>
-                      <Ionicons
-                        name="calendar-outline"
-                        size={14}
-                        color={Colors.warning}
-                      />
-                      <Text style={styles.backjobScheduledNoticeTitle}>
-                        Proposed Date: {conversation.backjob.scheduled_date}
-                      </Text>
-                    </View>
-
-                    {conversation.backjob.worker_schedule_confirmed ? (
-                      <Text style={styles.backjobScheduledNoticeText}>
-                        Worker confirmed this schedule. Backjob is ready for
-                        start on the scheduled date.
-                      </Text>
-                    ) : (
-                      <Text style={styles.backjobScheduledNoticeText}>
-                        Waiting for worker confirmation.
-                      </Text>
-                    )}
-                  </View>
-                ) : null}
-
                 {conversation.my_role === "CLIENT" && (
                   <TouchableOpacity
                     style={[
                       styles.backjobActionButtonCompact,
-                      { backgroundColor: Colors.warning },
+                      { backgroundColor: Colors.warning, width: "100%", flexDirection: "column", paddingVertical: 12, gap: 0 },
                     ]}
                     onPress={handleOpenBackjobScheduleModal}
                     disabled={setBackjobScheduledDateMutation.isPending}
@@ -5622,16 +5829,30 @@ export default function ChatScreen() {
                       <ActivityIndicator size="small" color={Colors.white} />
                     ) : (
                       <>
-                        <Ionicons
-                          name="calendar-number"
-                          size={16}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.backjobActionButtonText}>
-                          {conversation.backjob?.scheduled_date
-                            ? "Update Schedule"
-                            : "Set Schedule"}
-                        </Text>
+                        {conversation.backjob?.scheduled_date && (
+                          <>
+                            <Text style={[styles.backjobActionButtonText, { fontWeight: "400", lineHeight: 14 }]}>
+                              Proposed Date: {format(parseScheduledDate(conversation.backjob.scheduled_date) || new Date(), "MMMM d (EEEE)")}
+                            </Text>
+                            {!conversation.backjob.worker_schedule_confirmed && (
+                              <Text style={[styles.backjobActionButtonText, { fontSize: 10, fontWeight: "400", lineHeight: 12 }]}>
+                                Waiting for Worker Confirmation
+                              </Text>
+                            )}
+                          </>
+                        )}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Ionicons
+                            name="calendar-number"
+                            size={16}
+                            color={Colors.white}
+                          />
+                          <Text style={[styles.backjobActionButtonText, { fontWeight: "700", lineHeight: 20 }]}>
+                            {conversation.backjob?.scheduled_date
+                              ? "Tap to Update Schedule"
+                              : "Set Schedule"}
+                          </Text>
+                        </View>
                       </>
                     )}
                   </TouchableOpacity>
@@ -5657,7 +5878,7 @@ export default function ChatScreen() {
                     <TouchableOpacity
                       style={[
                         styles.backjobActionButtonCompact,
-                        { backgroundColor: Colors.success },
+                        { backgroundColor: Colors.success, width: "100%", flexDirection: "column", paddingVertical: 12, gap: 0 },
                       ]}
                       onPress={handleConfirmBackjobScheduledDate}
                       disabled={confirmBackjobScheduledDateMutation.isPending}
@@ -5666,14 +5887,19 @@ export default function ChatScreen() {
                         <ActivityIndicator size="small" color={Colors.white} />
                       ) : (
                         <>
-                          <Ionicons
-                            name="checkmark-done"
-                            size={16}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.backjobActionButtonText}>
-                            Confirm Schedule
+                          <Text style={[styles.backjobActionButtonText, { fontWeight: "400", lineHeight: 14 }]}>
+                            Proposed Date: {format(parseScheduledDate(conversation.backjob.scheduled_date) || new Date(), "MMMM d (EEEE)")}
                           </Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Ionicons
+                              name="checkmark-done"
+                              size={16}
+                              color={Colors.white}
+                            />
+                            <Text style={[styles.backjobActionButtonText, { fontWeight: "700", lineHeight: 20 }]}>
+                              Tap to Confirm Schedule
+                            </Text>
+                          </View>
                         </>
                       )}
                     </TouchableOpacity>
@@ -5690,7 +5916,7 @@ export default function ChatScreen() {
                       <Ionicons
                         name="calendar-outline"
                         size={14}
-                        color={Colors.warning}
+                        color={Colors.white}
                       />
                       <Text style={styles.backjobScheduledNoticeTitle}>
                         Backjob starts on{" "}
@@ -5698,8 +5924,7 @@ export default function ChatScreen() {
                       </Text>
                     </View>
                     <Text style={styles.backjobScheduledNoticeText}>
-                      Workflow actions will activate on the scheduled date. Need
-                      a new date? Send a re-negotiation request.
+                      Workflow actions will activate on the scheduled date.
                     </Text>
                     <TouchableOpacity
                       style={styles.backjobRenegotiateButton}
@@ -5968,15 +6193,50 @@ export default function ChatScreen() {
               Enter date in YYYY-MM-DD format.
             </Text>
 
-            <TextInput
-              style={styles.priceInput}
-              value={backjobScheduleInput}
-              onChangeText={setBackjobScheduleInput}
-              placeholder="YYYY-MM-DD"
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            {Platform.OS === "ios" ? (
+              <View style={{ marginVertical: Spacing.m, alignItems: "center" }}>
+                <DateTimePicker
+                  value={backjobScheduleDate}
+                  mode="date"
+                  display="inline"
+                  onChange={(event, date) => {
+                    if (date) {
+                      setBackjobScheduleDate(date);
+                      setBackjobScheduleInput(format(date, "yyyy-MM-dd"));
+                    }
+                  }}
+                  minimumDate={new Date()}
+                  themeVariant="light"
+                />
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.priceInput, { justifyContent: "center" }]}
+                  onPress={() => setShowAndroidDatePicker(true)}
+                >
+                  <Text style={{ color: backjobScheduleInput ? Colors.textPrimary : Colors.textSecondary }}>
+                    {backjobScheduleInput || "Select Date"}
+                  </Text>
+                </TouchableOpacity>
+
+                {showAndroidDatePicker && (
+                  <DateTimePicker
+                    value={backjobScheduleDate}
+                    mode="date"
+                    display="default"
+                    onChange={(event, date) => {
+                      setShowAndroidDatePicker(false);
+                      if (date) {
+                        setBackjobScheduleDate(date);
+                        setBackjobScheduleInput(format(date, "yyyy-MM-dd"));
+                      }
+                    }}
+                    minimumDate={new Date()}
+                  />
+                )}
+              </>
+            )}
 
             <View style={styles.priceModalActions}>
               <TouchableOpacity
@@ -6193,7 +6453,7 @@ export default function ChatScreen() {
                 }
               >
                 {approveCompletionMutation.isPending ||
-                createFinalPaymentMutation.isPending ? (
+                  createFinalPaymentMutation.isPending ? (
                   <ActivityIndicator size="small" color={Colors.white} />
                 ) : (
                   <Text style={styles.cashModalSubmitButtonText}>Submit</Text>
@@ -6619,6 +6879,18 @@ const styles = StyleSheet.create({
     color: Colors.success,
     fontWeight: "500",
   },
+  undoCheckInButton: {
+    backgroundColor: Colors.textPrimary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+  },
+  undoCheckInButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+    fontSize: 11,
+  },
   checkInButton: {
     backgroundColor: Colors.primary,
   },
@@ -6668,6 +6940,22 @@ const styles = StyleSheet.create({
   noAttendanceText: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+  },
+  noWorkQuickButton: {
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+  },
+  noWorkQuickButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
   },
   dailyRateInfo: {
     flexDirection: "row",
@@ -7784,20 +8072,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   backjobActionButtonsCompact: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    paddingVertical: Spacing.sm,
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingVertical: 8,
     paddingHorizontal: Spacing.md,
     backgroundColor: "#FFF8E1",
-    gap: Spacing.sm,
+    gap: 8,
   },
   backjobScheduledNoticeCard: {
     width: "100%",
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: Colors.warning,
     borderRadius: BorderRadius.small,
-    borderWidth: 1,
-    borderColor: Colors.warning + "55",
     padding: Spacing.sm,
     gap: Spacing.xs,
   },
@@ -7808,20 +8093,22 @@ const styles = StyleSheet.create({
   },
   backjobScheduledNoticeTitle: {
     ...Typography.body.small,
-    color: Colors.warning,
+    color: Colors.white,
     fontWeight: "700",
   },
   backjobScheduledNoticeText: {
     ...Typography.body.small,
-    color: Colors.textSecondary,
+    color: Colors.white,
   },
   backjobRenegotiateButton: {
     marginTop: Spacing.xs,
-    alignSelf: "flex-start",
+    alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: Colors.warning,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.white,
     borderRadius: BorderRadius.small,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
@@ -7834,15 +8121,16 @@ const styles = StyleSheet.create({
   backjobActionButtonCompact: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
     borderRadius: BorderRadius.small,
-    gap: 4,
+    width: "100%",
   },
   backjobActionButtonText: {
     ...Typography.body.small,
     color: Colors.white,
-    fontWeight: "600",
+    textAlign: "center",
   },
   backjobWaitingBadge: {
     flexDirection: "row",

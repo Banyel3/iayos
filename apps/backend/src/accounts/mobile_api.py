@@ -39,6 +39,9 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 
+MINIMUM_CHECKOUT_HOURS = 2
+CHECK_IN_UNDO_WINDOW_SECONDS = 10
+
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
 
@@ -70,6 +73,11 @@ def _get_effective_work_date(job):
     day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
     if day_offset <= 0:
         return base_date
+
+    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    if duration_days > 0:
+        max_offset = max(duration_days - 1, 0)
+        day_offset = min(day_offset, max_offset)
 
     return base_date + timedelta(days=day_offset)
 
@@ -2069,27 +2077,6 @@ def mobile_get_job_applications(request, job_id: int):
                 status=404
             )
 
-        # DATE OVERLAP CHECK: Workers can apply to multiple jobs as long as dates don't conflict
-        if job.preferredStartDate and job.scheduled_end_date:
-            overlapping_job = JobPosting.objects.filter(
-                assignedWorkerID=worker_profile,
-                status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
-                preferredStartDate__lte=job.scheduled_end_date,
-                scheduled_end_date__gte=job.preferredStartDate,
-            ).exclude(jobID=job.jobID).first()
-            if overlapping_job:
-                return Response(
-                    {
-                        "error": (
-                            f"Schedule conflict: you already have '{overlapping_job.title}' "
-                            f"scheduled on overlapping dates "
-                            f"({overlapping_job.preferredStartDate} – {overlapping_job.scheduled_end_date})."
-                        ),
-                        "conflicting_job_id": overlapping_job.jobID,
-                        "conflicting_job_title": overlapping_job.title,
-                    },
-                    status=400
-                )
         
         # Verify this client owns the job
         if job.clientID.profileID.profileID != client_profile.profileID.profileID:
@@ -2100,7 +2087,7 @@ def mobile_get_job_applications(request, job_id: int):
         
         # Get all applications for this job
         applications = JobApplication.objects.filter(
-            jobID=job
+            jobID_id=job_id
         ).select_related(
             'workerID__profileID__accountFK'
         ).order_by('-createdAt')
@@ -7411,6 +7398,19 @@ def worker_check_out(request, job_id: int):
                 "time_out": attendance.time_out.isoformat()
             }, status=400)
         
+        # Enforce minimum work duration before checkout (applies in QA and production)
+        if attendance.time_in:
+            elapsed_seconds = (now - attendance.time_in).total_seconds()
+            minimum_seconds = MINIMUM_CHECKOUT_HOURS * 3600
+            if elapsed_seconds < minimum_seconds:
+                remaining_minutes = int((minimum_seconds - elapsed_seconds + 59) // 60)
+                return Response({
+                    "error": f"Checkout is allowed only after {MINIMUM_CHECKOUT_HOURS} hours of work",
+                    "minimum_hours": MINIMUM_CHECKOUT_HOURS,
+                    "remaining_minutes": remaining_minutes,
+                    "time_in": attendance.time_in.isoformat(),
+                }, status=400)
+
         # Update time_out
         attendance.time_out = now
         attendance.save()
@@ -7439,6 +7439,77 @@ def worker_check_out(request, job_id: int):
         import traceback
         traceback.print_exc()
         return Response({"error": f"Check-out failed: {str(e)}"}, status=500)
+
+
+@mobile_router.post("/daily-attendance/{job_id}/worker-cancel-check-in", auth=dual_auth)
+@require_kyc
+def worker_cancel_check_in(request, job_id: int):
+    """
+    Worker can undo check-in within a short grace period.
+
+    Constraints:
+    - Undo window: first 10 seconds after check-in
+    - Cannot cancel once checked out or client-confirmed
+    """
+    from .models import Job, DailyAttendance, WorkerProfile, Profile
+
+    try:
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.payment_model != 'DAILY':
+            return Response({"error": "This is not a daily-rate job"}, status=400)
+
+        profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
+        profile = Profile.objects.filter(accountFK=request.auth, profileType=profile_type).first()
+        if not profile:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+
+        try:
+            worker = profile.workerprofile
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=404)
+
+        today = _get_effective_work_date(job)
+        try:
+            attendance = DailyAttendance.objects.get(jobID=job, workerID=worker, date=today)
+        except DailyAttendance.DoesNotExist:
+            return Response({"error": "No active check-in found for today"}, status=400)
+
+        if not attendance.time_in:
+            return Response({"error": "No active check-in found for today"}, status=400)
+
+        if attendance.time_out:
+            return Response({"error": "Cannot cancel check-in after checkout"}, status=400)
+
+        if attendance.client_confirmed:
+            return Response({"error": "Cannot cancel check-in after client confirmation"}, status=400)
+
+        elapsed_seconds = (timezone.now() - attendance.time_in).total_seconds()
+        if elapsed_seconds > CHECK_IN_UNDO_WINDOW_SECONDS:
+            return Response({
+                "error": f"Undo window expired. You can only cancel within {CHECK_IN_UNDO_WINDOW_SECONDS} seconds.",
+                "undo_window_seconds": CHECK_IN_UNDO_WINDOW_SECONDS,
+                "elapsed_seconds": int(elapsed_seconds),
+            }, status=400)
+
+        attendance.delete()
+
+        return {
+            "success": True,
+            "date": str(today),
+            "message": "Check-in cancelled successfully",
+        }
+
+    except Exception as e:
+        print(f"❌ [MOBILE] Worker cancel check-in error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Cancel check-in failed: {str(e)}"}, status=500)
 
 
 @mobile_router.post("/daily-attendance/{attendance_id}/client-confirm", auth=dual_auth)
@@ -7516,3 +7587,96 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
         import traceback
         traceback.print_exc()
         return Response({"error": f"Confirmation failed: {str(e)}"}, status=500)
+
+
+@mobile_router.post("/daily-attendance/{job_id}/client-mark-no-work", auth=dual_auth)
+@require_kyc
+def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
+    """
+    Dedicated quick action for clients when worker did not work for the day.
+    Marks today's attendance as ABSENT and processes no-payment confirmation.
+    """
+    from .models import Job, DailyAttendance, WorkerProfile
+    from jobs.daily_payment_service import DailyPaymentService
+
+    try:
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.payment_model != 'DAILY':
+            return Response({"error": "This is not a daily-rate job"}, status=400)
+
+        if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job client can mark no-work days"}, status=403)
+
+        target_worker = None
+        if worker_id:
+            target_worker = WorkerProfile.objects.filter(workerProfileID=worker_id).first()
+            if not target_worker:
+                return Response({"error": "Worker not found"}, status=404)
+        elif job.assignedWorkerID:
+            target_worker = job.assignedWorkerID
+        else:
+            return Response({"error": "worker_id is required for this job"}, status=400)
+
+        today = _get_effective_work_date(job)
+        attendance, _ = DailyAttendance.objects.get_or_create(
+            jobID=job,
+            workerID=target_worker,
+            date=today,
+            defaults={
+                'status': 'ABSENT',
+                'amount_earned': Decimal('0.00'),
+                'worker_confirmed': True,
+                'worker_confirmed_at': timezone.now(),
+                'notes': 'Marked absent by client quick action',
+            },
+        )
+
+        if attendance.time_in:
+            return Response({
+                "error": "Cannot mark absent after worker has checked in",
+                "time_in": attendance.time_in.isoformat(),
+            }, status=400)
+
+        if attendance.client_confirmed:
+            return Response({
+                "error": "Attendance already confirmed",
+                "attendance_id": attendance.attendanceID,
+            }, status=400)
+
+        attendance.worker_confirmed = True
+        attendance.worker_confirmed_at = attendance.worker_confirmed_at or timezone.now()
+        attendance.status = 'ABSENT'
+        attendance.amount_earned = Decimal('0.00')
+        attendance.save(update_fields=['worker_confirmed', 'worker_confirmed_at', 'status', 'amount_earned', 'updatedAt'])
+
+        result = DailyPaymentService.confirm_attendance_client(
+            attendance,
+            request.auth,
+            approved_status='ABSENT',
+        )
+
+        if not result.get('success'):
+            return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
+
+        worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
+
+        return {
+            "success": True,
+            "attendance_id": attendance.attendanceID,
+            "worker_name": worker_name,
+            "date": str(today),
+            "status": attendance.status,
+            "amount_earned": float(attendance.amount_earned),
+            "payment_processed": attendance.payment_processed,
+            "message": "Marked as absent. No payment recorded for today.",
+        }
+
+    except Exception as e:
+        print(f"❌ [MOBILE] Client mark no-work error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to mark no-work day: {str(e)}"}, status=500)

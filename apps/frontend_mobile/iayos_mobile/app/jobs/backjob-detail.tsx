@@ -32,6 +32,13 @@ interface BackjobDetail {
     resolved_date: string | null;
     scheduled_date: string | null;
     evidence_images: string[];
+    backjob_started: boolean;
+    worker_marked_complete: boolean;
+    client_confirmed: boolean;
+    worker_schedule_confirmed: boolean;
+    worker_schedule_confirmed_at: string | null;
+    admin_rejected_at: string | null;
+    admin_rejection_reason: string | null;
   } | null;
 }
 
@@ -60,34 +67,64 @@ export default function BackjobDetailScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
+  // Expansion state
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+
   useEffect(() => {
     fetchBackjobDetails();
   }, [jobId]);
 
   const fetchBackjobDetails = async () => {
+    setIsLoading(true);
     try {
+      if (__DEV__) console.log(`[BackjobDetail] Fetching backjob status for jobId: ${jobId}`);
+
       // Fetch backjob status
       const backjobResponse = await apiRequest(
         ENDPOINTS.BACKJOB_STATUS(parseInt(jobId))
       );
-      if (backjobResponse.ok) {
-        const data = (await backjobResponse.json()) as BackjobDetail;
+
+      if (backjobResponse.status === 404) {
+        if (__DEV__) console.warn(`[BackjobDetail] Backjob 404 Not Found for jobId: ${jobId}`);
+        setBackjob({ has_backjob: false, dispute: null });
+      } else if (backjobResponse.ok) {
+        const result = (await backjobResponse.json()) as any;
+        const data = (result.data || result) as BackjobDetail;
+
+        if (__DEV__) console.log(`[BackjobDetail] Backjob status loaded:`, data.has_backjob);
+
+        // Process absolute URLs for evidence images
+        if (data.dispute?.evidence_images) {
+          data.dispute.evidence_images = data.dispute.evidence_images.map(img =>
+            getAbsoluteMediaUrl(img)
+          ) as string[];
+        }
+
         setBackjob(data);
+      } else {
+        console.error(`[BackjobDetail] Backjob status fetch failed: ${backjobResponse.status}`);
+        setBackjob({ has_backjob: false, dispute: null });
       }
 
       // Fetch job details
+      if (__DEV__) console.log(`[BackjobDetail] Fetching job details for jobId: ${jobId}`);
       const jobResponse = await apiRequest(
         ENDPOINTS.JOB_DETAILS(parseInt(jobId))
       );
+
       if (jobResponse.ok) {
-        const jobData = (await jobResponse.json()) as any;
+        const result = (await jobResponse.json()) as any;
+        const jobData = result.data || result;
+
+        if (__DEV__) console.log(`[BackjobDetail] Job details loaded: ${jobData.title}`);
+
         setJob({
           id: jobData.id || jobData.jobID,
           title: jobData.title,
           description: jobData.description,
           budget: jobData.budget,
           location: jobData.location,
-          category: jobData.category?.name || jobData.category || "Unknown",
+          category: jobData.category?.name || jobData.category || "General",
           client: jobData.client
             ? {
               ...jobData.client,
@@ -95,39 +132,18 @@ export default function BackjobDetailScreen() {
             }
             : null,
         });
+      } else {
+        console.error(`[BackjobDetail] Job details fetch failed: ${jobResponse.status}`);
       }
     } catch (error) {
-      console.error("Error fetching backjob details:", error);
-      Alert.alert("Error", "Failed to load backjob details");
+      console.error("[BackjobDetail] Error fetching backjob details:", error);
+      setBackjob({ has_backjob: false, dispute: null });
+      Alert.alert("Error", "Failed to load backjob details. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleContactClient = async () => {
-    try {
-      // Get or create conversation for this job, reopen if closed (for backjob)
-      const response = await apiRequest(
-        ENDPOINTS.CONVERSATION_BY_JOB(parseInt(jobId), true)
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.conversation_id) {
-          // Navigate to the conversation
-          router.push(`/conversation/${data.conversation_id}` as any);
-        } else {
-          Alert.alert("Error", "Could not find or create conversation");
-        }
-      } else {
-        const error = await response.json();
-        Alert.alert("Error", error.error || "Failed to open conversation");
-      }
-    } catch (error) {
-      console.error("Error opening conversation:", error);
-      Alert.alert("Error", "Failed to open conversation");
-    }
-  };
 
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
@@ -178,17 +194,25 @@ export default function BackjobDetailScreen() {
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
+  const formatDate = (dateStr: string | null, includeTime: boolean = true) => {
     if (!dateStr) return "N/A";
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
+    const options: Intl.DateTimeFormatOptions = {
       weekday: "short",
       month: "short",
       day: "numeric",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    };
+    if (includeTime) {
+      options.hour = "2-digit";
+      options.minute = "2-digit";
+    }
+    return date.toLocaleDateString("en-US", options);
+  };
+
+  const stripEmails = (text: string | null) => {
+    if (!text) return "";
+    return text.replace(/\s?\([^@\s]+@[^@\s]+\.[^@\s]+\)/g, "");
   };
 
   if (isLoading) {
@@ -237,242 +261,316 @@ export default function BackjobDetailScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Status Card */}
-        <View
-          style={[styles.statusCard, { borderLeftColor: statusInfo.color }]}
-        >
-          <View style={styles.statusHeader}>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: `${statusInfo.color}20` },
-              ]}
-            >
-              <Ionicons
-                name={statusInfo.icon as any}
-                size={18}
-                color={statusInfo.color}
-              />
-              <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                {statusInfo.label}
-              </Text>
+        {/* SECTION: BACKJOB OVERVIEW */}
+        <View style={[styles.mainSection, !isDetailsExpanded && { paddingBottom: 12 }]}>
+          <TouchableOpacity
+            style={[
+              styles.mainSectionHeader,
+              !isDetailsExpanded && { marginBottom: 0 }
+            ]}
+            onPress={() => setIsDetailsExpanded(!isDetailsExpanded)}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+              <Text style={styles.mainSectionTitle}>Details</Text>
             </View>
-            <View
-              style={[
-                styles.priorityBadge,
-                { backgroundColor: `${priorityInfo.color}15` },
-              ]}
-            >
-              <Text
-                style={[styles.priorityText, { color: priorityInfo.color }]}
-              >
-                {priorityInfo.label}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.statusDescription}>
-            {dispute.status === "UNDER_REVIEW"
-              ? "Please review and complete the backjob work requested by the client."
-              : dispute.status === "RESOLVED"
-                ? "This backjob has been completed successfully."
-                : "This backjob request is pending admin review."}
-          </Text>
-          {dispute.scheduled_date && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: "#fff3cd", borderRadius: 8, padding: 10 }}>
-              <Ionicons name="calendar-outline" size={16} color={Colors.warning} />
-              <Text style={{ color: Colors.warning, fontWeight: "600", fontSize: 13 }}>
-                Scheduled: {formatDate(dispute.scheduled_date)}
-              </Text>
-            </View>
+            <Ionicons
+              name={isDetailsExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={Colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {isDetailsExpanded && (
+            <>
+              <View style={styles.sectionDivider} />
+
+              {/* Job Info */}
+              {job && (
+                <View style={styles.subSection}>
+                  <Text style={styles.subSectionTitle}>Related Job</Text>
+                  <View style={styles.jobCard}>
+                    <Text style={styles.jobTitle}>{job.title}</Text>
+                    <View style={styles.jobMeta}>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.metaText}>
+                          ₱{job.budget?.toLocaleString()}
+                        </Text>
+                      </View>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="pricetag-outline"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.metaText}>{job.category}</Text>
+                      </View>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {job.location}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Client Info */}
+              {job?.client && (
+                <View style={styles.subSection}>
+                  <Text style={styles.subSectionTitle}>Client</Text>
+                  <View style={styles.clientCard}>
+                    {job.client.avatar ? (
+                      <Image
+                        source={{ uri: job.client.avatar }}
+                        style={styles.clientAvatar}
+                      />
+                    ) : (
+                      <View style={[styles.clientAvatar, styles.avatarPlaceholder]}>
+                        <Ionicons
+                          name="person"
+                          size={24}
+                          color={Colors.textSecondary}
+                        />
+                      </View>
+                    )}
+                    <View style={styles.clientInfo}>
+                      <Text style={styles.clientName}>{job.client.name}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Backjob Reason */}
+              <View style={styles.subSection}>
+                <Text style={styles.subSectionTitle}>Reason for Backjob</Text>
+                <View style={styles.infoCard}>
+                  <Text style={styles.reason}>{dispute.reason}</Text>
+                </View>
+              </View>
+
+              {/* Description */}
+              <View style={styles.subSection}>
+                <Text style={styles.subSectionTitle}>Detailed Description</Text>
+                <View style={styles.infoCard}>
+                  <Text style={styles.description}>{dispute.description}</Text>
+                </View>
+              </View>
+
+              {/* Evidence Images */}
+              {dispute.evidence_images && dispute.evidence_images.length > 0 && (
+                <View style={[styles.subSection, { marginBottom: 0 }]}>
+                  <Text style={styles.subSectionTitle}>
+                    Evidence Photos ({dispute.evidence_images.length})
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.evidenceScroll}
+                  >
+                    {dispute.evidence_images.map((uri, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.evidenceImageContainer}
+                        onPress={() => openImageViewer(index)}
+                      >
+                        <Image source={{ uri }} style={styles.evidenceImage} />
+                        <View style={styles.imageOverlay}>
+                          <Ionicons name="expand" size={20} color="#FFF" />
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </>
           )}
         </View>
 
-        {/* Job Info */}
-        {job && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Related Job</Text>
-            <View style={styles.jobCard}>
-              <Text style={styles.jobTitle}>{job.title}</Text>
-              <View style={styles.jobMeta}>
-                <View style={styles.metaItem}>
-                  <Ionicons
-                    name="cash-outline"
-                    size={14}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.metaText}>
-                    ₱{job.budget?.toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Ionicons
-                    name="pricetag-outline"
-                    size={14}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.metaText}>{job.category}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Ionicons
-                    name="location-outline"
-                    size={14}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {job.location}
-                  </Text>
-                </View>
-              </View>
+        {/* SECTION: STATUS & UPDATES */}
+        <View style={styles.mainSection}>
+          <View style={[styles.mainSectionHeader, { marginBottom: 12 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <Ionicons name="notifications-outline" size={18} color={Colors.primary} />
+              <Text style={styles.mainSectionTitle}>Status</Text>
             </View>
           </View>
-        )}
 
-        {/* Client Info */}
-        {job?.client && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Client</Text>
-            <View style={styles.clientCard}>
-              {job.client.avatar ? (
-                <Image
-                  source={{ uri: job.client.avatar }}
-                  style={styles.clientAvatar}
-                />
-              ) : (
-                <View style={[styles.clientAvatar, styles.avatarPlaceholder]}>
-                  <Ionicons
-                    name="person"
-                    size={24}
-                    color={Colors.textSecondary}
-                  />
-                </View>
-              )}
-              <View style={styles.clientInfo}>
-                <Text style={styles.clientName}>{job.client.name}</Text>
-                <TouchableOpacity
-                  style={styles.contactButton}
-                  onPress={handleContactClient}
-                >
-                  <Ionicons
-                    name="chatbubble-outline"
-                    size={14}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.contactButtonText}>Contact Client</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
+          <>
+            <View style={styles.sectionDivider} />
 
-        {/* Backjob Reason */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reason for Backjob</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.reason}>{dispute.reason}</Text>
-          </View>
-        </View>
 
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Detailed Description</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.description}>{dispute.description}</Text>
-          </View>
-        </View>
-
-        {/* Evidence Images */}
-        {dispute.evidence_images && dispute.evidence_images.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Evidence Photos ({dispute.evidence_images.length})
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.evidenceScroll}
-            >
-              {dispute.evidence_images.map((uri, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.evidenceImageContainer}
-                  onPress={() => openImageViewer(index)}
-                >
-                  <Image source={{ uri }} style={styles.evidenceImage} />
-                  <View style={styles.imageOverlay}>
-                    <Ionicons name="expand" size={20} color="#FFF" />
+            {/* Timeline */}
+            <View style={styles.subSection}>
+              <Text style={styles.subSectionTitle}>Timeline</Text>
+              <View style={styles.timeline}>
+                {/* 1. Completed (Newest) */}
+                {dispute.status === "RESOLVED" && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[styles.timelineDot, { backgroundColor: Colors.success }]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={styles.timelineLabel}>Completed</Text>
+                      <Text style={styles.timelineDate}>
+                        {formatDate(dispute.resolved_date)}
+                      </Text>
+                    </View>
                   </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+                )}
 
-        {/* Timeline */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Timeline</Text>
-          <View style={styles.timeline}>
-            <View style={styles.timelineItem}>
-              <View
-                style={[styles.timelineDot, { backgroundColor: Colors.info }]}
-              />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabel}>Requested</Text>
-                <Text style={styles.timelineDate}>
-                  {formatDate(dispute.opened_date)}
-                </Text>
+                {/* 2. Worker Marked Complete */}
+                {dispute.worker_marked_complete && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: Colors.success, borderColor: Colors.success },
+                        dispute.status === "RESOLVED" && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
+                        Worker Marked Complete
+                      </Text>
+                      <Text style={[styles.timelineDate, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
+                        Waiting for client approval
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 3. Work Started */}
+                {dispute.backjob_started && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: Colors.info, borderColor: Colors.info },
+                        (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && styles.timelineDoneText]}>
+                        Backjob Work Started
+                      </Text>
+                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && styles.timelineDoneText]}>
+                        Worker has begun working on the backjob
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 4. Scheduled Date / Worker Confirmed Schedule */}
+                {dispute.scheduled_date && (
+                  <View style={styles.timelineItem}>
+                    <View style={styles.timelineLineContainer}>
+                      <View style={[
+                        styles.timelineDot,
+                        { backgroundColor: dispute.worker_schedule_confirmed ? Colors.success : Colors.warning, borderColor: dispute.worker_schedule_confirmed ? Colors.success : Colors.warning },
+                        (dispute.status === "RESOLVED" || dispute.backjob_started) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
+                      ]} />
+                      <View style={styles.timelineConnector} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
+                        {dispute.worker_schedule_confirmed ? "Worker Confirmed Schedule" : "⏳ Pending Negotiation"}
+                      </Text>
+                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.backjob_started) ? styles.timelineDoneText : (dispute.worker_schedule_confirmed ? { color: Colors.textPrimary } : { color: Colors.warning })]}>
+                        📅 {formatDate(dispute.scheduled_date, false)}
+                      </Text>
+                      {dispute.worker_schedule_confirmed && dispute.worker_schedule_confirmed_at && (
+                        <Text style={[styles.timelineSubText, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
+                          Confirmed on {formatDate(dispute.worker_schedule_confirmed_at)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* 6. Admin Reviewed / Pending Admin Banner */}
+                <View style={styles.timelineItem}>
+                  <View style={styles.timelineLineContainer}>
+                    <View style={[
+                      styles.timelineDot,
+                      { backgroundColor: dispute.status === "OPEN" ? Colors.warning : (dispute.admin_rejected_at ? Colors.error : Colors.textSecondary) },
+                      dispute.status !== "OPEN" && { borderColor: dispute.admin_rejected_at ? Colors.error : Colors.textSecondary }
+                    ]} />
+                    <View style={styles.timelineConnector} />
+                  </View>
+                  <View style={styles.timelineContent}>
+                    {dispute.status === "OPEN" ? (
+                      <View style={styles.pendingAdminBanner}>
+                        <View style={styles.pendingAdminBannerHeader}>
+                          <Ionicons name="hourglass-outline" size={16} color={Colors.warning} />
+                          <Text style={styles.pendingAdminBannerTitle}>Admin Review Pending</Text>
+                        </View>
+                        <Text style={styles.pendingAdminBannerText}>
+                          Waiting for admin to approve backjob request. You will be notified once work is approved.
+                        </Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={[
+                          styles.timelineLabel,
+                          styles.timelineDoneText,
+                          dispute.admin_rejected_at && { color: Colors.error }
+                        ]}>
+                          Admin Reviewed: {dispute.admin_rejected_at ? "Denied" : "Approved"}
+                        </Text>
+                        <Text style={[styles.timelineDate, styles.timelineDoneText]}>
+                          {stripEmails(dispute.admin_rejection_reason) || (dispute.admin_rejected_at ? "Backjob request was denied by admin" : "Backjob request has been approved by admin")}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+
+                {/* 7. Requested (Oldest) */}
+                <View style={[styles.timelineItem, { marginBottom: 0 }]}>
+                  <View style={styles.timelineLineContainer}>
+                    <View style={[styles.timelineDot, { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }]} />
+                  </View>
+                  <View style={styles.timelineContent}>
+                    <Text style={[styles.timelineLabel, styles.timelineDoneText]}>Requested</Text>
+                    <Text style={[styles.timelineDate, styles.timelineDoneText]}>
+                      {formatDate(dispute.opened_date)}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
-            {dispute.scheduled_date && (
-              <View style={styles.timelineItem}>
+
+            {/* Resolution */}
+            {dispute.resolution && (
+              <View style={styles.subSection}>
+                <Text style={styles.subSectionTitle}>Resolution Notes</Text>
                 <View
                   style={[
-                    styles.timelineDot,
-                    { backgroundColor: Colors.warning },
+                    styles.infoCard,
+                    { backgroundColor: `${Colors.success}10` },
                   ]}
-                />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>📅 Scheduled Date</Text>
-                  <Text style={[styles.timelineDate, { color: Colors.warning }]}>
-                    {formatDate(dispute.scheduled_date)}
-                  </Text>
+                >
+                  <Text style={styles.resolution}>{stripEmails(dispute.resolution)}</Text>
                 </View>
               </View>
             )}
-            {dispute.resolved_date && (
-              <View style={styles.timelineItem}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    { backgroundColor: Colors.success },
-                  ]}
-                />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>Completed</Text>
-                  <Text style={styles.timelineDate}>
-                    {formatDate(dispute.resolved_date)}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
+          </>
         </View>
-
-        {/* Resolution */}
-        {dispute.resolution && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Resolution Notes</Text>
-            <View
-              style={[
-                styles.infoCard,
-                { backgroundColor: `${Colors.success}10` },
-              ]}
-            >
-              <Text style={styles.resolution}>{dispute.resolution}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Contact Client Button - Completion happens in conversation */}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -669,6 +767,71 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  mainSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.xl,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mainSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 8,
+  },
+  mainSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    letterSpacing: 0.3,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginBottom: 20,
+    opacity: 0.5,
+  },
+  subSection: {
+    marginBottom: 24,
+  },
+  subSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  pendingAdminBanner: {
+    backgroundColor: `${Colors.warning}10`,
+    borderRadius: BorderRadius.lg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: `${Colors.warning}30`,
+  },
+  pendingAdminBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 8,
+  },
+  pendingAdminBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.warning,
+  },
+  pendingAdminBannerText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
   jobCard: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: BorderRadius.lg,
@@ -725,16 +888,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: 4,
   },
-  contactButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  contactButtonText: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: "500",
-  },
   infoCard: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: BorderRadius.lg,
@@ -786,36 +939,61 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timeline: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.lg,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingTop: 8,
   },
   timelineItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 16,
+    marginBottom: 0,
+    minHeight: 60,
+  },
+  timelineLineContainer: {
+    alignItems: "center",
+    width: 20,
+    marginRight: 12,
+    alignSelf: "stretch",
   },
   timelineDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginTop: 4,
-    marginRight: 12,
+    zIndex: 2,
+    backgroundColor: Colors.background,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  timelineConnector: {
+    position: "absolute",
+    top: 12,
+    bottom: 0,
+    width: 2,
+    backgroundColor: Colors.border,
+    zIndex: 1,
+    left: 9, // Centered in 20px container
   },
   timelineContent: {
     flex: 1,
+    paddingBottom: 24,
   },
   timelineLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: Colors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   timelineDate: {
     fontSize: 13,
     color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  timelineDoneText: {
+    color: Colors.textSecondary,
+    opacity: 0.7,
+  },
+  timelineSubText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   completeButton: {
     flexDirection: "row",

@@ -56,18 +56,22 @@ def _get_client_response_rate(profile: Profile) -> Tuple[float, int]:
 
 def get_profile_metrics(account: Accounts) -> Dict[str, Any]:
     """Aggregate trust & performance metrics for the authenticated account."""
-    profile = (
-        Profile.objects.select_related("clientprofile", "workerprofile")
-        .filter(accountFK=account)
-        .first()
+    profile_type = getattr(account, "profile_type", None)
+
+    profile_qs = Profile.objects.select_related("clientprofile", "workerprofile").filter(
+        accountFK=account
     )
+    if profile_type in ("WORKER", "CLIENT"):
+        profile = profile_qs.filter(profileType=profile_type).first()
+    else:
+        profile = profile_qs.order_by("-profileID").first()
 
     wallet = getattr(account, "wallet", None)
     payment_verified, payment_verified_at = _get_payment_status(wallet)
 
     response_rate = None
     response_sample = 0
-    if profile and hasattr(profile, "clientprofile"):
+    if profile and profile.profileType == "CLIENT" and hasattr(profile, "clientprofile"):
         response_rate, response_sample = _get_client_response_rate(profile)
 
     rating_value = 0.0
@@ -78,10 +82,16 @@ def get_profile_metrics(account: Accounts) -> Dict[str, Any]:
         # as a CLIENT (i.e. workers reviewing the client).  We must scope to the
         # CLIENT profile so that a dual-profile user's worker reviews do NOT bleed
         # into their client stats.
-        client_profile = Profile.objects.filter(
-            accountFK=account,
-            profileType='CLIENT'
-        ).first()
+        # Keep rating aligned with the active CLIENT profile.
+        client_profile = None
+        if profile and profile.profileType == "CLIENT":
+            client_profile = profile
+        elif profile_type == "CLIENT":
+            client_profile = Profile.objects.filter(
+                accountFK=account,
+                profileType='CLIENT'
+            ).first()
+
         if client_profile:
             client_reviews = JobReview.objects.filter(
                 revieweeProfileID=client_profile,

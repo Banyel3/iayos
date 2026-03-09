@@ -93,10 +93,10 @@ export default function SubmitReviewScreen() {
   // Calculate overall rating based on review type
   const overallRating = isClientReviewingWorker
     ? (ratings.quality +
-        ratings.communication +
-        ratings.punctuality +
-        ratings.professionalism) /
-      4
+      ratings.communication +
+      ratings.punctuality +
+      ratings.professionalism) /
+    4
     : singleRating;
 
   // Check if rating is complete based on review type
@@ -176,7 +176,8 @@ export default function SubmitReviewScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 110 : 0}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}

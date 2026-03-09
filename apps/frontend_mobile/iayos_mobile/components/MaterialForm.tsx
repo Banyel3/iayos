@@ -229,10 +229,10 @@ export default function MaterialForm({
         categoryId: categoryId, // null to remove, number to set
         imageFile: materialImage
           ? {
-              uri: materialImage.uri,
-              name: materialImage.fileName || "material.jpg",
-              type: materialImage.mimeType || "image/jpeg",
-            }
+            uri: materialImage.uri,
+            name: materialImage.fileName || "material.jpg",
+            type: materialImage.mimeType || "image/jpeg",
+          }
           : undefined,
       };
 
@@ -260,10 +260,10 @@ export default function MaterialForm({
         categoryId: categoryId ?? undefined, // Only include if set
         imageFile: materialImage
           ? {
-              uri: materialImage.uri,
-              name: materialImage.fileName || "material.jpg",
-              type: materialImage.mimeType || "image/jpeg",
-            }
+            uri: materialImage.uri,
+            name: materialImage.fileName || "material.jpg",
+            type: materialImage.mimeType || "image/jpeg",
+          }
           : undefined,
       };
 
@@ -319,7 +319,7 @@ export default function MaterialForm({
     >
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <Pressable style={styles.backdrop} onPress={handleClose} />
 

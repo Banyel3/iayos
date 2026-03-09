@@ -87,7 +87,7 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
     >
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.container}>
           {/* Header */}
@@ -231,12 +231,12 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
             {rateChange !== 0 && remainingDays > 0 && (
               <View style={styles.escrowImpact}>
                 <Text style={styles.escrowTitle}>Escrow Impact</Text>
-                
+
                 <View style={styles.escrowRow}>
                   <Text style={styles.escrowLabel}>Remaining Days</Text>
                   <Text style={styles.escrowValue}>{remainingDays} days</Text>
                 </View>
-                
+
                 <View style={styles.escrowRow}>
                   <Text style={styles.escrowLabel}>Rate Change</Text>
                   <Text style={styles.escrowValue}>
@@ -245,7 +245,7 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
                 </View>
 
                 <View style={styles.escrowDivider} />
-                
+
                 <View style={styles.escrowRow}>
                   <Text style={styles.escrowTotalLabel}>
                     {isIncrease ? "Additional Escrow Needed" : "Escrow Refund"}
