@@ -6009,7 +6009,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             # HOLD PAYMENT: Put payment on hold due to backjob request
             # ============================================================
             hold_payment_for_backjob(job)
-            print(f"⏸Payment for job #{job.jobID} now on BACKJOB_PENDING hold")
+            print(f"Payment for job #{job.jobID} now on BACKJOB_PENDING hold")
             # ============================================================
             
             # Create a log entry (newStatus max 15 chars)
