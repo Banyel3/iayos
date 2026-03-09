@@ -96,12 +96,6 @@ const navigation: NavItem[] = [
         icon: Building2,
         description: "Agency accounts",
       },
-      {
-        name: "Pending",
-        href: "/admin/users/pending",
-        icon: UserX,
-        description: "Accounts awaiting approval",
-      },
     ],
   },
   {
@@ -492,11 +486,11 @@ export default function Sidebar({ className }: SidebarProps) {
           >
             {adminUser?.name
               ? adminUser.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()
               : "AD"}
           </button>
         </div>
@@ -530,7 +524,7 @@ export default function Sidebar({ className }: SidebarProps) {
           className={cn(
             "flex items-center justify-between p-4 border-b border-sidebar-border",
             !collapsed &&
-              "md:cursor-pointer md:hover:bg-gray-50 transition-colors",
+            "md:cursor-pointer md:hover:bg-gray-50 transition-colors",
           )}
           onClick={() => !collapsed && !isMobile && setCollapsed(true)}
         >
@@ -718,7 +712,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     {item.children.map((child) => {
                       const isChildActiveItem =
                         child.href === item.children![0]?.href &&
-                        item.children!.length > 1
+                          item.children!.length > 1
                           ? pathname === child.href
                           : pathname.startsWith(child.href);
                       const ChildIcon = child.icon;
@@ -770,11 +764,11 @@ export default function Sidebar({ className }: SidebarProps) {
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
                 {adminUser?.name
                   ? adminUser.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()
                   : "AD"}
               </div>
               {showExpanded && (
