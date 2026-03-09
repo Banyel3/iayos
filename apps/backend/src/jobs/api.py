@@ -21,6 +21,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional
 import os
+import re
 from django.conf import settings
 
 router = Router()
@@ -64,6 +65,11 @@ def get_effective_work_date(job: Job):
         return base_date
 
     return base_date + timedelta(days=day_offset)
+
+
+def _has_meaningful_text(value: str) -> bool:
+    """Require at least one alphabetic character to reject numeric/symbol-only payloads."""
+    return bool(re.search(r"[A-Za-z]", value or ""))
 
 
 def broadcast_job_status_update(job_id, update_data):
@@ -4966,6 +4972,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
+                revieweeProfileID=reviewee_profile,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -5079,6 +5086,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
+                revieweeProfileID=reviewee_profile,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -5884,8 +5892,12 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         # Validate inputs
         if len(reason) < 10:
             return Response({"error": "Reason must be at least 10 characters"}, status=400)
+        if not _has_meaningful_text(reason):
+            return Response({"error": "Reason must include meaningful text, not just numbers or symbols"}, status=400)
         if len(description) < 50:
             return Response({"error": "Description must be at least 50 characters"}, status=400)
+        if not _has_meaningful_text(description):
+            return Response({"error": "Description must include meaningful text, not just numbers or symbols"}, status=400)
         
         with db_transaction.atomic():
             # Create the dispute/backjob request
@@ -6103,6 +6115,12 @@ def request_backjob_renegotiation(request, job_id: int):
             note = (body.get("reason") or body.get("note") or "").strip()
         except Exception:
             note = ""
+
+        if note:
+            if len(note) < 10:
+                return Response({"error": "Re-negotiation reason must be at least 10 characters"}, status=400)
+            if not _has_meaningful_text(note):
+                return Response({"error": "Re-negotiation reason must include meaningful text, not just numbers or symbols"}, status=400)
 
         try:
             job = Job.objects.select_related(
@@ -6513,6 +6531,23 @@ def confirm_backjob_started(request, job_id: int):
         if dispute.backjobStarted:
             print(f"   Backjob already confirmed as started at {dispute.backjobStartedAt}")
             return Response({"error": "Backjob work has already been confirmed as started"}, status=400)
+
+        # Require an agreed schedule before allowing work-start confirmation.
+        if not dispute.scheduled_date:
+            return Response(
+                {"error": "Backjob start cannot be confirmed until admin sets a scheduled date"},
+                status=400,
+            )
+
+        today = timezone.now().date()
+        if today < dispute.scheduled_date:
+            return Response(
+                {
+                    "error": "Backjob can only be confirmed on or after the scheduled date",
+                    "scheduled_date": dispute.scheduled_date.isoformat(),
+                },
+                status=400,
+            )
         
         # Confirm backjob work has started
         dispute.backjobStarted = True
@@ -6907,6 +6942,7 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             team_start_threshold=payload.team_start_threshold or 100.0,
             urgency=payload.urgency or 'MEDIUM',
             preferred_start_date=payload.preferred_start_date,
+            scheduled_end_date=payload.scheduled_end_date,
             materials_needed=payload.materials_needed,
             payment_method=payload.payment_method or 'WALLET',
             job_scope=payload.job_scope or 'MODERATE_PROJECT',
@@ -8813,8 +8849,7 @@ def approve_agency_project_employee(
         try:
             job = Job.objects.select_related(
                 'clientID__profileID__accountFK',
-                'assignedAgencyFK__accountFK',
-                'agencyID__owner'
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
@@ -8844,10 +8879,10 @@ def approve_agency_project_employee(
             return Response({"error": "Cash payment requires proof image", "requires_proof": True}, status=400)
         
         # Get the employee's assignment
-        from agency.models import agencyemployee
+        from agency.models import AgencyEmployee
         try:
-            employee = agencyemployee.objects.get(employeeID=employee_id)
-        except agencyemployee.DoesNotExist:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
             return Response({"error": "Employee not found"}, status=404)
         
         try:
@@ -8882,12 +8917,12 @@ def approve_agency_project_employee(
             payment_amount = remaining / total_employees if total_employees > 0 else remaining
         
         with transaction.atomic():
+            # Keep a wallet transaction trail for all payment methods.
+            client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
+
             # Handle payment
             if payment_method == 'WALLET':
-                try:
-                    client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
-                except Wallet.DoesNotExist:
-                    return Response({"error": "Client wallet not found"}, status=404)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 if client_wallet.balance < payment_amount:
                     return Response({
@@ -8900,23 +8935,40 @@ def approve_agency_project_employee(
                 client_wallet.save()
                 
                 Transaction.objects.create(
-                    senderWallet=client_wallet,
+                    walletID=client_wallet,
                     amount=payment_amount,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Payment for {employee.fullName} - {job.title}',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
+                )
+            elif payment_method == 'GCASH':
+                # Placeholder until direct GCash checkout is wired for this flow.
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='PENDING',
+                    description=f'GCash payment pending for {employee.fullName} - {job.title}',
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='GCASH',
                 )
             elif payment_method == 'CASH':
                 job.cashProofImage = cash_proof_image
                 job.save()
                 
                 Transaction.objects.create(
+                    walletID=client_wallet,
                     amount=payment_amount,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Cash payment for {employee.fullName} - {job.title} (proof uploaded)',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='CASH',
                 )
             
             # Mark this employee as approved
@@ -8924,6 +8976,12 @@ def approve_agency_project_employee(
             assignment.clientApprovedAt = timezone.now()
             assignment.status = 'COMPLETED'
             assignment.save()
+
+            # Track employee completion stats when this specific assignment is completed
+            employee.totalJobsCompleted = (employee.totalJobsCompleted or 0) + 1
+            if payment_amount > 0:
+                employee.totalEarnings = (employee.totalEarnings or Decimal('0.00')) + payment_amount
+            employee.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
         
         # Send system message
         try:
@@ -8947,6 +9005,11 @@ def approve_agency_project_employee(
             job.status = 'COMPLETED'
             job.clientMarkedComplete = True
             job.workerMarkedComplete = True
+            # Final payment has been completed once all employee approvals/payments are done.
+            # This unblocks the review endpoint for clients.
+            if payment_method in ['WALLET', 'CASH']:
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
             job.save()
             
             # Close conversation
@@ -8966,10 +9029,10 @@ def approve_agency_project_employee(
             
             # Notify agency owner
             try:
-                if job.agencyID and job.agencyID.owner:
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                     client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
                     Notification.objects.create(
-                        accountFK=job.agencyID.owner,
+                        accountFK=job.assignedAgencyFK.accountFK,
                         notificationType="JOB_COMPLETED_CLIENT",
                         title="Job Completed! 🎉",
                         message=f"{client_name} has approved all employees for '{job.title}'.",
@@ -9110,15 +9173,12 @@ def approve_agency_project_job(
         remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
         
         with transaction.atomic():
+            # Keep a wallet transaction trail for all payment methods.
+            client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
+
             # Handle payment
             if payment_method == 'WALLET':
-                # Get client wallet
-                try:
-                    client_wallet = Wallet.objects.select_for_update().get(
-                        accountFK=request.auth
-                    )
-                except Wallet.DoesNotExist:
-                    return Response({"error": "Client wallet not found"}, status=404)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 # Check sufficient balance
                 if client_wallet.balance < remaining_balance:
@@ -9134,18 +9194,27 @@ def approve_agency_project_job(
                 
                 # Create payment transaction
                 Transaction.objects.create(
-                    senderWallet=client_wallet,
+                    walletID=client_wallet,
                     amount=remaining_balance,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Final payment for job: {job.title}',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
                 )
             
             elif payment_method == 'GCASH':
-                # TODO: Integrate with Xendit GCash payment
-                # For now, mark as pending payment
-                pass
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='PENDING',
+                    description=f'GCash final payment pending for job: {job.title}',
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='GCASH',
+                )
             
             elif payment_method == 'CASH':
                 # Store cash proof
@@ -9153,20 +9222,37 @@ def approve_agency_project_job(
                 
                 # Create transaction record for cash payment
                 Transaction.objects.create(
+                    walletID=client_wallet,
                     amount=remaining_balance,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Cash payment for job: {job.title} (proof uploaded)',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='CASH',
                 )
             
             # Mark all assignments as completed
             assignments.update(status='COMPLETED')
+
+            # Track employee completion stats per assignment in this bulk approval path
+            employee_count = assignments.count()
+            per_employee_earning = remaining_balance / employee_count if employee_count > 0 else Decimal('0.00')
+            for assignment in assignments:
+                emp = assignment.employee
+                emp.totalJobsCompleted = (emp.totalJobsCompleted or 0) + 1
+                if per_employee_earning > 0:
+                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + per_employee_earning
+                emp.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
             
             # Mark job as completed
             job.status = 'COMPLETED'
             job.clientMarkedComplete = True
             job.workerMarkedComplete = True  # Agency job - worker side is agency completion
+            # Final payment is complete in wallet/cash successful paths.
+            if payment_method in ['WALLET', 'CASH']:
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
             job.save()
         
         # Close the conversation for this job
@@ -9191,10 +9277,10 @@ def approve_agency_project_job(
         from accounts.models import Notification
         try:
             # Notify agency owner
-            if job.agencyID and job.agencyID.owner:
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                 client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
                 Notification.objects.create(
-                    accountFK=job.agencyID.owner,
+                    accountFK=job.assignedAgencyFK.accountFK,
                     notificationType="JOB_COMPLETED_CLIENT",
                     title="Job Completion Approved! 🎉",
                     message=f"{client_name} has approved the completion of '{job.title}'. Payment of ₱{float(remaining_balance):,.2f} processed.",

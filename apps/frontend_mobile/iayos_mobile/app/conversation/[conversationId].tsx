@@ -88,7 +88,8 @@ import {
 } from "../../lib/hooks/useJobMaterials";
 import { useCreateFinalPayment } from "../../lib/hooks/useFinalPayment";
 
-const AGORA_AVAILABLE = true;
+const AGORA_AVAILABLE =
+  process.env.EXPO_PUBLIC_ENABLE_VOICE_CALLS !== "false";
 import type { JobMaterialItem } from "../../lib/hooks/useMessages";
 import {
   Colors,
@@ -166,6 +167,8 @@ export default function ChatScreen() {
     "EMPLOYEE",
   );
   const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
+  // Prevent stale review flags from trapping the modal while backend state is syncing.
+  const [reviewStatusSyncing, setReviewStatusSyncing] = useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
 
@@ -225,6 +228,13 @@ export default function ChatScreen() {
     conversation?.all_employees_reviewed,
   ]);
 
+  // Clear temporary review-sync bypass once server flags are updated.
+  useEffect(() => {
+    if (conversation?.job?.clientReviewed) {
+      setReviewStatusSyncing(false);
+    }
+  }, [conversation?.job?.clientReviewed]);
+
   // Check if conversation is closed (both parties reviewed)
   // BUT if there's an APPROVED backjob (UNDER_REVIEW status), conversation should stay open
   // OPEN status means waiting for admin approval - conversation should remain closed
@@ -256,6 +266,8 @@ export default function ChatScreen() {
   // Force review: user must review before leaving conversation after payment/completion
   const needsReview = !!(
     conversation?.job &&
+    !reviewStatusSyncing &&
+    (conversation.my_role !== "CLIENT" || conversation.job.remainingPaymentPaid) &&
     (conversation.job.clientMarkedComplete ||
       conversation.job.status === "COMPLETED") &&
     !isConversationClosed &&
@@ -302,7 +314,7 @@ export default function ChatScreen() {
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
 
   // Voice calling
-  const { initiateCall, callStatus } = useAgoraCall();
+  const { initiateCall, callStatus, error: callError } = useAgoraCall();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -341,6 +353,10 @@ export default function ChatScreen() {
     !!scheduledBackjobDate &&
     !conversation?.backjob?.backjob_started &&
     todayLocal < scheduledBackjobDate;
+  const isBackjobScheduleMissing =
+    !!hasApprovedBackjob &&
+    !scheduledBackjobDate &&
+    !conversation?.backjob?.backjob_started;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -1193,21 +1209,40 @@ export default function ChatScreen() {
             review_target: "AGENCY",
           },
           {
-            onSuccess: () => {
+            onSuccess: async () => {
               setRatingQuality(0);
               setRatingCommunication(0);
               setRatingPunctuality(0);
               setRatingProfessionalism(0);
               setReviewComment("");
+              setReviewStatusSyncing(true);
               setShowReviewModal(false);
-              refetch();
+              await refetch();
               Alert.alert("Thank You!", "Your reviews have been submitted.");
             },
-            onError: (error: unknown) => {
-              Alert.alert(
-                "Error",
-                getErrorMessage(error, "Failed to submit review"),
+            onError: async (error: unknown) => {
+              const errorMessage = getErrorMessage(
+                error,
+                "Failed to submit review",
               );
+
+              // If backend says this was already reviewed, recover to a consistent UI state.
+              if (errorMessage.toLowerCase().includes("already reviewed")) {
+                setRatingQuality(0);
+                setRatingCommunication(0);
+                setRatingPunctuality(0);
+                setRatingProfessionalism(0);
+                setReviewComment("");
+                setReviewStatusSyncing(true);
+                setShowReviewModal(false);
+                await refetch();
+                Alert.alert(
+                  "Already Reviewed",
+                  "Your agency review is already recorded. Refreshing conversation status.",
+                );
+              } else {
+                Alert.alert("Error", errorMessage);
+              }
             },
           },
         );
@@ -1981,7 +2016,7 @@ export default function ChatScreen() {
           {/* Voice Call Button - supports both 1-on-1 and group (team job) calls */}
           {!isConversationClosed && (
             <TouchableOpacity
-              onPress={() => {
+              onPress={async () => {
                 if (!AGORA_AVAILABLE) {
                   Alert.alert(
                     "Voice Calling Unavailable",
@@ -1994,7 +2029,19 @@ export default function ChatScreen() {
                   conversation.other_participant?.name ||
                   (conversation.is_team_job ? "Group Call" : "Unknown");
                 const isGroupCall = conversation.is_team_job === true;
-                initiateCall(conversationId, recipientName, isGroupCall);
+                const started = await initiateCall(
+                  conversationId,
+                  recipientName,
+                  isGroupCall,
+                );
+
+                if (!started) {
+                  Alert.alert(
+                    "Call Failed",
+                    callError ||
+                      "Could not start voice call. Please check your internet, microphone permission, and account verification.",
+                  );
+                }
               }}
               style={styles.callButton}
               disabled={callStatus !== "idle"}
@@ -4495,7 +4542,7 @@ export default function ChatScreen() {
             animationType="slide"
             presentationStyle="pageSheet"
             onRequestClose={() => {
-              if (!needsReview) setShowReviewModal(false);
+              if (!needsReview || reviewStatusSyncing) setShowReviewModal(false);
               // Block dismiss when review is required
             }}
           >
@@ -4504,7 +4551,7 @@ export default function ChatScreen() {
               <View style={styles.reviewModalHeader}>
                 <TouchableOpacity
                   onPress={() => {
-                    if (!needsReview) {
+                    if (!needsReview || reviewStatusSyncing) {
                       setShowReviewModal(false);
                     } else {
                       Alert.alert(
@@ -5827,7 +5874,45 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-                {!isBackjobScheduledForFuture && (
+                {isBackjobScheduleMissing && (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Backjob schedule pending
+                      </Text>
+                    </View>
+                    <Text style={styles.backjobScheduledNoticeText}>
+                      Admin needs to set a scheduled date before start confirmation is allowed.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.backjobRenegotiateButton}
+                      onPress={handleRequestBackjobRenegotiation}
+                      disabled={requestBackjobRenegotiationMutation.isPending}
+                    >
+                      {requestBackjobRenegotiationMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="refresh-circle"
+                            size={15}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.backjobRenegotiateButtonText}>
+                            Request Schedule Update
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!isBackjobScheduledForFuture && !isBackjobScheduleMissing && (
                   <>
                     {/* CLIENT: Confirm Backjob Started Button */}
                     {conversation.my_role === "CLIENT" &&

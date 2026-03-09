@@ -110,6 +110,7 @@ class CreateTeamJobSchema(Schema):
     total_budget: float  # Total budget for entire job
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH
     preferred_start_date: Optional[str] = None
+    scheduled_end_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
     budget_allocation_type: Optional[str] = "EQUAL_PER_WORKER"  # EQUAL_PER_SKILL, EQUAL_PER_WORKER, MANUAL_ALLOCATION, SKILL_WEIGHTED
     team_start_threshold: Optional[float] = 100.0  # Percentage of team needed to start (0-100)

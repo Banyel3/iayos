@@ -251,13 +251,31 @@ export default function BackjobDetailPage() {
   };
 
   const handleApproveBackjob = async () => {
+    if (!dispute) return;
+
+    if (dispute.status === "open" && !dispute.scheduled_date) {
+      setScheduledDateInput(new Date().toISOString().split("T")[0]);
+      setShowScheduledDateModal(true);
+      alert("Set a scheduled date first before approving this backjob.");
+      return;
+    }
+
     if (!confirm("Approve this backjob? Both parties will be notified."))
       return;
     setActionLoading(true);
     try {
+      const scheduledDate =
+        dispute.scheduled_date?.split("T")[0] || scheduledDateInput || "";
       const res = await fetch(
         `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/approve-backjob`,
-        { method: "POST", credentials: "include" },
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scheduled_date: scheduledDate,
+          }),
+        },
       );
       const data = await res.json();
       if (data.success) {
@@ -272,7 +290,6 @@ export default function BackjobDetailPage() {
       setActionLoading(false);
     }
   };
-
 
   const handleRejectSubmit = async () => {
     setRejectError("");
@@ -308,7 +325,6 @@ export default function BackjobDetailPage() {
       setActionLoading(false);
     }
   };
-
 
   if (loading) {
     return (
@@ -800,8 +816,9 @@ export default function BackjobDetailPage() {
                   {isNegotiating && (
                     <>
                       <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-600">
-                        Negotiation in progress between client and worker/agency.
-                        Admin can monitor conversation and either approve or reject.
+                        Negotiation in progress between client and
+                        worker/agency. Admin can monitor conversation and either
+                        approve or reject.
                       </div>
                       <Button
                         className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -826,7 +843,9 @@ export default function BackjobDetailPage() {
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-600">
                         This dispute is under review.
                         {dispute.scheduled_date
-                          ? ` Scheduled date: ${new Date(dispute.scheduled_date).toLocaleDateString("en-PH", {
+                          ? ` Scheduled date: ${new Date(
+                              dispute.scheduled_date,
+                            ).toLocaleDateString("en-PH", {
                               dateStyle: "medium",
                             })}.`
                           : ""}

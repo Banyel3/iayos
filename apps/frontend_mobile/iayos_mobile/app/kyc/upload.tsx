@@ -1531,7 +1531,7 @@ export default function KYCUploadScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.title}>Take a Selfie</Text>
       <Text style={styles.description}>
-        Hold your ID next to your face. Your photo will be validated
+        Take a clear selfie of your face. Your photo will be validated
         automatically.
       </Text>
 
@@ -1599,8 +1599,7 @@ export default function KYCUploadScreen() {
           </Text>
           <Text style={styles.infoText}>
             • Remove glasses, hats & face coverings{"\n"}• Face must be clearly
-            visible{"\n"}• Hold your ID card next to your face{"\n"}• Ensure good
-            lighting — no shadows on face
+            visible{"\n"}• Ensure good lighting — no shadows on face
           </Text>
         </View>
       </View>

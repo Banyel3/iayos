@@ -12,7 +12,7 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -95,6 +95,7 @@ type TabType =
 export default function JobsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("open");
@@ -105,12 +106,17 @@ export default function JobsScreen() {
 
   // Set default tab based on user type
   useEffect(() => {
+    if (tab && ["open", "pending", "requests", "applications", "inProgress", "past"].includes(tab)) {
+      setActiveTab(tab as TabType);
+      return;
+    }
+
     if (isWorker) {
       setActiveTab("requests");
     } else if (isClient) {
       setActiveTab("open");
     }
-  }, [isWorker, isClient]);
+  }, [tab, isWorker, isClient]);
 
   // Map tabs to status filters
   const getStatusForTab = (tab: TabType): string => {

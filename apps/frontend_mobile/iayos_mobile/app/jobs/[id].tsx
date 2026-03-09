@@ -525,7 +525,7 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Application submitted successfully! You can view your application status in My Applications.",
+        "Application submitted successfully! You can view your application status in Jobs > Applied tab.",
       );
       setShowApplicationModal(false);
       setProposalMessage("");
@@ -535,7 +535,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
-      safeGoBack(router, "/(tabs)/jobs");
+      router.push({ pathname: "/(tabs)/jobs", params: { tab: "applications" } } as any);
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -1047,22 +1047,21 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Accept Team Application",
-      `Assign ${workerName} to this team job?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () =>
-            acceptTeamApplication.mutate({
-              jobId: parseInt(id),
-              applicationId,
-            }),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Team Application",
+      message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 6,
+      onConfirm: () =>
+        acceptTeamApplication.mutate({
+          jobId: parseInt(id),
+          applicationId,
+        }),
+      icon: "checkmark-circle",
+      iconColor: Colors.success,
+    });
   };
 
   const handleRejectTeamApplication = (
