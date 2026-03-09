@@ -2112,6 +2112,16 @@ def get_job_applications(request, job_id: int):
                 {"error": "You can only view applications for your own job postings"},
                 status=403
             )
+
+        # Applications are only valid for open LISTING jobs.
+        # INVITE jobs (direct worker/agency hires) should not expose this flow.
+        if job.jobType != JobPosting.JobType.LISTING:
+            return {
+                "success": True,
+                "applications": [],
+                "total": 0,
+                "message": "Applications are only available for listing jobs"
+            }
         
         # Get all applications for this job
         applications = JobApplication.objects.filter(

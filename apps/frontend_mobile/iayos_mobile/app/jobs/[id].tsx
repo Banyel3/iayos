@@ -703,10 +703,14 @@ export default function JobDetailScreen() {
       const totalCount = data.total ?? data.count ?? apps.length;
       return { applications: apps, total: totalCount };
     },
-    enabled: isClient && isValidJobId && !!job,
+    enabled: isClient && isValidJobId && !!job && job.jobType === "LISTING",
   });
 
   const applications = applicationsData?.applications || [];
+  const showApplicationsSection =
+    isClient && job?.jobType === "LISTING" && !job?.assignedWorker;
+  const showAgencySuggestionSection =
+    isClient && job?.jobType === "INVITE" && !!job?.assignedAgency;
 
   // Accept application mutation
   const acceptApplicationMutation = useMutation({
@@ -2168,8 +2172,7 @@ export default function JobDetailScreen() {
           )}
 
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
-        {isClient &&
-          !job.assignedWorker && (
+        {showApplicationsSection && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
@@ -2471,6 +2474,49 @@ export default function JobDetailScreen() {
               )}
             </View>
           )}
+
+        {/* Agency Invite Suggestions - Client can suggest preferred workers */}
+        {showAgencySuggestionSection && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Agency Worker Suggestions</Text>
+            </View>
+            <View style={styles.emptyApplications}>
+              <Ionicons
+                name="people-outline"
+                size={48}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.emptyApplicationsText}>
+                Suggest preferred workers
+              </Text>
+              <Text style={styles.emptyApplicationsSubtext}>
+                Share suggested workers for this agency-assigned job.
+              </Text>
+              {job.status !== "IN_PROGRESS" && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => {
+                    const catId =
+                      typeof job.category === "object"
+                        ? job.category.id
+                        : undefined;
+                    router.push({
+                      pathname: "/jobs/invite-workers" as any,
+                      params: {
+                        jobId: id,
+                        categoryId: catId?.toString() || "",
+                      },
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.retryButtonText}>Suggest Workers</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Job Feedback */}
         {jobHasFeedback && (
