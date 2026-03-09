@@ -266,10 +266,31 @@ class InterestedJobs(models.Model):
 
 
 class workerSpecialization(models.Model):
+    class SkillType(models.TextChoices):
+        PRIMARY = "PRIMARY", "Primary"
+        SECONDARY = "SECONDARY", "Secondary"
+
     workerID = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE )
     specializationID = models.ForeignKey(Specializations, on_delete=models.CASCADE)
     experienceYears = models.IntegerField()
     certification = models.CharField(max_length=120)
+    skillType = models.CharField(
+        max_length=10,
+        choices=SkillType.choices,
+        default=SkillType.SECONDARY,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['workerID'],
+                condition=models.Q(skillType='PRIMARY'),
+                name='unique_primary_skill_per_worker',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['workerID', 'skillType']),
+        ]
 
 
 # Worker Phase 1: Profile Enhancement Models

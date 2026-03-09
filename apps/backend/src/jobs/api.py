@@ -1633,7 +1633,11 @@ def get_worker_schedule(request):
 
         jobs = JobPosting.objects.filter(
             jobID__in=relevant_job_ids,
-            status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+            status__in=[
+                JobPosting.JobStatus.ACTIVE,
+                JobPosting.JobStatus.IN_PROGRESS,
+                JobPosting.JobStatus.COMPLETED,
+            ],
             preferredStartDate__isnull=False,
         ).select_related('clientID__profileID').order_by('preferredStartDate', 'jobID')
 

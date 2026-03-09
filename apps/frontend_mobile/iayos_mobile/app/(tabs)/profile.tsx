@@ -86,7 +86,7 @@ export default function ProfileScreen() {
   ).toUpperCase();
 
   const hasProfileType = Boolean(user?.profile_data?.profileType);
-  const shouldFetchMetrics = hasProfileType && !isWorker;
+  const shouldFetchMetrics = hasProfileType;
   const {
     data: profileMetrics,
     isLoading: isMetricsLoading,
@@ -627,10 +627,11 @@ export default function ProfileScreen() {
                   icon="star-outline"
                   label="Rating"
                   value={
-                    user?.profile_data?.workerRating &&
-                      user.profile_data.workerRating > 0
-                      ? `${user.profile_data.workerRating} / 5`
-                      : "0.0"
+                    typeof profileMetrics?.rating === "number" && profileMetrics.rating > 0
+                      ? `${profileMetrics.rating.toFixed(1)} / 5`
+                      : user?.profile_data?.workerRating && user.profile_data.workerRating > 0
+                        ? `${user.profile_data.workerRating} / 5`
+                        : "0.0"
                   }
                   showArrow={true}
                   onPress={() => router.push("/profile/reviews" as any)}
@@ -638,7 +639,11 @@ export default function ProfileScreen() {
                 <MenuItem
                   icon="briefcase-outline"
                   label="Jobs Completed"
-                  value={String(user?.profile_data?.jobsCompleted ?? 0)}
+                  value={String(
+                    typeof profileMetrics?.jobs_completed === "number"
+                      ? profileMetrics.jobs_completed
+                      : user?.profile_data?.jobsCompleted ?? 0,
+                  )}
                   noBorder={true}
                 />
               </View>

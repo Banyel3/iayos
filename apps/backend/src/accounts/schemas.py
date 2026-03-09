@@ -436,8 +436,10 @@ class AddSkillSchema(Schema):
     """Schema for adding a skill to worker profile"""
     specialization_id: int
     experience_years: int = 0
+    skill_type: Optional[str] = "SECONDARY"
 
 
 class UpdateSkillSchema(Schema):
     """Schema for updating skill experience years"""
-    experience_years: int
+    experience_years: Optional[int] = None
+    skill_type: Optional[str] = None
