@@ -64,6 +64,11 @@ def get_effective_work_date(job: Job):
     if day_offset <= 0:
         return base_date
 
+    duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    if duration_days > 0:
+        max_offset = max(duration_days - 1, 0)
+        day_offset = min(day_offset, max_offset)
+
     return base_date + timedelta(days=day_offset)
 
 
@@ -7957,8 +7962,21 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
             "time_out": attendance.time_out.isoformat()
         }, status=400)
     
+    # Enforce minimum work duration before checkout (applies in QA and production).
+    now = timezone.now()
+    elapsed_seconds = (now - attendance.time_in).total_seconds()
+    minimum_seconds = 2 * 3600
+    if elapsed_seconds < minimum_seconds:
+        remaining_minutes = int((minimum_seconds - elapsed_seconds + 59) // 60)
+        return Response({
+            "error": "Checkout is allowed only after 2 hours of work",
+            "minimum_hours": 2,
+            "remaining_minutes": remaining_minutes,
+            "time_in": attendance.time_in.isoformat(),
+        }, status=400)
+
     # Set time_out (work ends now)
-    attendance.time_out = timezone.now()
+    attendance.time_out = now
     attendance.worker_confirmed = True  # Auto-confirm on checkout
     attendance.save()
     
@@ -8366,7 +8384,7 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
     Worker/agency requests a skip day for a DAILY job.
     """
     from datetime import date
-    from accounts.models import DailySkipDayRequest
+    from accounts.models import DailyAttendance, DailySkipDayRequest
 
     try:
         job = Job.objects.get(jobID=job_id)
@@ -8405,6 +8423,26 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
         return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
 
     requester_account_id = int(request.auth.accountID)
+
+    # Do not allow skip-day requests once work has started for that date.
+    if is_agency:
+        has_checked_in = DailyAttendance.objects.filter(
+            jobID=job,
+            date=parsed_date,
+            time_in__isnull=False,
+        ).exists()
+    else:
+        has_checked_in = DailyAttendance.objects.filter(
+            jobID=job,
+            date=parsed_date,
+            time_in__isnull=False,
+            workerID__profileID__accountFK=request.auth,
+        ).exists()
+
+    if has_checked_in:
+        return Response({
+            "error": "Cannot request skip day after check-in. Use attendance flow instead."
+        }, status=400)
 
     requires_all_team_workers = bool(getattr(job, 'is_team_job', False) and not is_agency)
     total_required = 1
@@ -8560,7 +8598,23 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         return Response({"error": "Only the job client can advance QA day"}, status=403)
 
     old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    max_offset = max(duration_days - 1, 0) if duration_days > 0 else None
+
+    if max_offset is not None and old_offset >= max_offset:
+        return Response({
+            "error": "Cannot advance QA day beyond configured duration_days",
+            "qa": {
+                "enabled": True,
+                "day_offset": old_offset,
+                "max_offset": max_offset,
+                "effective_work_date": (timezone.now().date() + timedelta(days=min(old_offset, max_offset))).isoformat(),
+            }
+        }, status=400)
+
     new_offset = old_offset + 1
+    if max_offset is not None:
+        new_offset = min(new_offset, max_offset)
 
     old_effective_date = timezone.now().date() + timedelta(days=old_offset)
     new_effective_date = timezone.now().date() + timedelta(days=new_offset)
@@ -8581,6 +8635,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 "testing": True,
                 "old_offset": old_offset,
                 "new_offset": new_offset,
+                "max_offset": max_offset,
                 "old_effective_date": old_effective_date.isoformat(),
                 "new_effective_date": new_effective_date.isoformat(),
                 "reason": (data.reason or "").strip() or "QA fast-forward",
@@ -8593,6 +8648,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         "qa": {
             "enabled": True,
             "day_offset": new_offset,
+            "max_offset": max_offset,
             "effective_work_date": new_effective_date.isoformat(),
         }
     }

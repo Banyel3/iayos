@@ -15,6 +15,18 @@ export function DailyJobScheduleCard({
   dailyEscrowTotal = 0,
   actualStartDate,
 }: DailyJobScheduleCardProps) {
+  const clampedDuration = Math.max(durationDays || 0, 0);
+  const clampedWorked = Math.max(totalDaysWorked || 0, 0);
+
+  const computedEndDate = (() => {
+    if (!actualStartDate || clampedDuration <= 0) return null;
+    const start = new Date(actualStartDate);
+    if (Number.isNaN(start.getTime())) return null;
+    const end = new Date(start);
+    end.setDate(start.getDate() + clampedDuration - 1);
+    return end;
+  })();
+
   return (
     <Card>
       <CardHeader>
@@ -28,11 +40,16 @@ export function DailyJobScheduleCard({
           </div>
           <div>
             <p className="text-sm text-gray-600">Expected Duration</p>
-            <p className="font-semibold text-lg">{durationDays} days</p>
+            <p className="font-semibold text-lg">{clampedDuration} days</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Total Days Worked</p>
-            <p className="font-semibold text-lg">{totalDaysWorked} days</p>
+            <p className="font-semibold text-lg">{clampedWorked} days</p>
+            {clampedDuration > 0 && (
+              <p className="text-xs text-gray-500">
+                Day {Math.min(clampedWorked + 1, clampedDuration)} of {clampedDuration}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-sm text-gray-600">Total Escrowed</p>
@@ -42,6 +59,12 @@ export function DailyJobScheduleCard({
             <div className="col-span-2">
               <p className="text-sm text-gray-600">Started On</p>
               <p className="font-semibold">{new Date(actualStartDate).toLocaleDateString()}</p>
+            </div>
+          )}
+          {computedEndDate && (
+            <div className="col-span-2">
+              <p className="text-sm text-gray-600">Expected End Date</p>
+              <p className="font-semibold">{computedEndDate.toLocaleDateString()}</p>
             </div>
           )}
         </div>
