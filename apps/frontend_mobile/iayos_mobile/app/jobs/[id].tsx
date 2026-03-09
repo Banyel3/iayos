@@ -123,15 +123,16 @@ interface JobDetail {
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
   budget_allocation_type?:
-    | "EQUAL_PER_SKILL"
-    | "EQUAL_PER_WORKER"
-    | "MANUAL"
-    | "SKILL_WEIGHTED";
+  | "EQUAL_PER_SKILL"
+  | "EQUAL_PER_WORKER"
+  | "MANUAL"
+  | "SKILL_WEIGHTED";
   team_fill_percentage?: number;
   total_workers_needed?: number;
   total_workers_assigned?: number;
   // Missing fields
   preferred_start_date?: string;
+  scheduled_end_date?: string;
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
@@ -205,27 +206,27 @@ const getWorkEnvironmentInfo = (env: string) => {
 const WORKER_PAYMENT_INFO_ITEMS = [
   {
     icon: "lock-closed-outline" as const,
-    label: "Your earnings are secured",
+    label: "Secured Payment",
     description:
-      "The client's escrow payment is held before you even start working — your pay is guaranteed.",
+      "Client funds are held in escrow.",
   },
   {
     icon: "checkmark-circle-outline" as const,
-    label: "Client approval releases payment",
+    label: "Client Approval",
     description:
-      "Once you complete the job and the client approves, payment moves to your Pending Earnings.",
+      "Payment moves to Pending after job completion.",
   },
   {
     icon: "time-outline" as const,
-    label: "7-day buffer period",
+    label: "7-day Hold",
     description:
-      "A brief hold for dispute protection before earnings are released to your wallet.",
+      "Short hold for dispute protection before funds are released.",
   },
   {
     icon: "card-outline" as const,
-    label: "Withdraw anytime",
+    label: "Withdraw Anytime",
     description:
-      "Transfer your wallet balance to your registered GCash account whenever you're ready.",
+      "Send your earnings to your GCash.",
   },
 ];
 
@@ -371,19 +372,19 @@ export default function JobDetailScreen() {
         status: jobData.status,
         postedBy: jobData.client
           ? {
-              id: jobData.client.id,
-              name: jobData.client.name,
-              avatar: jobData.client.avatar || null,
-              rating: jobData.client.rating ?? 0,
-              phone: jobData.client.phone || null,
-            }
+            id: jobData.client.id,
+            name: jobData.client.name,
+            avatar: jobData.client.avatar || null,
+            rating: jobData.client.rating ?? 0,
+            phone: jobData.client.phone || null,
+          }
           : {
-              id: -1,
-              name: "Unknown Client",
-              avatar: null,
-              rating: 0,
-              phone: null,
-            },
+            id: -1,
+            name: "Unknown Client",
+            avatar: null,
+            rating: 0,
+            phone: null,
+          },
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
@@ -400,31 +401,31 @@ export default function JobDetailScreen() {
         jobType: jobData.job_type,
         assignedWorker: jobData.assigned_worker
           ? {
-              id: jobData.assigned_worker.id,
-              name: jobData.assigned_worker.name,
-              avatar: jobData.assigned_worker.avatar || null,
-              rating: jobData.assigned_worker.rating ?? 0,
-              phone: jobData.assigned_worker.phone || null,
-            }
+            id: jobData.assigned_worker.id,
+            name: jobData.assigned_worker.name,
+            avatar: jobData.assigned_worker.avatar || null,
+            rating: jobData.assigned_worker.rating ?? 0,
+            phone: jobData.assigned_worker.phone || null,
+          }
           : null,
         assignedAgency: jobData.assigned_agency
           ? {
-              id: jobData.assigned_agency.id,
-              name: jobData.assigned_agency.name,
-              logo: jobData.assigned_agency.logo || null,
-              rating: jobData.assigned_agency.rating ?? 0,
-              workers_assigned: jobData.assigned_agency.workers_assigned ?? 0,
-            }
+            id: jobData.assigned_agency.id,
+            name: jobData.assigned_agency.name,
+            logo: jobData.assigned_agency.logo || null,
+            rating: jobData.assigned_agency.rating ?? 0,
+            workers_assigned: jobData.assigned_agency.workers_assigned ?? 0,
+          }
           : null,
         reviews: jobData.reviews
           ? {
-              clientToWorker: jobData.reviews.client_to_worker
-                ? mapReview(jobData.reviews.client_to_worker)
-                : undefined,
-              workerToClient: jobData.reviews.worker_to_client
-                ? mapReview(jobData.reviews.worker_to_client)
-                : undefined,
-            }
+            clientToWorker: jobData.reviews.client_to_worker
+              ? mapReview(jobData.reviews.client_to_worker)
+              : undefined,
+            workerToClient: jobData.reviews.worker_to_client
+              ? mapReview(jobData.reviews.worker_to_client)
+              : undefined,
+          }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
         // Universal job fields for ML - use actual values from backend (no hardcoded fallbacks)
@@ -445,14 +446,15 @@ export default function JobDetailScreen() {
         total_workers_assigned: jobData.total_workers_assigned,
         // Missing fields mapping
         preferred_start_date: jobData.preferred_start_date,
+        scheduled_end_date: jobData.scheduled_end_date,
         payment_model:
           jobData.payment_model ||
           (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
         daily_rate:
           jobData.daily_rate_agreed ??
           (jobData.payment_model === "DAILY" &&
-          jobData.budget &&
-          jobData.duration_days
+            jobData.budget &&
+            jobData.duration_days
             ? jobData.budget / jobData.duration_days
             : undefined),
         duration_days: jobData.duration_days,
@@ -523,7 +525,7 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Application submitted successfully! You can view your application status in My Applications.",
+        "Application submitted successfully! You can view your application status in Jobs > Applied tab.",
       );
       setShowApplicationModal(false);
       setProposalMessage("");
@@ -533,7 +535,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
-      safeGoBack(router, "/(tabs)/jobs");
+      router.push({ pathname: "/(tabs)/jobs", params: { tab: "applications" } } as any);
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -559,7 +561,7 @@ export default function JobDetailScreen() {
       console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
 
       if (data.success && data.conversation_id) {
-        const route = `/messages/${data.conversation_id}`;
+        const route = `/conversation/${data.conversation_id}`;
         console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
       } else {
@@ -676,6 +678,7 @@ export default function JobDetailScreen() {
   const {
     data: applicationsData,
     isLoading: applicationsLoading,
+    error: applicationsError,
     refetch: refetchApplications,
   } = useQuery<{ applications: JobApplication[]; total: number }>({
     queryKey: ["job-applications", id],
@@ -683,19 +686,31 @@ export default function JobDetailScreen() {
       applications: JobApplication[];
       total: number;
     }> => {
-      if (!isClient || !isValidJobId || job?.jobType !== "LISTING") {
+      if (!isClient || !isValidJobId) {
         return { applications: [], total: 0 };
       }
       const response = await apiRequest(
         ENDPOINTS.JOB_APPLICATIONS(parseInt(id)),
       );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch applications");
+      }
+
       const data = await response.json();
-      return data as { applications: JobApplication[]; total: number };
+      // Handle potential nested data structure e.g. { success: true, applications: [] }
+      const apps = data.applications || (data.data && data.data.applications) || [];
+      const totalCount = data.total ?? data.count ?? apps.length;
+      return { applications: apps, total: totalCount };
     },
-    enabled: isClient && isValidJobId && !!job && job?.jobType === "LISTING",
+    enabled: isClient && isValidJobId && !!job && job.jobType === "LISTING",
   });
 
   const applications = applicationsData?.applications || [];
+  const showApplicationsSection =
+    isClient && job?.jobType === "LISTING" && !job?.assignedWorker;
+  const showAgencySuggestionSection =
+    isClient && job?.jobType === "INVITE" && !!job?.assignedAgency;
 
   // Accept application mutation
   const acceptApplicationMutation = useMutation({
@@ -885,20 +900,20 @@ export default function JobDetailScreen() {
   const computedWorkersNeeded =
     isTeamJob && job?.skill_slots?.length
       ? job.skill_slots.reduce(
-          (sum, slot) => sum + (slot.workers_needed || 0),
-          0,
-        )
+        (sum, slot) => sum + (slot.workers_needed || 0),
+        0,
+      )
       : job?.total_workers_needed || 0;
   const computedWorkersAssigned =
     isTeamJob && job?.skill_slots?.length
       ? job.skill_slots.reduce(
-          (sum, slot) =>
-            sum +
-            (slot.status === "FILLED"
-              ? slot.workers_needed
-              : slot.workers_assigned || 0),
-          0,
-        )
+        (sum, slot) =>
+          sum +
+          (slot.status === "FILLED"
+            ? slot.workers_needed
+            : slot.workers_assigned || 0),
+        0,
+      )
       : job?.total_workers_assigned || 0;
   const computedFillPercentage =
     computedWorkersNeeded > 0
@@ -1037,22 +1052,21 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Accept Team Application",
-      `Assign ${workerName} to this team job?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () =>
-            acceptTeamApplication.mutate({
-              jobId: parseInt(id),
-              applicationId,
-            }),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Team Application",
+      message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 6,
+      onConfirm: () =>
+        acceptTeamApplication.mutate({
+          jobId: parseInt(id),
+          applicationId,
+        }),
+      icon: "checkmark-circle",
+      iconColor: Colors.success,
+    });
   };
 
   const handleRejectTeamApplication = (
@@ -1181,6 +1195,32 @@ export default function JobDetailScreen() {
   }
 
   const urgencyColors = getUrgencyColor(job.urgency);
+
+  const dailyDuration = Number(job.duration_days || 0);
+  const dailyStartDate = job.preferred_start_date
+    ? new Date(job.preferred_start_date)
+    : null;
+  const dailyEndDate =
+    job.scheduled_end_date && !Number.isNaN(new Date(job.scheduled_end_date).getTime())
+      ? new Date(job.scheduled_end_date)
+      : dailyStartDate && dailyDuration > 0
+        ? new Date(dailyStartDate.getFullYear(), dailyStartDate.getMonth(), dailyStartDate.getDate() + dailyDuration - 1)
+        : null;
+  const todayDate = new Date();
+  const dayProgress =
+    job.payment_model === "DAILY" && dailyStartDate && dailyDuration > 0
+      ? Math.min(
+          Math.max(
+            Math.floor(
+              (new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime() -
+                new Date(dailyStartDate.getFullYear(), dailyStartDate.getMonth(), dailyStartDate.getDate()).getTime()) /
+                (1000 * 60 * 60 * 24),
+            ) + 1,
+            1,
+          ),
+          dailyDuration,
+        )
+      : null;
 
   const formatReviewDate = (value?: string) => {
     if (!value) return null;
@@ -1420,7 +1460,11 @@ export default function JobDetailScreen() {
             />
             <Text style={styles.jobStartDate}>
               {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
+                  (dailyEndDate
+                    ? ` | End: ${dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                    : "") +
+                  (dayProgress ? ` | Day ${dayProgress}/${dailyDuration}` : "")
                 : `Posted ${job.postedAt}`}
             </Text>
           </View>
@@ -1466,28 +1510,21 @@ export default function JobDetailScreen() {
               <Text style={styles.detailLabel}>Budget</Text>
               <Text style={styles.detailValue}>{job.budget}</Text>
               {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginTop: 2,
-                  }}
-                >
+                <View style={{ marginTop: 2 }}>
                   <Text style={{ fontSize: 11, color: Colors.primary }}>
-                    📅 Daily Rate: ₱
-                    {Number(job.daily_rate_agreed).toLocaleString()}/day
+                    Daily Rate: ₱{Number(job.daily_rate_agreed).toLocaleString()}/day
                   </Text>
-                  {job.duration_days ? (
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: Colors.textSecondary,
-                        marginLeft: 4,
-                      }}
-                    >
-                      ({job.duration_days}d)
+                  {dailyDuration > 0 && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Duration: {dailyDuration} days
+                      {dayProgress ? ` (Day ${dayProgress}/${dailyDuration})` : ""}
                     </Text>
-                  ) : null}
+                  )}
+                  {dailyEndDate && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      End Date: {dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <Text
@@ -1497,7 +1534,7 @@ export default function JobDetailScreen() {
                     marginTop: 2,
                   }}
                 >
-                  💼 Project Based
+                  Project Based
                 </Text>
               )}
             </View>
@@ -1659,13 +1696,13 @@ export default function JobDetailScreen() {
         {/* ML Estimated Completion Time */}
         {(isLoading ||
           (job.estimatedCompletion && job.status !== "COMPLETED")) && (
-          <View style={styles.section}>
-            <EstimatedTimeCard
-              prediction={job?.estimatedCompletion || null}
-              isLoading={isLoading}
-            />
-          </View>
-        )}
+            <View style={styles.section}>
+              <EstimatedTimeCard
+                prediction={job?.estimatedCompletion || null}
+                isLoading={isLoading}
+              />
+            </View>
+          )}
 
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
@@ -2155,10 +2192,7 @@ export default function JobDetailScreen() {
           )}
 
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
-        {isClient &&
-          job.jobType === "LISTING" &&
-          !job.assignedWorker &&
-          !isTeamJob && (
+        {showApplicationsSection && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
@@ -2217,7 +2251,32 @@ export default function JobDetailScreen() {
               </View>
 
               {applicationsLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
+              ) : applicationsError ? (
+                <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={48}
+                    color={Colors.error}
+                  />
+                  <Text
+                    style={[
+                      Typography.body.medium,
+                      { color: Colors.error, marginTop: Spacing.sm },
+                    ]}
+                  >
+                    Failed to load applications
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={() => refetchApplications()}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.retryButtonText}>Try Again</Text>
+                  </TouchableOpacity>
+                </View>
               ) : applications.length === 0 ? (
                 <View style={styles.emptyApplications}>
                   <Ionicons
@@ -2301,11 +2360,11 @@ export default function JobDetailScreen() {
                           style={[
                             styles.applicationStatusBadge,
                             application.status === "PENDING" &&
-                              styles.statusPending,
+                            styles.statusPending,
                             application.status === "ACCEPTED" &&
-                              styles.statusAccepted,
+                            styles.statusAccepted,
                             application.status === "REJECTED" &&
-                              styles.statusRejected,
+                            styles.statusRejected,
                           ]}
                         >
                           <Text style={styles.applicationStatusText}>
@@ -2436,6 +2495,49 @@ export default function JobDetailScreen() {
             </View>
           )}
 
+        {/* Agency Invite Suggestions - Client can suggest preferred workers */}
+        {showAgencySuggestionSection && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Agency Worker Suggestions</Text>
+            </View>
+            <View style={styles.emptyApplications}>
+              <Ionicons
+                name="people-outline"
+                size={48}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.emptyApplicationsText}>
+                Suggest preferred workers
+              </Text>
+              <Text style={styles.emptyApplicationsSubtext}>
+                Share suggested workers for this agency-assigned job.
+              </Text>
+              {job.status !== "IN_PROGRESS" && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => {
+                    const catId =
+                      typeof job.category === "object"
+                        ? job.category.id
+                        : undefined;
+                    router.push({
+                      pathname: "/jobs/invite-workers" as any,
+                      params: {
+                        jobId: id,
+                        categoryId: catId?.toString() || "",
+                      },
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.retryButtonText}>Suggest Workers</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Job Feedback */}
         {jobHasFeedback && (
           <View style={styles.section}>
@@ -2517,8 +2619,8 @@ export default function JobDetailScreen() {
 
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
-        job.status === "IN_PROGRESS" ||
-        job.status === "COMPLETED" ? (
+          job.status === "IN_PROGRESS" ||
+          job.status === "COMPLETED" ? (
           <>
             {/* Client Section - clickable for workers */}
             <View style={styles.section}>
@@ -2964,14 +3066,6 @@ export default function JobDetailScreen() {
       {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
       {isWorker && job?.jobType !== "INVITE" && (
         <View style={styles.applyButtonContainer}>
-          {!user?.kycVerified && (
-            <View style={styles.kycWarningBanner}>
-              <Ionicons name="warning" size={20} color={Colors.warning} />
-              <Text style={styles.kycWarningText}>
-                Complete KYC verification to apply for jobs
-              </Text>
-            </View>
-          )}
           {hasApplied ? (
             <View style={styles.appliedContainer}>
               <View style={styles.appliedRow}>
@@ -3004,7 +3098,7 @@ export default function JobDetailScreen() {
               style={[
                 styles.applyButton,
                 (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonDisabled,
+                styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
@@ -3014,7 +3108,7 @@ export default function JobDetailScreen() {
                 style={[
                   styles.applyButtonText,
                   (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonTextDisabled,
+                  styles.applyButtonTextDisabled,
                 ]}
               >
                 {!user?.kycVerified
@@ -3440,8 +3534,7 @@ export default function JobDetailScreen() {
           setPendingApply(false);
           setShowApplicationModal(true);
         }}
-        title="How Your Earnings Work 💰"
-        subtitle="Here's what happens after you're hired"
+        title="How It Works"
         items={WORKER_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
@@ -4683,5 +4776,19 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSize.md,
     fontWeight: "700",
+  },
+  retryButton: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  retryButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 });
