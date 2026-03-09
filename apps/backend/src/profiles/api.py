@@ -2588,7 +2588,7 @@ def get_call_token(request, conversation_id: int):
         from .models import Conversation
         
         user = request.auth
-        user_id = user.id
+        user_id = user.accountID
         
         # Verify user has access to this conversation
         try:
