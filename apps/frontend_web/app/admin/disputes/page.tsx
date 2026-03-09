@@ -18,9 +18,10 @@ import {
     TrendingUp,
     FileText,
     Users,
+    Briefcase,
     MessageSquare,
+    ChevronLeft,
     ChevronRight,
-    XCircle,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -215,8 +216,8 @@ export default function DisputesPage() {
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                                 <CardContent className="py-1.5 px-4">
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="p-2 bg-sky-100 rounded-lg"><FileText className="h-5 w-5 text-sky-600" /></div>
-                                        <TrendingUp className="h-4 w-4 text-sky-600" />
+                                        <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><FileText className="h-5 w-5 text-[#00BAF1]" /></div>
+                                        <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Total Requests</p>
                                     <p className="text-xl font-bold text-gray-900">{stats.total_disputes}</p>
@@ -235,11 +236,11 @@ export default function DisputesPage() {
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                                 <CardContent className="py-1.5 px-4">
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="p-2 bg-sky-100 rounded-lg"><MessageSquare className="h-5 w-5 text-sky-600" /></div>
-                                        <div className="h-1.5 w-1.5 bg-sky-500 rounded-full animate-pulse"></div>
+                                        <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><MessageSquare className="h-5 w-5 text-[#00BAF1]" /></div>
+                                        <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">In Negotiation</p>
-                                    <p className="text-xl font-bold text-sky-600">{stats.in_negotiation ?? 0}</p>
+                                    <p className="text-xl font-bold text-[#00BAF1]">{stats.in_negotiation ?? 0}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
@@ -407,17 +408,42 @@ export default function DisputesPage() {
                         </Card>
                     )}
 
+                    {/* Pagination */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-3">
-                            <Button variant="outline" onClick={() => setPage(page - 1)} disabled={page === 1} className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50">
-                                Previous
-                            </Button>
-                            <div className="flex items-center gap-2 px-6 h-11 bg-blue-50 border-2 border-blue-200 rounded-xl">
-                                <span className="text-sm font-medium text-gray-700">Page <span className="text-blue-600 font-bold">{page}</span> of {totalPages}</span>
-                            </div>
-                            <Button variant="outline" onClick={() => setPage(page + 1)} disabled={page === totalPages} className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50">
-                                Next
-                            </Button>
+                        <div className="flex items-center justify-center gap-2 pt-4">
+                            <button
+                                onClick={() => setPage(page - 1)}
+                                disabled={page === 1}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${page === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                            >
+                                <ChevronLeft className="h-5 w-5" />
+                            </button>
+
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                                if (totalPages > 7) {
+                                    if (p !== 1 && p !== totalPages && Math.abs(p - page) > 1) {
+                                        if (p === 2 || p === totalPages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                                        return null;
+                                    }
+                                }
+                                return (
+                                    <button
+                                        key={p}
+                                        onClick={() => setPage(p)}
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === page ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                                    >
+                                        {p}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => setPage(page + 1)}
+                                disabled={page === totalPages}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${page === totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                            >
+                                <ChevronRight className="h-5 w-5" />
+                            </button>
                         </div>
                     )}
                 </div>

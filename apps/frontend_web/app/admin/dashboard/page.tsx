@@ -178,7 +178,7 @@ export default function AdminDashboardPage() {
               <Card className="h-full flex flex-col shadow-sm border-gray-100 bg-white">
                 <CardHeader className="flex flex-row items-start justify-between pb-2">
                   <div>
-                    <CardTitle className="text-4xl font-bold text-gray-900">
+                    <CardTitle className="text-3xl font-bold text-gray-900">
                       ₱{(stats.total_revenue ?? 0).toLocaleString()}
                     </CardTitle>
                     <p className="text-sm font-bold text-gray-900 mt-2">
@@ -207,7 +207,7 @@ export default function AdminDashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col pt-0">
-                  <div className="flex-1 w-full min-h-[250px] relative flex flex-col items-center justify-center border-t border-gray-100 mt-4 pt-4">
+                  <div className="flex-1 w-full min-h-[180px] relative flex flex-col items-center justify-center border-t border-gray-100 mt-4 pt-4">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
                         <XAxis
@@ -247,7 +247,7 @@ export default function AdminDashboardPage() {
             <div className="flex flex-col gap-4">
               {/* Platform Cut */}
               <Card className="flex-1 shadow-sm border-gray-100 bg-white flex flex-col justify-center">
-                <CardHeader className="pb-2 pt-4">
+                <CardHeader className="pb-2 pt-3">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-[#00BAF1]" />
                     <CardTitle className="text-sm font-bold text-gray-900">
@@ -255,8 +255,8 @@ export default function AdminDashboardPage() {
                     </CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="pb-4">
-                  <div className="text-4xl font-bold text-gray-900">
+                <CardContent className="pb-3">
+                  <div className="text-3xl font-bold text-gray-900">
                     ₱{(stats.platform_fees ?? 0).toLocaleString()}
                   </div>
                   {stats.platform_fee_trend !== undefined && (
@@ -270,7 +270,7 @@ export default function AdminDashboardPage() {
 
               {/* Funds in Escrow */}
               <Card className="flex-1 shadow-sm border-gray-100 bg-white flex flex-col justify-center">
-                <CardHeader className="pb-2 pt-4">
+                <CardHeader className="pb-2 pt-3">
                   <div className="flex items-center gap-2">
                     <Lock className="h-5 w-5 text-[#00BAF1]" />
                     <CardTitle className="text-sm font-bold text-gray-900">
@@ -278,8 +278,8 @@ export default function AdminDashboardPage() {
                     </CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="pb-4">
-                  <div className="text-4xl font-bold text-gray-900 flex items-center gap-1">
+                <CardContent className="pb-3">
+                  <div className="text-3xl font-bold text-gray-900 flex items-center gap-1">
                     <span>₱</span>
                     <span>{(stats.escrow_held ?? 0).toLocaleString()}</span>
                   </div>
