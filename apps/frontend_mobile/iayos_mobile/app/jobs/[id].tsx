@@ -43,6 +43,7 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
+  useStartTeamJobWithAvailable,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -708,7 +709,10 @@ export default function JobDetailScreen() {
 
   const applications = applicationsData?.applications || [];
   const showApplicationsSection =
-    isClient && job?.jobType === "LISTING" && !job?.assignedWorker;
+    isClient &&
+    job?.jobType === "LISTING" &&
+    !job?.assignedWorker &&
+    job?.is_team_job !== true;
   const showAgencySuggestionSection =
     isClient && job?.jobType === "INVITE" && !!job?.assignedAgency;
 
@@ -943,6 +947,14 @@ export default function JobDetailScreen() {
   // Accept/reject team applications
   const acceptTeamApplication = useAcceptTeamApplication();
   const rejectTeamApplication = useRejectTeamApplication();
+  const startTeamJobWithAvailable = useStartTeamJobWithAvailable();
+  const hasUnfilledTeamSlots =
+    isTeamJob &&
+    (job?.skill_slots || []).some(
+      (slot) => (slot.workers_assigned || 0) < (slot.workers_needed || 0),
+    );
+  const showStartAnywayButton =
+    isTeamJob && isClient && job?.status === "ACTIVE" && hasUnfilledTeamSlots;
 
   // Check if current worker is assigned to this team job
   const currentWorkerAssignment = job?.worker_assignments?.find(
@@ -1766,6 +1778,49 @@ export default function JobDetailScreen() {
                   </Text>
                 </View>
               </View>
+            )}
+
+            {showStartAnywayButton && (
+              <TouchableOpacity
+                style={styles.startAnywayButton}
+                onPress={() =>
+                  Alert.alert(
+                    "Start Job Anyway",
+                    "Not all positions are filled. Start this team job with currently assigned workers?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Start Job",
+                        onPress: () =>
+                          startTeamJobWithAvailable.mutate({
+                            jobId: parseInt(id),
+                          }),
+                      },
+                    ],
+                  )
+                }
+                disabled={startTeamJobWithAvailable.isPending}
+              >
+                {startTeamJobWithAvailable.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="play-circle-outline"
+                      size={18}
+                      color={Colors.primary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.startAnywayButtonTitle}>
+                        Start Job Anyway
+                      </Text>
+                      <Text style={styles.startAnywayButtonSubtitle}>
+                        Not all positions are filled - job will start with current workers
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </TouchableOpacity>
             )}
 
             <Text style={[styles.sectionTitle, { marginTop: 4 }]}>
@@ -4487,6 +4542,28 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   conversationLockText: {
+      startAnywayButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginTop: Spacing.sm,
+        marginBottom: Spacing.sm,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.primary,
+        backgroundColor: Colors.primary + "10",
+      },
+      startAnywayButtonTitle: {
+        ...Typography.body.medium,
+        fontWeight: "700",
+        color: Colors.primary,
+      },
+      startAnywayButtonSubtitle: {
+        ...Typography.body.small,
+        color: Colors.textSecondary,
+        marginTop: 2,
+      },
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     lineHeight: 18,
