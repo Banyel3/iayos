@@ -285,17 +285,19 @@ export default function ChatScreen() {
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
   const clientHasFullyReviewed = clientHasReviewed;
   const isConversationClosed =
-    (conversation?.job?.clientMarkedComplete &&
-      clientHasFullyReviewed &&
-      conversation?.job?.workerReviewed &&
-      !hasApprovedBackjob &&
-      !hasActiveNegotiation) || // Don't close if there's an approved backjob or active negotiation
-    // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
-    (conversation?.job?.status === "COMPLETED" &&
-      clientHasFullyReviewed &&
-      conversation?.job?.workerReviewed &&
-      !hasApprovedBackjob &&
-      !hasActiveNegotiation);
+    conversation?.is_team_job && conversation?.my_role === "WORKER"
+      ? false
+      : (conversation?.job?.clientMarkedComplete &&
+          clientHasFullyReviewed &&
+          conversation?.job?.workerReviewed &&
+          !hasApprovedBackjob &&
+          !hasActiveNegotiation) ||
+        // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
+        (conversation?.job?.status === "COMPLETED" &&
+          clientHasFullyReviewed &&
+          conversation?.job?.workerReviewed &&
+          !hasApprovedBackjob &&
+          !hasActiveNegotiation);
 
   // Force review: user must review before leaving conversation after payment/completion
   const needsReview = !!(
@@ -3912,6 +3914,23 @@ export default function ChatScreen() {
                     </View>
                   )}
 
+                {conversation.is_team_job &&
+                  conversation.my_role === "WORKER" &&
+                  conversation.job.remainingPaymentPaid && (
+                    <View style={[styles.actionButton, styles.completedAction]}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={Colors.success}
+                      />
+                      <Text
+                        style={[styles.actionButtonText, { color: Colors.success }]}
+                      >
+                        Payment received! Please leave a review.
+                      </Text>
+                    </View>
+                  )}
+
                 {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
@@ -4549,10 +4568,61 @@ export default function ChatScreen() {
                   clientHasReviewed) ||
                   (conversation.my_role === "WORKER" &&
                     conversation.job.workerReviewed)
-                  ? // Review submitted banner removed - replaced with View Reviews button
-                  null
-                  : // Redundant review banner removed - use header button instead
-                  null}
+                  ? null
+                  : conversation.my_role === "CLIENT" &&
+                      conversation.is_team_job &&
+                      !clientHasReviewed
+                    ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            {
+                              backgroundColor: "#FFF3E0",
+                              borderWidth: 1,
+                              borderColor: "#FFE0B2",
+                              marginBottom: Spacing.sm,
+                            },
+                          ]}
+                          onPress={() => {
+                            setReviewModalMode("submit");
+                            setShowReviewModal(true);
+                          }}
+                        >
+                          <Ionicons name="star" size={20} color="#EF6C00" />
+                          <Text
+                            style={[styles.actionButtonText, { color: "#E65100" }]}
+                          >
+                            Rate Workers
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    : conversation.my_role === "WORKER" &&
+                        !conversation.job.workerReviewed
+                      ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.actionButton,
+                              {
+                                backgroundColor: "#E3F2FD",
+                                borderWidth: 1,
+                                borderColor: "#BBDEFB",
+                                marginBottom: Spacing.sm,
+                              },
+                            ]}
+                            onPress={() => {
+                              setReviewModalMode("submit");
+                              setShowReviewModal(true);
+                            }}
+                          >
+                            <Ionicons name="star-outline" size={20} color="#1565C0" />
+                            <Text
+                              style={[styles.actionButtonText, { color: "#0D47A1" }]}
+                            >
+                              Rate Client
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      : null}
 
                 {/* Team job worker review checklist - show who's been reviewed */}
                 {conversation.is_team_job &&
