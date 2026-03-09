@@ -121,10 +121,13 @@ export default function DisputesPage() {
     };
 
     const filteredJobs = backjobs.filter((job) => {
+        const query = searchQuery.toLowerCase();
         const matchesSearch =
-            job.job_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            job.reason.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            job.description.toLowerCase().includes(searchQuery.toLowerCase());
+            job.job_title.toLowerCase().includes(query) ||
+            job.reason.toLowerCase().includes(query) ||
+            job.description.toLowerCase().includes(query) ||
+            job.client.name.toLowerCase().includes(query) ||
+            (job.worker?.name.toLowerCase().includes(query) ?? false);
         return matchesSearch;
     });
 
@@ -263,7 +266,7 @@ export default function DisputesPage() {
                                 <div className="flex-1 relative group">
                                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
                                     <Input
-                                        placeholder="Search by title, reason, or description..."
+                                        placeholder="Search by title, party names, reason, or description..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="pl-12 h-12 border-gray-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 rounded-xl"
