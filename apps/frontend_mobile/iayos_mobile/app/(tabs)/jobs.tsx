@@ -236,10 +236,8 @@ export default function JobsScreen() {
 
   const applications = applicationsData?.applications || [];
 
-  // Filter applications to show only PENDING
-  const filteredApplications = applications.filter(
-    (app) => app.application_status === "PENDING"
-  );
+  // Show all applications regardless of status
+  const filteredApplications = applications;
 
   if (__DEV__) {
     // DEBUG: Log job data to see what's being received
@@ -983,12 +981,12 @@ export default function JobsScreen() {
                         {
                           backgroundColor:
                             app.application_status === "ACCEPTED"
-                              ? "#D1FAE5"
+                              ? Colors.successLight
                               : app.application_status === "REJECTED"
-                                ? "#FEE2E2"
+                                ? Colors.errorLight
                                 : app.application_status === "WITHDRAWN"
-                                  ? "#F3F4F6"
-                                  : "#DBEAFE",
+                                  ? Colors.border
+                                  : Colors.infoLight,
                         },
                       ]}
                     >
@@ -998,12 +996,12 @@ export default function JobsScreen() {
                           {
                             color:
                               app.application_status === "ACCEPTED"
-                                ? "#065F46"
+                                ? Colors.success
                                 : app.application_status === "REJECTED"
-                                  ? "#991B1B"
+                                  ? Colors.error
                                   : app.application_status === "WITHDRAWN"
-                                    ? "#6B7280"
-                                    : "#1E40AF",
+                                    ? Colors.textSecondary
+                                    : Colors.info,
                           },
                         ]}
                       >
@@ -1141,11 +1139,12 @@ export default function JobsScreen() {
             <View style={styles.jobsList}>
               {filteredJobs.map((job) => renderJobCard(job))}
             </View>
-          )}
-      </ScrollView>
+          )
+        }
+      </ScrollView >
 
       {/* Job Type Selector Modal */}
-      <Modal
+      < Modal
         visible={showJobTypeModal}
         transparent
         animationType="fade"
@@ -1280,9 +1279,9 @@ export default function JobsScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </Modal >
       <CalendarFAB />
-    </SafeAreaView>
+    </SafeAreaView >
   );
 }
 

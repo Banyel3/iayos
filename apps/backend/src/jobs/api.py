@@ -7150,7 +7150,7 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                 'created_at': app.createdAt.isoformat()
             })
         
-        return {'applications': result, 'count': len(result)}
+        return {'applications': result, 'count': len(result), 'total': len(result)}
         
     except Job.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)

@@ -685,16 +685,24 @@ export default function JobDetailScreen() {
       applications: JobApplication[];
       total: number;
     }> => {
-      if (!isClient || !isValidJobId || job?.jobType !== "LISTING") {
+      if (!isClient || !isValidJobId) {
         return { applications: [], total: 0 };
       }
       const response = await apiRequest(
         ENDPOINTS.JOB_APPLICATIONS(parseInt(id)),
       );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch applications");
+      }
+
       const data = await response.json();
-      return data as { applications: JobApplication[]; total: number };
+      // Handle potential nested data structure e.g. { success: true, applications: [] }
+      const apps = data.applications || (data.data && data.data.applications) || [];
+      const totalCount = data.total ?? data.count ?? apps.length;
+      return { applications: apps, total: totalCount };
     },
-    enabled: isClient && isValidJobId && !!job && job?.jobType === "LISTING",
+    enabled: isClient && isValidJobId && !!job,
   });
 
   const applications = applicationsData?.applications || [];
@@ -2161,9 +2169,7 @@ export default function JobDetailScreen() {
 
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
         {isClient &&
-          job.jobType === "LISTING" &&
-          !job.assignedWorker &&
-          !isTeamJob && (
+          !job.assignedWorker && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
@@ -2222,7 +2228,32 @@ export default function JobDetailScreen() {
               </View>
 
               {applicationsLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
+              ) : error ? (
+                <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={48}
+                    color={Colors.error}
+                  />
+                  <Text
+                    style={[
+                      Typography.body.medium,
+                      { color: Colors.error, marginTop: Spacing.sm },
+                    ]}
+                  >
+                    Failed to load applications
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={() => refetchApplications()}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.retryButtonText}>Try Again</Text>
+                  </TouchableOpacity>
+                </View>
               ) : applications.length === 0 ? (
                 <View style={styles.emptyApplications}>
                   <Ionicons
@@ -4679,5 +4710,19 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSize.md,
     fontWeight: "700",
+  },
+  retryButton: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  retryButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 });

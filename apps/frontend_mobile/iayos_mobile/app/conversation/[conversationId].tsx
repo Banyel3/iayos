@@ -4307,114 +4307,110 @@ export default function ChatScreen() {
             )}
 
           {/* Backjob Banners - Request or Edit Feedback */}
-          {isConversationClosed && (
-            <>
-              {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
-              {conversation.my_role === "CLIENT" &&
-                (conversation.job.status === "COMPLETED" ||
-                  !!conversation.job.clientMarkedComplete) &&
-                !conversation.backjob && (
-                  <TouchableOpacity
-                    style={styles.requestBackjobBanner}
-                    onPress={() =>
-                      router.push(
-                        `/jobs/request-backjob?jobId=${conversation.job.id}`,
-                      )
-                    }
-                    activeOpacity={0.8}
-                  >
-                    <View
-                      style={[
-                        styles.requestBackjobContent,
-                        {
-                          backgroundColor: "#FFF3E0", // Orange background
-                          borderColor: "#FFE0B2", // Orange border
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.requestBackjobIconContainer,
-                          {
-                            backgroundColor: "#FFB74D", // Match orange icon container
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name="refresh-circle"
-                          size={24}
-                          color={Colors.white}
-                        />
-                      </View>
-                      <View style={styles.requestBackjobText}>
-                        <Text
-                          style={[styles.requestBackjobTitle, { color: "#E65100" }]}
-                        >
-                          Not satisfied with the work?
-                        </Text>
-                        <Text
-                          style={[
-                            styles.requestBackjobSubtitle,
-                            { color: "#EF6C00" },
-                          ]}
-                        >
-                          Tap here to request a backjob (rework)
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#EF6C00" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-              {/* Edit Feedback Banner - BOTH CLIENT & WORKER - Only after a successful backjob */}
-              {conversation.backjob?.status === "COMPLETED" && (
-                <TouchableOpacity
-                  style={styles.requestBackjobBanner}
-                  onPress={() => {
-                    setReviewModalMode("view");
-                    setShowReviewModal(true);
-                  }}
-                  activeOpacity={0.8}
+          {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
+          {conversation.my_role === "CLIENT" &&
+            (conversation.job.status === "COMPLETED" ||
+              !!conversation.job.clientMarkedComplete) &&
+            !conversation.backjob?.has_backjob && (
+              <TouchableOpacity
+                style={styles.requestBackjobBanner}
+                onPress={() =>
+                  router.push(
+                    `/jobs/request-backjob?jobId=${conversation.job.id}`,
+                  )
+                }
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.requestBackjobContent,
+                    {
+                      backgroundColor: "#FFF3E0", // Orange background
+                      borderColor: "#FFE0B2", // Orange border
+                    },
+                  ]}
                 >
                   <View
                     style={[
-                      styles.requestBackjobContent,
+                      styles.requestBackjobIconContainer,
                       {
-                        backgroundColor: "#E8F5E9", // Light green background
-                        borderColor: "#C8E6C9", // Light green border
+                        backgroundColor: "#FFB74D", // Match orange icon container
                       },
                     ]}
                   >
-                    <View
+                    <Ionicons
+                      name="refresh-circle"
+                      size={24}
+                      color={Colors.white}
+                    />
+                  </View>
+                  <View style={styles.requestBackjobText}>
+                    <Text
+                      style={[styles.requestBackjobTitle, { color: "#E65100" }]}
+                    >
+                      Not satisfied with the work?
+                    </Text>
+                    <Text
                       style={[
-                        styles.requestBackjobIconContainer,
-                        {
-                          backgroundColor: Colors.success, // Green icon container
-                        },
+                        styles.requestBackjobSubtitle,
+                        { color: "#EF6C00" },
                       ]}
                     >
-                      <Ionicons name="star" size={24} color={Colors.white} />
-                    </View>
-                    <View style={styles.requestBackjobText}>
-                      <Text
-                        style={[styles.requestBackjobTitle, { color: "#1B5E20" }]}
-                      >
-                        Satisfied with the backjob?
-                      </Text>
-                      <Text
-                        style={[
-                          styles.requestBackjobSubtitle,
-                          { color: "#2E7D32" },
-                        ]}
-                      >
-                        Wanna update your feedback?
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+                      Tap here to request a backjob (rework)
+                    </Text>
                   </View>
-                </TouchableOpacity>
-              )}
-            </>
+                  <Ionicons name="chevron-forward" size={20} color="#EF6C00" />
+                </View>
+              </TouchableOpacity>
+            )}
+
+          {/* Edit Feedback Banner - BOTH CLIENT & WORKER - Only after a successful backjob */}
+          {conversation.backjob?.status === "COMPLETED" && (
+            <TouchableOpacity
+              style={styles.requestBackjobBanner}
+              onPress={() => {
+                setReviewModalMode("view");
+                setShowReviewModal(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.requestBackjobContent,
+                  {
+                    backgroundColor: "#E8F5E9", // Light green background
+                    borderColor: "#C8E6C9", // Light green border
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.requestBackjobIconContainer,
+                    {
+                      backgroundColor: Colors.success, // Green icon container
+                    },
+                  ]}
+                >
+                  <Ionicons name="star" size={24} color={Colors.white} />
+                </View>
+                <View style={styles.requestBackjobText}>
+                  <Text
+                    style={[styles.requestBackjobTitle, { color: "#1B5E20" }]}
+                  >
+                    Satisfied with the backjob?
+                  </Text>
+                  <Text
+                    style={[
+                      styles.requestBackjobSubtitle,
+                      { color: "#2E7D32" },
+                    ]}
+                  >
+                    Wanna update your feedback?
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+              </View>
+            </TouchableOpacity>
           )}
 
           {/* Review Section - Compact Banner that opens modal */}
