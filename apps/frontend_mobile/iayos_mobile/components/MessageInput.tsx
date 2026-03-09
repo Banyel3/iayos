@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
@@ -45,65 +44,60 @@ export default function MessageInput({
   const canSend = text.trim().length > 0 && !isSending;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      <View style={styles.container}>
-        {/* Image Attachment Button */}
-        {onImagePress && (
-          <TouchableOpacity
-            style={styles.imageButton}
-            onPress={onImagePress}
-            disabled={isSending}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="image-outline"
-              size={24}
-              color={isSending ? Colors.textSecondary : Colors.primary}
-            />
-          </TouchableOpacity>
-        )}
-
-        {/* Text Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder={placeholder}
-            placeholderTextColor={Colors.textSecondary}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={1000}
-            editable={!isSending}
-            autoCapitalize="sentences"
-            autoCorrect
-            returnKeyType="send"
-            onSubmitEditing={handleSend}
-            blurOnSubmit={false}
-          />
-        </View>
-
-        {/* Send Button */}
+    <View style={styles.container}>
+      {/* Image Attachment Button */}
+      {onImagePress && (
         <TouchableOpacity
-          style={[styles.sendButton, canSend && styles.sendButtonActive]}
-          onPress={handleSend}
-          disabled={!canSend}
+          style={styles.imageButton}
+          onPress={onImagePress}
+          disabled={isSending}
           activeOpacity={0.7}
         >
-          {isSending ? (
-            <ActivityIndicator size="small" color={Colors.white} />
-          ) : (
-            <Ionicons
-              name="send"
-              size={20}
-              color={canSend ? Colors.white : Colors.textSecondary}
-            />
-          )}
+          <Ionicons
+            name="image-outline"
+            size={24}
+            color={isSending ? Colors.textSecondary : Colors.primary}
+          />
         </TouchableOpacity>
+      )}
+
+      {/* Text Input */}
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textSecondary}
+          value={text}
+          onChangeText={setText}
+          multiline
+          maxLength={1000}
+          editable={!isSending}
+          autoCapitalize="sentences"
+          autoCorrect
+          returnKeyType="send"
+          onSubmitEditing={handleSend}
+          blurOnSubmit={false}
+        />
       </View>
-    </KeyboardAvoidingView>
+
+      {/* Send Button */}
+      <TouchableOpacity
+        style={[styles.sendButton, canSend && styles.sendButtonActive]}
+        onPress={handleSend}
+        disabled={!canSend}
+        activeOpacity={0.7}
+      >
+        {isSending ? (
+          <ActivityIndicator size="small" color={Colors.white} />
+        ) : (
+          <Ionicons
+            name="send"
+            size={20}
+            color={canSend ? Colors.white : Colors.textSecondary}
+          />
+        )}
+      </TouchableOpacity>
+    </View>
   );
 }
 

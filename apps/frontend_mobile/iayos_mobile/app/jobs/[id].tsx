@@ -132,6 +132,7 @@ interface JobDetail {
   total_workers_assigned?: number;
   // Missing fields
   preferred_start_date?: string;
+  scheduled_end_date?: string;
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
@@ -205,27 +206,27 @@ const getWorkEnvironmentInfo = (env: string) => {
 const WORKER_PAYMENT_INFO_ITEMS = [
   {
     icon: "lock-closed-outline" as const,
-    label: "Your earnings are secured",
+    label: "Secured Payment",
     description:
-      "The client's escrow payment is held before you even start working — your pay is guaranteed.",
+      "Client funds are held in escrow.",
   },
   {
     icon: "checkmark-circle-outline" as const,
-    label: "Client approval releases payment",
+    label: "Client Approval",
     description:
-      "Once you complete the job and the client approves, payment moves to your Pending Earnings.",
+      "Payment moves to Pending after job completion.",
   },
   {
     icon: "time-outline" as const,
-    label: "7-day buffer period",
+    label: "7-day Hold",
     description:
-      "A brief hold for dispute protection before earnings are released to your wallet.",
+      "Short hold for dispute protection before funds are released.",
   },
   {
     icon: "card-outline" as const,
-    label: "Withdraw anytime",
+    label: "Withdraw Anytime",
     description:
-      "Transfer your wallet balance to your registered GCash account whenever you're ready.",
+      "Send your earnings to your GCash.",
   },
 ];
 
@@ -445,6 +446,7 @@ export default function JobDetailScreen() {
         total_workers_assigned: jobData.total_workers_assigned,
         // Missing fields mapping
         preferred_start_date: jobData.preferred_start_date,
+        scheduled_end_date: jobData.scheduled_end_date,
         payment_model:
           jobData.payment_model ||
           (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
@@ -676,6 +678,7 @@ export default function JobDetailScreen() {
   const {
     data: applicationsData,
     isLoading: applicationsLoading,
+    error: applicationsError,
     refetch: refetchApplications,
   } = useQuery<{ applications: JobApplication[]; total: number }>({
     queryKey: ["job-applications", id],
@@ -683,16 +686,24 @@ export default function JobDetailScreen() {
       applications: JobApplication[];
       total: number;
     }> => {
-      if (!isClient || !isValidJobId || job?.jobType !== "LISTING") {
+      if (!isClient || !isValidJobId) {
         return { applications: [], total: 0 };
       }
       const response = await apiRequest(
         ENDPOINTS.JOB_APPLICATIONS(parseInt(id)),
       );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch applications");
+      }
+
       const data = await response.json();
-      return data as { applications: JobApplication[]; total: number };
+      // Handle potential nested data structure e.g. { success: true, applications: [] }
+      const apps = data.applications || (data.data && data.data.applications) || [];
+      const totalCount = data.total ?? data.count ?? apps.length;
+      return { applications: apps, total: totalCount };
     },
-    enabled: isClient && isValidJobId && !!job && job?.jobType === "LISTING",
+    enabled: isClient && isValidJobId && !!job,
   });
 
   const applications = applicationsData?.applications || [];
@@ -1419,7 +1430,10 @@ export default function JobDetailScreen() {
             />
             <Text style={styles.jobStartDate}>
               {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
+                (job.scheduled_end_date
+                  ? ` - End: ${new Date(job.scheduled_end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                  : "")
                 : `Posted ${job.postedAt}`}
             </Text>
           </View>
@@ -2155,9 +2169,7 @@ export default function JobDetailScreen() {
 
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
         {isClient &&
-          job.jobType === "LISTING" &&
-          !job.assignedWorker &&
-          !isTeamJob && (
+          !job.assignedWorker && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Applications</Text>
@@ -2216,7 +2228,32 @@ export default function JobDetailScreen() {
               </View>
 
               {applicationsLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
+              ) : applicationsError ? (
+                <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={48}
+                    color={Colors.error}
+                  />
+                  <Text
+                    style={[
+                      Typography.body.medium,
+                      { color: Colors.error, marginTop: Spacing.sm },
+                    ]}
+                  >
+                    Failed to load applications
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={() => refetchApplications()}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.retryButtonText}>Try Again</Text>
+                  </TouchableOpacity>
+                </View>
               ) : applications.length === 0 ? (
                 <View style={styles.emptyApplications}>
                   <Ionicons
@@ -3431,8 +3468,7 @@ export default function JobDetailScreen() {
           setPendingApply(false);
           setShowApplicationModal(true);
         }}
-        title="How Your Earnings Work 💰"
-        subtitle="Here's what happens after you're hired"
+        title="How It Works"
         items={WORKER_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
@@ -4674,5 +4710,19 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSize.md,
     fontWeight: "700",
+  },
+  retryButton: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  retryButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 });

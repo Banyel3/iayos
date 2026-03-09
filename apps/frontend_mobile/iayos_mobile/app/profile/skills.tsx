@@ -296,7 +296,7 @@ export default function SkillsScreen() {
         }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
           <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
@@ -352,7 +352,7 @@ export default function SkillsScreen() {
                           style={[
                             styles.skillOption,
                             selectedSkill?.id === skill.id &&
-                              styles.skillOptionSelected,
+                            styles.skillOptionSelected,
                           ]}
                           onPress={() => setSelectedSkill(skill)}
                         >
@@ -406,7 +406,7 @@ export default function SkillsScreen() {
                       style={[
                         styles.modalButton,
                         (!selectedSkill || addSkill.isPending) &&
-                          styles.modalButtonDisabled,
+                        styles.modalButtonDisabled,
                       ]}
                       onPress={handleAddSkill}
                       disabled={!selectedSkill || addSkill.isPending}
@@ -436,7 +436,7 @@ export default function SkillsScreen() {
         }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
           <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>

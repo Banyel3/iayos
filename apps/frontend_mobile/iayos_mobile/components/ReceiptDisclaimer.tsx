@@ -25,7 +25,7 @@ export default function ReceiptDisclaimer() {
 
 /** Plain-text version for Share/export contexts */
 export const RECEIPT_DISCLAIMER_TEXT =
-  "⚠️ This is NOT an Official Receipt (O.R.)";
+  "⚠️ This is NOT an Official Receipt";
 
 const styles = StyleSheet.create({
   container: {

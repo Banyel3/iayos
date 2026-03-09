@@ -320,96 +320,6 @@ export default function CreateJobScreen() {
   // Debounce timer ref for price prediction
   const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Database-driven job field suggestions
-  const {
-    mutate: fetchSuggestions,
-  } = useJobSuggestions();
-
-  // Suggestion state per field
-  const [titleSuggestions, setTitleSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [descriptionSuggestions, setDescriptionSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [materialSuggestions, setMaterialSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [durationSuggestions, setDurationSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [loadingSuggestionFields, setLoadingSuggestionFields] = React.useState<Set<string>>(new Set());
-
-  // Fetch all suggestion fields when category changes
-  React.useEffect(() => {
-    if (!effectiveCategoryId) {
-      setTitleSuggestions([]);
-      setDescriptionSuggestions([]);
-      setMaterialSuggestions([]);
-      setDurationSuggestions([]);
-      return;
-    }
-
-    // Fetch title suggestions
-    setLoadingSuggestionFields(new Set(["title", "description", "materials", "duration"]));
-    fetchSuggestions(
-      { category_id: effectiveCategoryId, field: "title", limit: 8 },
-      {
-        onSuccess: (resp) => {
-          if (resp.field === "title") setTitleSuggestions(resp.suggestions);
-          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
-        },
-        onError: () => {
-          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
-        },
-      },
-    );
-
-    // Small stagger to avoid simultaneous calls
-    const t1 = setTimeout(() => {
-      fetchSuggestions(
-        { category_id: effectiveCategoryId, field: "description", limit: 6 },
-        {
-          onSuccess: (resp) => {
-            if (resp.field === "description") setDescriptionSuggestions(resp.suggestions);
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
-          },
-          onError: () => {
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
-          },
-        },
-      );
-    }, 200);
-
-    const t2 = setTimeout(() => {
-      fetchSuggestions(
-        { category_id: effectiveCategoryId, field: "materials", limit: 8 },
-        {
-          onSuccess: (resp) => {
-            if (resp.field === "materials") setMaterialSuggestions(resp.suggestions);
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("materials"); return n; });
-          },
-          onError: () => {
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("materials"); return n; });
-          },
-        },
-      );
-    }, 400);
-
-    const t3 = setTimeout(() => {
-      fetchSuggestions(
-        { category_id: effectiveCategoryId, field: "duration", limit: 6 },
-        {
-          onSuccess: (resp) => {
-            if (resp.field === "duration") setDurationSuggestions(resp.suggestions);
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
-          },
-          onError: () => {
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
-          },
-        },
-      );
-    }, 600);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [effectiveCategoryId, fetchSuggestions]);
-
   // Fetch categories
   const {
     data: categoriesData,
@@ -446,6 +356,78 @@ export default function CreateJobScreen() {
     if (!effectiveCategory) return [];
     return TITLE_SUGGESTIONS[effectiveCategory.name] || [];
   }, [effectiveCategory]);
+
+  // Database-driven job field suggestions
+  const {
+    mutate: fetchSuggestions,
+  } = useJobSuggestions();
+
+  // Suggestion state per field
+  const [titleSuggestions, setTitleSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [descriptionSuggestions, setDescriptionSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [durationSuggestions, setDurationSuggestions] = React.useState<JobSuggestion[]>([]);
+  const [loadingSuggestionFields, setLoadingSuggestionFields] = React.useState<Set<string>>(new Set());
+
+  // Fetch all suggestion fields when category changes
+  React.useEffect(() => {
+    if (!effectiveCategoryId) {
+      setTitleSuggestions([]);
+      setDescriptionSuggestions([]);
+      setDurationSuggestions([]);
+      return;
+    }
+
+    // Fetch title suggestions
+    setLoadingSuggestionFields(new Set(["title", "description", "duration"]));
+    fetchSuggestions(
+      { category_id: effectiveCategoryId, field: "title", limit: 8 },
+      {
+        onSuccess: (resp) => {
+          if (resp.field === "title") setTitleSuggestions(resp.suggestions);
+          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+        },
+        onError: () => {
+          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+        },
+      },
+    );
+
+    // Small stagger to avoid simultaneous calls
+    const t1 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "description", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "description") setDescriptionSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+          },
+        },
+      );
+    }, 200);
+
+    const t3 = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: effectiveCategoryId, field: "duration", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "duration") setDurationSuggestions(resp.suggestions);
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+          },
+          onError: () => {
+            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+          },
+        },
+      );
+    }, 600);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t3);
+    };
+  }, [effectiveCategoryId, fetchSuggestions]);
 
   const selectedCategoryNames = React.useMemo(() => {
     if (!skillSlots.length) return [] as string[];
@@ -517,6 +499,21 @@ export default function CreateJobScreen() {
   const handleApplySuggestedPrice = useCallback((price: number) => {
     setBudget(price.toFixed(2));
   }, []);
+
+  // Auto-calculate duration days for Daily Rate when dates are provided
+  useEffect(() => {
+    if (paymentModel === "DAILY") {
+      if (startDate && isOneDayJob) {
+        setDurationDays("1");
+      } else if (startDate && scheduledEndDate) {
+        // Calculate difference in milliseconds
+        const diffTime = Math.abs(scheduledEndDate.getTime() - startDate.getTime());
+        // Convert to days and add 1 (inclusive)
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        setDurationDays(diffDays.toString());
+      }
+    }
+  }, [startDate, scheduledEndDate, isOneDayJob, paymentModel]);
 
   // Multi-employee skill slot management
   const addSkillSlot = useCallback(() => {
@@ -627,26 +624,14 @@ export default function CreateJobScreen() {
     return Number.isFinite(parsed) ? parsed : null;
   }, []);
 
-  // Filter categories to only show worker's skills when hiring specific worker
-  // Categories available in slot modal: filter to worker's skills for invite jobs, all for listing
+  // Filter categories (search only)
+  // Categories available in slot modal: all for both invite jobs and standard listing
   const filteredCategories = React.useMemo(() => {
     if (!categories || !Array.isArray(categories)) {
       return [];
     }
 
     let list = categories;
-    if (workerId && workerDetailsData?.skills) {
-      // For INVITE jobs, only show worker's skills
-      const workerSkillIds = (workerDetailsData.skills as any[])
-        .map((s) => getWorkerSkillSpecializationId(s))
-        .filter((id): id is number => id !== null);
-
-      // If worker skill IDs are missing/malformed, fallback to all categories
-      // so clients can still proceed instead of getting a blank category list.
-      if (workerSkillIds.length > 0) {
-        list = categories.filter((cat) => workerSkillIds.includes(cat.id));
-      }
-    }
 
     if (categorySearch.trim()) {
       const search = categorySearch.toLowerCase();
@@ -1028,7 +1013,7 @@ export default function CreateJobScreen() {
       />
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -1677,6 +1662,8 @@ export default function CreateJobScreen() {
                   setIsOneDayJob(next);
                   if (next) {
                     setScheduledEndDate(null);
+                    // Force PROJECT payment model for one-day jobs
+                    setPaymentModel("PROJECT");
                   }
                 }}
                 activeOpacity={0.7}
@@ -1695,13 +1682,16 @@ export default function CreateJobScreen() {
                   <Text style={styles.label}>Expected Duration (Optional)</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g., 2-3 hours, half a day"
+                    placeholder="e.g., 1-3 hours, half a day"
                     value={duration}
                     onChangeText={setDuration}
                     placeholderTextColor={Colors.textHint}
                   />
                   <SuggestionBubbles
-                    suggestions={durationSuggestions}
+                    suggestions={durationSuggestions.filter(s =>
+                      !s.text.toLowerCase().includes("1 day") &&
+                      !s.text.toLowerCase().includes("2 days")
+                    )}
                     onSelect={setDuration}
                     isLoading={loadingSuggestionFields.has('duration')}
                     label="Common durations"
@@ -1865,20 +1855,6 @@ export default function CreateJobScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Material Suggestions from DB */}
-                    <SuggestionBubbles
-                      suggestions={materialSuggestions}
-                      onSelect={(text) => {
-                        if (!manualMaterials.includes(text)) {
-                          setManualMaterials(prev => [...prev, text]);
-                        }
-                      }}
-                      isLoading={loadingSuggestionFields.has('materials')}
-                      label="Common materials"
-                      icon="construct-outline"
-                      showFrequency
-                    />
-
                     {/* Manual Materials List */}
                     {manualMaterials.length > 0 && (
                       <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
@@ -1994,14 +1970,17 @@ export default function CreateJobScreen() {
                     style={[
                       styles.optionButton,
                       paymentModel === "DAILY" && styles.optionButtonActive,
+                      isOneDayJob && styles.optionButtonDisabled,
                     ]}
-                    onPress={() => setPaymentModel("DAILY")}
+                    onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
+                    disabled={isOneDayJob}
                   >
                     <Text
                       style={[
                         styles.optionButtonText,
                         paymentModel === "DAILY" &&
                         styles.optionButtonTextActive,
+                        isOneDayJob && styles.optionButtonTextDisabled,
                       ]}
                     >
                       Daily Rate
@@ -2009,9 +1988,11 @@ export default function CreateJobScreen() {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.hint}>
-                  {paymentModel === "PROJECT"
-                    ? "Pay for the entire project (50% downpayment, 50% on completion)"
-                    : "Pay per day of work (100% escrow upfront)"}
+                  {isOneDayJob
+                    ? "Daily rate is unavailable for one-day jobs (Fixed Budget only)"
+                    : paymentModel === "PROJECT"
+                      ? "Pay for the entire project (50% downpayment, 50% on completion)"
+                      : "Pay per day of work (100% escrow upfront)"}
                 </Text>
               </View>
 
@@ -2072,17 +2053,14 @@ export default function CreateJobScreen() {
                         editable={!!effectiveCategoryId}
                       />
                     </View>
-                    <Text style={styles.hint}>
-                      Worker's daily rate (per 8-hour day)
-                    </Text>
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Duration (Days)</Text>
+                    <Text style={styles.label}>Duration</Text>
                     <TextInput
                       style={[
                         styles.input,
-                        !effectiveCategoryId && styles.inputDisabled,
+                        (!effectiveCategoryId || (startDate && (scheduledEndDate || isOneDayJob))) && styles.inputDisabled,
                       ]}
                       placeholder={
                         effectiveCategoryId ? "e.g., 5" : "Add a worker requirement first"
@@ -2091,10 +2069,12 @@ export default function CreateJobScreen() {
                       onChangeText={setDurationDays}
                       keyboardType="number-pad"
                       placeholderTextColor={Colors.textHint}
-                      editable={!!effectiveCategoryId}
+                      editable={!!effectiveCategoryId && !(startDate && (scheduledEndDate || isOneDayJob))}
                     />
                     <Text style={styles.hint}>
-                      Estimated number of working days
+                      {startDate && (scheduledEndDate || isOneDayJob)
+                        ? "Auto-calculated based on selected dates"
+                        : "Number of working days"}
                     </Text>
                   </View>
                 </>
@@ -2231,7 +2211,7 @@ export default function CreateJobScreen() {
                     )}
                   </View>
                   <Text style={styles.dailyNote}>
-                    💡 Daily jobs require 100% escrow upfront. Workers confirm attendance daily.
+                    Daily jobs require 100% escrow upfront. Workers confirm attendance daily.
                   </Text>
                 </View>
               )}
@@ -3417,6 +3397,14 @@ const styles = StyleSheet.create({
   optionButtonTextActive: {
     color: Colors.primary,
     fontWeight: "700",
+  },
+  optionButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: Colors.backgroundSecondary,
+    borderColor: Colors.border,
+  },
+  optionButtonTextDisabled: {
+    color: Colors.textHint,
   },
   dailyNote: {
     fontSize: 13,

@@ -75,27 +75,27 @@ const ALLOCATION_METHODS: {
   label: string;
   description: string;
 }[] = [
-  {
-    value: "EQUAL_PER_WORKER",
-    label: "Equal Per Worker",
-    description: "Split budget equally among all workers",
-  },
-  {
-    value: "EQUAL_PER_SKILL",
-    label: "Equal Per Skill",
-    description: "Split budget equally among skill slots",
-  },
-  {
-    value: "SKILL_WEIGHTED",
-    label: "Skill Weighted",
-    description: "Expert 3x, Intermediate 2x, Entry 1x",
-  },
-  {
-    value: "MANUAL_ALLOCATION",
-    label: "Manual",
-    description: "Set budget per skill slot manually",
-  },
-];
+    {
+      value: "EQUAL_PER_WORKER",
+      label: "Equal Per Worker",
+      description: "Split budget equally among all workers",
+    },
+    {
+      value: "EQUAL_PER_SKILL",
+      label: "Equal Per Skill",
+      description: "Split budget equally among skill slots",
+    },
+    {
+      value: "SKILL_WEIGHTED",
+      label: "Skill Weighted",
+      description: "Expert 3x, Intermediate 2x, Entry 1x",
+    },
+    {
+      value: "MANUAL_ALLOCATION",
+      label: "Manual",
+      description: "Set budget per skill slot manually",
+    },
+  ];
 
 const SKILL_LEVELS = [
   { value: "ENTRY", label: "Entry Level", multiplier: 1 },
@@ -137,6 +137,7 @@ export default function CreateTeamJobScreen() {
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [allocationMethod, setAllocationMethod] =
     useState<AllocationMethod>("EQUAL_PER_WORKER");
+  const [teamStartThreshold, setTeamStartThreshold] = useState(100); // Percentage
 
   // Database-driven suggestions (same engine as single-job create)
   const { mutate: fetchSuggestions } = useJobSuggestions();
@@ -602,6 +603,7 @@ export default function CreateTeamJobScreen() {
         notes: slot.notes,
       })),
       payment_method: "WALLET",
+      team_start_threshold: teamStartThreshold,
     };
 
     createJobMutation.mutate(payload);
@@ -708,7 +710,7 @@ export default function CreateTeamJobScreen() {
       />
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.pageHeader}>
           <TouchableOpacity
@@ -865,19 +867,19 @@ export default function CreateTeamJobScreen() {
                     minPrice={
                       pricePrediction?.min_price
                         ? pricePrediction.min_price *
-                          Math.max(1, totalWorkersNeeded)
+                        Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     suggestedPrice={
                       pricePrediction?.suggested_price
                         ? pricePrediction.suggested_price *
-                          Math.max(1, totalWorkersNeeded)
+                        Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     maxPrice={
                       pricePrediction?.max_price
                         ? pricePrediction.max_price *
-                          Math.max(1, totalWorkersNeeded)
+                        Math.max(1, totalWorkersNeeded)
                         : undefined
                     }
                     confidence={pricePrediction?.confidence}
@@ -897,7 +899,7 @@ export default function CreateTeamJobScreen() {
                       style={[
                         styles.allocationOption,
                         allocationMethod === method.value &&
-                          styles.allocationOptionSelected,
+                        styles.allocationOptionSelected,
                       ]}
                       onPress={() => setAllocationMethod(method.value)}
                     >
@@ -906,7 +908,7 @@ export default function CreateTeamJobScreen() {
                           style={[
                             styles.allocationOptionLabel,
                             allocationMethod === method.value &&
-                              styles.allocationOptionLabelSelected,
+                            styles.allocationOptionLabelSelected,
                           ]}
                         >
                           {method.label}
@@ -987,6 +989,50 @@ export default function CreateTeamJobScreen() {
               )}
             </View>
 
+            {/* Team Start Threshold */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="rocket" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Team Start Options{" "}
+                  <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Start When Team is {teamStartThreshold}% Filled
+                </Text>
+                <View style={styles.thresholdSlider}>
+                  {[50, 75, 100].map((value) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={[
+                        styles.thresholdOption,
+                        teamStartThreshold === value &&
+                        styles.thresholdOptionSelected,
+                      ]}
+                      onPress={() => setTeamStartThreshold(value)}
+                    >
+                      <Text
+                        style={[
+                          styles.thresholdText,
+                          teamStartThreshold === value &&
+                          styles.thresholdTextSelected,
+                        ]}
+                      >
+                        {value}%
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.hint}>
+                  {teamStartThreshold === 100
+                    ? "Job will start only when ALL positions are filled."
+                    : `Job can start when ${teamStartThreshold}% of positions are filled.`}
+                </Text>
+              </View>
+            </View>
             {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -1320,7 +1366,7 @@ export default function CreateTeamJobScreen() {
               (!hasEnoughBalance ||
                 skillSlots.length === 0 ||
                 createJobMutation.isPending) &&
-                styles.submitButtonDisabled,
+              styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={
@@ -1464,7 +1510,7 @@ export default function CreateTeamJobScreen() {
                           style={[
                             styles.skillLevelOption,
                             newSlotLevel === level.value &&
-                              styles.skillLevelOptionSelected,
+                            styles.skillLevelOptionSelected,
                           ]}
                           onPress={() => setNewSlotLevel(level.value as any)}
                         >

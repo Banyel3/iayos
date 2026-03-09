@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Users have a safety window to cancel before critical/financial actions execute
 
 - **BIR Receipt Disclaimer on All Transaction Summaries**
-  - Added amber compliance banner: "This is NOT an Official Receipt (O.R.) as defined by the Bureau of Internal Revenue (BIR)"
+  - Added amber compliance banner: "This is NOT an Official Receipt as defined by the Bureau of Internal Revenue (BIR)"
   - Applied to Job Receipt Modal, Payment Receipt Modal, and Withdrawal Success screen
   - Disclaimer text included in Share Receipt text output
   - **Impact**: Legal compliance — all in-app receipts clearly marked as non-O.R. transaction summaries

@@ -10,6 +10,8 @@ import {
   TextInput,
   Share,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
@@ -474,226 +476,233 @@ export default function WalletDepositScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
       >
-        {/* Current Balance */}
-        <WalletBalanceCard
-          balance={walletBalance?.balance || 0}
-          isLoading={!walletBalance}
-          onRefresh={refetchBalance}
-          showDepositButton={false}
-        />
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Current Balance */}
+          <WalletBalanceCard
+            balance={walletBalance?.balance || 0}
+            isLoading={!walletBalance}
+            onRefresh={refetchBalance}
+            showDepositButton={false}
+          />
 
-        {/* Deposit Amount Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Enter Amount</Text>
-          <Text style={styles.sectionSubtitle}>
-            Minimum ₱10, Maximum ₱100,000
-          </Text>
-
-          <View style={styles.amountInputContainer}>
-            <Text style={styles.currencySymbol}>₱</Text>
-            <TextInput
-              style={styles.amountInput}
-              value={depositAmount}
-              onChangeText={handleAmountChange}
-              keyboardType="numeric"
-              placeholder="0.00"
-              placeholderTextColor={Colors.textHint}
-              maxLength={12}
-              accessibilityLabel="Deposit amount"
-            />
-          </View>
-          {amountError && <Text style={styles.amountError}>{amountError}</Text>}
-
-          {/* Preset Amounts */}
-          <View style={styles.presetGrid}>
-            {presetAmounts.map((amount) => (
-              <TouchableOpacity
-                key={amount}
-                style={[
-                  styles.presetButton,
-                  depositAmount === amount.toString() &&
-                  styles.presetButtonActive,
-                ]}
-                onPress={() => handlePresetAmount(amount)}
-              >
-                <Text
-                  style={[
-                    styles.presetButtonText,
-                    depositAmount === amount.toString() &&
-                    styles.presetButtonTextActive,
-                  ]}
-                >
-                  ₱{amount}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* TODO: REMOVE FOR PROD - Payment Method Selector (Testing Mode Only) */}
-        {isTestingMode && (
+          {/* Deposit Amount Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Payment Method</Text>
+            <Text style={styles.sectionTitle}>Enter Amount</Text>
+            <Text style={styles.sectionSubtitle}>
+              Minimum ₱10, Maximum ₱100,000
+            </Text>
 
-            <View style={styles.paymentMethodContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethodButton,
-                  selectedPaymentMethod === "qrph" &&
-                  styles.paymentMethodButtonActive,
-                ]}
-                onPress={() => setSelectedPaymentMethod("qrph")}
-              >
-                <Ionicons
-                  name="qr-code"
-                  size={24}
-                  color={
-                    selectedPaymentMethod === "qrph"
-                      ? Colors.white
-                      : Colors.textPrimary
-                  }
-                />
-                <Text
-                  style={[
-                    styles.paymentMethodText,
-                    selectedPaymentMethod === "qrph" &&
-                    styles.paymentMethodTextActive,
-                  ]}
-                >
-                  QR PH
-                </Text>
-                <Text
-                  style={[
-                    styles.paymentMethodSubtext,
-                    selectedPaymentMethod === "qrph" &&
-                    styles.paymentMethodSubtextActive,
-                  ]}
-                >
-                  Any banking app
-                </Text>
-              </TouchableOpacity>
+            <View style={styles.amountInputContainer}>
+              <Text style={styles.currencySymbol}>₱</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={depositAmount}
+                onChangeText={handleAmountChange}
+                keyboardType="numeric"
+                placeholder="0.00"
+                placeholderTextColor={Colors.textHint}
+                maxLength={12}
+                accessibilityLabel="Deposit amount"
+              />
+            </View>
+            {amountError && <Text style={styles.amountError}>{amountError}</Text>}
 
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethodButton,
-                  selectedPaymentMethod === "gcash" &&
-                  styles.paymentMethodButtonActive,
-                ]}
-                onPress={() => setSelectedPaymentMethod("gcash")}
-              >
-                <Ionicons
-                  name="wallet"
-                  size={24}
-                  color={
-                    selectedPaymentMethod === "gcash"
-                      ? Colors.white
-                      : Colors.textPrimary
-                  }
-                />
-                <Text
+            {/* Preset Amounts */}
+            <View style={styles.presetGrid}>
+              {presetAmounts.map((amount) => (
+                <TouchableOpacity
+                  key={amount}
                   style={[
-                    styles.paymentMethodText,
-                    selectedPaymentMethod === "gcash" &&
-                    styles.paymentMethodTextActive,
+                    styles.presetButton,
+                    depositAmount === amount.toString() &&
+                    styles.presetButtonActive,
                   ]}
+                  onPress={() => handlePresetAmount(amount)}
                 >
-                  Direct Deposit
-                </Text>
-                <Text
-                  style={[
-                    styles.paymentMethodSubtext,
-                    selectedPaymentMethod === "gcash" &&
-                    styles.paymentMethodSubtextActive,
-                  ]}
-                >
-                  Test Only - Instant
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.presetButtonText,
+                      depositAmount === amount.toString() &&
+                      styles.presetButtonTextActive,
+                    ]}
+                  >
+                    ₱{amount}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
-        )}
 
-        {/* Payment Info Card - Dynamic based on selected method */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoHeader}>
-            <Ionicons
-              name={selectedPaymentMethod === "gcash" ? "wallet" : "qr-code"}
-              size={24}
-              color={Colors.primary}
-            />
-            <Text style={styles.infoTitle}>
-              {selectedPaymentMethod === "gcash"
-                ? "Direct Test Deposit"
-                : "QR PH Payment"}
-            </Text>
+          {/* TODO: REMOVE FOR PROD - Payment Method Selector (Testing Mode Only) */}
+          {isTestingMode && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Payment Method</Text>
+
+              <View style={styles.paymentMethodContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodButton,
+                    selectedPaymentMethod === "qrph" &&
+                    styles.paymentMethodButtonActive,
+                  ]}
+                  onPress={() => setSelectedPaymentMethod("qrph")}
+                >
+                  <Ionicons
+                    name="qr-code"
+                    size={24}
+                    color={
+                      selectedPaymentMethod === "qrph"
+                        ? Colors.white
+                        : Colors.textPrimary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.paymentMethodText,
+                      selectedPaymentMethod === "qrph" &&
+                      styles.paymentMethodTextActive,
+                    ]}
+                  >
+                    QR PH
+                  </Text>
+                  <Text
+                    style={[
+                      styles.paymentMethodSubtext,
+                      selectedPaymentMethod === "qrph" &&
+                      styles.paymentMethodSubtextActive,
+                    ]}
+                  >
+                    Any banking app
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodButton,
+                    selectedPaymentMethod === "gcash" &&
+                    styles.paymentMethodButtonActive,
+                  ]}
+                  onPress={() => setSelectedPaymentMethod("gcash")}
+                >
+                  <Ionicons
+                    name="wallet"
+                    size={24}
+                    color={
+                      selectedPaymentMethod === "gcash"
+                        ? Colors.white
+                        : Colors.textPrimary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.paymentMethodText,
+                      selectedPaymentMethod === "gcash" &&
+                      styles.paymentMethodTextActive,
+                    ]}
+                  >
+                    Direct Deposit
+                  </Text>
+                  <Text
+                    style={[
+                      styles.paymentMethodSubtext,
+                      selectedPaymentMethod === "gcash" &&
+                      styles.paymentMethodSubtextActive,
+                    ]}
+                  >
+                    Test Only - Instant
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Payment Info Card - Dynamic based on selected method */}
+          <View style={styles.infoCard}>
+            <View style={styles.infoHeader}>
+              <Ionicons
+                name={selectedPaymentMethod === "gcash" ? "wallet" : "qr-code"}
+                size={24}
+                color={Colors.primary}
+              />
+              <Text style={styles.infoTitle}>
+                {selectedPaymentMethod === "gcash"
+                  ? "Direct Test Deposit"
+                  : "QR PH Payment"}
+              </Text>
+            </View>
+            {selectedPaymentMethod === "gcash" ? (
+              <>
+                <Text style={styles.infoText}>
+                  <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
+                  Funds will be added to your wallet instantly without any payment
+                  gateway. No real money is involved.
+                </Text>
+                <Text
+                  style={[
+                    styles.infoText,
+                    { marginTop: Spacing.sm, color: Colors.warning },
+                  ]}
+                >
+                  ⚠️ This option is for testing only and will be removed in
+                  production.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.infoText}>
+                  You'll be shown a QR code that you can scan with any Philippine
+                  banking app (GCash, Maya, BPI, BDO, UnionBank, etc.) to complete
+                  your deposit.
+                </Text>
+                <Text style={[styles.infoText, { marginTop: Spacing.sm }]}>
+                  Since you're on your phone, you can save or share the QR code to
+                  scan from another device.
+                </Text>
+              </>
+            )}
           </View>
-          {selectedPaymentMethod === "gcash" ? (
-            <>
-              <Text style={styles.infoText}>
-                <Text style={{ fontWeight: "600" }}>Testing Mode:</Text>{" "}
-                Funds will be added to your wallet instantly without any payment
-                gateway. No real money is involved.
-              </Text>
-              <Text
-                style={[
-                  styles.infoText,
-                  { marginTop: Spacing.sm, color: Colors.warning },
-                ]}
-              >
-                ⚠️ This option is for testing only and will be removed in
-                production.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.infoText}>
-                You'll be shown a QR code that you can scan with any Philippine
-                banking app (GCash, Maya, BPI, BDO, UnionBank, etc.) to complete
-                your deposit.
-              </Text>
-              <Text style={[styles.infoText, { marginTop: Spacing.sm }]}>
-                Since you're on your phone, you can save or share the QR code to
-                scan from another device.
-              </Text>
-            </>
-          )}
-        </View>
 
-        {/* Deposit Button */}
-        <TouchableOpacity
-          style={[
-            styles.depositButton,
-            isDepositDisabled && styles.depositButtonDisabled,
-          ]}
-          onPress={handleDeposit}
-          disabled={isDepositDisabled}
-        >
-          {isProcessing ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <>
-              <Text style={styles.depositButtonText}>
-                Deposit {formattedDepositAmount}
-              </Text>
-              <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-            </>
-          )}
-        </TouchableOpacity>
+          {/* Deposit Button */}
+          <TouchableOpacity
+            style={[
+              styles.depositButton,
+              isDepositDisabled && styles.depositButtonDisabled,
+            ]}
+            onPress={handleDeposit}
+            disabled={isDepositDisabled}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <>
+                <Text style={styles.depositButtonText}>
+                  Deposit {formattedDepositAmount}
+                </Text>
+                <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
 
-        {/* Cancel Button */}
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={handleCancel}
-          disabled={isProcessing}
-        >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {/* Cancel Button */}
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleCancel}
+            disabled={isProcessing}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

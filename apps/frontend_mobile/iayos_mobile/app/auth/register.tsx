@@ -363,7 +363,7 @@ export default function RegisterScreen() {
     <SafeAreaView style={styles.container} edges={["top"]} testID="register-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         enabled={true}
       >
