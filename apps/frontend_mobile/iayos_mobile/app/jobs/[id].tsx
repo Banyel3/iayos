@@ -1196,6 +1196,32 @@ export default function JobDetailScreen() {
 
   const urgencyColors = getUrgencyColor(job.urgency);
 
+  const dailyDuration = Number(job.duration_days || 0);
+  const dailyStartDate = job.preferred_start_date
+    ? new Date(job.preferred_start_date)
+    : null;
+  const dailyEndDate =
+    job.scheduled_end_date && !Number.isNaN(new Date(job.scheduled_end_date).getTime())
+      ? new Date(job.scheduled_end_date)
+      : dailyStartDate && dailyDuration > 0
+        ? new Date(dailyStartDate.getFullYear(), dailyStartDate.getMonth(), dailyStartDate.getDate() + dailyDuration - 1)
+        : null;
+  const todayDate = new Date();
+  const dayProgress =
+    job.payment_model === "DAILY" && dailyStartDate && dailyDuration > 0
+      ? Math.min(
+          Math.max(
+            Math.floor(
+              (new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime() -
+                new Date(dailyStartDate.getFullYear(), dailyStartDate.getMonth(), dailyStartDate.getDate()).getTime()) /
+                (1000 * 60 * 60 * 24),
+            ) + 1,
+            1,
+          ),
+          dailyDuration,
+        )
+      : null;
+
   const formatReviewDate = (value?: string) => {
     if (!value) return null;
     const date = new Date(value);
@@ -1435,9 +1461,10 @@ export default function JobDetailScreen() {
             <Text style={styles.jobStartDate}>
               {job.preferred_start_date
                 ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
-                (job.scheduled_end_date
-                  ? ` - End: ${new Date(job.scheduled_end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                  : "")
+                  (dailyEndDate
+                    ? ` | End: ${dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                    : "") +
+                  (dayProgress ? ` | Day ${dayProgress}/${dailyDuration}` : "")
                 : `Posted ${job.postedAt}`}
             </Text>
           </View>
@@ -1483,28 +1510,21 @@ export default function JobDetailScreen() {
               <Text style={styles.detailLabel}>Budget</Text>
               <Text style={styles.detailValue}>{job.budget}</Text>
               {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginTop: 2,
-                  }}
-                >
+                <View style={{ marginTop: 2 }}>
                   <Text style={{ fontSize: 11, color: Colors.primary }}>
-                    Daily Rate: ₱
-                    {Number(job.daily_rate_agreed).toLocaleString()}/day
+                    Daily Rate: ₱{Number(job.daily_rate_agreed).toLocaleString()}/day
                   </Text>
-                  {job.duration_days ? (
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: Colors.textSecondary,
-                        marginLeft: 4,
-                      }}
-                    >
-                      ({job.duration_days}d)
+                  {dailyDuration > 0 && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Duration: {dailyDuration} days
+                      {dayProgress ? ` (Day ${dayProgress}/${dailyDuration})` : ""}
                     </Text>
-                  ) : null}
+                  )}
+                  {dailyEndDate && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      End Date: {dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <Text

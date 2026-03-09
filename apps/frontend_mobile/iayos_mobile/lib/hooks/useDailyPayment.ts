@@ -621,6 +621,13 @@ export interface CheckInOutResponse {
   hours_worked?: number;
   message: string;
   awaiting_client_confirmation: boolean;
+  undo_window_seconds?: number;
+}
+
+export interface CancelCheckInResponse {
+  success: boolean;
+  date: string;
+  message: string;
 }
 
 /**
@@ -630,6 +637,17 @@ export interface ClientConfirmResponse {
   success: boolean;
   attendance_id: number;
   worker_name?: string;
+  date: string;
+  status: AttendanceStatus;
+  amount_earned: number;
+  payment_processed: boolean;
+  message: string;
+}
+
+export interface ClientMarkNoWorkResponse {
+  success: boolean;
+  attendance_id: number;
+  worker_name: string;
   date: string;
   status: AttendanceStatus;
   amount_earned: number;
@@ -673,6 +691,47 @@ export const useWorkerCheckIn = () => {
       Toast.show({
         type: "error",
         text1: "Check-in Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+/**
+ * Worker cancels check-in within 10-second grace window.
+ */
+export const useWorkerCancelCheckIn = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number): Promise<CancelCheckInResponse> => {
+      const response = await apiRequest(ENDPOINTS.WORKER_CANCEL_CHECK_IN(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Cancel check-in failed"));
+      }
+      return response.json() as Promise<CancelCheckInResponse>;
+    },
+    onSuccess: (data, jobId) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Check-in Cancelled",
+        text2: data.message || "Your check-in has been undone",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Undo Failed",
         text2: error.message,
         position: "top",
       });
@@ -772,6 +831,53 @@ export const useClientConfirmAttendance = () => {
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+/**
+ * Client quick action: mark worker as no-work/absent for today.
+ */
+export const useClientMarkNoWork = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      workerId,
+    }: {
+      jobId: number;
+      workerId?: number;
+    }): Promise<ClientMarkNoWorkResponse> => {
+      const response = await apiRequest(ENDPOINTS.CLIENT_MARK_NO_WORK(jobId, workerId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to mark no-work day"));
+      }
+      return response.json() as Promise<ClientMarkNoWorkResponse>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Marked Absent",
+        text2: data.message || "No payment recorded for today",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Action Failed",
         text2: error.message,
         position: "top",
       });

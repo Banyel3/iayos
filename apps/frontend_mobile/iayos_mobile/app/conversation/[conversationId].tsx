@@ -63,8 +63,10 @@ import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import {
   useWorkerCheckIn,
+  useWorkerCancelCheckIn,
   useWorkerCheckOut,
   useClientConfirmAttendance,
+  useClientMarkNoWork,
   useClientVerifyArrival,
   useClientMarkCheckout,
   useRequestDailySkipDay,
@@ -298,8 +300,10 @@ export default function ChatScreen() {
 
   // Daily attendance mutations
   const workerCheckInMutation = useWorkerCheckIn();
+  const workerCancelCheckInMutation = useWorkerCancelCheckIn();
   const workerCheckOutMutation = useWorkerCheckOut();
   const clientConfirmAttendanceMutation = useClientConfirmAttendance();
+  const clientMarkNoWorkMutation = useClientMarkNoWork();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
   const requestDailySkipDayMutation = useRequestDailySkipDay();
@@ -366,6 +370,15 @@ export default function ChatScreen() {
   const [hasAttemptedWsConnection, setHasAttemptedWsConnection] =
     useState(false);
   const [isTestingModeEnabled, setIsTestingModeEnabled] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -1855,6 +1868,29 @@ export default function ChatScreen() {
     );
   }
 
+  const myWorkerAttendanceToday = conversation.attendance_today?.find(
+    (a) => a.worker_id === user?.profile_data?.workerProfileId,
+  );
+  const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
+  const hasCheckedOutToday = Boolean(myWorkerAttendanceToday?.time_out);
+  const checkInElapsedSeconds = myWorkerAttendanceToday?.time_in
+    ? Math.floor(
+        (currentTimeMs - new Date(myWorkerAttendanceToday.time_in).getTime()) /
+          1000,
+      )
+    : 0;
+  const canUndoCheckIn =
+    hasCheckedInToday &&
+    !hasCheckedOutToday &&
+    checkInElapsedSeconds >= 0 &&
+    checkInElapsedSeconds <= 10;
+  const hasAnyCheckedInToday = Boolean(
+    conversation.attendance_today?.some((a) => Boolean(a.time_in)),
+  );
+  const hasAnyClientConfirmedToday = Boolean(
+    conversation.attendance_today?.some((a) => Boolean(a.client_confirmed)),
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Custom Header */}
@@ -2326,13 +2362,7 @@ export default function ChatScreen() {
                     {conversation.my_role === "WORKER" && (
                       <View style={styles.dailyWorkerActions}>
                         {(() => {
-                          // Find today's attendance for this worker
-                          const todayAttendance =
-                            conversation.attendance_today?.find(
-                              (a) =>
-                                a.worker_id ===
-                                user?.profile_data?.workerProfileId,
-                            );
+                          const todayAttendance = myWorkerAttendanceToday;
 
                           // No attendance yet - show check-in button
                           if (!todayAttendance || !todayAttendance.time_in) {
@@ -2391,14 +2421,52 @@ export default function ChatScreen() {
                                     )}
                                   </Text>
                                 </View>
+                                {canUndoCheckIn && (
+                                  <TouchableOpacity
+                                    style={styles.undoCheckInButton}
+                                    onPress={() =>
+                                      workerCancelCheckInMutation.mutate(
+                                        conversation.job.id,
+                                      )
+                                    }
+                                    disabled={
+                                      workerCancelCheckInMutation.isPending
+                                    }
+                                  >
+                                    {workerCancelCheckInMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Text style={styles.undoCheckInButtonText}>
+                                        Undo Check-In ({10 - checkInElapsedSeconds}s)
+                                      </Text>
+                                    )}
+                                  </TouchableOpacity>
+                                )}
                                 <TouchableOpacity
                                   style={[
                                     styles.actionButton,
                                     styles.checkOutButton,
                                   ]}
                                   onPress={() =>
-                                    workerCheckOutMutation.mutate(
-                                      conversation.job.id,
+                                    Alert.alert(
+                                      "Check Out",
+                                      "Checkout is only allowed after at least 2 hours from check-in.",
+                                      [
+                                        {
+                                          text: "Cancel",
+                                          style: "cancel",
+                                        },
+                                        {
+                                          text: "Check Out",
+                                          onPress: () =>
+                                            workerCheckOutMutation.mutate(
+                                              conversation.job.id,
+                                            ),
+                                        },
+                                      ],
                                     )
                                   }
                                   disabled={workerCheckOutMutation.isPending}
@@ -2477,7 +2545,7 @@ export default function ChatScreen() {
                     )}
 
                     {/* Worker View: Skip Day Request */}
-                    {conversation.my_role === "WORKER" && (
+                    {conversation.my_role === "WORKER" && !hasCheckedInToday && (
                       <View style={styles.skipDayContainer}>
                         <View style={styles.skipDayWarningCard}>
                           <Text style={styles.skipDayWarningText}>
@@ -2812,6 +2880,48 @@ export default function ChatScreen() {
 
                     {/* Client View: Confirm attendance for each worker */}
                     {conversation.my_role === "CLIENT" && (
+                      <>
+                        {!conversation.is_team_job && !hasAnyCheckedInToday && !hasAnyClientConfirmedToday && (
+                          <TouchableOpacity
+                            style={styles.noWorkQuickButton}
+                            onPress={() =>
+                              Alert.alert(
+                                "Mark No Work Today",
+                                "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Confirm",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      clientMarkNoWorkMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        workerId:
+                                          conversation.attendance_today?.[0]
+                                            ?.worker_id,
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={clientMarkNoWorkMutation.isPending}
+                          >
+                            {clientMarkNoWorkMutation.isPending ? (
+                              <ActivityIndicator size="small" color={Colors.white} />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={16}
+                                  color={Colors.white}
+                                />
+                                <Text style={styles.noWorkQuickButtonText}>
+                                  Worker Didn't Work Today
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -2940,7 +3050,7 @@ export default function ChatScreen() {
                                     onPress={() =>
                                       Alert.alert(
                                         "Mark Checkout",
-                                        `Mark ${attendance.worker_name || "worker"} as done for today?`,
+                                        `Mark ${attendance.worker_name || "worker"} as done for today? (Minimum 2 hours after check-in)`,
                                         [
                                           { text: "Cancel", style: "cancel" },
                                           {
@@ -3048,6 +3158,7 @@ export default function ChatScreen() {
                           </View>
                         )}
                       </ScrollView>
+                      </>
                     )}
 
                     {/* Daily rate info */}
@@ -6709,6 +6820,18 @@ const styles = StyleSheet.create({
     color: Colors.success,
     fontWeight: "500",
   },
+  undoCheckInButton: {
+    backgroundColor: Colors.textPrimary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+  },
+  undoCheckInButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+    fontSize: 11,
+  },
   checkInButton: {
     backgroundColor: Colors.primary,
   },
@@ -6758,6 +6881,22 @@ const styles = StyleSheet.create({
   noAttendanceText: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+  },
+  noWorkQuickButton: {
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+  },
+  noWorkQuickButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
   },
   dailyRateInfo: {
     flexDirection: "row",

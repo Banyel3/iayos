@@ -525,8 +525,12 @@ export const ENDPOINTS = {
   // Daily Attendance (for DAILY payment model jobs)
   WORKER_CHECK_IN: (jobId: number) =>
     `${API_URL}/api/mobile/daily-attendance/${jobId}/worker-check-in`,
+  WORKER_CANCEL_CHECK_IN: (jobId: number) =>
+    `${API_URL}/api/mobile/daily-attendance/${jobId}/worker-cancel-check-in`,
   WORKER_CHECK_OUT: (jobId: number) =>
     `${API_URL}/api/mobile/daily-attendance/${jobId}/worker-check-out`,
+  CLIENT_MARK_NO_WORK: (jobId: number, workerId?: number) =>
+    `${API_URL}/api/mobile/daily-attendance/${jobId}/client-mark-no-work${workerId ? `?worker_id=${workerId}` : ""}`,
   CLIENT_CONFIRM_ATTENDANCE: (attendanceId: number) =>
     `${API_URL}/api/mobile/daily-attendance/${attendanceId}/client-confirm`,
   // New flow: Client verifies arrival and marks checkout
