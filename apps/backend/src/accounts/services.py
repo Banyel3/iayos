@@ -741,7 +741,8 @@ def fetch_currentUser(accountID, profile_type=None):
             # If worker, add worker profile ID and skills
             if profile.profileType == "WORKER":
                 try:
-                    from .models import WorkerProfile, workerSpecialization, WorkerCertification
+                    from django.db.models import Avg
+                    from .models import WorkerProfile, workerSpecialization, WorkerCertification, JobReview, JobPosting
                     # Auto-repair: Get or create WorkerProfile if it's missing
                     worker_profile, created = WorkerProfile.objects.get_or_create(
                         profileID=profile,
@@ -760,6 +761,36 @@ def fetch_currentUser(accountID, profile_type=None):
                     profile_data["bio"] = worker_profile.bio or ""
                     profile_data["hourlyRate"] = float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None
                     profile_data["softSkills"] = worker_profile.soft_skills or ""
+
+                    # Keep profile stats in sync with completed jobs/reviews.
+                    # Use reviews table as source of truth and fallback to stored workerRating.
+                    reviews_qs = JobReview.objects.filter(
+                        revieweeProfileID=profile,
+                        status='ACTIVE'
+                    )
+                    if not reviews_qs.exists():
+                        reviews_qs = JobReview.objects.filter(
+                            revieweeID=profile.accountFK,
+                            reviewerType='CLIENT',
+                            status='ACTIVE'
+                        )
+
+                    avg_rating = reviews_qs.aggregate(avg=Avg('rating'))['avg']
+                    if avg_rating is not None:
+                        profile_data["workerRating"] = round(float(avg_rating), 1)
+                    else:
+                        # Legacy fallback: stored as 0-100 in WorkerProfile
+                        profile_data["workerRating"] = (
+                            round(worker_profile.workerRating / 20, 1)
+                            if worker_profile.workerRating and worker_profile.workerRating > 0
+                            else 0.0
+                        )
+
+                    profile_data["jobsCompleted"] = JobPosting.objects.filter(
+                        assignedWorkerID=worker_profile,
+                        status='COMPLETED'
+                    ).count()
+                    profile_data["totalEarningGross"] = float(worker_profile.totalEarningGross or 0)
                     print(f"   🔧 Added worker profile ID: {worker_profile.id}")
                     
                     # Get skills with certification counts
