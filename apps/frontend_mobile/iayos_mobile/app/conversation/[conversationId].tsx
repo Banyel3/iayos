@@ -225,10 +225,31 @@ export default function ChatScreen() {
 
   // Clear temporary review-sync bypass once server flags are updated.
   useEffect(() => {
-    if (conversation?.job?.clientReviewed) {
+    if (!conversation) return;
+
+    const clientReviewDone = conversation.is_team_job
+      ? !!conversation.all_team_workers_reviewed
+      : conversation.is_agency_job
+        ? (conversation.job.agencyReviewed &&
+          ((conversation.all_employees_reviewed ?? false) ||
+            (conversation.job.employeeReviewed ?? false) ||
+            (conversation.pending_employee_reviews?.length ?? 0) === 0))
+        : !!conversation.job.clientReviewed;
+
+    if (clientReviewDone) {
       setReviewStatusSyncing(false);
     }
-  }, [conversation?.job?.clientReviewed]);
+  }, [
+    conversation,
+    conversation?.is_team_job,
+    conversation?.is_agency_job,
+    conversation?.all_team_workers_reviewed,
+    conversation?.all_employees_reviewed,
+    conversation?.pending_employee_reviews,
+    conversation?.job?.clientReviewed,
+    conversation?.job?.employeeReviewed,
+    conversation?.job?.agencyReviewed,
+  ]);
 
   // Check if conversation is closed (both parties reviewed)
   // BUT if there's an APPROVED backjob (UNDER_REVIEW status), conversation should stay open
@@ -240,11 +261,29 @@ export default function ChatScreen() {
   const hasActiveNegotiation =
     conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "IN_NEGOTIATION";
+
+  const hasAgencyEmployeeReviewsCompleted = !!(
+    conversation?.is_agency_job &&
+    ((conversation?.all_employees_reviewed ?? false) ||
+      (conversation?.job?.employeeReviewed ?? false) ||
+      (conversation?.pending_employee_reviews?.length ?? 0) === 0)
+  );
+
+  const clientHasReviewed = !!(conversation && (() => {
+    if (conversation.is_team_job) {
+      return !!conversation.all_team_workers_reviewed;
+    }
+
+    if (conversation.is_agency_job) {
+      return hasAgencyEmployeeReviewsCompleted && !!conversation.job.agencyReviewed;
+    }
+
+    return !!conversation.job.clientReviewed;
+  })());
+
   // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
-  const clientHasFullyReviewed = conversation?.is_team_job
-    ? !!conversation?.all_team_workers_reviewed
-    : !!conversation?.job?.clientReviewed;
+  const clientHasFullyReviewed = clientHasReviewed;
   const isConversationClosed =
     (conversation?.job?.clientMarkedComplete &&
       clientHasFullyReviewed &&
@@ -268,9 +307,7 @@ export default function ChatScreen() {
     !isConversationClosed &&
     !hasApprovedBackjob &&
     ((conversation.my_role === "CLIENT" &&
-      (conversation.is_team_job
-        ? !conversation.all_team_workers_reviewed
-        : !conversation.job.clientReviewed)) ||
+      !clientHasReviewed) ||
       (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
   );
 
@@ -2146,9 +2183,7 @@ export default function ChatScreen() {
                   onPress={() => {
                     const hasReviewed =
                       conversation.my_role === "CLIENT"
-                        ? conversation.is_team_job
-                          ? conversation.all_team_workers_reviewed
-                          : conversation.job.clientReviewed
+                        ? clientHasReviewed
                         : conversation.job.workerReviewed;
 
                     setReviewModalMode(hasReviewed ? "view" : "submit");
@@ -2166,9 +2201,7 @@ export default function ChatScreen() {
                     {(() => {
                       const hasReviewed =
                         conversation.my_role === "CLIENT"
-                          ? conversation.is_team_job
-                            ? conversation.all_team_workers_reviewed
-                            : conversation.job.clientReviewed
+                          ? clientHasReviewed
                           : conversation.job.workerReviewed;
 
                       if (hasReviewed) {
@@ -4512,9 +4545,7 @@ export default function ChatScreen() {
               <>
                 {/* Check if current user already reviewed */}
                 {(conversation.my_role === "CLIENT" &&
-                  (conversation.is_team_job
-                    ? conversation.all_team_workers_reviewed
-                    : conversation.job.clientReviewed)) ||
+                  clientHasReviewed) ||
                   (conversation.my_role === "WORKER" &&
                     conversation.job.workerReviewed)
                   ? // Review submitted banner removed - replaced with View Reviews button
@@ -4914,7 +4945,7 @@ export default function ChatScreen() {
                           const hasReviewed =
                             conversation.my_role === "CLIENT"
                               ? conversation.job?.workerReviewed
-                              : conversation.job?.clientReviewed;
+                              : clientHasReviewed;
 
                           if (!hasReviewed) {
                             return (
@@ -5112,9 +5143,7 @@ export default function ChatScreen() {
                       </View>
                     </View>
                   ) : (conversation.my_role === "CLIENT" &&
-                    (conversation.is_team_job
-                      ? conversation.all_team_workers_reviewed
-                      : conversation.job.clientReviewed)) ||
+                    clientHasReviewed) ||
                     (conversation.my_role !== "CLIENT" &&
                       conversation.job.workerReviewed) ? (
                     // User has already reviewed - show waiting or thank you message
@@ -5133,7 +5162,7 @@ export default function ChatScreen() {
                       {((conversation.my_role === "CLIENT" &&
                         !conversation.job.workerReviewed) ||
                         (conversation.my_role !== "CLIENT" &&
-                          !conversation.job.clientReviewed)) && (
+                          !clientHasReviewed)) && (
                           <Text style={styles.reviewWaitingText}>
                             Waiting for{" "}
                             {conversation.my_role === "CLIENT"
