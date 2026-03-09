@@ -68,9 +68,12 @@ export default function ReviewsPage() {
       });
 
       if (searchQuery) params.append("search", searchQuery);
-      if (ratingFilter !== "all") params.append("rating_filter", ratingFilter);
-      if (statusFilter !== "all") params.append("status", statusFilter);
-      if (userTypeFilter !== "all") params.append("user_type", userTypeFilter);
+      if (ratingFilter !== "all") params.append("min_rating", ratingFilter);
+      if (statusFilter !== "all") params.append("status", statusFilter.toUpperCase());
+      if (userTypeFilter !== "all") {
+        const mappedType = userTypeFilter === "client_to_worker" ? "CLIENT" : "WORKER";
+        params.append("reviewer_type", mappedType);
+      }
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/reviews/all?${params}`,
@@ -163,286 +166,220 @@ export default function ReviewsPage() {
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                <div>
-                  <div className="flex items-center gap-3 mb-1 sm:mb-2">
-                    <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8" />
-                    <h1 className="text-2xl sm:text-4xl font-bold">Reviews & Ratings</h1>
-                  </div>
-                  <p className="text-blue-100 text-sm sm:text-lg">
-                    Monitor and moderate platform reviews and ratings
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Link href="/admin/reviews/flagged" className="w-full sm:w-auto">
-                    <Button className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white px-4 sm:px-6 h-10 sm:h-12 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all text-sm sm:text-base">
-                      <Flag className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                      Flagged Reviews
-                    </Button>
-                  </Link>
-                </div>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+            <div className="pb-6 border-b border-gray-100">
+              <div className="flex items-center gap-3 mb-1">
+                <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Reviews & Ratings</h1>
               </div>
+              <p className="text-gray-500 text-sm sm:text-base">
+                Monitor and moderate platform reviews and ratings
+              </p>
             </div>
-          </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <div className="p-2 sm:p-3 bg-blue-100 rounded-xl">
-                    <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-sky-100 rounded-lg"><MessageSquare className="h-5 w-5 text-sky-600" /></div>
+                    <TrendingUp className="h-4 w-4 text-sky-600" />
                   </div>
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
-                </div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">
-                  Total Reviews
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                  {pagination.total}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <div className="p-2 sm:p-3 bg-yellow-100 rounded-xl">
-                    <Star className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
-                  </div>
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
-                </div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">
-                  Average Rating
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                  {avgRating}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <div className="p-2 sm:p-3 bg-red-100 rounded-xl">
-                    <Flag className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
-                  </div>
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
-                </div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">
-                  Flagged
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-red-600">
-                  {flaggedCount}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <div className="p-2 sm:p-3 bg-orange-100 rounded-xl">
-                    <EyeOff className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
-                  </div>
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
-                </div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Hidden</p>
-                <p className="text-xl sm:text-3xl font-bold text-orange-600">
-                  {hiddenCount}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Search */}
-                <div className="relative group col-span-1 sm:col-span-2 md:col-span-1">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                  <Input
-                    type="text"
-                    placeholder="Search reviews..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-12 h-11 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
-                  />
-                </div>
-
-                {/* Rating Filter */}
-                <select
-                  value={ratingFilter}
-                  onChange={(e) => setRatingFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
-                >
-                  <option value="all">All Ratings</option>
-                  <option value="5">5 Stars</option>
-                  <option value="4">4 Stars</option>
-                  <option value="3">3 Stars</option>
-                  <option value="2">2 Stars</option>
-                  <option value="1">1 Star</option>
-                </select>
-
-                {/* Status Filter */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="flagged">Flagged</option>
-                  <option value="hidden">Hidden</option>
-                </select>
-
-                {/* User Type Filter */}
-                <select
-                  value={userTypeFilter}
-                  onChange={(e) => setUserTypeFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
-                >
-                  <option value="all">All User Types</option>
-                  <option value="client_to_worker">Client → Worker</option>
-                  <option value="worker_to_client">Worker → Client</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-gray-600">
-                  Showing {reviews.length} of {pagination.total} reviews
-                </p>
-                <Button
-                  variant="outline"
-                  className="h-10 px-4 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export CSV
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Reviews List */}
-          <div className="space-y-4">
-            {reviews.length === 0 ? (
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-12 text-center">
-                  <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    No Reviews Found
-                  </h3>
-                  <p className="text-gray-600">
-                    Try adjusting your filters or search query
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Total Reviews</p>
+                  <p className="text-xl font-bold text-gray-900">{pagination.total}</p>
                 </CardContent>
               </Card>
-            ) : (
-              reviews.map((review) => (
-                <Card
-                  key={review.id}
-                  onClick={() => router.push(`/admin/reviews/${review.id}`)}
-                  className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer"
-                >
-                  <CardContent className="relative p-4 sm:p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 text-sm sm:text-base">
-                              {review.reviewer_name}
-                            </p>
-                            <p className="text-xs sm:text-sm text-gray-600">
-                              reviewed {review.reviewee_name}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            {review.is_flagged && (
-                              <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] sm:text-xs">
-                                Flagged
-                              </Badge>
-                            )}
-                            {review.is_hidden && (
-                              <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-[10px] sm:text-xs">
-                                Hidden
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-yellow-100 rounded-lg"><Star className="h-5 w-5 text-yellow-600" /></div>
+                    <div className="h-1.5 w-1.5 bg-yellow-500 rounded-full"></div>
+                  </div>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Average Rating</p>
+                  <p className="text-xl font-bold text-yellow-600">{avgRating}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-red-100 rounded-lg"><Flag className="h-5 w-5 text-red-600" /></div>
+                    <div className="h-1.5 w-1.5 bg-red-500 rounded-full"></div>
+                  </div>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Flagged</p>
+                  <p className="text-xl font-bold text-red-600">{flaggedCount}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-orange-100 rounded-lg"><EyeOff className="h-5 w-5 text-orange-600" /></div>
+                    <div className="h-1.5 w-1.5 bg-orange-500 rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Hidden</p>
+                  <p className="text-xl font-bold text-orange-600">{hiddenCount}</p>
+                </CardContent>
+              </Card>
+            </div>
 
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          {renderStars(review.rating)}
-                          <span className="text-base sm:text-lg font-bold text-gray-900">
-                            {review.rating}.0
-                          </span>
-                        </div>
+            {/* Filters */}
+            <div className="flex flex-col md:flex-row gap-4 mb-8">
+              <div className="flex-1 relative group">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                <Input
+                  placeholder="Search reviews by content, reviewer, or reviewee..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+                />
+              </div>
+              <select
+                value={ratingFilter}
+                onChange={(e) => setRatingFilter(e.target.value)}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Ratings</option>
+                <option value="5">5 Stars</option>
+                <option value="4">4 Stars</option>
+                <option value="3">3 Stars</option>
+                <option value="2">2 Stars</option>
+                <option value="1">1 Star</option>
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="flagged">Flagged</option>
+                <option value="hidden">Hidden</option>
+              </select>
+              <select
+                value={userTypeFilter}
+                onChange={(e) => setUserTypeFilter(e.target.value)}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All User Types</option>
+                <option value="client_to_worker">Client → Worker</option>
+                <option value="worker_to_client">Worker → Client</option>
+              </select>
+            </div>
 
-                        <p className="text-gray-700 leading-relaxed line-clamp-2 text-sm sm:text-base">
-                          {review.comment}
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-sm text-gray-500">
-                          <span>Job: {review.job_title}</span>
-                          <span className="hidden sm:inline">•</span>
-                          <span>
-                            {new Date(review.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 mt-1" />
-                    </div>
+            {/* Reviews List */}
+            <div className="space-y-4">
+              {reviews.length === 0 ? (
+                <Card className="border-0 shadow-lg">
+                  <CardContent className="p-12 text-center">
+                    <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      No Reviews Found
+                    </h3>
+                    <p className="text-gray-600">
+                      Try adjusting your filters or search query
+                    </p>
                   </CardContent>
                 </Card>
-              ))
+              ) : (
+                reviews.map((review) => (
+                  <Card
+                    key={review.id}
+                    onClick={() => router.push(`/admin/reviews/${review.id}`)}
+                    className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer"
+                  >
+                    <CardContent className="relative p-4 sm:p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                            <div>
+                              <p className="font-semibold text-gray-900 text-sm sm:text-base">
+                                {review.reviewer_name}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-600">
+                                reviewed {review.reviewee_name}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {review.is_flagged && (
+                                <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] sm:text-xs">
+                                  Flagged
+                                </Badge>
+                              )}
+                              {review.is_hidden && (
+                                <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-[10px] sm:text-xs">
+                                  Hidden
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            {renderStars(review.rating)}
+                            <span className="text-base sm:text-lg font-bold text-gray-900">
+                              {review.rating}.0
+                            </span>
+                          </div>
+
+                          <p className="text-gray-700 leading-relaxed line-clamp-2 text-sm sm:text-base">
+                            {review.comment}
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-sm text-gray-500">
+                            <span>Job: {review.job_title}</span>
+                            <span className="hidden sm:inline">•</span>
+                            <span>
+                              {new Date(review.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 mt-1" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  onClick={() =>
+                    setPagination((prev) => ({
+                      ...prev,
+                      page: Math.max(1, prev.page - 1),
+                    }))
+                  }
+                  disabled={pagination.page === 1}
+                  className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-2 px-6 h-11 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                  <span className="text-sm font-medium text-gray-700">
+                    Page{" "}
+                    <span className="text-blue-600 font-bold">
+                      {pagination.page}
+                    </span>{" "}
+                    of {pagination.pages}
+                  </span>
+                </div>
+                <Button
+                  onClick={() =>
+                    setPagination((prev) => ({
+                      ...prev,
+                      page: Math.min(prev.pages, prev.page + 1),
+                    }))
+                  }
+                  disabled={pagination.page === pagination.pages}
+                  className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </Button>
+              </div>
             )}
           </div>
-
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                onClick={() =>
-                  setPagination((prev) => ({
-                    ...prev,
-                    page: Math.max(1, prev.page - 1),
-                  }))
-                }
-                disabled={pagination.page === 1}
-                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-2 px-6 h-11 bg-blue-50 border-2 border-blue-200 rounded-xl">
-                <span className="text-sm font-medium text-gray-700">
-                  Page{" "}
-                  <span className="text-blue-600 font-bold">
-                    {pagination.page}
-                  </span>{" "}
-                  of {pagination.pages}
-                </span>
-              </div>
-              <Button
-                onClick={() =>
-                  setPagination((prev) => ({
-                    ...prev,
-                    page: Math.min(prev.pages, prev.page + 1),
-                  }))
-                }
-                disabled={pagination.page === pagination.pages}
-                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </Button>
-            </div>
-          )}
-        </div>
       </main>
     </div>
   );

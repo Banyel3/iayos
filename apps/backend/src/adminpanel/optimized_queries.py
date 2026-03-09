@@ -903,7 +903,8 @@ def get_reviews_list_optimized(
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None,
-    rating_filter: Optional[int] = None
+    reviewer_type: Optional[str] = None,
+    min_rating: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Get paginated reviews with all related data in minimal queries.
@@ -915,11 +916,14 @@ def get_reviews_list_optimized(
         'jobID__assignedWorkerID__profileID'
     ).order_by('-createdAt')
     
-    if status:
+    if status and status != 'all':
         queryset = queryset.filter(status=status.upper())
     
-    if rating_filter:
-        queryset = queryset.filter(rating=rating_filter)
+    if reviewer_type and reviewer_type != 'all':
+        queryset = queryset.filter(reviewerType=reviewer_type.upper())
+    
+    if min_rating is not None:
+        queryset = queryset.filter(rating__gte=min_rating)
     
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)
@@ -940,31 +944,39 @@ def get_reviews_list_optimized(
         reviewer_profile = profile_map.get(review.reviewerID_id)
         reviewee_profile = profile_map.get(review.revieweeID_id)
         
+        reviewer_name = 'Unknown'
+        if reviewer_profile:
+            reviewer_name = f"{reviewer_profile.firstName or ''} {reviewer_profile.lastName or ''}".strip() or 'Unknown'
+
+        reviewee_name = 'Unknown'
+        if reviewee_profile:
+            reviewee_name = f"{reviewee_profile.firstName or ''} {reviewee_profile.lastName or ''}".strip() or 'Unknown'
+        
         reviews_list.append({
             'id': str(review.reviewID),
-            'rating': review.rating,
+            'rating': float(review.rating),
             'comment': review.comment,
             'status': review.status,
-            'reviewer': {
-                'id': str(review.reviewerID_id),
-                'name': f"{reviewer_profile.firstName or ''} {reviewee_profile.lastName or ''}".strip() if reviewer_profile else 'Unknown',
-            } if review.reviewerID_id else None,
-            'reviewee': {
-                'id': str(review.revieweeID_id),
-                'name': f"{reviewee_profile.firstName or ''} {reviewee_profile.lastName or ''}".strip() if reviewee_profile else 'Unknown',
-            } if review.revieweeID_id else None,
-            'job_id': str(review.jobID_id) if review.jobID_id else None,
+            'is_flagged': review.status == 'FLAGGED',
+            'is_hidden': review.status == 'HIDDEN',
+            'reviewer_name': reviewer_name,
+            'reviewee_name': reviewee_name,
+            'reviewer_id': review.reviewerID_id,
+            'reviewee_id': review.revieweeID_id,
+            'job_id': review.jobID_id,
             'job_title': review.jobID.title if review.jobID else None,
             'created_at': review.createdAt.isoformat() if review.createdAt else None,
         })
     
     return {
         'reviews': reviews_list,
-        'total': paginator.count,
-        'page': page,
-        'total_pages': paginator.num_pages,
-        'has_next': page_obj.has_next(),
-        'has_previous': page_obj.has_previous(),
+        'pagination': {
+            'total': paginator.count,
+            'page': page,
+            'pages': paginator.num_pages,
+            'hasNext': page_obj.has_next(),
+            'hasPrevious': page_obj.has_previous(),
+        }
     }
 
 
