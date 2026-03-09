@@ -17,6 +17,7 @@ from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
+from .content_filter import censor_contact_info
 
 
 router = Router()
@@ -1175,6 +1176,8 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
                 "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
         
@@ -1373,7 +1376,7 @@ def get_conversation_messages(request, conversation_id: int):
         # Get all messages with attachments
         messages = Message.objects.filter(
             conversationID=conversation
-        ).select_related('sender__accountFK').prefetch_related('attachments').order_by('createdAt')
+        ).select_related('sender__accountFK', 'sender_admin').prefetch_related('attachments').order_by('createdAt')
         
         # Mark unread messages as read and reset unread count
         # For agency conversations, mark all messages not from current user as read
@@ -1414,6 +1417,10 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         current_account_id = getattr(request.auth, 'accountID', None)
         for msg in messages:
+            # Hide admin-authored negotiation messages from participant chat views.
+            if msg.sender_admin:
+                continue
+
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
@@ -1422,13 +1429,6 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
-            elif msg.sender is None and msg.senderAgency is None and msg.sender_admin:
-                # Admin message (negotiation chat)
-                is_mine = False
-                sender_name = "Admin"
-                sender_avatar = None
-                sender_type = "admin"
-                print(f"   Admin message from {msg.sender_admin.email}")
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
@@ -1810,6 +1810,8 @@ def get_conversation_messages(request, conversation_id: int):
                 "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
                 "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
                 "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 
@@ -2002,6 +2004,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
+                "remainingPaymentPaid": job.remainingPaymentPaid,
                 "workerReviewed": worker_reviewed,
                 "clientReviewed": client_reviewed,
                 "employeeReviewed": employee_review_exists if is_agency_job_for_reviews else None,
@@ -2115,12 +2118,14 @@ def send_message(request, data: SendMessageSchema):
                 status=403
             )
         
+        sanitized_text = censor_contact_info(data.message_text)
+
         # Create the message (sender=None for agency, senderAgency=None for profile)
         message = Message.objects.create(
             conversationID=conversation,
             sender=sender_profile,
             senderAgency=sender_agency,
-            messageText=data.message_text,
+            messageText=sanitized_text,
             messageType=data.message_type or "TEXT"
         )
         
@@ -2560,22 +2565,33 @@ def get_call_token(request, conversation_id: int):
         except Conversation.DoesNotExist:
             return Response({"error": "Conversation not found"}, status=404)
         
-        # Check if user is a participant
+        # Check if user is a participant (profile-based or agency-based)
         profile = Profile.objects.filter(accountFK=user).first()
-        if not profile:
-            return Response({"error": "Profile not found"}, status=404)
-        
-        is_client = conversation.client and conversation.client.profileID == profile.profileID
-        is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
-        
-        # Also check ConversationParticipant for team jobs
-        from .models import ConversationParticipant
-        is_participant = ConversationParticipant.objects.filter(
-            conversation=conversation,
-            profile=profile
-        ).exists()
-        
-        if not (is_client or is_worker or is_participant):
+        from accounts.models import Agency
+        agency = Agency.objects.filter(accountFK=user).first()
+
+        is_client = False
+        is_worker = False
+        is_participant = False
+
+        if profile:
+            is_client = conversation.client and conversation.client.profileID == profile.profileID
+            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+
+            # Also check ConversationParticipant for team jobs
+            from .models import ConversationParticipant
+            is_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=profile
+            ).exists()
+
+        is_agency = bool(
+            conversation.agency
+            and agency
+            and conversation.agency.agencyId == agency.agencyId
+        )
+
+        if not (is_client or is_worker or is_participant or is_agency):
             return Response({"error": "You are not a participant in this conversation"}, status=403)
         
         # Generate token

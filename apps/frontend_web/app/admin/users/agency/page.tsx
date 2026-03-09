@@ -403,7 +403,7 @@ export default function AgencyPage() {
                   </div>
                 </div>
                 <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Total Jobs
+                  Total Jobs:
                 </p>
                 <p className="text-lg md:text-3xl font-bold text-yellow-600">
                   {totalJobs}

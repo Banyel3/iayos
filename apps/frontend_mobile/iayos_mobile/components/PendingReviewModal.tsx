@@ -34,7 +34,7 @@ export default function PendingReviewModal({
 
   const handleReviewNow = () => {
     if (pendingReview.conversation_id) {
-      router.push(`/messages/${pendingReview.conversation_id}` as any);
+      router.push(`/conversation/${pendingReview.conversation_id}` as any);
     }
   };
 

@@ -156,6 +156,11 @@ export function NotificationProvider({
                 relatedKYCLogID: notificationData.relatedKYCLogID
                   ? Number(notificationData.relatedKYCLogID)
                   : null,
+                relatedConversationID: notificationData.relatedConversationID
+                  ? Number(notificationData.relatedConversationID)
+                  : notificationData.conversation_id
+                    ? Number(notificationData.conversation_id)
+                    : null,
               };
 
               // Navigate to appropriate screen

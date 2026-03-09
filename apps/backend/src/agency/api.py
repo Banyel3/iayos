@@ -2064,7 +2064,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         # Get messages
         messages = Message.objects.filter(
             conversationID=conv
-        ).select_related('sender__accountFK', 'senderAgency').order_by('createdAt')
+        ).select_related('sender__accountFK', 'senderAgency', 'sender_admin').order_by('createdAt')
         
         # Mark messages as read (agency is worker side)
         Message.objects.filter(
@@ -2171,6 +2171,10 @@ def get_agency_conversation_messages(request, conversation_id: int):
         base_url = f"{scheme}://{host}"
         
         for msg in messages:
+            # Hide admin-authored negotiation messages from participant chat views.
+            if msg.sender_admin:
+                continue
+
             # Check if message is from agency (either via senderAgency or via agency_profile)
             is_mine = (msg.senderAgency and msg.senderAgency == agency) or (msg.sender and msg.sender == agency_profile)
             sent_by_agency = is_mine
@@ -2288,6 +2292,7 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
     """
     try:
         from profiles.models import Conversation, Message
+        from profiles.content_filter import censor_contact_info
         from accounts.models import Profile, Agency
         from .models import AgencyKYC
         
@@ -2351,18 +2356,20 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
                 print(f"🔄 Auto-reopened conversation {conv.conversationID} for active backjob {active_dispute.disputeID}")
                 # Continue to message creation below
         
+        sanitized_text = censor_contact_info(payload.message_text)
+
         # Create message - use senderAgency for agency users without profile
         message = Message.objects.create(
             conversationID=conv,
             sender=agency_profile,  # May be None
             senderAgency=agency if not agency_profile else None,  # Use agency if no profile
-            messageText=payload.message_text,
+            messageText=sanitized_text,
             messageType=payload.message_type,
             isRead=False
         )
         
         # Update conversation - Note: Message.save() already handles some of this
-        conv.lastMessageText = payload.message_text[:100] if len(payload.message_text) > 100 else payload.message_text
+        conv.lastMessageText = sanitized_text[:100] if len(sanitized_text) > 100 else sanitized_text
         conv.lastMessageSender = agency_profile  # May be None for agency users
         conv.unreadCountClient += 1  # Increment client's unread
         conv.save(update_fields=['lastMessageText', 'lastMessageSender', 'unreadCountClient', 'updatedAt'])

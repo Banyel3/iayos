@@ -617,7 +617,6 @@ def accept_team_application(
             'success': False,
             'error': 'Cannot accept application: this slot no longer has a valid specialization.',
         }
-
     # Enforce required specialization before acceptance (handles older applications)
     worker_has_required_skill = workerSpecialization.objects.filter(
         workerID=application.workerID,

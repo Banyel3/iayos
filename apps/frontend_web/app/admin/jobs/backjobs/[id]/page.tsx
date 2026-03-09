@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { API_BASE } from "@/lib/api/config";
@@ -15,7 +15,6 @@ import {
   Clock,
   XCircle,
   MessageSquare,
-  Send,
   User,
   DollarSign,
   FileText,
@@ -50,7 +49,6 @@ interface DisputeDetail {
   in_negotiation_at: string | null;
   admin_rejection_reason: string | null;
   conversation_id: number | null;
-  can_admin_chat?: boolean;
   evidence: {
     id: number;
     image_url: string;
@@ -61,6 +59,8 @@ interface DisputeDetail {
   worker_marked_complete: boolean;
   client_confirmed: boolean;
   scheduled_date: string | null;
+  worker_schedule_confirmed: boolean;
+  worker_schedule_confirmed_at: string | null;
 }
 
 interface ChatMessage {
@@ -176,16 +176,7 @@ export default function BackjobDetailPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatMessage, setChatMessage] = useState("");
-  const [sendingChat, setSendingChat] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-
-  const [showScheduledDateModal, setShowScheduledDateModal] = useState(false);
-  const [scheduledDateInput, setScheduledDateInput] = useState("");
-  const [scheduledDateLoading, setScheduledDateLoading] = useState(false);
 
   const fetchDispute = useCallback(async () => {
     try {
@@ -229,19 +220,14 @@ export default function BackjobDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (dispute?.status === "in_negotiation" && dispute.conversation_id) {
-      const convId = dispute.conversation_id;
-      fetchMessages(convId);
-      pollRef.current = setInterval(() => fetchMessages(convId), 5000);
-    }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [dispute?.status, dispute?.conversation_id, fetchMessages]);
+    if (!dispute?.conversation_id) return;
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const convId = dispute.conversation_id;
+    fetchMessages(convId);
+
+    const timer = setInterval(() => fetchMessages(convId), 8000);
+    return () => clearInterval(timer);
+  }, [dispute?.conversation_id, fetchMessages]);
 
   const handleAcceptNegotiation = async () => {
     setActionLoading(true);
@@ -252,7 +238,7 @@ export default function BackjobDetailPage() {
       );
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg("Dispute moved to negotiation. Admin chat is now open.");
+        setSuccessMsg("Dispute moved to negotiation.");
         fetchDispute();
       } else {
         alert(data.error || "Failed to accept negotiation");
@@ -305,67 +291,6 @@ export default function BackjobDetailPage() {
     }
   };
 
-  const handleSetScheduledDate = async () => {
-    if (!scheduledDateInput) {
-      alert("Please select a date.");
-      return;
-    }
-    setScheduledDateLoading(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/set-scheduled-date`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scheduled_date: scheduledDateInput }),
-        },
-      );
-      const data = await res.json();
-      if (data.success) {
-        setShowScheduledDateModal(false);
-        setScheduledDateInput("");
-        setSuccessMsg(
-          data.message || "Scheduled date updated. Both parties have been notified.",
-        );
-        fetchDispute();
-      } else {
-        alert(data.error || "Failed to set scheduled date");
-      }
-    } catch {
-      alert("Network error");
-    } finally {
-      setScheduledDateLoading(false);
-    }
-  };
-
-  const handleFinishNegotiation = async () => {
-    if (!dispute) return;
-    if (!confirm("Finish mediation and leave this negotiation chat?")) return;
-
-    setActionLoading(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/adminpanel/jobs/disputes/${dispute.dispute_id}/finish-negotiation`,
-        { method: "POST", credentials: "include" },
-      );
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(
-          "Negotiation mediation finished. Admin chat is now closed.",
-        );
-        setMessages([]);
-        fetchDispute();
-      } else {
-        alert(data.error || "Failed to finish negotiation");
-      }
-    } catch {
-      alert("Network error");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleRejectSubmit = async () => {
     setRejectError("");
     if (rejectReason.trim().length < 10) {
@@ -398,29 +323,6 @@ export default function BackjobDetailPage() {
       setRejectError("Network error");
     } finally {
       setActionLoading(false);
-    }
-  };
-
-  const handleSendChatMessage = async () => {
-    if (!chatMessage.trim() || !dispute?.conversation_id) return;
-    setSendingChat(true);
-    const text = chatMessage.trim();
-    setChatMessage("");
-    try {
-      await fetch(
-        `${API_BASE}/api/adminpanel/conversations/${dispute.conversation_id}/send-message`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        },
-      );
-      fetchMessages(dispute.conversation_id);
-    } catch {
-      alert("Failed to send message");
-    } finally {
-      setSendingChat(false);
     }
   };
 
@@ -458,9 +360,6 @@ export default function BackjobDetailPage() {
 
   const isOpen = dispute.status === "open";
   const isNegotiating = dispute.status === "in_negotiation";
-  const canAdminChat = Boolean(
-    dispute.can_admin_chat && dispute.conversation_id,
-  );
   const isFinished = ["resolved", "closed"].includes(dispute.status);
 
   return (
@@ -674,20 +573,20 @@ export default function BackjobDetailPage() {
               </Card>
             )}
 
-            {isNegotiating && canAdminChat && (
+            {dispute.conversation_id && (
               <Card className="border-0 shadow-xl">
                 <CardHeader className="pb-3 border-b border-gray-100">
                   <CardTitle className="flex items-center gap-2 text-lg text-purple-700">
                     <MessageSquare className="h-5 w-5 text-purple-500" />
-                    Negotiation Chat
+                    Conversation Audit
                     <span className="ml-auto text-xs font-normal text-gray-400 flex items-center gap-1">
                       <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse" />
-                      Live
+                      Read Only
                     </span>
                   </CardTitle>
                   <p className="text-xs text-gray-400 mt-1">
-                    Visible to client, worker, and admin. Auto-refreshes every 5
-                    seconds.
+                    Admin can monitor participant messages here. Auto-refreshes
+                    every 8 seconds.
                   </p>
                 </CardHeader>
                 <CardContent
@@ -757,39 +656,9 @@ export default function BackjobDetailPage() {
                         );
                       })
                     )}
-                    <div ref={chatEndRef} />
-                  </div>
-                  <div className="border-t border-gray-100 p-3 flex gap-2 items-end">
-                    <Textarea
-                      placeholder="Type a message as Admin (Enter to send, Shift+Enter for new line)"
-                      value={chatMessage}
-                      onChange={(e) => setChatMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendChatMessage();
-                        }
-                      }}
-                      className="flex-1 min-h-[60px] max-h-[120px] resize-none rounded-xl border-gray-200 text-sm"
-                    />
-                    <Button
-                      onClick={handleSendChatMessage}
-                      disabled={sendingChat || !chatMessage.trim()}
-                      className="bg-purple-600 hover:bg-purple-700 text-white h-10 px-4 rounded-xl"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {isNegotiating && !canAdminChat && (
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-5">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    Negotiation mediation has been finished. Admin chat access
-                    is now closed.
+                    <div className="text-center text-[11px] text-gray-400 pt-3">
+                      Admin messaging is disabled for this workflow.
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -947,19 +816,10 @@ export default function BackjobDetailPage() {
                   {isNegotiating && (
                     <>
                       <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-600">
-                        Negotiation in progress. Use the chat to mediate, then
-                        finish negotiation when done.
+                        Negotiation in progress between client and
+                        worker/agency. Admin can monitor conversation and either
+                        approve or reject.
                       </div>
-                      {canAdminChat && (
-                        <Button
-                          className="w-full bg-gray-700 hover:bg-gray-800 text-white"
-                          disabled={actionLoading}
-                          onClick={handleFinishNegotiation}
-                        >
-                          <Shield className="h-4 w-4 mr-2" />
-                          Finish Negotiation
-                        </Button>
-                      )}
                       <Button
                         className="w-full bg-green-600 hover:bg-green-700 text-white"
                         disabled={actionLoading}
@@ -967,17 +827,6 @@ export default function BackjobDetailPage() {
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Approve Backjob
-                      </Button>
-                      <Button
-                        className="w-full bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200"
-                        disabled={actionLoading}
-                        onClick={() => {
-                          setScheduledDateInput(dispute.scheduled_date ? dispute.scheduled_date.split("T")[0] : "");
-                          setShowScheduledDateModal(true);
-                        }}
-                      >
-                        <Calendar className="h-4 w-4 mr-2" />
-                        {dispute.scheduled_date ? "Update Scheduled Date" : "Set Scheduled Date"}
                       </Button>
                       <Button
                         className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
@@ -993,6 +842,16 @@ export default function BackjobDetailPage() {
                     <>
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-600">
                         This dispute is under review.
+                        {dispute.scheduled_date
+                          ? ` Scheduled date: ${new Date(
+                              dispute.scheduled_date,
+                            ).toLocaleDateString("en-PH", {
+                              dateStyle: "medium",
+                            })}.`
+                          : ""}
+                        {dispute.worker_schedule_confirmed
+                          ? " Worker/agency has confirmed the schedule."
+                          : " Waiting for worker/agency schedule confirmation."}
                       </div>
                       <Button
                         className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -1001,17 +860,6 @@ export default function BackjobDetailPage() {
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Approve Backjob
-                      </Button>
-                      <Button
-                        className="w-full bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200"
-                        disabled={actionLoading}
-                        onClick={() => {
-                          setScheduledDateInput(dispute.scheduled_date ? dispute.scheduled_date.split("T")[0] : "");
-                          setShowScheduledDateModal(true);
-                        }}
-                      >
-                        <Calendar className="h-4 w-4 mr-2" />
-                        {dispute.scheduled_date ? "Update Scheduled Date" : "Set Scheduled Date"}
                       </Button>
                     </>
                   )}
@@ -1052,54 +900,6 @@ export default function BackjobDetailPage() {
           </div>
         </div>
       </main>
-
-      {showScheduledDateModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">
-              {dispute?.scheduled_date ? "Update Scheduled Date" : "Set Scheduled Date"}
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Set the agreed date for when the backjob will be completed. Both parties will be notified.
-            </p>
-            {dispute?.scheduled_date && (
-              <div className="mb-3 p-3 bg-orange-50 rounded-xl border border-orange-200 text-xs text-orange-700">
-                Current: {fmtDate(dispute.scheduled_date)}
-              </div>
-            )}
-            <input
-              type="date"
-              value={scheduledDateInput}
-              onChange={(e) => setScheduledDateInput(e.target.value)}
-              min={new Date().toISOString().split("T")[0]}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-orange-300"
-            />
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowScheduledDateModal(false);
-                  setScheduledDateInput("");
-                }}
-                disabled={scheduledDateLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-                onClick={handleSetScheduledDate}
-                disabled={scheduledDateLoading || !scheduledDateInput}
-              >
-                {scheduledDateLoading
-                  ? "Saving..."
-                  : dispute?.scheduled_date
-                    ? "Update Date"
-                    : "Set Date"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

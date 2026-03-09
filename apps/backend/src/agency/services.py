@@ -1527,7 +1527,7 @@ def assign_job_to_employee(
         raise ValueError(f"Employee {employee.name} is not active")
 
     # Check if employee is already working on another job
-    conflicting_job = validate_employee_not_working(employee, exclude_job=job)
+    conflicting_job = validate_employee_not_working(employee, exclude_job=job, target_job=job)
     if conflicting_job:
         raise ValueError(f"Employee {employee.name} is already working on '{conflicting_job}'. They must complete it before being assigned to a new job.")
 
@@ -1666,7 +1666,7 @@ def unassign_job_from_employee(
     }
 
 
-def validate_employee_not_working(employee, exclude_job=None):
+def validate_employee_not_working(employee, exclude_job=None, target_job=None):
     """
     Check if an employee is already working on an active job.
     Returns the conflicting job title if busy, or None if available.
@@ -1681,6 +1681,15 @@ def validate_employee_not_working(employee, exclude_job=None):
         str (conflicting job title) if employee is busy, None if available
     """
     from accounts.models import Job, JobEmployeeAssignment
+
+    # Date-overlap policy: if target job has a schedule window, only block overlapping windows.
+    target_start = getattr(target_job, 'preferredStartDate', None) if target_job else None
+    target_end = (getattr(target_job, 'scheduled_end_date', None) or target_start) if target_start else None
+
+    def _overlap(start_a, end_a, start_b, end_b):
+        if not all([start_a, end_a, start_b, end_b]):
+            return False
+        return start_a <= end_b and end_a >= start_b
     
     # Check legacy path: Job.assignedEmployeeID
     legacy_query = Job.objects.filter(
@@ -1689,9 +1698,16 @@ def validate_employee_not_working(employee, exclude_job=None):
     )
     if exclude_job:
         legacy_query = legacy_query.exclude(jobID=exclude_job.jobID)
-    legacy_job = legacy_query.first()
-    if legacy_job:
-        return legacy_job.title
+    if target_start:
+        for legacy_job in legacy_query:
+            legacy_start = legacy_job.preferredStartDate
+            legacy_end = legacy_job.scheduled_end_date or legacy_start
+            if _overlap(legacy_start, legacy_end, target_start, target_end):
+                return legacy_job.title
+    else:
+        legacy_job = legacy_query.first()
+        if legacy_job:
+            return legacy_job.title
     
     # Check M2M path: JobEmployeeAssignment
     m2m_query = JobEmployeeAssignment.objects.filter(
@@ -1700,9 +1716,17 @@ def validate_employee_not_working(employee, exclude_job=None):
     ).select_related('job')
     if exclude_job:
         m2m_query = m2m_query.exclude(job_id=exclude_job.jobID)
-    m2m_assignment = m2m_query.first()
-    if m2m_assignment:
-        return m2m_assignment.job.title
+    if target_start:
+        for m2m_assignment in m2m_query:
+            assigned_job = m2m_assignment.job
+            assigned_start = assigned_job.preferredStartDate
+            assigned_end = assigned_job.scheduled_end_date or assigned_start
+            if _overlap(assigned_start, assigned_end, target_start, target_end):
+                return assigned_job.title
+    else:
+        m2m_assignment = m2m_query.first()
+        if m2m_assignment:
+            return m2m_assignment.job.title
     
     return None
 
@@ -1866,7 +1890,7 @@ def assign_employees_to_job(
     
     # Check if any employees are already working on OTHER jobs
     for emp in employees:
-        conflicting_job = validate_employee_not_working(emp, exclude_job=job)
+        conflicting_job = validate_employee_not_working(emp, exclude_job=job, target_job=job)
         if conflicting_job:
             raise ValueError(f"Employee {emp.name} is already working on '{conflicting_job}'. They must complete it before being assigned to a new job.")
     
@@ -2505,7 +2529,7 @@ def assign_employees_to_slots(
                 return {'success': False, 'error': f'Employee {employee.fullName} is not active'}
             
             # Check if employee is already working on another job
-            conflicting_job = validate_employee_not_working(employee, exclude_job=job)
+            conflicting_job = validate_employee_not_working(employee, exclude_job=job, target_job=job)
             if conflicting_job:
                 return {'success': False, 'error': f'Employee {employee.fullName} is already working on "{conflicting_job}". They must complete it before being assigned to a new job.'}
             

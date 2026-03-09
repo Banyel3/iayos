@@ -1797,6 +1797,120 @@ def register_push_token_service(user_account_id, push_token, device_type="androi
         raise
 
 
+def send_device_push_notification(user_account_ids, title, body, data=None, category="messages"):
+    """
+    Send device-level push notifications via Expo Push API.
+
+    Args:
+        user_account_ids: list of Accounts.accountID values
+        title: notification title
+        body: notification body
+        data: optional dict payload for deep links / app routing
+        category: notification category matching NotificationSettings fields
+                  (messages, jobUpdates, payments, reviews, kycUpdates)
+
+    Returns:
+        dict with send summary
+    """
+    from .models import PushToken, NotificationSettings
+
+    if not user_account_ids:
+        return {"sent": 0, "skipped": 0, "inactive_tokens": 0}
+
+    try:
+        import httpx
+
+        valid_ids = [int(uid) for uid in user_account_ids if uid]
+        if not valid_ids:
+            return {"sent": 0, "skipped": 0, "inactive_tokens": 0}
+
+        # Respect user-level push preferences first
+        settings_qs = NotificationSettings.objects.filter(accountFK_id__in=valid_ids)
+        enabled_ids = set(valid_ids)
+        category_field = category if category in {
+            "messages", "jobUpdates", "payments", "reviews", "kycUpdates"
+        } else None
+
+        # If settings exist and push is disabled, exclude account
+        for s in settings_qs:
+            settings_account_id = s.accountFK.accountID
+            if not s.pushEnabled:
+                enabled_ids.discard(settings_account_id)
+                continue
+            if category_field and not getattr(s, category_field, True):
+                enabled_ids.discard(settings_account_id)
+
+        if not enabled_ids:
+            return {"sent": 0, "skipped": len(valid_ids), "inactive_tokens": 0}
+
+        tokens = list(
+            PushToken.objects.filter(accountFK_id__in=enabled_ids, isActive=True)
+        )
+
+        if not tokens:
+            return {"sent": 0, "skipped": len(valid_ids), "inactive_tokens": 0}
+
+        payload_data = data or {}
+        messages = [
+            {
+                "to": t.pushToken,
+                "title": title,
+                "body": body,
+                "sound": "default",
+                "priority": "high",
+                "data": payload_data,
+            }
+            for t in tokens
+        ]
+
+        sent_count = 0
+        deactivated_tokens = []
+
+        # Expo recommends batching up to 100 messages per request.
+        for i in range(0, len(messages), 100):
+            batch = messages[i:i + 100]
+            response = httpx.post(
+                "https://exp.host/--/api/v2/push/send",
+                json=batch,
+                headers={
+                    "Accept": "application/json",
+                    "Accept-encoding": "gzip, deflate",
+                    "Content-Type": "application/json",
+                },
+                timeout=15.0,
+            )
+
+            if response.status_code != 200:
+                print(f"❌ Expo push request failed: {response.status_code} {response.text}")
+                continue
+
+            response_json = response.json()
+            result_items = response_json.get("data", [])
+            sent_count += sum(1 for item in result_items if item.get("status") == "ok")
+
+            # Deactivate stale tokens so retries do not keep failing.
+            for idx, item in enumerate(result_items):
+                if item.get("status") != "error":
+                    continue
+                error_code = item.get("details", {}).get("error")
+                if error_code == "DeviceNotRegistered":
+                    token_index = i + idx
+                    if token_index < len(tokens):
+                        deactivated_tokens.append(tokens[token_index].pushToken)
+
+        if deactivated_tokens:
+            PushToken.objects.filter(pushToken__in=deactivated_tokens).update(isActive=False)
+
+        return {
+            "sent": sent_count,
+            "skipped": len(valid_ids) - len(enabled_ids),
+            "inactive_tokens": len(deactivated_tokens),
+        }
+    except Exception as e:
+        print(f"❌ Error sending device push notification: {str(e)}")
+        return {"sent": 0, "skipped": 0, "inactive_tokens": 0, "error": str(e)}
+
+
 def get_notification_settings_service(user_account_id):
     """
     Get or create notification settings for a user.

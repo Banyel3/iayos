@@ -18,7 +18,7 @@ export default function ConversationCard({
   conversation,
 }: ConversationCardProps) {
   const handlePress = () => {
-    const route = `/messages/${conversation.id}`;
+    const route = `/conversation/${conversation.id}`;
     console.log(`[ConversationCard] 🔍 Navigating to: ${route}`);
     console.log(`[ConversationCard] 📋 Conversation ID: ${conversation.id} (type: ${typeof conversation.id})`);
     console.log(`[ConversationCard] 👤 Other party: ${conversation.other_party_name}`);
@@ -28,8 +28,8 @@ export default function ConversationCard({
   // Format timestamp
   const formattedTime = conversation.last_message_time
     ? formatDistanceToNow(new Date(conversation.last_message_time), {
-        addSuffix: true,
-      })
+      addSuffix: true,
+    })
     : null;
 
   // Truncate last message

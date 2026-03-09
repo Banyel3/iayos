@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import {
-  API_BASE } from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -94,11 +93,7 @@ export default function AgencyBackjobDetailPage({
   );
 }
 
-function AgencyBackjobDetailContent({
-  params,
-}: {
-  params: { id: string };
-}) {
+function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId") || params.id;
@@ -227,11 +222,34 @@ function AgencyBackjobDetailContent({
     }
   };
 
-  const statusClassMap: Record<string, { border: string; bg: string; text: string; badge: string }> = {
-    blue:  { border: "border-l-blue-500",  bg: "bg-blue-100",  text: "text-blue-600",  badge: "bg-blue-100 text-blue-700" },
-    amber: { border: "border-l-amber-500", bg: "bg-amber-100", text: "text-amber-600", badge: "bg-amber-100 text-amber-700" },
-    green: { border: "border-l-green-500", bg: "bg-green-100", text: "text-green-600", badge: "bg-green-100 text-green-700" },
-    gray:  { border: "border-l-gray-500",  bg: "bg-gray-100",  text: "text-gray-600",  badge: "bg-gray-100 text-gray-700" },
+  const statusClassMap: Record<
+    string,
+    { border: string; bg: string; text: string; badge: string }
+  > = {
+    blue: {
+      border: "border-l-blue-500",
+      bg: "bg-blue-100",
+      text: "text-blue-600",
+      badge: "bg-blue-100 text-blue-700",
+    },
+    amber: {
+      border: "border-l-amber-500",
+      bg: "bg-amber-100",
+      text: "text-amber-600",
+      badge: "bg-amber-100 text-amber-700",
+    },
+    green: {
+      border: "border-l-green-500",
+      bg: "bg-green-100",
+      text: "text-green-600",
+      badge: "bg-green-100 text-green-700",
+    },
+    gray: {
+      border: "border-l-gray-500",
+      bg: "bg-gray-100",
+      text: "text-gray-600",
+      badge: "bg-gray-100 text-gray-700",
+    },
   };
 
   const getStatusInfo = (status: string) => {
@@ -372,20 +390,25 @@ function AgencyBackjobDetailContent({
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Status Card */}
-          <Card className={`border-l-4 ${statusClassMap[statusInfo.color]?.border || 'border-l-gray-500'}`}>
+          <Card
+            className={`border-l-4 ${statusClassMap[statusInfo.color]?.border || "border-l-gray-500"}`}
+          >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2 ${statusClassMap[statusInfo.color]?.bg || 'bg-gray-100'} rounded-full`}
+                    className={`p-2 ${statusClassMap[statusInfo.color]?.bg || "bg-gray-100"} rounded-full`}
                   >
                     <StatusIcon
-                      className={`w-5 h-5 ${statusClassMap[statusInfo.color]?.text || 'text-gray-600'}`}
+                      className={`w-5 h-5 ${statusClassMap[statusInfo.color]?.text || "text-gray-600"}`}
                     />
                   </div>
                   <div>
                     <Badge
-                      className={statusClassMap[statusInfo.color]?.badge || 'bg-gray-100 text-gray-700'}
+                      className={
+                        statusClassMap[statusInfo.color]?.badge ||
+                        "bg-gray-100 text-gray-700"
+                      }
                     >
                       {statusInfo.label}
                     </Badge>
@@ -548,7 +571,9 @@ function AgencyBackjobDetailContent({
                         "Unknown Client";
 
                       return (
-                        <p className="font-semibold text-gray-900">{fullName}</p>
+                        <p className="font-semibold text-gray-900">
+                          {fullName}
+                        </p>
                       );
                     })()}
                     <p className="text-sm text-gray-500">Client</p>
@@ -593,7 +618,9 @@ function AgencyBackjobDetailContent({
                   <div className="flex items-start gap-3">
                     <div className="w-3 h-3 bg-orange-400 rounded-full mt-1.5" />
                     <div>
-                      <p className="font-medium text-gray-900">Scheduled Date</p>
+                      <p className="font-medium text-gray-900">
+                        Scheduled Date
+                      </p>
                       <p className="text-sm text-orange-600 font-medium">
                         {formatDate(dispute.scheduled_date)}
                       </p>

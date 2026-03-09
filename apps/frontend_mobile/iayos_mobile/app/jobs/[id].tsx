@@ -523,7 +523,7 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Application submitted successfully! You can view your application status in My Applications.",
+        "Application submitted successfully! You can view your application status in Jobs > Applied tab.",
       );
       setShowApplicationModal(false);
       setProposalMessage("");
@@ -533,7 +533,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
-      safeGoBack(router, "/(tabs)/jobs");
+      router.push({ pathname: "/(tabs)/jobs", params: { tab: "applications" } } as any);
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -559,7 +559,7 @@ export default function JobDetailScreen() {
       console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
 
       if (data.success && data.conversation_id) {
-        const route = `/messages/${data.conversation_id}`;
+        const route = `/conversation/${data.conversation_id}`;
         console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
       } else {

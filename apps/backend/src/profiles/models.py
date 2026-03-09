@@ -2,6 +2,7 @@
 from django.db import models
 from accounts.models import Wallet, Transaction
 from accounts.models import Profile
+from .content_filter import censor_contact_info
 
 
 # Re-export models from accounts for backwards compatibility
@@ -496,6 +497,9 @@ class Message(models.Model):
     
     def save(self, *args, **kwargs):
         """Update conversation's last message info"""
+        if self.messageText and self.messageType != self.MessageType.SYSTEM:
+            self.messageText = censor_contact_info(self.messageText)
+
         super().save(*args, **kwargs)
         
         # Update conversation's last message info

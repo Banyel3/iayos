@@ -1,0 +1,4 @@
+
+# Ignore local dashboard seed scripts
+*seed_dashboard*.py
+*clear_dashboard*.py

@@ -4972,6 +4972,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
+                revieweeProfileID=reviewee_profile,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -5085,6 +5086,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
+                revieweeProfileID=reviewee_profile,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -6078,6 +6080,8 @@ def get_backjob_status(request, job_id: int):
                 "backjob_started": dispute.backjobStarted,
                 "worker_marked_complete": dispute.workerMarkedBackjobComplete,
                 "client_confirmed": dispute.clientConfirmedBackjob,
+                "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
             }
         }
         
@@ -6162,7 +6166,17 @@ def request_backjob_renegotiation(request, job_id: int):
         dispute.status = "OPEN"
         dispute.in_negotiation_at = None
         dispute.scheduled_date = None
-        dispute.save(update_fields=["status", "in_negotiation_at", "scheduled_date", "resolution", "updatedAt"])
+        dispute.workerScheduleConfirmed = False
+        dispute.workerScheduleConfirmedAt = None
+        dispute.save(update_fields=[
+            "status",
+            "in_negotiation_at",
+            "scheduled_date",
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "resolution",
+            "updatedAt",
+        ])
 
         JobLog.objects.create(
             jobID=job,
@@ -6236,6 +6250,228 @@ def request_backjob_renegotiation(request, job_id: int):
         return Response({"error": f"Failed to request re-negotiation: {str(e)}"}, status=500)
 
 
+@router.post("/{job_id}/backjob/set-scheduled-date", auth=dual_auth)
+@require_kyc
+def set_backjob_scheduled_date_by_client(request, job_id: int):
+    """
+    Client proposes or updates the backjob scheduled date during negotiation.
+    Worker/agency confirmation is required before the dispute transitions to UNDER_REVIEW.
+    """
+    try:
+        print(f"📅 Client setting backjob schedule for job {job_id}")
+
+        body = json.loads(request.body) if request.body else {}
+        scheduled_date_str = (body.get("scheduled_date") or "").strip()
+        if not scheduled_date_str:
+            return Response({"error": "scheduled_date is required (YYYY-MM-DD)"}, status=400)
+
+        from datetime import date
+
+        try:
+            scheduled_date = date.fromisoformat(scheduled_date_str)
+        except ValueError:
+            return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
+
+        if scheduled_date < timezone.localdate():
+            return Response({"error": "Scheduled date cannot be in the past"}, status=400)
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the client can set backjob scheduled date"}, status=403)
+
+        dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=["IN_NEGOTIATION", "UNDER_REVIEW"],
+        ).first()
+        if not dispute:
+            return Response({"error": "Backjob must be in IN_NEGOTIATION or UNDER_REVIEW to set schedule"}, status=400)
+
+        if dispute.backjobStarted or dispute.workerMarkedBackjobComplete or dispute.clientConfirmedBackjob:
+            return Response({"error": "Cannot edit schedule after backjob work has started or been completed"}, status=400)
+
+        is_update = dispute.scheduled_date is not None
+        old_dispute_status = dispute.status
+        dispute.scheduled_date = scheduled_date
+        dispute.workerScheduleConfirmed = False
+        dispute.workerScheduleConfirmedAt = None
+
+        # If date is edited after prior confirmation, move back to negotiation until reconfirmed.
+        if dispute.status == "UNDER_REVIEW":
+            dispute.status = "IN_NEGOTIATION"
+
+        dispute.save(update_fields=[
+            "scheduled_date",
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "status",
+            "updatedAt",
+        ])
+
+        formatted_date = scheduled_date.strftime("%B %d, %Y")
+        action_word = "updated" if is_update else "set"
+
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_SCHED",
+            changedBy=request.auth,
+            notes=(
+                f"Client {action_word} backjob schedule to {formatted_date}; "
+                f"waiting for worker confirmation"
+                + (" (reopened negotiation)" if old_dispute_status == "UNDER_REVIEW" else "")
+            )
+        )
+
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"📅 Client {action_word} backjob schedule to {formatted_date}. Waiting for worker confirmation."
+                + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
+            )
+
+        # Notify worker/agency
+        worker_account = None
+        if job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        elif job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+
+        if worker_account:
+            Notification.objects.create(
+                accountFK=worker_account,
+                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                title="Backjob Schedule Proposed",
+                message=f"Client {action_word} backjob schedule for '{job.title}' to {formatted_date}. Please confirm.",
+                relatedJobID=job.jobID,
+            )
+
+        return {
+            "success": True,
+            "message": f"Backjob schedule {action_word} to {formatted_date}. Waiting for worker confirmation.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+        }
+
+    except Exception as e:
+        print(f"❌ Error setting backjob scheduled date: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to set scheduled date: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/backjob/confirm-scheduled-date", auth=dual_auth)
+@require_kyc
+def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
+    """
+    Worker/agency confirms the client-proposed backjob date.
+    This transitions the dispute from IN_NEGOTIATION to UNDER_REVIEW.
+    """
+    try:
+        print(f"✅ Worker confirming backjob schedule for job {job_id}")
+
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_assigned_worker or is_assigned_agency):
+            return Response({"error": "Only the assigned worker or agency can confirm this schedule"}, status=403)
+
+        dispute = JobDispute.objects.filter(jobID=job, status="IN_NEGOTIATION").first()
+        if not dispute:
+            return Response({"error": "Backjob must be in IN_NEGOTIATION to confirm schedule"}, status=400)
+
+        if not dispute.scheduled_date:
+            return Response({"error": "Client must set a scheduled date first"}, status=400)
+
+        if dispute.workerScheduleConfirmed:
+            return {
+                "success": True,
+                "message": "Scheduled date is already confirmed",
+                "job_id": job.jobID,
+                "dispute_id": dispute.disputeID,
+                "status": "UNDER_REVIEW",
+                "scheduled_date": dispute.scheduled_date.isoformat(),
+                "worker_schedule_confirmed": True,
+            }
+
+        dispute.workerScheduleConfirmed = True
+        dispute.workerScheduleConfirmedAt = timezone.now()
+        dispute.status = "UNDER_REVIEW"
+        dispute.save(update_fields=[
+            "workerScheduleConfirmed",
+            "workerScheduleConfirmedAt",
+            "status",
+            "updatedAt",
+        ])
+
+        formatted_date = dispute.scheduled_date.strftime("%B %d, %Y")
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_APPR",
+            changedBy=request.auth,
+            notes=f"Worker confirmed backjob schedule ({formatted_date}); dispute moved to UNDER_REVIEW"
+        )
+
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.create_system_message(
+                conversation,
+                f"✅ Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
+            )
+
+        # Notify client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType=Notification.NotificationType.BACKJOB_APPROVED,
+            title="Backjob Schedule Confirmed",
+            message=f"Worker confirmed backjob schedule for '{job.title}' on {formatted_date}.",
+            relatedJobID=job.jobID,
+        )
+
+        return {
+            "success": True,
+            "message": f"Backjob scheduled date confirmed for {formatted_date}.",
+            "job_id": job.jobID,
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "scheduled_date": dispute.scheduled_date.isoformat(),
+            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+            "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+        }
+
+    except Exception as e:
+        print(f"❌ Error confirming backjob scheduled date: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to confirm scheduled date: {str(e)}"}, status=500)
+
+
 @router.post("/{job_id}/backjob/confirm-started", auth=dual_auth)
 @require_kyc
 def confirm_backjob_started(request, job_id: int):
@@ -6272,6 +6508,22 @@ def confirm_backjob_started(request, job_id: int):
             return Response({"error": "No active backjob found for this job"}, status=404)
         
         print(f"   Found dispute {dispute.disputeID}, backjobStarted={dispute.backjobStarted}")
+
+        if not dispute.scheduled_date:
+            return Response({"error": "Backjob schedule is not set yet"}, status=400)
+
+        if not dispute.workerScheduleConfirmed:
+            return Response({"error": "Worker must confirm the scheduled date before backjob can start"}, status=400)
+
+        today = timezone.localdate()
+        if today < dispute.scheduled_date:
+            return Response(
+                {
+                    "error": "Backjob cannot be started before the scheduled date",
+                    "scheduled_date": dispute.scheduled_date.isoformat(),
+                },
+                status=400,
+            )
         
         # Check if already confirmed
         if dispute.backjobStarted:
@@ -6298,7 +6550,7 @@ def confirm_backjob_started(request, job_id: int):
         # Confirm backjob work has started
         dispute.backjobStarted = True
         dispute.backjobStartedAt = timezone.now()
-        dispute.save()
+        dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
         
         print(f"✅ Client confirmed backjob work started for job {job_id}")
         
@@ -8595,8 +8847,7 @@ def approve_agency_project_employee(
         try:
             job = Job.objects.select_related(
                 'clientID__profileID__accountFK',
-                'assignedAgencyFK__accountFK',
-                'agencyID__owner'
+                'assignedAgencyFK__accountFK'
             ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
@@ -8626,10 +8877,10 @@ def approve_agency_project_employee(
             return Response({"error": "Cash payment requires proof image", "requires_proof": True}, status=400)
         
         # Get the employee's assignment
-        from agency.models import agencyemployee
+        from agency.models import AgencyEmployee
         try:
-            employee = agencyemployee.objects.get(employeeID=employee_id)
-        except agencyemployee.DoesNotExist:
+            employee = AgencyEmployee.objects.get(employeeID=employee_id)
+        except AgencyEmployee.DoesNotExist:
             return Response({"error": "Employee not found"}, status=404)
         
         try:
@@ -8664,12 +8915,12 @@ def approve_agency_project_employee(
             payment_amount = remaining / total_employees if total_employees > 0 else remaining
         
         with transaction.atomic():
+            # Keep a wallet transaction trail for all payment methods.
+            client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
+
             # Handle payment
             if payment_method == 'WALLET':
-                try:
-                    client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
-                except Wallet.DoesNotExist:
-                    return Response({"error": "Client wallet not found"}, status=404)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 if client_wallet.balance < payment_amount:
                     return Response({
@@ -8682,23 +8933,40 @@ def approve_agency_project_employee(
                 client_wallet.save()
                 
                 Transaction.objects.create(
-                    senderWallet=client_wallet,
+                    walletID=client_wallet,
                     amount=payment_amount,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Payment for {employee.fullName} - {job.title}',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
+                )
+            elif payment_method == 'GCASH':
+                # Placeholder until direct GCash checkout is wired for this flow.
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=payment_amount,
+                    transactionType='PAYMENT',
+                    status='PENDING',
+                    description=f'GCash payment pending for {employee.fullName} - {job.title}',
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='GCASH',
                 )
             elif payment_method == 'CASH':
                 job.cashProofImage = cash_proof_image
                 job.save()
                 
                 Transaction.objects.create(
+                    walletID=client_wallet,
                     amount=payment_amount,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Cash payment for {employee.fullName} - {job.title} (proof uploaded)',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='CASH',
                 )
             
             # Mark this employee as approved
@@ -8706,6 +8974,12 @@ def approve_agency_project_employee(
             assignment.clientApprovedAt = timezone.now()
             assignment.status = 'COMPLETED'
             assignment.save()
+
+            # Track employee completion stats when this specific assignment is completed
+            employee.totalJobsCompleted = (employee.totalJobsCompleted or 0) + 1
+            if payment_amount > 0:
+                employee.totalEarnings = (employee.totalEarnings or Decimal('0.00')) + payment_amount
+            employee.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
         
         # Send system message
         try:
@@ -8729,6 +9003,11 @@ def approve_agency_project_employee(
             job.status = 'COMPLETED'
             job.clientMarkedComplete = True
             job.workerMarkedComplete = True
+            # Final payment has been completed once all employee approvals/payments are done.
+            # This unblocks the review endpoint for clients.
+            if payment_method in ['WALLET', 'CASH']:
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
             job.save()
             
             # Close conversation
@@ -8748,10 +9027,10 @@ def approve_agency_project_employee(
             
             # Notify agency owner
             try:
-                if job.agencyID and job.agencyID.owner:
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                     client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
                     Notification.objects.create(
-                        accountFK=job.agencyID.owner,
+                        accountFK=job.assignedAgencyFK.accountFK,
                         notificationType="JOB_COMPLETED_CLIENT",
                         title="Job Completed! 🎉",
                         message=f"{client_name} has approved all employees for '{job.title}'.",
@@ -8892,15 +9171,12 @@ def approve_agency_project_job(
         remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
         
         with transaction.atomic():
+            # Keep a wallet transaction trail for all payment methods.
+            client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
+
             # Handle payment
             if payment_method == 'WALLET':
-                # Get client wallet
-                try:
-                    client_wallet = Wallet.objects.select_for_update().get(
-                        accountFK=request.auth
-                    )
-                except Wallet.DoesNotExist:
-                    return Response({"error": "Client wallet not found"}, status=404)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 # Check sufficient balance
                 if client_wallet.balance < remaining_balance:
@@ -8916,18 +9192,27 @@ def approve_agency_project_job(
                 
                 # Create payment transaction
                 Transaction.objects.create(
-                    senderWallet=client_wallet,
+                    walletID=client_wallet,
                     amount=remaining_balance,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Final payment for job: {job.title}',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
                 )
             
             elif payment_method == 'GCASH':
-                # TODO: Integrate with Xendit GCash payment
-                # For now, mark as pending payment
-                pass
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=remaining_balance,
+                    transactionType='PAYMENT',
+                    status='PENDING',
+                    description=f'GCash final payment pending for job: {job.title}',
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='GCASH',
+                )
             
             elif payment_method == 'CASH':
                 # Store cash proof
@@ -8935,20 +9220,37 @@ def approve_agency_project_job(
                 
                 # Create transaction record for cash payment
                 Transaction.objects.create(
+                    walletID=client_wallet,
                     amount=remaining_balance,
                     transactionType='PAYMENT',
                     status='COMPLETED',
                     description=f'Cash payment for job: {job.title} (proof uploaded)',
-                    jobID=job
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod='CASH',
                 )
             
             # Mark all assignments as completed
             assignments.update(status='COMPLETED')
+
+            # Track employee completion stats per assignment in this bulk approval path
+            employee_count = assignments.count()
+            per_employee_earning = remaining_balance / employee_count if employee_count > 0 else Decimal('0.00')
+            for assignment in assignments:
+                emp = assignment.employee
+                emp.totalJobsCompleted = (emp.totalJobsCompleted or 0) + 1
+                if per_employee_earning > 0:
+                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + per_employee_earning
+                emp.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
             
             # Mark job as completed
             job.status = 'COMPLETED'
             job.clientMarkedComplete = True
             job.workerMarkedComplete = True  # Agency job - worker side is agency completion
+            # Final payment is complete in wallet/cash successful paths.
+            if payment_method in ['WALLET', 'CASH']:
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
             job.save()
         
         # Close the conversation for this job
@@ -8973,10 +9275,10 @@ def approve_agency_project_job(
         from accounts.models import Notification
         try:
             # Notify agency owner
-            if job.agencyID and job.agencyID.owner:
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                 client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}"
                 Notification.objects.create(
-                    accountFK=job.agencyID.owner,
+                    accountFK=job.assignedAgencyFK.accountFK,
                     notificationType="JOB_COMPLETED_CLIENT",
                     title="Job Completion Approved! 🎉",
                     message=f"{client_name} has approved the completion of '{job.title}'. Payment of ₱{float(remaining_balance):,.2f} processed.",

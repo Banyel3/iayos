@@ -41,7 +41,10 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
 import { usePricePrediction } from "@/lib/hooks/usePricePrediction";
+import { useJobSuggestions } from "@/lib/hooks/useJobSuggestions";
+import type { JobSuggestion } from "@/lib/hooks/useJobSuggestions";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
+import SuggestionBubbles from "@/components/SuggestionBubbles";
 
 interface Specialization {
   id: number;
@@ -115,6 +118,9 @@ export default function CreateTeamJobScreen() {
   );
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [isOneDayJob, setIsOneDayJob] = useState(false);
   const [materials, setMaterials] = useState<string[]>([]);
   const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
   const [materialInput, setMaterialInput] = useState("");
@@ -131,7 +137,12 @@ export default function CreateTeamJobScreen() {
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [allocationMethod, setAllocationMethod] =
     useState<AllocationMethod>("EQUAL_PER_WORKER");
-  const [teamStartThreshold, setTeamStartThreshold] = useState(100); // Percentage
+
+  // Database-driven suggestions (same engine as single-job create)
+  const { mutate: fetchSuggestions } = useJobSuggestions();
+  const [titleSuggestions, setTitleSuggestions] = useState<JobSuggestion[]>([]);
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState<JobSuggestion[]>([]);
+  const [loadingSuggestionFields, setLoadingSuggestionFields] = useState<Set<string>>(new Set());
 
   // Modal state
   const [addSkillModalVisible, setAddSkillModalVisible] = useState(false);
@@ -170,7 +181,11 @@ export default function CreateTeamJobScreen() {
         data.data || data.skills || data.specializations || ([] as any[]);
 
       return rawSkills.map((skill) => ({
-        id: skill.id ?? skill.specializationID,
+        id:
+          skill.id ??
+          skill.specializationId ??
+          skill.specializationID ??
+          skill.specialization_id,
         name: skill.name ?? skill.specializationName ?? "",
         description: skill.description ?? "",
         category_id:
@@ -280,6 +295,66 @@ export default function CreateTeamJobScreen() {
     // Use the specialization_id of the first slot as a proxy for category
     return skillSlots[0].specialization_id;
   }, [skillSlots]);
+
+  useEffect(() => {
+    if (!primaryCategoryId) {
+      setTitleSuggestions([]);
+      setDescriptionSuggestions([]);
+      return;
+    }
+
+    setLoadingSuggestionFields(new Set(["title", "description"]));
+
+    fetchSuggestions(
+      { category_id: primaryCategoryId, field: "title", limit: 8 },
+      {
+        onSuccess: (resp) => {
+          if (resp.field === "title") {
+            setTitleSuggestions(resp.suggestions);
+          }
+          setLoadingSuggestionFields((prev) => {
+            const next = new Set(prev);
+            next.delete("title");
+            return next;
+          });
+        },
+        onError: () => {
+          setLoadingSuggestionFields((prev) => {
+            const next = new Set(prev);
+            next.delete("title");
+            return next;
+          });
+        },
+      },
+    );
+
+    const descriptionTimer = setTimeout(() => {
+      fetchSuggestions(
+        { category_id: primaryCategoryId, field: "description", limit: 6 },
+        {
+          onSuccess: (resp) => {
+            if (resp.field === "description") {
+              setDescriptionSuggestions(resp.suggestions);
+            }
+            setLoadingSuggestionFields((prev) => {
+              const next = new Set(prev);
+              next.delete("description");
+              return next;
+            });
+          },
+          onError: () => {
+            setLoadingSuggestionFields((prev) => {
+              const next = new Set(prev);
+              next.delete("description");
+              return next;
+            });
+          },
+        },
+      );
+    }, 200);
+
+    return () => clearTimeout(descriptionTimer);
+  }, [primaryCategoryId, fetchSuggestions]);
 
   // Trigger price prediction when job details change (debounced)
   useEffect(() => {
@@ -478,6 +553,9 @@ export default function CreateTeamJobScreen() {
     if (!barangay || !street) return "Please provide a complete location";
     if (!hasEnoughBalance)
       return `Insufficient wallet balance. Need ₱${totalDue.toFixed(2)}`;
+    if (startDate && scheduledEndDate && scheduledEndDate < startDate) {
+      return "Scheduled end date cannot be earlier than preferred start date";
+    }
 
     if (allocationMethod === "MANUAL_ALLOCATION") {
       const totalAllocated = skillSlots.reduce(
@@ -505,9 +583,9 @@ export default function CreateTeamJobScreen() {
       description: description.trim(),
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
-      team_start_threshold: teamStartThreshold,
       urgency: urgency,
       preferred_start_date: startDate?.toISOString().split("T")[0],
+      scheduled_end_date: scheduledEndDate?.toISOString().split("T")[0],
       materials_needed: materials,
       budget_allocation_type: allocationMethod,
       job_scope: jobScope,
@@ -673,6 +751,11 @@ export default function CreateTeamJobScreen() {
                   placeholder="Home Renovation"
                   maxLength={100}
                 />
+                <SuggestionBubbles
+                  suggestions={titleSuggestions}
+                  onSelect={(suggestion) => setTitle(suggestion)}
+                  isLoading={loadingSuggestionFields.has("title")}
+                />
                 <Text style={styles.charCount}>{title.length}/100</Text>
               </View>
 
@@ -686,6 +769,11 @@ export default function CreateTeamJobScreen() {
                   multiline
                   numberOfLines={4}
                   maxLength={1000}
+                />
+                <SuggestionBubbles
+                  suggestions={descriptionSuggestions}
+                  onSelect={(suggestion) => setDescription(suggestion)}
+                  isLoading={loadingSuggestionFields.has("description")}
                 />
                 <Text style={styles.charCount}>{description.length}/1000</Text>
               </View>
@@ -899,51 +987,6 @@ export default function CreateTeamJobScreen() {
               )}
             </View>
 
-            {/* Team Start Threshold */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="rocket" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Team Start Options{" "}
-                  <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Start When Team is {teamStartThreshold}% Filled
-                </Text>
-                <View style={styles.thresholdSlider}>
-                  {[50, 75, 100].map((value) => (
-                    <TouchableOpacity
-                      key={value}
-                      style={[
-                        styles.thresholdOption,
-                        teamStartThreshold === value &&
-                          styles.thresholdOptionSelected,
-                      ]}
-                      onPress={() => setTeamStartThreshold(value)}
-                    >
-                      <Text
-                        style={[
-                          styles.thresholdText,
-                          teamStartThreshold === value &&
-                            styles.thresholdTextSelected,
-                        ]}
-                      >
-                        {value}%
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={styles.hint}>
-                  {teamStartThreshold === 100
-                    ? "Job will start only when ALL positions are filled."
-                    : `Job can start when ${teamStartThreshold}% of positions are filled.`}
-                </Text>
-              </View>
-            </View>
-
             {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -1054,6 +1097,56 @@ export default function CreateTeamJobScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              <View style={styles.inputGroup}>
+                <TouchableOpacity
+                  style={styles.oneDayToggle}
+                  onPress={() => {
+                    const next = !isOneDayJob;
+                    setIsOneDayJob(next);
+                    if (next && startDate) {
+                      setScheduledEndDate(startDate);
+                    }
+                    if (!next) {
+                      setScheduledEndDate(null);
+                    }
+                  }}
+                >
+                  <View style={[styles.checkbox, isOneDayJob && styles.checkboxChecked]}>
+                    {isOneDayJob && (
+                      <Ionicons name="checkmark" size={14} color={Colors.white} />
+                    )}
+                  </View>
+                  <Text style={styles.oneDayLabel}>
+                    One-day team job (end date = start date)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {!isOneDayJob && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Scheduled End Date (Optional)</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowEndDatePicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar-clear"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text
+                      style={
+                        scheduledEndDate ? styles.dateText : styles.datePlaceholder
+                      }
+                    >
+                      {scheduledEndDate
+                        ? scheduledEndDate.toLocaleDateString()
+                        : "Select end date"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
             {/* Job Options Section */}
             <View style={styles.section}>
@@ -1462,7 +1555,24 @@ export default function CreateTeamJobScreen() {
             minimumDate={new Date()}
             onChange={(event, date) => {
               setShowDatePicker(false);
-              if (date) setStartDate(date);
+              if (date) {
+                setStartDate(date);
+                if (isOneDayJob) {
+                  setScheduledEndDate(date);
+                }
+              }
+            }}
+          />
+        )}
+
+        {showEndDatePicker && (
+          <DateTimePicker
+            value={scheduledEndDate || startDate || new Date()}
+            mode="date"
+            minimumDate={startDate || new Date()}
+            onChange={(event, date) => {
+              setShowEndDatePicker(false);
+              if (date) setScheduledEndDate(date);
             }}
           />
         )}
@@ -1590,6 +1700,30 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
     fontStyle: "italic",
+  },
+  oneDayToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  oneDayLabel: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    flex: 1,
   },
   addSkillButton: {
     flexDirection: "row",

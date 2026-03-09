@@ -7,16 +7,26 @@
  * Supports both 1-on-1 and group voice calls (team conversations).
  */
 
-import {
-  createAgoraRtcEngine,
-  ChannelProfileType,
-  ClientRoleType,
-  IRtcEngine,
-  IRtcEngineEventHandler,
-  RtcConnection,
-  ConnectionStateType,
-  ConnectionChangedReasonType,
-} from "react-native-agora";
+// Lazy-load react-native-agora to prevent crashes in Expo Go
+// (the native module is only available in custom dev clients / production builds)
+let createAgoraRtcEngine: any = null;
+let ChannelProfileType: any = {};
+let ClientRoleType: any = {};
+let ConnectionStateType: any = {};
+let ConnectionChangedReasonType: any = {};
+let AGORA_NATIVE_AVAILABLE = false;
+
+try {
+  const agora = require("react-native-agora");
+  createAgoraRtcEngine = agora.createAgoraRtcEngine;
+  ChannelProfileType = agora.ChannelProfileType;
+  ClientRoleType = agora.ClientRoleType;
+  ConnectionStateType = agora.ConnectionStateType;
+  ConnectionChangedReasonType = agora.ConnectionChangedReasonType;
+  AGORA_NATIVE_AVAILABLE = true;
+} catch (e) {
+  console.warn("[Agora] react-native-agora not available (expected in Expo Go)");
+}
 import { Platform, PermissionsAndroid, Alert } from "react-native";
 
 export interface CallState {
@@ -38,14 +48,14 @@ export type CallEventHandler = {
   onLeaveChannel?: () => void;
   onError?: (errorCode: number, message: string) => void;
   onConnectionStateChanged?: (
-    state: ConnectionStateType,
-    reason: ConnectionChangedReasonType
+    state: any,
+    reason: any
   ) => void;
 };
 
 class AgoraService {
-  private engine: IRtcEngine | null = null;
-  private eventHandler: IRtcEngineEventHandler | null = null;
+  private engine: any | null = null;
+  private eventHandler: any | null = null;
   private currentChannel: string | null = null;
   private customEventHandler: CallEventHandler | null = null;
 
@@ -115,6 +125,11 @@ class AgoraService {
    * Initialize the Agora engine with App ID
    */
   async initialize(appId: string): Promise<boolean> {
+    if (!AGORA_NATIVE_AVAILABLE) {
+      console.warn("[Agora] Native module not available (Expo Go). Voice calls disabled.");
+      return false;
+    }
+
     if (this._state.isInitialized && this.engine) {
       console.log("[Agora] Already initialized");
       return true;
@@ -175,7 +190,7 @@ class AgoraService {
     if (!this.engine) return;
 
     this.eventHandler = {
-      onJoinChannelSuccess: (connection: RtcConnection, elapsed: number) => {
+      onJoinChannelSuccess: (connection: any, elapsed: number) => {
         console.log(
           `[Agora] ✅ Joined channel: ${connection.channelId}, uid: ${connection.localUid}`
         );
@@ -190,14 +205,14 @@ class AgoraService {
         );
       },
 
-      onUserJoined: (connection: RtcConnection, remoteUid: number) => {
+      onUserJoined: (connection: any, remoteUid: number) => {
         console.log(`[Agora] 👤 Remote user joined: ${remoteUid}`);
         const newRemoteIds = [...this._state.remoteUserIds, remoteUid];
         this.updateState({ remoteUserId: remoteUid, remoteUserIds: newRemoteIds });
         this.customEventHandler?.onUserJoined?.(remoteUid);
       },
 
-      onUserOffline: (connection: RtcConnection, remoteUid: number) => {
+      onUserOffline: (connection: any, remoteUid: number) => {
         console.log(`[Agora] 👤 Remote user left: ${remoteUid}`);
         const newRemoteIds = this._state.remoteUserIds.filter(id => id !== remoteUid);
         const newPrimary = newRemoteIds.length > 0 ? newRemoteIds[newRemoteIds.length - 1] : null;
@@ -205,7 +220,7 @@ class AgoraService {
         this.customEventHandler?.onUserOffline?.(remoteUid);
       },
 
-      onLeaveChannel: (connection: RtcConnection, stats: any) => {
+      onLeaveChannel: (connection: any, stats: any) => {
         console.log("[Agora] Left channel");
         this.stopDurationTimer();
         this.updateState({
@@ -224,9 +239,9 @@ class AgoraService {
       },
 
       onConnectionStateChanged: (
-        connection: RtcConnection,
-        state: ConnectionStateType,
-        reason: ConnectionChangedReasonType
+        connection: any,
+        state: any,
+        reason: any
       ) => {
         console.log(`[Agora] Connection state: ${state}, reason: ${reason}`);
 
@@ -419,5 +434,6 @@ class AgoraService {
 }
 
 // Singleton instance
-export const AGORA_AVAILABLE = true;
+export const AGORA_AVAILABLE =
+  process.env.EXPO_PUBLIC_ENABLE_VOICE_CALLS !== "false";
 export const agoraService = new AgoraService();

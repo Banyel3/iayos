@@ -2,7 +2,9 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from .models import Conversation, ConversationParticipant, Message, Profile
+from .content_filter import censor_contact_info
 from accounts.models import Job, JobReview, Agency
 
 User = get_user_model()
@@ -81,6 +83,16 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 await self.handle_subscribe(data)
                 return
 
+            # Check if this is an unsubscribe request for a conversation
+            if action == 'unsubscribe':
+                await self.handle_unsubscribe(data)
+                return
+
+            # Check if this is a read receipt update
+            if action == 'mark_read':
+                await self.handle_mark_read(data)
+                return
+
             conversation_id = data.get('conversation_id')
             message_text = data.get('message', '')
             message_type = data.get('type', 'TEXT')
@@ -138,22 +150,34 @@ class InboxConsumer(AsyncWebsocketConsumer):
             traceback.print_exc()
 
     async def chat_message(self, event):
-        """Send message to WebSocket - compute is_mine per socket before sending"""
+        """Send chat message with explicit type for mobile listeners."""
         message = event['message']
         message['is_mine'] = (self.user.pk == event.get('sender_account_id'))
         print(f"[InboxWS] 📤 Sending message for conversation {message.get('conversation_id')}")
-        await self.send(text_data=json.dumps(message))
+        await self.send(text_data=json.dumps({
+            'type': 'chat_message',
+            'message': message
+        }))
 
     async def typing_indicator(self, event):
         """Send typing indicator to WebSocket"""
         data = event['data']
         print(f"[InboxWS] 📤 Sending typing indicator for conversation {data.get('conversation_id')}")
         await self.send(text_data=json.dumps({
+            'type': 'typing_indicator',
             'action': 'typing',
             'conversation_id': data['conversation_id'],
             'user_id': data['user_id'],
             'user_name': data['user_name'],
             'is_typing': data['is_typing']
+        }))
+
+    async def message_read(self, event):
+        """Forward read-receipt events to WebSocket clients."""
+        data = event.get('data', {})
+        await self.send(text_data=json.dumps({
+            'type': 'message_read',
+            'data': data
         }))
 
     async def job_status_update(self, event):
@@ -193,6 +217,40 @@ class InboxConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(group_name, self.channel_name)
         self.conversation_groups.append(group_name)
         print(f"[InboxWS] ✅ Dynamically subscribed to {group_name}")
+
+    async def handle_unsubscribe(self, data):
+        """Dynamically unsubscribe from a conversation group."""
+        conversation_id = data.get('conversation_id')
+        if not conversation_id:
+            return
+
+        group_name = f'chat_{conversation_id}'
+        if group_name not in self.conversation_groups:
+            return
+
+        await self.channel_layer.group_discard(group_name, self.channel_name)
+        self.conversation_groups.remove(group_name)
+        print(f"[InboxWS] ✅ Dynamically unsubscribed from {group_name}")
+
+    async def handle_mark_read(self, data):
+        """Mark a message as read and broadcast receipt to chat group."""
+        message_id = data.get('message_id')
+        if not message_id:
+            return
+
+        read_info = await self.mark_message_as_read(message_id)
+        if not read_info:
+            return
+
+        conversation_id = read_info['conversation_id']
+        room_group_name = f'chat_{conversation_id}'
+        await self.channel_layer.group_send(
+            room_group_name,
+            {
+                'type': 'message_read',
+                'data': read_info
+            }
+        )
 
     async def handle_typing_indicator(self, data):
         """Handle typing indicator events"""
@@ -375,6 +433,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
     def save_message(self, conversation_id, message_text, message_type):
         """Save a message - supports both Profile and Agency senders"""
         try:
+            sanitized_text = censor_contact_info(message_text)
             conversation = Conversation.objects.get(conversationID=conversation_id)
             
             # Try to get profile for sender
@@ -407,7 +466,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 conversationID=conversation, 
                 sender=profile,  # None if agency user
                 senderAgency=agency,  # None if profile user
-                messageText=message_text, 
+                messageText=sanitized_text,
                 messageType=message_type, 
                 isRead=False
             )
@@ -418,6 +477,57 @@ class InboxConsumer(AsyncWebsocketConsumer):
             import traceback
             traceback.print_exc()
             raise
+
+    @database_sync_to_async
+    def mark_message_as_read(self, message_id):
+        """Mark message read if user has access to the conversation."""
+        try:
+            message = Message.objects.select_related('conversationID').get(messageID=message_id)
+            conversation_id = message.conversationID.conversationID
+
+            # Only allow read update for accessible conversations
+            conversation = message.conversationID
+            has_access = False
+
+            profile_type = getattr(self.user, 'profile_type', None)
+            if profile_type:
+                profile = Profile.objects.filter(accountFK=self.user, profileType=profile_type).first()
+            else:
+                profile = Profile.objects.filter(accountFK=self.user).first()
+
+            if profile:
+                is_direct_participant = (
+                    (conversation.client and conversation.client.profileID == profile.profileID)
+                    or (conversation.worker and conversation.worker.profileID == profile.profileID)
+                )
+                is_team_participant = ConversationParticipant.objects.filter(
+                    conversation=conversation,
+                    profile=profile,
+                ).exists()
+                has_access = is_direct_participant or is_team_participant
+
+            if not has_access:
+                agency = Agency.objects.filter(accountFK=self.user).first()
+                if agency and conversation.agency and conversation.agency.agencyId == agency.agencyId:
+                    has_access = True
+
+            if not has_access:
+                return None
+
+            if not message.isRead:
+                message.isRead = True
+                message.save(update_fields=['isRead'])
+
+            return {
+                'message_id': message.messageID,
+                'conversation_id': conversation_id,
+                'read_at': timezone.now().isoformat(),
+            }
+        except Message.DoesNotExist:
+            return None
+        except Exception as e:
+            print(f"[InboxWS] ❌ Error marking message as read: {str(e)}")
+            return None
 
     async def handle_get_messages(self, data):
         """Handle WebSocket request for message history"""
@@ -686,6 +796,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, message_text, message_type):
         try:
+            sanitized_text = censor_contact_info(message_text)
             print(f"[WebSocket] 🔍 Looking up profile for user: {self.user.email}")
             profile_type = getattr(self.user, 'profile_type', None)
             if profile_type:
@@ -704,7 +815,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.create(
                 conversationID=conversation, 
                 sender=profile, 
-                messageText=message_text, 
+                messageText=sanitized_text,
                 messageType=message_type, 
                 isRead=False
             )
@@ -873,6 +984,8 @@ class CallConsumer(AsyncWebsocketConsumer):
     async def handle_call_initiate(self, data):
         """Handle call initiation - broadcast to other participant"""
         caller_name = await self.get_user_name()
+        channel_name = data.get('channel_name', f'iayos_call_{self.conversation_id}')
+        is_group = bool(data.get('is_group', False))
         
         # Broadcast call invitation to the group
         await self.channel_layer.group_send(
@@ -883,8 +996,17 @@ class CallConsumer(AsyncWebsocketConsumer):
                 'caller_id': self.user.id,
                 'caller_name': caller_name,
                 'conversation_id': self.conversation_id,
-                'channel_name': data.get('channel_name', f'iayos_call_{self.conversation_id}'),
+                'channel_name': channel_name,
+                'is_group': is_group,
             }
+        )
+
+        # Also send device-level push notification so users can receive call alerts
+        # while outside the active conversation screen.
+        await self.send_incoming_call_push_notifications(
+            caller_name=caller_name,
+            channel_name=channel_name,
+            is_group=is_group,
         )
         
         print(f"[CallWS] 📞 Call initiated by {caller_name} in conversation {self.conversation_id}")
@@ -987,6 +1109,7 @@ class CallConsumer(AsyncWebsocketConsumer):
                 'channel_name': event.get('channel_name'),
                 'reason': event.get('reason'),
                 'duration': event.get('duration'),
+                'is_group': event.get('is_group', False),
             }
         }))
     
@@ -1003,22 +1126,33 @@ class CallConsumer(AsyncWebsocketConsumer):
         try:
             conversation = Conversation.objects.get(conversationID=self.conversation_id)
             profile = Profile.objects.filter(accountFK=self.user).first()
-            
-            if not profile:
-                return False
-            
-            # Check if user is client or worker
-            is_client = conversation.client and conversation.client.profileID == profile.profileID
-            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
-            
-            # Check ConversationParticipant for team jobs
-            from .models import ConversationParticipant
-            is_participant = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                profile=profile
-            ).exists()
-            
-            return is_client or is_worker or is_participant
+
+            is_client = False
+            is_worker = False
+            is_participant = False
+
+            if profile:
+                # Check if user is client or worker
+                is_client = conversation.client and conversation.client.profileID == profile.profileID
+                is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+
+                # Check ConversationParticipant for team jobs
+                from .models import ConversationParticipant
+                is_participant = ConversationParticipant.objects.filter(
+                    conversation=conversation,
+                    profile=profile
+                ).exists()
+
+            # Agency conversations use accounts.Agency instead of Profile.worker
+            from accounts.models import Agency
+            agency = Agency.objects.filter(accountFK=self.user).first()
+            is_agency = bool(
+                conversation.agency
+                and agency
+                and conversation.agency.agencyId == agency.agencyId
+            )
+
+            return is_client or is_worker or is_participant or is_agency
         except Conversation.DoesNotExist:
             return False
         except Exception as e:
@@ -1050,3 +1184,93 @@ class CallConsumer(AsyncWebsocketConsumer):
             print(f"[CallWS] Created system message: {text}")
         except Exception as e:
             print(f"[CallWS] Error creating system message: {str(e)}")
+
+    @database_sync_to_async
+    def get_call_recipient_account_ids(self):
+        """Get recipient account IDs for this conversation (excluding caller)."""
+        try:
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            recipient_ids = set()
+            caller_account_id = self.user.accountID
+
+            if conversation.client and conversation.client.accountFK_id:
+                recipient_ids.add(conversation.client.accountFK_id)
+
+            if conversation.worker and conversation.worker.accountFK_id:
+                recipient_ids.add(conversation.worker.accountFK_id)
+
+            if conversation.agency and conversation.agency.accountFK_id:
+                recipient_ids.add(conversation.agency.accountFK_id)
+
+            # Include all explicit participants (team jobs / group conversations).
+            participant_profiles = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile__isnull=False
+            ).select_related('profile__accountFK')
+            for participant in participant_profiles:
+                if participant.profile and participant.profile.accountFK_id:
+                    recipient_ids.add(participant.profile.accountFK_id)
+
+            recipient_ids.discard(caller_account_id)
+            return list(recipient_ids)
+        except Exception as e:
+            print(f"[CallWS] Error getting recipient account IDs: {str(e)}")
+            return []
+
+    @database_sync_to_async
+    def create_incoming_call_notifications(self, recipient_account_ids, caller_name):
+        """Create in-app notification records for incoming calls."""
+        from accounts.models import Notification
+
+        if not recipient_account_ids:
+            return
+
+        try:
+            conversation = Conversation.objects.filter(conversationID=self.conversation_id).first()
+            related_job = conversation.relatedJobPosting if conversation else None
+
+            Notification.objects.bulk_create([
+                Notification(
+                    accountFK_id=account_id,
+                    notificationType='MESSAGE',
+                    title='Incoming voice call',
+                    message=f'{caller_name} is calling you',
+                    relatedJobID=related_job,
+                )
+                for account_id in recipient_account_ids
+            ])
+        except Exception as e:
+            print(f"[CallWS] Error creating incoming call notifications: {str(e)}")
+
+    async def send_incoming_call_push_notifications(self, caller_name, channel_name, is_group=False):
+        """Create in-app notification records and send device push alerts for call invites."""
+        try:
+            recipient_account_ids = await self.get_call_recipient_account_ids()
+            if not recipient_account_ids:
+                return
+
+            await self.create_incoming_call_notifications(recipient_account_ids, caller_name)
+
+            from accounts.services import send_device_push_notification
+
+            payload = {
+                'notificationType': 'CALL_INCOMING',
+                'conversation_id': self.conversation_id,
+                'relatedConversationID': self.conversation_id,
+                'caller_id': self.user.id,
+                'caller_name': caller_name,
+                'channel_name': channel_name,
+                'is_group': bool(is_group),
+                'screen': 'conversation',
+            }
+
+            send_result = await database_sync_to_async(send_device_push_notification)(
+                user_account_ids=recipient_account_ids,
+                title='Incoming voice call',
+                body=f'{caller_name} is calling you',
+                data=payload,
+                category='messages',
+            )
+            print(f"[CallWS] 📲 Push call alert sent: {send_result}")
+        except Exception as e:
+            print(f"[CallWS] Error sending call push notifications: {str(e)}")
