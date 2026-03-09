@@ -2,7 +2,7 @@
   "expo": {
     "name": "iAyos",
     "slug": "iayos",
-    "version": "1.0.26",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/android-icon-foreground.png",
     "scheme": "iayosmobile",
