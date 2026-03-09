@@ -104,8 +104,14 @@ export default function DisputesPage() {
         try {
             setIsLoading(true);
             let url = `${API_BASE}/api/adminpanel/jobs/disputes?page=${page}&page_size=20`;
-            if (statusFilter !== "all") url += `&status=${statusFilter}`;
-            if (priorityFilter !== "all") url += `&priority=${priorityFilter}`;
+            if (statusFilter !== "all") {
+                let mappedStatus = statusFilter.toUpperCase();
+                if (statusFilter === "pending") mappedStatus = "OPEN";
+                if (statusFilter === "approved" || statusFilter === "completed") mappedStatus = "RESOLVED";
+                if (statusFilter === "rejected") mappedStatus = "CLOSED";
+                url += `&status=${mappedStatus}`;
+            }
+            if (priorityFilter !== "all") url += `&priority=${priorityFilter.toUpperCase()}`;
             const response = await fetch(url, { credentials: "include" });
             const data = await response.json();
             if (data.success) {
@@ -132,20 +138,23 @@ export default function DisputesPage() {
 
     const getStatusBadge = (status: string) => {
         switch (status.toLowerCase()) {
+            case "open":
             case "pending":
                 return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100">Pending Review</Badge>;
             case "in_negotiation":
                 return <Badge className="bg-sky-100 text-sky-700 border-sky-200 hover:bg-sky-100">In Negotiation</Badge>;
             case "under_review":
                 return <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">Under Review</Badge>;
+            case "resolved":
             case "approved":
                 return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">Approved</Badge>;
             case "rejected":
-                return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">Rejected</Badge>;
+            case "closed":
+                return <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">Closed</Badge>;
             case "completed":
                 return <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">Completed</Badge>;
             default:
-                return null;
+                return <Badge className="bg-gray-100 text-gray-600">{status}</Badge>;
         }
     };
 
