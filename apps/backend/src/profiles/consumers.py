@@ -993,7 +993,7 @@ class CallConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'call_event',
                 'event': 'incoming',
-                'caller_id': self.user.id,
+                'caller_id': self.user.accountID,
                 'caller_name': caller_name,
                 'conversation_id': self.conversation_id,
                 'channel_name': channel_name,
@@ -1020,7 +1020,7 @@ class CallConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'call_event',
                 'event': 'accepted',
-                'user_id': self.user.id,
+                'user_id': self.user.accountID,
                 'user_name': user_name,
                 'conversation_id': self.conversation_id,
             }
@@ -1038,7 +1038,7 @@ class CallConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'call_event',
                 'event': 'rejected',
-                'user_id': self.user.id,
+                'user_id': self.user.accountID,
                 'user_name': user_name,
                 'reason': reason,
                 'conversation_id': self.conversation_id,
@@ -1060,7 +1060,7 @@ class CallConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'call_event',
                 'event': 'ended',
-                'user_id': self.user.id,
+                'user_id': self.user.accountID,
                 'user_name': user_name,
                 'duration': duration,
                 'conversation_id': self.conversation_id,
@@ -1083,7 +1083,7 @@ class CallConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'call_event',
                 'event': 'busy',
-                'user_id': self.user.id,
+                'user_id': self.user.accountID,
                 'user_name': user_name,
                 'conversation_id': self.conversation_id,
             }
@@ -1094,7 +1094,7 @@ class CallConsumer(AsyncWebsocketConsumer):
     async def call_event(self, event):
         """Send call event to WebSocket client"""
         # Don't send event back to the sender (except for 'incoming' which should go to receiver)
-        if event['event'] == 'incoming' and event.get('caller_id') == self.user.id:
+        if event['event'] == 'incoming' and event.get('caller_id') == self.user.accountID:
             return  # Don't send incoming event to the caller
         
         await self.send(text_data=json.dumps({
@@ -1257,7 +1257,7 @@ class CallConsumer(AsyncWebsocketConsumer):
                 'notificationType': 'CALL_INCOMING',
                 'conversation_id': self.conversation_id,
                 'relatedConversationID': self.conversation_id,
-                'caller_id': self.user.id,
+                'caller_id': self.user.accountID,
                 'caller_name': caller_name,
                 'channel_name': channel_name,
                 'is_group': bool(is_group),
