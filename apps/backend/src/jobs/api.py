@@ -4003,8 +4003,8 @@ def client_approve_job_completion(
                     job_check = JobPosting.objects.get(jobID=job_id)
                     remaining_amount = job_check.remainingPayment
                     
-                    # Check if client has sufficient balance BEFORE proceeding
-                    if wallet_check.balance < remaining_amount:
+                    # Skip wallet re-validation if remaining payment was already paid earlier.
+                    if not job_check.remainingPaymentPaid and wallet_check.balance < remaining_amount:
                         print(f"❌ Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
                         return Response({
                             "error": "Insufficient wallet balance",

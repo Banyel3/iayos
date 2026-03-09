@@ -624,6 +624,28 @@ export default function ChatScreen() {
   const handleApproveCompletion = () => {
     if (!conversation) return;
 
+    // If final payment is already completed (via Pay Now), skip payment selection
+    // and only approve completion so the review flow can start.
+    if (conversation.job.remainingPaymentPaid) {
+      Alert.alert(
+        "Approve Completion",
+        "Final payment is already completed. Approve this job to proceed to reviews.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Approve",
+            onPress: () => {
+              approveCompletionMutation.mutate({
+                jobId: conversation.job.id,
+                paymentMethod: "WALLET",
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     // Calculate remaining amount (50% of total budget + materials cost)
     const baseRemaining = conversation.job.budget
       ? conversation.job.budget * 0.5
@@ -3876,12 +3898,18 @@ export default function ChatScreen() {
                       ) : (
                         <>
                           <Ionicons
-                            name="wallet"
+                            name={
+                              conversation.job.remainingPaymentPaid
+                                ? "checkmark-circle"
+                                : "wallet"
+                            }
                             size={20}
                             color={Colors.white}
                           />
                           <Text style={styles.actionButtonText}>
-                            Approve & Pay Final Amount
+                            {conversation.job.remainingPaymentPaid
+                              ? "Approve Completion"
+                              : "Approve & Pay Final Amount"}
                           </Text>
                         </>
                       )}
