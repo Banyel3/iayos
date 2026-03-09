@@ -11,6 +11,7 @@ import {
   RejectReasonModal,
   SkillSlotAssignmentModal,
 } from "@/components/agency";
+import { fetchWorkers, type WorkerListing } from "@/lib/api/jobs";
 import AssignEmployeesModal from "@/components/agency/AssignEmployeesModal";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
 import { PaymentModelBadge } from "@/components/agency/PaymentModelBadge";
@@ -102,6 +103,9 @@ interface Job {
   is_team_job?: boolean;
   total_workers_needed?: number;
   total_workers_assigned?: number;
+  skill_slots?: Array<{
+    specialization_name: string;
+  }>;
   client: {
     id: number;
     name: string;
@@ -129,6 +133,7 @@ export default function AgencyJobsPage() {
   const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
   const [cancelledJobs, setCancelledJobs] = useState<Job[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [availableWorkers, setAvailableWorkers] = useState<WorkerListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,6 +167,7 @@ export default function AgencyJobsPage() {
         fetchCompletedJobs(false),
         fetchCancelledJobs(false),
         fetchEmployees(),
+        fetchAvailableWorkers(),
       ]);
       setLoading(false);
     };
@@ -369,6 +375,63 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching employees:", err);
     }
+  };
+
+  const fetchAvailableWorkers = async () => {
+    try {
+      const workers = await fetchWorkers();
+      setAvailableWorkers(workers || []);
+    } catch (err) {
+      // This section is optional enhancement. Keep page usable even if worker listing fails.
+      console.error("Error fetching available workers:", err);
+      setAvailableWorkers([]);
+    }
+  };
+
+  const parseWorkerSkills = (worker: WorkerListing): string[] => {
+    return (worker.specialization || "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+  };
+
+  const getSuggestedWorkersForJob = (job: Job): WorkerListing[] => {
+    if (!availableWorkers.length) {
+      return [];
+    }
+
+    const requiredKeywords = new Set<string>();
+
+    if (job.category?.name) {
+      requiredKeywords.add(job.category.name.toLowerCase());
+    }
+
+    for (const slot of job.skill_slots || []) {
+      if (slot.specialization_name) {
+        requiredKeywords.add(slot.specialization_name.toLowerCase());
+      }
+    }
+
+    return [...availableWorkers]
+      .map((worker) => {
+        const skills = parseWorkerSkills(worker);
+        const matchScore = [...requiredKeywords].reduce((score, keyword) => {
+          const matched = skills.some(
+            (skill) => skill.includes(keyword) || keyword.includes(skill),
+          );
+          return matched ? score + 1 : score;
+        }, 0);
+
+        return { worker, matchScore };
+      })
+      .sort((a, b) => {
+        if (b.matchScore !== a.matchScore) {
+          return b.matchScore - a.matchScore;
+        }
+        return (b.worker.rating || 0) - (a.worker.rating || 0);
+      })
+      .slice(0, 6)
+      .map((entry) => entry.worker);
   };
 
   // Fetch skill slots for a team job
@@ -929,6 +992,7 @@ export default function AgencyJobsPage() {
                 <PendingInviteCard
                   key={job.jobID}
                   job={job}
+                  availableWorkers={getSuggestedWorkersForJob(job)}
                   onAccept={handleAcceptInvite}
                   onReject={handleRejectInviteClick}
                   accepting={accepting === job.jobID}

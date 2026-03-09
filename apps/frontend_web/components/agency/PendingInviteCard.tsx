@@ -29,13 +29,13 @@ interface Category {
 }
 
 interface SkillSlot {
-  skill_slot_id: number;
-  specialization_id: number;
+  skill_slot_id?: number;
+  specialization_id?: number;
   specialization_name: string;
-  workers_needed: number;
-  budget_allocated: number;
-  skill_level_required: string;
-  status: string;
+  workers_needed?: number;
+  budget_allocated?: number;
+  skill_level_required?: string;
+  status?: string;
 }
 
 interface PendingInviteJob {
@@ -63,8 +63,22 @@ interface PendingInviteJob {
   skill_slots?: SkillSlot[];
 }
 
+interface WorkerSuggestion {
+  id: string;
+  name: string;
+  avatar: string;
+  specialization: string;
+  rating: number;
+  completedJobs: number;
+  hourlyRate: string;
+  distance: number;
+  isAvailable: boolean;
+  isVerified: boolean;
+}
+
 interface PendingInviteCardProps {
   job: PendingInviteJob;
+  availableWorkers?: WorkerSuggestion[];
   onAccept: (jobId: number) => Promise<void>;
   onReject: (job: PendingInviteJob) => void;
   accepting?: boolean;
@@ -72,6 +86,7 @@ interface PendingInviteCardProps {
 
 export default function PendingInviteCard({
   job,
+  availableWorkers = [],
   onAccept,
   onReject,
   accepting = false,
@@ -266,7 +281,7 @@ export default function PendingInviteCard({
             <div className="space-y-2">
               {job.skill_slots.map((slot) => (
                 <div
-                  key={slot.skill_slot_id}
+                  key={slot.skill_slot_id ?? `${slot.specialization_name}-${slot.workers_needed ?? 0}`}
                   className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-purple-100"
                 >
                   <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -275,15 +290,15 @@ export default function PendingInviteCard({
                       {slot.specialization_name}
                     </span>
                     <span className="text-xs text-gray-500 px-1.5 py-0.5 bg-gray-100 rounded shrink-0 hidden sm:inline">
-                      {slot.skill_level_required}
+                      {slot.skill_level_required || "Any"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-gray-600 whitespace-nowrap">
-                      {slot.workers_needed}w
+                      {(slot.workers_needed ?? 0)}w
                     </span>
                     <span className="text-sm font-semibold text-purple-600 whitespace-nowrap">
-                      ₱{slot.budget_allocated.toLocaleString()}
+                      ₱{(slot.budget_allocated ?? 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -292,6 +307,51 @@ export default function PendingInviteCard({
             <p className="mt-3 text-xs text-purple-700">
               💡 You&apos;ll need to assign employees to each skill slot after
               accepting.
+            </p>
+          </div>
+        )}
+
+        {/* Suggested Workers */}
+        {availableWorkers.length > 0 && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+              <Users className="h-5 w-5 text-blue-600 mr-2" />
+              Available Workers ({availableWorkers.length})
+            </h4>
+            <div className="space-y-2">
+              {availableWorkers.map((worker) => (
+                <div
+                  key={worker.id}
+                  className="flex items-center justify-between gap-3 p-2.5 bg-white rounded border border-blue-100"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate">
+                        {worker.name}
+                      </p>
+                      {worker.isVerified && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                          VERIFIED
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 truncate">
+                      Skills: {worker.specialization || "General Services"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-600">
+                      ⭐ {worker.rating?.toFixed?.(1) ?? "0.0"} • {worker.completedJobs} jobs
+                    </p>
+                    <p className="text-xs font-semibold text-blue-700">
+                      {worker.hourlyRate}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-blue-700">
+              💡 Matching workers are shown first based on this job&apos;s required skills.
             </p>
           </div>
         )}
