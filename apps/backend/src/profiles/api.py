@@ -1073,7 +1073,7 @@ def get_conversations(request, filter: str = "all"):
                         agency_account and JobReview.objects.filter(
                             jobID=job,
                             reviewerID=agency_account,
-                            reviewerType="WORKER"
+                            reviewerType__in=["AGENCY", "WORKER"]
                         ).exists()
                     )
                 else:
@@ -1586,7 +1586,7 @@ def get_conversation_messages(request, conversation_id: int):
                 worker_reviewed = JobReview.objects.filter(
                     jobID=job,
                     reviewerID=agency_account,
-                    reviewerType="WORKER"
+                    reviewerType__in=["AGENCY", "WORKER"]
                 ).exists()
         elif is_team_job and not is_client and client_account:
             # Team job - check if current worker (viewer) has reviewed the client
