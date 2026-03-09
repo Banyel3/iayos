@@ -341,7 +341,7 @@ export default function ClientsPage() {
                   <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Active Now</p>
-                <p className="text-xl font-bold text-[#00BAF1]">{activeClients}</p>
+                <p className="text-xl font-bold text-gray-900">{activeClients}</p>
               </CardContent>
             </Card>
 
@@ -352,7 +352,7 @@ export default function ClientsPage() {
                   <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Verified Clients</p>
-                <p className="text-xl font-bold text-[#00BAF1]">
+                <p className="text-xl font-bold text-gray-900">
                   {clients.filter((c) => c.is_verified).length}
                 </p>
               </CardContent>

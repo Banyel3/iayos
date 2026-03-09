@@ -4,7 +4,13 @@ import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Sidebar, useMainContentClass } from "../components";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +20,15 @@ import {
   Star,
   Flag,
   EyeOff,
-  TrendingUp,
-  MessageSquare,
-  ChevronLeft,
   ChevronRight,
+  ChevronLeft,
+  TrendingDown,
+  TrendingUp,
+  Building2,
+  CheckSquare,
+  Square,
+  Loader2,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -53,6 +64,9 @@ export default function ReviewsPage() {
   const [ratingFilter, setRatingFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [userTypeFilter, setUserTypeFilter] = useState("all");
+  const [selectedReviews, setSelectedReviews] = useState<Set<number>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 20,
@@ -128,6 +142,26 @@ export default function ReviewsPage() {
     );
   };
 
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedReviews(new Set());
+    } else {
+      setSelectedReviews(new Set(reviews.map((r) => r.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectReview = (reviewId: number) => {
+    const newSelected = new Set(selectedReviews);
+    if (newSelected.has(reviewId)) {
+      newSelected.delete(reviewId);
+    } else {
+      newSelected.add(reviewId);
+    }
+    setSelectedReviews(newSelected);
+    setSelectAll(newSelected.size === reviews.length);
+  };
+
   const flaggedCount = reviews.filter((r) => r.is_flagged).length;
   const hiddenCount = reviews.filter((r) => r.is_hidden).length;
   const avgRating =
@@ -192,33 +226,33 @@ export default function ReviewsPage() {
               </CardContent>
             </Card>
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-              <CardContent className="py-1.5 px-4">
+              <CardContent className="py-2.5 px-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="p-2 bg-yellow-100 rounded-lg"><Star className="h-5 w-5 text-yellow-600" /></div>
-                  <div className="h-1.5 w-1.5 bg-yellow-500 rounded-full"></div>
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Star className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Average Rating</p>
-                <p className="text-xl font-bold text-yellow-600">{avgRating}</p>
+                <p className="text-xl font-bold text-gray-900">{avgRating}</p>
               </CardContent>
             </Card>
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-              <CardContent className="py-1.5 px-4">
+              <CardContent className="py-2.5 px-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="p-2 bg-red-100 rounded-lg"><Flag className="h-5 w-5 text-red-600" /></div>
-                  <div className="h-1.5 w-1.5 bg-red-500 rounded-full"></div>
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Flag className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Flagged</p>
-                <p className="text-xl font-bold text-red-600">{flaggedCount}</p>
+                <p className="text-xl font-bold text-gray-900">{flaggedCount}</p>
               </CardContent>
             </Card>
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-              <CardContent className="py-1.5 px-4">
+              <CardContent className="py-2.5 px-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="p-2 bg-orange-100 rounded-lg"><EyeOff className="h-5 w-5 text-orange-600" /></div>
-                  <div className="h-1.5 w-1.5 bg-orange-500 rounded-full animate-pulse"></div>
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><EyeOff className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Hidden</p>
-                <p className="text-xl font-bold text-orange-600">{hiddenCount}</p>
+                <p className="text-xl font-bold text-gray-900">{hiddenCount}</p>
               </CardContent>
             </Card>
           </div>
@@ -267,80 +301,150 @@ export default function ReviewsPage() {
             </select>
           </div>
 
-          {/* Reviews List */}
-          <div className="space-y-4">
-            {reviews.length === 0 ? (
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-12 text-center">
-                  <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    No Reviews Found
-                  </h3>
-                  <p className="text-gray-600">
-                    Try adjusting your filters or search query
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              reviews.map((review) => (
-                <Card
-                  key={review.id}
-                  onClick={() => router.push(`/admin/reviews/${review.id}`)}
-                  className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer"
+          {/* Bulk Actions Bar */}
+          {selectedReviews.size > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 shadow-sm">
+              <span className="text-sm font-medium text-blue-900 ml-2">
+                {selectedReviews.size} review(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedReviews(new Set());
+                    setSelectAll(false);
+                  }}
+                  className="rounded-lg"
                 >
-                  <CardContent className="relative p-4 sm:p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 text-sm sm:text-base">
-                              {review.reviewer_name}
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Reviews Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Reviews List</CardTitle>
+              <CardDescription>
+                Overview of all reviews (Page {pagination.page} of {pagination.pages})
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border border-gray-200 rounded-md">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-2 text-left">
+                        <button
+                          onClick={handleSelectAll}
+                          className="flex items-center justify-center"
+                        >
+                          {selectAll ? (
+                            <CheckSquare className="h-4 w-4 text-blue-600" />
+                          ) : (
+                            <Square className="h-4 w-4 text-gray-400" />
+                          )}
+                        </button>
+                      </th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">#</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Reviewer / Reviewee</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Rating</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Comment</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Job / Date</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Status</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {reviews.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">No Reviews Found</h3>
+                          <p className="text-gray-500">Try adjusting your filters or search query</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      reviews.map((review, index) => (
+                        <tr
+                          key={review.id}
+                          className="border-t hover:bg-gray-50 transition-colors cursor-pointer group"
+                        >
+                          <td className="px-4 py-2" onClick={(e) => { e.stopPropagation(); handleSelectReview(review.id); }}>
+                            <button className="flex items-center justify-center">
+                              {selectedReviews.has(review.id) ? (
+                                <CheckSquare className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Square className="h-4 w-4 text-gray-400" />
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-4 py-2 text-sm" onClick={() => router.push(`/admin/reviews/${review.id}`)}>
+                            {(pagination.page - 1) * pagination.limit + index + 1}
+                          </td>
+                          <td className="px-4 py-2" onClick={() => router.push(`/admin/reviews/${review.id}`)}>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-gray-900">{review.reviewer_name}</span>
+                              <span className="text-xs text-gray-500">reviewed {review.reviewee_name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2" onClick={() => router.push(`/admin/reviews/${review.id}`)}>
+                            <div className="flex items-center gap-2">
+                              {renderStars(review.rating)}
+                              <span className="text-sm font-bold text-gray-900">
+                                {Number(review.rating).toFixed(1)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2" onClick={() => router.push(`/admin/reviews/${review.id}`)}>
+                            <p className="text-sm text-gray-600 line-clamp-1 max-w-[250px]">
+                              {review.comment}
                             </p>
-                            <p className="text-xs sm:text-sm text-gray-600">
-                              reviewed {review.reviewee_name}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            {review.is_flagged && (
-                              <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] sm:text-xs">
-                                Flagged
-                              </Badge>
-                            )}
-                            {review.is_hidden && (
-                              <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-[10px] sm:text-xs">
-                                Hidden
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          {renderStars(review.rating)}
-                          <span className="text-base sm:text-lg font-bold text-gray-900">
-                            {review.rating}.0
-                          </span>
-                        </div>
-
-                        <p className="text-gray-700 leading-relaxed line-clamp-2 text-sm sm:text-base">
-                          {review.comment}
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-sm text-gray-500">
-                          <span>Job: {review.job_title}</span>
-                          <span className="hidden sm:inline">•</span>
-                          <span>
-                            {new Date(review.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 mt-1" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+                          </td>
+                          <td className="px-4 py-2" onClick={() => router.push(`/admin/reviews/${review.id}`)}>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-gray-700 font-medium">Job: {review.job_title}</span>
+                              <span className="text-xs text-gray-400">
+                                {new Date(review.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2" onClick={() => router.push(`/admin/reviews/${review.id}`)}>
+                            <div className="flex gap-1.5">
+                              {review.is_flagged ? (
+                                <Badge className="bg-red-50 text-red-600 border-red-100 hover:bg-red-50 text-[10px] px-2 py-0.5 shadow-none">
+                                  Flagged
+                                </Badge>
+                              ) : review.is_hidden ? (
+                                <Badge className="bg-orange-50 text-orange-600 border-orange-100 hover:bg-orange-50 text-[10px] px-2 py-0.5 shadow-none">
+                                  Hidden
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-green-50 text-green-600 border-green-100 hover:bg-green-50 text-[10px] px-2 py-0.5 shadow-none">
+                                  Active
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); router.push(`/admin/reviews/${review.id}`); }}
+                            >
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Pagination */}
           {pagination.pages > 1 && (

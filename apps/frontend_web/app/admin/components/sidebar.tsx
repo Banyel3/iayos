@@ -630,7 +630,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       className={cn(
                         "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                         hasActiveChild
-                          ? "bg-blue-50 text-blue-600"
+                          ? "bg-sky-50 text-[#00BAF1]"
                           : "text-gray-700 hover:bg-gray-100",
                       )}
                     >
@@ -638,7 +638,7 @@ export default function Sidebar({ className }: SidebarProps) {
                         <Icon
                           className={cn(
                             "h-4 w-4",
-                            hasActiveChild ? "text-blue-600" : "text-gray-400",
+                            hasActiveChild ? "text-[#00BAF1]" : "text-gray-400",
                           )}
                         />
                         {showExpanded && (
@@ -677,7 +677,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       className={cn(
                         "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                         isItemActive
-                          ? "bg-blue-50 text-blue-600"
+                          ? "bg-sky-50 text-[#00BAF1]"
                           : "text-gray-700 hover:bg-gray-100",
                       )}
                     >
@@ -685,7 +685,7 @@ export default function Sidebar({ className }: SidebarProps) {
                         <Icon
                           className={cn(
                             "h-4 w-4",
-                            isItemActive ? "text-blue-600" : "text-gray-400",
+                            isItemActive ? "text-[#00BAF1]" : "text-gray-400",
                           )}
                         />
                         {showExpanded && (
@@ -724,7 +724,7 @@ export default function Sidebar({ className }: SidebarProps) {
                           className={cn(
                             "group flex items-center space-x-2 px-2 py-2 rounded-md text-sm transition-all duration-200 relative",
                             isChildActiveItem
-                              ? "bg-blue-50 text-blue-600 font-medium"
+                              ? "bg-sky-50 text-[#00BAF1] font-medium"
                               : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
                           )}
                           title={child.description || child.name}
@@ -733,7 +733,7 @@ export default function Sidebar({ className }: SidebarProps) {
                             className={cn(
                               "h-3.5 w-3.5 transition-colors",
                               isChildActiveItem
-                                ? "text-blue-600"
+                                ? "text-[#00BAF1]"
                                 : "text-gray-400 group-hover:text-gray-600",
                             )}
                           />

@@ -315,100 +315,68 @@ export default function AgencyPage() {
       <Sidebar />
       <main className={mainClass}>
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 p-5 md:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <Building2 className="h-6 w-6 md:h-8 md:w-8" />
-                    <h1 className="text-2xl md:text-4xl font-bold">Agency Management</h1>
-                  </div>
-                  <p className="text-purple-100 text-sm md:text-lg">
-                    Manage all agencies and their employee networks
-                  </p>
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Agency Management</h1>
                 </div>
-                <Button
-                  onClick={handleExport}
-                  className="bg-white hover:bg-white/30 border-0 backdrop-blur-sm w-fit"
-                >
-                  <Download className="mr-2 h-5 w-5" />
-                  Export Agencies
-                </Button>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Manage all agencies and their employee networks
+                </p>
               </div>
+              <Button
+                onClick={handleExport}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Export Agencies
+              </Button>
             </div>
           </div>
 
-          {/* Modern Summary Cards with gradients */}
-          <div className="grid grid-cols-4 md:grid-cols-4 gap-3 md:gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-blue-100 rounded-xl mx-auto md:mx-0">
-                    <Building2 className="h-4 w-4 md:h-6 md:w-6 text-blue-600" />
-                  </div>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Building2 className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Total Agencies
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-gray-900">
-                  {totalAgencies}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Registered agencies</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Agencies</p>
+                <p className="text-xl font-bold text-gray-900">{totalAgencies}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-emerald-100 rounded-xl mx-auto md:mx-0">
-                    <Building2 className="h-4 w-4 md:h-6 md:w-6 text-emerald-600" />
-                  </div>
-                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse absolute top-3 right-3 md:static"></div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Building2 className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Active Now
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-emerald-600">
-                  {activeAgencies}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Currently operating</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Active Now</p>
+                <p className="text-xl font-bold text-gray-900">{activeAgencies}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-purple-100 rounded-xl mx-auto md:mx-0">
-                    <Users className="h-4 w-4 md:h-6 md:w-6 text-purple-600" />
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Users className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Workers
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-purple-600">
-                  {totalWorkers}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Across all agencies</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Workers</p>
+                <p className="text-xl font-bold text-gray-900">{totalWorkers}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-yellow-100 rounded-xl mx-auto md:mx-0">
-                    <Briefcase className="h-4 w-4 md:h-6 md:w-6 text-yellow-600" />
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Briefcase className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Total Jobs:
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-yellow-600">
-                  {totalJobs}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">All agency jobs</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Jobs</p>
+                <p className="text-xl font-bold text-gray-900">{totalJobs}</p>
               </CardContent>
             </Card>
           </div>
@@ -636,8 +604,8 @@ export default function AgencyPage() {
                               </td>
                               <td className="px-4 py-2 text-sm space-x-2">
                                 <Button
-                                  variant="outline"
                                   size="sm"
+                                  className="bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all"
                                   onClick={() =>
                                     router.push(
                                       `/admin/users/agency/${agency.account_id}`,

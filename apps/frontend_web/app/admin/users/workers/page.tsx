@@ -347,7 +347,7 @@ export default function WorkersPage() {
                   <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Active Now</p>
-                <p className="text-xl font-bold text-[#00BAF1]">{activeWorkers}</p>
+                <p className="text-xl font-bold text-gray-900">{activeWorkers}</p>
               </CardContent>
             </Card>
 
@@ -358,7 +358,7 @@ export default function WorkersPage() {
                   <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Verified Workers</p>
-                <p className="text-xl font-bold text-[#00BAF1]">
+                <p className="text-xl font-bold text-gray-900">
                   {workers.filter((w) => w.is_verified).length}
                 </p>
               </CardContent>
@@ -370,7 +370,7 @@ export default function WorkersPage() {
                   <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Briefcase className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
                 <p className="text-xs font-medium text-gray-500 mb-0.5">Total Jobs Done</p>
-                <p className="text-xl font-bold text-[#00BAF1]">{totalCompletedJobs}</p>
+                <p className="text-xl font-bold text-gray-900">{totalCompletedJobs}</p>
               </CardContent>
             </Card>
           </div>
@@ -627,8 +627,8 @@ export default function WorkersPage() {
                             </td>
                             <td className="px-4 py-2 text-sm space-x-2">
                               <Button
-                                variant="outline"
                                 size="sm"
+                                className="bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all"
                                 onClick={() =>
                                   router.push(
                                     `/admin/users/workers/${worker.id}`,

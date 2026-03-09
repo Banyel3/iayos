@@ -10,14 +10,21 @@ import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle,
   Search,
-  Eye,
-  Ban,
-  UserX,
+  Download,
+  Calendar,
+  Loader2,
   AlertCircle,
   Clock,
   CheckCircle,
   XCircle,
   ChevronRight,
+  ChevronLeft,
+  UserX,
+  Ban,
+  Eye,
+  TrendingUp,
+  ShieldAlert,
+  FileText
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../components";
 import { toast } from "sonner";
@@ -106,6 +113,17 @@ export default function UserReportsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalReports, setTotalReports] = useState(0);
+
+  // Bulk selection state
+  const [selectedReports, setSelectedReports] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectAll, setSelectAll] = useState(false);
+
   // Action forms
   const [adminNotes, setAdminNotes] = useState("");
   const [warningMessage, setWarningMessage] = useState("");
@@ -113,16 +131,16 @@ export default function UserReportsPage() {
   const [suspendReason, setSuspendReason] = useState("");
   const [banReason, setBanReason] = useState("");
 
-  useEffect(() => {
-    fetchReports();
-  }, [statusFilter, typeFilter]);
-
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        page_size: "15",
+      });
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (typeFilter !== "all") params.append("type", typeFilter);
+      if (searchTerm) params.append("search", searchTerm);
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/reports?${params.toString()}`,
@@ -132,12 +150,87 @@ export default function UserReportsPage() {
 
       if (data.success) {
         setReports(data.reports);
+        setTotalReports(data.total || data.reports.length);
+        setTotalPages(data.total_pages || 1);
       }
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchReports();
+    setSelectedReports(new Set());
+    setSelectAll(false);
+  }, [currentPage, statusFilter, typeFilter]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage === 1) {
+        fetchReports();
+      } else {
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedReports(new Set());
+    } else {
+      setSelectedReports(new Set(reports.map((r) => r.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectReport = (reportId: string) => {
+    const newSelected = new Set(selectedReports);
+    if (newSelected.has(reportId)) {
+      newSelected.delete(reportId);
+    } else {
+      newSelected.add(reportId);
+    }
+    setSelectedReports(newSelected);
+    setSelectAll(newSelected.size === reports.length);
+  };
+
+  const handleExport = () => {
+    const headers = [
+      "ID",
+      "Reporter",
+      "Reported User",
+      "Type",
+      "Reason",
+      "Status",
+      "Date",
+    ];
+    const rows = reports.map((r) => [
+      r.id,
+      r.reporter_name,
+      r.reported_user_name,
+      r.reported_content_type,
+      r.reason,
+      r.status,
+      r.created_at,
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reports_export_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleViewDetail = async (reportId: string) => {
@@ -262,359 +355,331 @@ export default function UserReportsPage() {
     }
   };
 
-  const filteredReports = reports.filter((report) => {
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      return (
-        report.reporter_name.toLowerCase().includes(search) ||
-        report.reported_user_name.toLowerCase().includes(search) ||
-        report.description.toLowerCase().includes(search)
-      );
-    }
-    return true;
-  });
+  const stats = {
+    total: totalReports,
+    pending: reports.filter(r => r.status === 'pending').length,
+    resolved: reports.filter(r => r.status === 'resolved').length,
+    highRisk: reports.filter(r => r.reported_user_total_reports > 3).length
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-[1600px] mx-auto space-y-8">
-          {/* Modern Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-pink-700 p-4 sm:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="text-center sm:text-left">
-                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
-                    </div>
-                    <h1 className="text-2xl sm:text-4xl font-bold">
-                      User Reports
-                    </h1>
-                  </div>
-                  <p className="text-red-100 text-sm sm:text-lg">
-                    Review and moderate reported content and users
-                  </p>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">User Reports</h1>
                 </div>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Review and moderate reported content and users
+                </p>
               </div>
+              <Button
+                onClick={handleExport}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Export Reports
+              </Button>
             </div>
           </div>
 
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><FileText className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Reports</p>
+                <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><AlertCircle className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Review</p>
+                <p className="text-xl font-bold text-gray-900">{stats.pending}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><CheckCircle className="h-5 w-5 text-[#00BAF1]" /></div>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Resolved</p>
+                <p className="text-xl font-bold text-gray-900">{stats.resolved}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><ShieldAlert className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-red-600 rounded-full"></div>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">High Risk Users</p>
+                <p className="text-xl font-bold text-gray-900">{stats.highRisk}</p>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Filters */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-4 sm:p-6">
-              <div className="space-y-6">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search by reporter, reported user, or reason..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11 border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 rounded-xl text-sm"
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">
-                      Status
-                    </p>
-                    <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
-                      {[
-                        "all",
-                        "pending",
-                        "investigating",
-                        "resolved",
-                        "dismissed",
-                      ].map((status) => (
-                        <Button
-                          key={status}
-                          variant={
-                            statusFilter === status ? "default" : "outline"
-                          }
-                          size="sm"
-                          className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${statusFilter === status ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
-                          onClick={() => setStatusFilter(status)}
-                        >
-                          {status === "all"
-                            ? "All"
-                            : STATUS_CONFIG[
-                                status as keyof typeof STATUS_CONFIG
-                              ]?.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 leading-none">
-                      Type
-                    </p>
-                    <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
-                      {["all", "user", "job", "review", "message"].map(
-                        (type) => (
-                          <Button
-                            key={type}
-                            variant={
-                              typeFilter === type ? "default" : "outline"
-                            }
-                            size="sm"
-                            className={`whitespace-nowrap px-4 h-9 rounded-xl font-bold ${typeFilter === type ? "bg-red-600 text-white shadow-md shadow-red-100" : "text-gray-600 hover:bg-red-50 hover:text-red-600 border-2"}`}
-                            onClick={() => setTypeFilter(type)}
-                          >
-                            {type.charAt(0).toUpperCase() + type.slice(1)}{" "}
-                            Report
-                          </Button>
-                        ),
-                      )}
-                    </div>
-                  </div>
-                </div>
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative group">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-sky-500 transition-colors" />
+                <Input
+                  placeholder="Search by reporter, reported user, or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Status</option>
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key}>{config.label}</option>
+                ))}
+              </select>
+              <select
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Types</option>
+                <option value="user">User Report</option>
+                <option value="job">Job Report</option>
+                <option value="review">Review Report</option>
+                <option value="message">Message Report</option>
+              </select>
+            </div>
+          </div>
 
-          {/* Reports Table / Cards */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <CardContent className="p-0">
-              {/* Desktop View */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Report ID
-                      </th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Reporter
-                      </th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Reported User
-                      </th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Type & Reason
-                      </th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Description
-                      </th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Date
-                      </th>
-                      <th className="px-6 py-4 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-50">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-12 text-center">
-                          <AlertTriangle className="h-8 w-8 text-red-500 animate-pulse mx-auto mb-3" />
-                          <p className="text-gray-500 font-bold tracking-tight">
-                            Syncing reports...
-                          </p>
-                        </td>
-                      </tr>
-                    ) : filteredReports.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-20 text-center">
-                          <div className="max-w-md mx-auto flex flex-col items-center gap-3">
-                            <div className="p-4 bg-gray-50 rounded-full">
-                              <AlertTriangle className="h-8 w-8 text-gray-300" />
-                            </div>
-                            <p className="text-lg font-bold text-gray-900 leading-tight">
-                              No reports match your filters
-                            </p>
-                            <p className="text-sm text-gray-500 leading-relaxed font-medium">
-                              Try broadening your search criteria or resetting
-                              filters.
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredReports.map((report) => (
-                        <tr
-                          key={report.id}
-                          className="hover:bg-red-50/30 transition-colors group cursor-pointer"
-                          onClick={() => handleViewDetail(report.id)}
-                        >
-                          <td className="px-6 py-4 text-sm font-black text-gray-400">
-                            #{report.id}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
-                                {report.reporter_name}
-                              </span>
-                              {report.reporter_total_reports > 1 && (
-                                <span className="text-[10px] text-gray-400 font-bold tracking-tight">
-                                  {report.reporter_total_reports} reports
-                                  submitted
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
-                                {report.reported_user_name}
-                              </span>
-                              {report.reported_user_total_reports > 3 && (
-                                <span className="text-[10px] text-red-600 font-black tracking-tight uppercase">
-                                  {report.reported_user_total_reports} times
-                                  reported
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-1.5">
-                              <Badge
-                                className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}
-                              >
-                                {report.reported_content_type}
-                              </Badge>
-                              <Badge
-                                className={`${REASON_CONFIG[report.reason]?.color} border-0 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider w-fit h-4`}
-                              >
-                                {report.reason}
-                              </Badge>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p
-                              className="text-xs text-gray-500 font-medium leading-relaxed max-w-xs truncate"
-                              title={report.description}
-                            >
-                              {report.description}
-                            </p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              className={`${STATUS_CONFIG[report.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit h-5 uppercase text-[9px] tracking-widest`}
-                            >
-                              {(() => {
-                                const Icon = STATUS_CONFIG[report.status].icon;
-                                return <Icon className="h-2.5 w-2.5" />;
-                              })()}
-                              {STATUS_CONFIG[report.status].label}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-[11px] font-bold text-gray-500 tracking-tight">
-                            {new Date(report.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex justify-center">
-                              <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-red-600 group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm">
-                                <Eye className="h-4 w-4" />
-                              </div>
-                            </div>
-                          </td>
+          {/* Bulk Actions Bar */}
+          {selectedReports.size > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-3 shadow-sm">
+              <span className="text-sm font-medium text-blue-900 ml-2">
+                {selectedReports.size} report(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedReports(new Set());
+                    setSelectAll(false);
+                  }}
+                  className="rounded-lg"
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Reports List */}
+          <Card>
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Reports List</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Overview of all moderation reports (Page {currentPage} of {totalPages})
+              </p>
+            </div>
+            <CardContent>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="h-10 w-10 text-[#00BAF1] animate-spin" />
+                  <p className="text-gray-500 font-medium">Fetching reports...</p>
+                </div>
+              ) : reports.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                  <div className="p-4 bg-gray-50 rounded-full">
+                    <AlertTriangle className="h-10 w-10 text-gray-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">No reports found</h3>
+                    <p className="text-gray-500 max-w-sm mx-auto">
+                      No reports match your current filters. Try adjusting your search or filters.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50/50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-6 py-4 text-left w-12">
+                            <input
+                              type="checkbox"
+                              className="rounded-md border-gray-300 text-[#00BAF1] focus:ring-[#00BAF1]"
+                              checked={selectAll}
+                              onChange={handleSelectAll}
+                            />
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            ID
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Users
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Type & Reason
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Description
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Status
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Date
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Action
+                          </th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile View */}
-              <div className="lg:hidden divide-y divide-gray-100">
-                {loading ? (
-                  <div className="p-12 text-center">
-                    <AlertTriangle className="h-8 w-8 text-red-500 animate-pulse mx-auto mb-3" />
-                    <p className="text-sm font-bold text-gray-500 tracking-tight">
-                      Loading reports...
-                    </p>
-                  </div>
-                ) : filteredReports.length === 0 ? (
-                  <div className="p-12 text-center">
-                    <AlertTriangle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-base font-bold text-gray-900 mb-1">
-                      No reports found
-                    </p>
-                    <p className="text-xs text-gray-500 font-bold">
-                      Try different filter settings
-                    </p>
-                  </div>
-                ) : (
-                  filteredReports.map((report) => (
-                    <div
-                      key={report.id}
-                      className="p-4 bg-white active:bg-red-50 transition-colors"
-                      onClick={() => handleViewDetail(report.id)}
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {reports.map((report) => (
+                          <tr
+                            key={report.id}
+                            className="hover:bg-gray-50 transition-colors group"
+                          >
+                            <td className="px-6 py-4">
+                              <input
+                                type="checkbox"
+                                className="rounded-md border-gray-300 text-[#00BAF1] focus:ring-[#00BAF1]"
+                                checked={selectedReports.has(report.id)}
+                                onChange={() => handleSelectReport(report.id)}
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-500">
                               #{report.id}
-                            </span>
-                            <Badge
-                              className={`${STATUS_CONFIG[report.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase tracking-widest flex items-center gap-1`}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-400">By:</span>
+                                  <span className="text-sm font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">{report.reporter_name}</span>
+                                </div>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-xs text-gray-400">Against:</span>
+                                  <span className="text-sm font-bold text-gray-700">{report.reported_user_name}</span>
+                                  {report.reported_user_total_reports > 3 && (
+                                    <Badge className="bg-red-100 text-red-600 border-0 text-[10px] px-1 py-0 shadow-none">High Risk</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1">
+                                <Badge className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-bold text-[10px] px-1.5 py-0 shadow-none w-fit`}>
+                                  {report.reported_content_type.toUpperCase()}
+                                </Badge>
+                                <Badge className={`${REASON_CONFIG[report.reason]?.color || "bg-gray-100 text-gray-600"} border-0 font-bold text-[10px] px-1.5 py-0 shadow-none w-fit`}>
+                                  {report.reason.toUpperCase()}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="text-xs text-gray-500 line-clamp-2 max-w-xs">{report.description}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge className={`${STATUS_CONFIG[report.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit shadow-none text-[10px]`}>
+                                {(() => {
+                                  const Icon = STATUS_CONFIG[report.status].icon;
+                                  return <Icon className="h-3 w-3" />;
+                                })()}
+                                {STATUS_CONFIG[report.status].label}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-bold text-gray-500 tracking-tight">
+                              {new Date(report.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewDetail(report.id)}
+                                className="rounded-lg hover:border-[#00BAF1] hover:text-[#00BAF1]"
+                              >
+                                View
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col items-center gap-4 py-8 border-t border-gray-100">
+                      <p className="text-sm text-gray-500">
+                        Showing <span className="font-semibold text-gray-700">{reports.length}</span> of <span className="font-semibold text-gray-700">{totalReports}</span> reports
+                      </p>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                          if (totalPages > 7) {
+                            if (p !== 1 && p !== totalPages && Math.abs(p - currentPage) > 1) {
+                              if (p === 2 || p === totalPages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                              return null;
+                            }
+                          }
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => setCurrentPage(p)}
+                              className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === currentPage ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
                             >
-                              {(() => {
-                                const Icon = STATUS_CONFIG[report.status].icon;
-                                return <Icon className="h-2 w-2" />;
-                              })()}
-                              {STATUS_CONFIG[report.status].label}
-                            </Badge>
-                          </div>
-                          <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                            Report against {report.reported_user_name}
-                          </h3>
-                        </div>
-                        <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400">
-                          <ChevronRight className="h-4 w-4" />
-                        </div>
-                      </div>
+                              {p}
+                            </button>
+                          );
+                        })}
 
-                      <div className="flex flex-wrap items-center gap-2 mb-4">
-                        <Badge
-                          className={`${CONTENT_TYPE_CONFIG[report.reported_content_type]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}
+                        <button
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
                         >
-                          {report.reported_content_type}
-                        </Badge>
-                        <Badge
-                          className={`${REASON_CONFIG[report.reason]?.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}
-                        >
-                          {report.reason}
-                        </Badge>
-                        {report.reported_user_total_reports > 3 && (
-                          <Badge className="bg-red-600 text-white border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider">
-                            High Risk!
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="p-3 bg-gray-50 rounded-xl mb-4 border border-gray-100">
-                        <p className="text-xs text-gray-600 font-medium leading-relaxed line-clamp-2 italic">
-                          "{report.description}"
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 tracking-tight uppercase">
-                          <Clock className="h-3 w-3" />
-                          {new Date(report.created_at).toLocaleDateString()}
-                        </div>
-                        <div className="text-[10px] font-bold text-gray-400">
-                          By{" "}
-                          <span className="text-gray-900">
-                            {report.reporter_name}
-                          </span>
-                        </div>
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -87,73 +87,55 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-          {/* Modern Header with Gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-600 via-gray-700 to-zinc-700 p-6 sm:p-8 text-white shadow-xl mx-0 sm:mx-0">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                <div className="text-center sm:text-left">
-                  <div className="flex flex-col sm:flex-row items-center gap-3 mb-2">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <Settings className="h-6 w-6 sm:h-8 sm:w-8" />
-                    </div>
-                    <h1 className="text-2xl sm:text-4xl font-black uppercase tracking-tight">
-                      Settings Hub
-                    </h1>
-                  </div>
-                  <p className="text-slate-100 text-sm sm:text-lg max-w-2xl font-medium opacity-90">
-                    Manage platform protocols, encryption keys, and node configurations
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg backdrop-blur-sm shrink-0 border border-white/10">
-                  <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-300" />
-                  <span className="text-xs sm:text-sm font-black uppercase tracking-widest">6 Active Nodes</span>
-                </div>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100 group-hover:border-[#00BAF1] transition-all">
+                <Settings className="h-6 w-6 sm:h-8 sm:w-8 text-[#00BAF1]" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settings Hub</h1>
+                <p className="text-gray-500 text-sm sm:text-base mt-1">
+                  Manage platform protocols, system configurations, and security settings
+                </p>
               </div>
             </div>
           </div>
 
           {/* Settings Modules Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {settingsModules.map((module, index) => (
               <Card
                 key={index}
-                className="border-0 shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
+                className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer group"
                 onClick={() => router.push(module.route)}
               >
-                <CardContent className="p-5 sm:p-6 relative text-center sm:text-left">
+                <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 ${module.iconBg} rounded-xl mx-auto sm:mx-0`}>
-                      <module.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${module.iconColor}`} />
+                    <div className="p-3 bg-sky-50 rounded-xl group-hover:bg-[#00BAF1] transition-colors">
+                      <module.icon className="h-6 w-6 text-[#00BAF1] group-hover:text-white transition-colors" />
                     </div>
-                    <ChevronRight className="h-5 w-5 text-gray-400 hidden sm:block" />
+                    <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-[#00BAF1] group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm">
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
                   </div>
 
-                  <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-2 uppercase tracking-tight">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-[#00BAF1] transition-colors">
                     {module.title}
                   </h3>
 
-                  <p className="text-xs sm:text-sm text-gray-600 mb-4 leading-relaxed">
+                  <p className="text-sm text-gray-500 mb-6 leading-relaxed">
                     {module.description}
                   </p>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500 bg-gray-100 px-2.5 py-1 rounded">
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#00BAF1] bg-sky-50 px-2 py-1 rounded">
                       {module.stats}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(module.route);
-                      }}
-                    >
-                      Configure
-                    </Button>
+                    <span className="text-xs font-bold text-[#00BAF1] hover:underline">
+                      Configure Settings
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -161,51 +143,39 @@ export default function SettingsPage() {
           </div>
 
           {/* Quick Info Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100/50">
-              <CardContent className="p-5 sm:p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 sm:p-3 bg-blue-600 rounded-lg shrink-0">
-                    <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">
-                      Security Node
-                    </p>
-                    <p className="text-lg sm:text-2xl font-black text-gray-900 uppercase tracking-tight">Active</p>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="py-4 px-6 flex items-center gap-4">
+                <div className="p-3 bg-sky-50 rounded-xl">
+                  <Shield className="h-6 w-6 text-[#00BAF1]" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5 uppercase tracking-wider">System Security</p>
+                  <p className="text-xl font-bold text-gray-900">Protected</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100/50">
-              <CardContent className="p-5 sm:p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 sm:p-3 bg-green-600 rounded-lg shrink-0">
-                    <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">
-                      Payment Nodes
-                    </p>
-                    <p className="text-lg sm:text-2xl font-black text-gray-900 uppercase tracking-tight">3 Active</p>
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="py-4 px-6 flex items-center gap-4">
+                <div className="p-3 bg-sky-50 rounded-xl">
+                  <Zap className="h-6 w-6 text-[#00BAF1]" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5 uppercase tracking-wider">Node Status</p>
+                  <p className="text-xl font-bold text-gray-900">All Online</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100/50">
-              <CardContent className="p-5 sm:p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 sm:p-3 bg-purple-600 rounded-lg shrink-0">
-                    <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">
-                      Core Status
-                    </p>
-                    <p className="text-lg sm:text-2xl font-black text-gray-900 uppercase tracking-tight">Healthy</p>
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="py-4 px-6 flex items-center gap-4">
+                <div className="p-3 bg-sky-50 rounded-xl">
+                  <FileText className="h-6 w-6 text-[#00BAF1]" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5 uppercase tracking-wider">Log Status</p>
+                  <p className="text-xl font-bold text-gray-900">Recording</p>
                 </div>
               </CardContent>
             </Card>
@@ -213,5 +183,6 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+
   );
 }

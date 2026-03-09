@@ -625,10 +625,9 @@ export default function ApprovedKYCPage() {
 
                       {/* Action Button */}
                       <Button
-                        variant="outline"
                         size="sm"
                         onClick={() => toggleExpanded(record)}
-                        className="self-start sm:self-auto"
+                        className="self-start sm:self-auto bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all"
                       >
                         {expandedRecords[record.id] ? (
                           <>

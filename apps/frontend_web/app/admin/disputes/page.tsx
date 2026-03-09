@@ -113,6 +113,7 @@ export default function DisputesPage() {
                 url += `&status=${mappedStatus}`;
             }
             if (priorityFilter !== "all") url += `&priority=${priorityFilter.toUpperCase()}`;
+            if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
             const response = await fetch(url, { credentials: "include" });
             const data = await response.json();
             if (data.success) {
@@ -126,16 +127,20 @@ export default function DisputesPage() {
         }
     };
 
-    const filteredJobs = backjobs.filter((job) => {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch =
-            job.job_title.toLowerCase().includes(query) ||
-            job.reason.toLowerCase().includes(query) ||
-            job.description.toLowerCase().includes(query) ||
-            job.client.name.toLowerCase().includes(query) ||
-            (job.worker?.name.toLowerCase().includes(query) ?? false);
-        return matchesSearch;
-    });
+    // Debounce search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (page === 1) {
+                fetchDisputes();
+            } else {
+                setPage(1);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    const filteredJobs = backjobs; // Removed client-side filtering since we added server-side search
 
     const getStatusBadge = (status: string) => {
         switch (status.toLowerCase()) {
@@ -226,8 +231,8 @@ export default function DisputesPage() {
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                                 <CardContent className="py-1.5 px-4">
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="p-2 bg-yellow-100 rounded-lg"><Clock className="h-5 w-5 text-yellow-600" /></div>
-                                        <div className="h-1.5 w-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
+                                        <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
+                                        <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Review</p>
                                     <p className="text-xl font-bold text-gray-900">{stats.open_disputes}</p>
@@ -246,8 +251,8 @@ export default function DisputesPage() {
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                                 <CardContent className="py-1.5 px-4">
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="p-2 bg-green-100 rounded-lg"><CheckCircle className="h-5 w-5 text-green-600" /></div>
-                                        <div className="h-1.5 w-1.5 bg-green-500 rounded-full opacity-50"></div>
+                                        <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><CheckCircle className="h-5 w-5 text-[#00BAF1]" /></div>
+                                        <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Approved</p>
                                     <p className="text-xl font-bold text-gray-900">{stats.resolved_disputes}</p>
@@ -256,8 +261,8 @@ export default function DisputesPage() {
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                                 <CardContent className="py-1.5 px-4">
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="p-2 bg-red-100 rounded-lg"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
-                                        <div className="h-1.5 w-1.5 bg-red-500 rounded-full opacity-50"></div>
+                                        <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><AlertTriangle className="h-5 w-5 text-[#00BAF1]" /></div>
+                                        <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Urgent</p>
                                     <p className="text-xl font-bold text-gray-900">{stats.critical_disputes}</p>
@@ -315,7 +320,7 @@ export default function DisputesPage() {
                                         <div className="flex-1 space-y-4">
                                             <div className="space-y-3">
                                                 <div className="flex items-start gap-3 flex-wrap">
-                                                    <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                                    <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
                                                         {job.job_title}
                                                     </h3>
                                                     {getStatusBadge(job.status)}
@@ -384,7 +389,7 @@ export default function DisputesPage() {
 
                                         <div className="flex md:flex-col gap-2 sm:gap-3">
                                             <Link href={`/admin/disputes/${job.dispute_id}`}>
-                                                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all">
+                                                <Button size="sm" className="w-full bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all">
                                                     <Eye className="h-4 w-4 mr-2" />
                                                     Review
                                                 </Button>
