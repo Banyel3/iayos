@@ -21,6 +21,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional
 import os
+import re
 from django.conf import settings
 
 router = Router()
@@ -64,6 +65,11 @@ def get_effective_work_date(job: Job):
         return base_date
 
     return base_date + timedelta(days=day_offset)
+
+
+def _has_meaningful_text(value: str) -> bool:
+    """Require at least one alphabetic character to reject numeric/symbol-only payloads."""
+    return bool(re.search(r"[A-Za-z]", value or ""))
 
 
 def broadcast_job_status_update(job_id, update_data):
@@ -5884,8 +5890,12 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         # Validate inputs
         if len(reason) < 10:
             return Response({"error": "Reason must be at least 10 characters"}, status=400)
+        if not _has_meaningful_text(reason):
+            return Response({"error": "Reason must include meaningful text, not just numbers or symbols"}, status=400)
         if len(description) < 50:
             return Response({"error": "Description must be at least 50 characters"}, status=400)
+        if not _has_meaningful_text(description):
+            return Response({"error": "Description must include meaningful text, not just numbers or symbols"}, status=400)
         
         with db_transaction.atomic():
             # Create the dispute/backjob request
@@ -6100,6 +6110,12 @@ def request_backjob_renegotiation(request, job_id: int):
         except Exception:
             note = ""
 
+        if note:
+            if len(note) < 10:
+                return Response({"error": "Re-negotiation reason must be at least 10 characters"}, status=400)
+            if not _has_meaningful_text(note):
+                return Response({"error": "Re-negotiation reason must include meaningful text, not just numbers or symbols"}, status=400)
+
         try:
             job = Job.objects.select_related(
                 'clientID__profileID__accountFK',
@@ -6261,6 +6277,23 @@ def confirm_backjob_started(request, job_id: int):
         if dispute.backjobStarted:
             print(f"   ❌ Backjob already confirmed as started at {dispute.backjobStartedAt}")
             return Response({"error": "Backjob work has already been confirmed as started"}, status=400)
+
+        # Require an agreed schedule before allowing work-start confirmation.
+        if not dispute.scheduled_date:
+            return Response(
+                {"error": "Backjob start cannot be confirmed until admin sets a scheduled date"},
+                status=400,
+            )
+
+        today = timezone.now().date()
+        if today < dispute.scheduled_date:
+            return Response(
+                {
+                    "error": "Backjob can only be confirmed on or after the scheduled date",
+                    "scheduled_date": dispute.scheduled_date.isoformat(),
+                },
+                status=400,
+            )
         
         # Confirm backjob work has started
         dispute.backjobStarted = True

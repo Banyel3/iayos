@@ -1037,22 +1037,21 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert(
-      "Accept Team Application",
-      `Assign ${workerName} to this team job?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          style: "default",
-          onPress: () =>
-            acceptTeamApplication.mutate({
-              jobId: parseInt(id),
-              applicationId,
-            }),
-        },
-      ],
-    );
+    setCountdownConfig({
+      visible: true,
+      title: "Accept Team Application",
+      message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
+      confirmLabel: "Accept",
+      confirmStyle: "default",
+      countdownSeconds: 6,
+      onConfirm: () =>
+        acceptTeamApplication.mutate({
+          jobId: parseInt(id),
+          applicationId,
+        }),
+      icon: "checkmark-circle",
+      iconColor: Colors.success,
+    });
   };
 
   const handleRejectTeamApplication = (

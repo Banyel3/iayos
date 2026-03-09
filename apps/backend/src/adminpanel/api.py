@@ -1518,9 +1518,11 @@ def approve_backjob(request, dispute_id: int):
     from accounts.models import JobDispute, Notification, Agency, JobLog
     
     try:
+        import datetime
         body = json.loads(request.body.decode('utf-8')) if request.body else {}
         admin_notes = body.get('notes', '')
         priority = body.get('priority', 'MEDIUM')
+        scheduled_date_raw = (body.get('scheduled_date') or '').strip()
         
         dispute = JobDispute.objects.select_related(
             'jobID',
@@ -1531,6 +1533,27 @@ def approve_backjob(request, dispute_id: int):
         
         if dispute.status not in ('OPEN', 'IN_NEGOTIATION'):
             return {"success": False, "error": "This backjob has already been processed"}
+
+        if dispute.status == 'OPEN':
+            if not scheduled_date_raw:
+                return {
+                    "success": False,
+                    "error": "scheduled_date is required when approving directly from OPEN status",
+                }
+            try:
+                scheduled_date = datetime.date.fromisoformat(scheduled_date_raw)
+            except ValueError:
+                return {"success": False, "error": "Invalid scheduled_date format. Use YYYY-MM-DD"}
+
+            if scheduled_date < timezone.now().date():
+                return {"success": False, "error": "scheduled_date cannot be in the past"}
+        else:
+            scheduled_date = dispute.scheduled_date
+            if not scheduled_date:
+                return {
+                    "success": False,
+                    "error": "Set a scheduled date first before approving from IN_NEGOTIATION",
+                }
         
         # Store before state for audit
         before_state = {"status": dispute.status, "priority": dispute.priority}
@@ -1545,6 +1568,7 @@ def approve_backjob(request, dispute_id: int):
                 # Update dispute status and priority
                 dispute.status = 'UNDER_REVIEW'
                 dispute.priority = priority
+                dispute.scheduled_date = scheduled_date
                 if admin_notes:
                     dispute.resolution = f"Admin notes: {admin_notes}"
                 dispute.save()

@@ -34,7 +34,7 @@ export function useConfirmWorkStarted() {
       });
 
       // Invalidate messages to refetch with updated job status
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -82,7 +82,7 @@ export function useConfirmTeamWorkerArrival() {
       });
 
       // Invalidate messages to refetch with updated arrival status
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
     },
     onError: (error: Error) => {
@@ -132,7 +132,7 @@ export function useMarkTeamAssignmentComplete() {
       });
 
       // Invalidate messages to refetch with updated completion status
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -195,7 +195,7 @@ export function useApproveTeamJobCompletion() {
       });
 
       // Invalidate messages to refetch with updated approval status
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -245,7 +245,7 @@ export function useMarkComplete() {
         text2: "Waiting for client approval",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -322,7 +322,7 @@ export function useApproveCompletion() {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
@@ -366,7 +366,7 @@ export function useDispatchProjectEmployee() {
         text1: "Employee Dispatched",
         text2: `${data.employee_name} is on the way`,
       });
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -402,7 +402,7 @@ export function useConfirmProjectArrival() {
         text1: "Arrival Confirmed",
         text2: `${data.employee_name} is now on site`,
       });
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -441,7 +441,7 @@ export function useAgencyMarkProjectComplete() {
         text1: "Work Marked Complete",
         text2: data.all_complete ? "All employees complete! Waiting for client approval" : `${data.employee_name}'s work marked complete`,
       });
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -506,7 +506,7 @@ export function useApproveAgencyProjectEmployee() {
         text2: msg,
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
@@ -576,7 +576,7 @@ export function useApproveAgencyProjectJob() {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },

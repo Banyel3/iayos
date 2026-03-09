@@ -377,6 +377,10 @@ export default function ChatScreen() {
     !!scheduledBackjobDate &&
     !conversation?.backjob?.backjob_started &&
     todayLocal < scheduledBackjobDate;
+  const isBackjobScheduleMissing =
+    !!hasApprovedBackjob &&
+    !scheduledBackjobDate &&
+    !conversation?.backjob?.backjob_started;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -5482,7 +5486,45 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-                {!isBackjobScheduledForFuture && (
+                {isBackjobScheduleMissing && (
+                  <View style={styles.backjobScheduledNoticeCard}>
+                    <View style={styles.backjobScheduledNoticeHeader}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.backjobScheduledNoticeTitle}>
+                        Backjob schedule pending
+                      </Text>
+                    </View>
+                    <Text style={styles.backjobScheduledNoticeText}>
+                      Admin needs to set a scheduled date before start confirmation is allowed.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.backjobRenegotiateButton}
+                      onPress={handleRequestBackjobRenegotiation}
+                      disabled={requestBackjobRenegotiationMutation.isPending}
+                    >
+                      {requestBackjobRenegotiationMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="refresh-circle"
+                            size={15}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.backjobRenegotiateButtonText}>
+                            Request Schedule Update
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!isBackjobScheduledForFuture && !isBackjobScheduleMissing && (
                   <>
                 {/* CLIENT: Confirm Backjob Started Button */}
                 {conversation.my_role === "CLIENT" &&

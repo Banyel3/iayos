@@ -258,10 +258,16 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
             assignment_status__in=['ACTIVE', 'COMPLETED']
         ).count()
         
+        specialization_name = (
+            slot.specializationID.specializationName
+            if slot.specializationID
+            else "Unknown Skill"
+        )
+
         skill_slots.append({
             'skill_slot_id': slot.skillSlotID,
             'specialization_id': slot.specializationID_id,
-            'specialization_name': slot.specializationID.specializationName,
+            'specialization_name': specialization_name,
             'workers_needed': slot.workers_needed,
             'workers_assigned': assigned_count,
             'openings_remaining': max(0, slot.workers_needed - assigned_count),
@@ -277,6 +283,11 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
     for assignment in job.worker_assignments.all():
         worker = assignment.workerID
         profile = worker.profileID
+        skill_slot = assignment.skillSlotID
+        specialization = skill_slot.specializationID if skill_slot else None
+        specialization_name = (
+            specialization.specializationName if specialization else "Unknown Skill"
+        )
         
         assignments.append({
             'assignment_id': assignment.assignmentID,
@@ -285,7 +296,7 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
             'worker_avatar': profile.profileImg or None,  # profileImg is a CharField (URL string), not FileField
             'worker_rating': float(worker.workerRating) if worker.workerRating else None,  # workerRating, not rating
             'skill_slot_id': assignment.skillSlotID_id,
-            'specialization_name': assignment.skillSlotID.specializationID.specializationName,
+            'specialization_name': specialization_name,
             'slot_position': assignment.slot_position,
             'assignment_status': assignment.assignment_status,
             'assigned_at': assignment.assignedAt.isoformat(),
@@ -509,24 +520,35 @@ def accept_team_application(
     if application.status != 'PENDING':
         return {'success': False, 'error': f'Application is not pending (status: {application.status})'}
 
+    # Guard legacy/corrupted rows before dereferencing nested slot relations.
+    skill_slot = application.applied_skill_slot
+    if not skill_slot:
+        return {
+            'success': False,
+            'error': 'Cannot accept application: missing skill slot reference. Ask the worker to re-apply to the correct slot.',
+        }
+
+    required_specialization = skill_slot.specializationID
+    if not required_specialization:
+        return {
+            'success': False,
+            'error': 'Cannot accept application: this slot no longer has a valid specialization.',
+        }
+
     # Enforce required specialization before acceptance (handles older applications)
     worker_has_required_skill = workerSpecialization.objects.filter(
         workerID=application.workerID,
-        specializationID=application.applied_skill_slot.specializationID
+        specializationID=required_specialization
     ).exists()
     if not worker_has_required_skill:
         worker_name = f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}".strip()
-        required_skill = application.applied_skill_slot.specializationID.specializationName
+        required_skill = required_specialization.specializationName
         return {
             'success': False,
             'error': f"Cannot accept application: {worker_name} does not have required skill '{required_skill}'.",
             'required_skill': required_skill,
-            'required_specialization_id': application.applied_skill_slot.specializationID.specializationID,
+            'required_specialization_id': required_specialization.specializationID,
         }
-    
-    skill_slot = application.applied_skill_slot
-    if not skill_slot:
-        return {'success': False, 'error': 'Application not associated with a skill slot'}
     
     # CRITICAL: Check if worker is already assigned to another slot on this job
     # A worker can only fill one slot per team job (unique_worker_per_job constraint)
@@ -537,7 +559,9 @@ def accept_team_application(
     ).select_related('skillSlotID__specializationID').first()
     
     if existing_assignment:
-        existing_slot_name = existing_assignment.skillSlotID.specializationID.specializationName
+        existing_slot = existing_assignment.skillSlotID
+        existing_slot_specialization = existing_slot.specializationID if existing_slot else None
+        existing_slot_name = existing_slot_specialization.specializationName if existing_slot_specialization else 'Unknown Skill'
         worker_name = f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}"
         # Auto-reject this application since worker is already assigned
         application.status = 'REJECTED'

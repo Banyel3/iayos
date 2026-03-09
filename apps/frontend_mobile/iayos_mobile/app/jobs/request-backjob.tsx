@@ -41,6 +41,8 @@ interface JobDetails {
   completedAt?: string;
 }
 
+const hasMeaningfulText = (value: string) => /[A-Za-z]/.test(value);
+
 export default function RequestBackjobScreen() {
   const params = useLocalSearchParams();
   const jobId = params.jobId as string;
@@ -170,7 +172,10 @@ export default function RequestBackjobScreen() {
   };
 
   const validateForm = (): boolean => {
-    if (!reason.trim() || reason.length < 10) {
+    const normalizedReason = reason.trim();
+    const normalizedDescription = description.trim();
+
+    if (!normalizedReason || normalizedReason.length < 10) {
       Alert.alert(
         "Validation Error",
         "Reason must be at least 10 characters long."
@@ -178,10 +183,26 @@ export default function RequestBackjobScreen() {
       return false;
     }
 
-    if (!description.trim() || description.length < 50) {
+    if (!hasMeaningfulText(normalizedReason)) {
+      Alert.alert(
+        "Validation Error",
+        "Reason must include meaningful text, not only numbers or symbols."
+      );
+      return false;
+    }
+
+    if (!normalizedDescription || normalizedDescription.length < 50) {
       Alert.alert(
         "Validation Error",
         "Description must be at least 50 characters long. Please provide detailed information about what needs to be redone."
+      );
+      return false;
+    }
+
+    if (!hasMeaningfulText(normalizedDescription)) {
+      Alert.alert(
+        "Validation Error",
+        "Description must include meaningful text, not only numbers or symbols."
       );
       return false;
     }
