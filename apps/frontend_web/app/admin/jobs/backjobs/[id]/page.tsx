@@ -251,13 +251,31 @@ export default function BackjobDetailPage() {
   };
 
   const handleApproveBackjob = async () => {
+    if (!dispute) return;
+
+    if (dispute.status === "open" && !dispute.scheduled_date) {
+      setScheduledDateInput(new Date().toISOString().split("T")[0]);
+      setShowScheduledDateModal(true);
+      alert("Set a scheduled date first before approving this backjob.");
+      return;
+    }
+
     if (!confirm("Approve this backjob? Both parties will be notified."))
       return;
     setActionLoading(true);
     try {
+      const scheduledDate =
+        dispute.scheduled_date?.split("T")[0] || scheduledDateInput || "";
       const res = await fetch(
         `${API_BASE}/api/adminpanel/jobs/disputes/${dispute!.dispute_id}/approve-backjob`,
-        { method: "POST", credentials: "include" },
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scheduled_date: scheduledDate,
+          }),
+        },
       );
       const data = await res.json();
       if (data.success) {
