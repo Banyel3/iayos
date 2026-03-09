@@ -76,22 +76,42 @@ export default function InviteWorkersScreen() {
   } = useQuery({
     queryKey: ["workers", "invite", categoryId],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (categoryId) params.append("category", categoryId);
-      params.append("limit", "50");
+      const buildParams = (includeCategory: boolean) => {
+        const params = new URLSearchParams();
+        if (includeCategory && categoryId) params.append("category", categoryId);
+        params.append("limit", "50");
 
-      // Use client location if available
-      const lat = user?.profile_data?.latitude;
-      const lon = user?.profile_data?.longitude;
-      if (lat) params.append("latitude", String(lat));
-      if (lon) params.append("longitude", String(lon));
+        // Use client location if available
+        const lat = user?.profile_data?.latitude;
+        const lon = user?.profile_data?.longitude;
+        if (lat) params.append("latitude", String(lat));
+        if (lon) params.append("longitude", String(lon));
+        return params;
+      };
 
-      const url = `${ENDPOINTS.NEARBY_WORKERS}?${params.toString()}`;
-      const data = await fetchJson<{
-        workers: BackendWorker[];
-        total_count: number;
-      }>(url, { method: "GET" });
-      return data;
+      const baseFetch = async (includeCategory: boolean) => {
+        const params = buildParams(includeCategory);
+        const url = `${ENDPOINTS.NEARBY_WORKERS}?${params.toString()}`;
+        return fetchJson<{
+          workers: BackendWorker[];
+          total_count: number;
+        }>(url, { method: "GET" });
+      };
+
+      const primaryData = await baseFetch(true);
+
+      if (categoryId && (primaryData.workers?.length || 0) === 0) {
+        const fallbackData = await baseFetch(false);
+        return {
+          ...fallbackData,
+          used_category_fallback: true,
+        };
+      }
+
+      return {
+        ...primaryData,
+        used_category_fallback: false,
+      };
     },
   });
 
@@ -270,6 +290,11 @@ export default function InviteWorkersScreen() {
           <Text style={styles.headerSubtitle}>
             {workers.length} worker{workers.length !== 1 ? "s" : ""} available
           </Text>
+          {!!workersData?.used_category_fallback && (
+            <Text style={styles.fallbackHint}>
+              No exact category matches nearby. Showing all available workers.
+            </Text>
+          )}
         </View>
       </View>
 
@@ -339,6 +364,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  fallbackHint: {
+    fontSize: 12,
+    color: Colors.warning,
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,
