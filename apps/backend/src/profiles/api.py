@@ -1002,7 +1002,7 @@ def get_conversations(request, filter: str = "all"):
             all_team_workers_reviewed = None
             
             # Check if this is an agency job
-            is_agency_job = job.assignedEmployeeID is not None
+            is_agency_job = bool(job.assignedEmployeeID is not None or job.assignedAgencyFK is not None)
             
             if job.is_team_job:
                 # Team job: check reviews across ALL assigned workers
@@ -1037,20 +1037,45 @@ def get_conversations(request, filter: str = "all"):
                 ).exists()
                 
                 if is_agency_job:
-                    # For agency jobs, client must have reviewed BOTH employee AND agency
+                    # For agency jobs, client reviews the agency.
+                    # Employee reviews are only required if employees are actually assigned.
+                    from accounts.models import JobEmployeeAssignment
+
+                    has_employee_targets = JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                    ).exists() or job.assignedEmployeeID is not None
+
                     employee_review_exists = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=client_account,
                         revieweeEmployeeID__isnull=False
                     ).exists()
-                    
+
                     agency_review_exists = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=client_account,
                         revieweeAgencyID__isnull=False
                     ).exists()
-                    
+
+                    if not has_employee_targets:
+                        employee_review_exists = True
+
                     client_reviewed = employee_review_exists and agency_review_exists
+
+                    agency_account = None
+                    if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+                        agency_account = job.assignedAgencyFK.accountFK
+                    elif job.assignedEmployeeID and getattr(job.assignedEmployeeID, 'agency', None):
+                        agency_account = job.assignedEmployeeID.agency
+
+                    worker_reviewed = bool(
+                        agency_account and JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=agency_account,
+                            reviewerType="WORKER"
+                        ).exists()
+                    )
                 else:
                     client_reviewed = JobReview.objects.filter(
                         jobID=job,
@@ -1529,7 +1554,8 @@ def get_conversation_messages(request, conversation_id: int):
             if not all_assigned_ids and job.assignedEmployeeID:
                 all_assigned_ids = {job.assignedEmployeeID.employeeID}
             
-            employee_review_exists = all_assigned_ids.issubset(reviewed_employee_ids) if all_assigned_ids else False
+            # If no employees are assigned, client is only required to review the agency.
+            employee_review_exists = all_assigned_ids.issubset(reviewed_employee_ids) if all_assigned_ids else True
             
             # Build list of employees still pending review
             pending_ids = all_assigned_ids - reviewed_employee_ids
@@ -1549,13 +1575,18 @@ def get_conversation_messages(request, conversation_id: int):
             
             client_reviewed = employee_review_exists and agency_review_exists
             
-            # For agency jobs, worker_reviewed is tracked separately (agency reviews client)
-            # Get the agency account for checking if agency reviewed the client
-            if job.assignedEmployeeID and job.assignedEmployeeID.agency:
+            # For agency jobs, worker_reviewed means the agency reviewed the client.
+            agency_account = None
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+                agency_account = job.assignedAgencyFK.accountFK
+            elif job.assignedEmployeeID and job.assignedEmployeeID.agency:
                 agency_account = job.assignedEmployeeID.agency
+
+            if agency_account:
                 worker_reviewed = JobReview.objects.filter(
                     jobID=job,
-                    reviewerID=agency_account
+                    reviewerID=agency_account,
+                    reviewerType="WORKER"
                 ).exists()
         elif is_team_job and not is_client and client_account:
             # Team job - check if current worker (viewer) has reviewed the client

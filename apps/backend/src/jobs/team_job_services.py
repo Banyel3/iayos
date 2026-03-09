@@ -169,8 +169,8 @@ def create_team_job(
         return {'success': False, 'error': 'At least one skill slot is required'}
     
     total_workers = sum(slot.get('workers_needed', 1) for slot in skill_slots_data)
-    if total_workers < 2:
-        return {'success': False, 'error': 'Team jobs require at least 2 workers total'}
+    if total_workers < 1:
+        return {'success': False, 'error': 'Team jobs require at least 1 worker total'}
     
     # Validate specializations exist
     spec_ids = [slot['specialization_id'] for slot in skill_slots_data]
