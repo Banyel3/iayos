@@ -230,7 +230,7 @@ export default function DisputesPage() {
                                         <div className="h-1.5 w-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Review</p>
-                                    <p className="text-xl font-bold text-yellow-600">{stats.open_disputes}</p>
+                                    <p className="text-xl font-bold text-gray-900">{stats.open_disputes}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
@@ -240,7 +240,7 @@ export default function DisputesPage() {
                                         <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">In Negotiation</p>
-                                    <p className="text-xl font-bold text-[#00BAF1]">{stats.in_negotiation ?? 0}</p>
+                                    <p className="text-xl font-bold text-gray-900">{stats.in_negotiation ?? 0}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
@@ -250,7 +250,7 @@ export default function DisputesPage() {
                                         <div className="h-1.5 w-1.5 bg-green-500 rounded-full opacity-50"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Approved</p>
-                                    <p className="text-xl font-bold text-green-600">{stats.resolved_disputes}</p>
+                                    <p className="text-xl font-bold text-gray-900">{stats.resolved_disputes}</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
@@ -260,7 +260,7 @@ export default function DisputesPage() {
                                         <div className="h-1.5 w-1.5 bg-red-500 rounded-full opacity-50"></div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 mb-0.5">Urgent</p>
-                                    <p className="text-xl font-bold text-red-600">{stats.critical_disputes}</p>
+                                    <p className="text-xl font-bold text-gray-900">{stats.critical_disputes}</p>
                                 </CardContent>
                             </Card>
                         </div>

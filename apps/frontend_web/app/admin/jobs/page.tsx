@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  useState, useEffect } from "react";
+  useState, useEffect
+} from "react";
 import { API_BASE } from "@/lib/api/config";
 import { Sidebar, useMainContentClass } from "../components";
 import {
@@ -206,57 +207,65 @@ export default function JobsManagementPage() {
 
           {/* Secondary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-blue-900">
                   Total Budget
                 </CardTitle>
-                <Banknote className="h-4 w-4 text-blue-600" />
+                <div className="p-2 bg-blue-500/10 rounded-lg">
+                  <Banknote className="h-4 w-4 text-blue-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-900">
+                <div className="text-2xl font-bold text-gray-900">
                   ₱{(stats?.total_budget || 0).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-green-900">
                   Avg Job Value
                 </CardTitle>
-                <TrendingUp className="h-4 w-4 text-green-600" />
+                <div className="p-2 bg-green-500/10 rounded-lg">
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-900">
+                <div className="text-2xl font-bold text-gray-900">
                   ₱{(stats?.avg_budget || 0).toFixed(2)}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-purple-900">
                   Completion Rate
                 </CardTitle>
-                <CheckCircle className="h-4 w-4 text-purple-600" />
+                <div className="p-2 bg-purple-500/10 rounded-lg">
+                  <CheckCircle className="h-4 w-4 text-purple-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-purple-900">
+                <div className="text-2xl font-bold text-gray-900">
                   {stats?.completion_rate || 0}%
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+            <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-red-900">
                   Active Listings
                 </CardTitle>
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <div className="p-2 bg-red-500/10 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-900">
+                <div className="text-2xl font-bold text-gray-900">
                   {stats?.active_jobs || 0}
                 </div>
               </CardContent>
@@ -333,12 +342,12 @@ export default function JobsManagementPage() {
                     >
                       <div
                         className={`p-2 rounded-full ${activity.type === "new_job"
-                            ? "bg-blue-100"
-                            : activity.type === "application"
-                              ? "bg-purple-100"
-                              : activity.type === "completed"
-                                ? "bg-green-100"
-                                : "bg-red-100"
+                          ? "bg-blue-100"
+                          : activity.type === "application"
+                            ? "bg-purple-100"
+                            : activity.type === "completed"
+                              ? "bg-green-100"
+                              : "bg-red-100"
                           }`}
                       >
                         {activity.type === "new_job" && (
