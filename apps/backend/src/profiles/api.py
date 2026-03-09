@@ -1995,6 +1995,24 @@ def get_conversation_messages(request, conversation_id: int):
                     "comment": worker_review.comment or "",
                     "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
                 }
+        elif worker_reviewed and is_team_job and not is_client:
+            # Team job: worker_account is None (no single assignedWorkerID).
+            # Fetch this specific team worker's own review of the client.
+            worker_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=request.auth,
+                reviewerType="WORKER"
+            ).first()
+            
+            if worker_review:
+                worker_review_data = {
+                    "rating_communication": float(worker_review.rating_communication) if worker_review.rating_communication else 0,
+                    "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
+                    "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
+                    "rating_quality": float(worker_review.rating_quality) if worker_review.rating_quality else 0,
+                    "comment": worker_review.comment or "",
+                    "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
+                }
 
         # Get job materials for the materials purchasing workflow
         from accounts.models import JobMaterial

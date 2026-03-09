@@ -308,7 +308,8 @@ export default function ChatScreen() {
     !hasApprovedBackjob &&
     ((conversation.my_role === "CLIENT" &&
       !clientHasReviewed) ||
-      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed))
+      (conversation.my_role === "WORKER" && !conversation.job.workerReviewed) ||
+      (conversation.my_role === "AGENCY" && !conversation.job.workerReviewed))
   );
 
   // Block hardware back button when review is needed - REMOVED to allow users to exit freely
@@ -5224,7 +5225,8 @@ export default function ChatScreen() {
 
                                 {/* Progress indicator */}
                                 {hasMultipleEmployees &&
-                                  reviewStep === "EMPLOYEE" && (
+                                  reviewStep === "EMPLOYEE" &&
+                                  pendingEmployees.length > 0 && (
                                     <View style={styles.stepIndicator}>
                                       <Ionicons
                                         name="people"
