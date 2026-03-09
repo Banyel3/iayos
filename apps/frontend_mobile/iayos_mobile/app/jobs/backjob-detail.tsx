@@ -208,6 +208,11 @@ export default function BackjobDetailScreen() {
     return date.toLocaleDateString("en-US", options);
   };
 
+  const stripEmails = (text: string | null) => {
+    if (!text) return "";
+    return text.replace(/\s?\([^@\s]+@[^@\s]+\.[^@\s]+\)/g, "");
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -526,7 +531,7 @@ export default function BackjobDetailScreen() {
                           Admin Reviewed: {dispute.admin_rejected_at ? "Denied" : "Approved"}
                         </Text>
                         <Text style={[styles.timelineDate, styles.timelineDoneText]}>
-                          {dispute.admin_rejection_reason || (dispute.admin_rejected_at ? "Backjob request was denied by admin" : "Backjob request has been approved by admin")}
+                          {stripEmails(dispute.admin_rejection_reason) || (dispute.admin_rejected_at ? "Backjob request was denied by admin" : "Backjob request has been approved by admin")}
                         </Text>
                       </>
                     )}
@@ -558,7 +563,7 @@ export default function BackjobDetailScreen() {
                     { backgroundColor: `${Colors.success}10` },
                   ]}
                 >
-                  <Text style={styles.resolution}>{dispute.resolution}</Text>
+                  <Text style={styles.resolution}>{stripEmails(dispute.resolution)}</Text>
                 </View>
               </View>
             )}

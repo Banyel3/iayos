@@ -59,7 +59,7 @@ import {
   useConfirmBackjobScheduledDate,
   useRequestBackjobRenegotiation,
 } from "../../lib/hooks/useBackjobActions";
-import { useSubmitReview } from "../../lib/hooks/useReviews";
+import { useSubmitReview, useEditReview } from "../../lib/hooks/useReviews";
 import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import {
@@ -129,7 +129,7 @@ export default function ChatScreen() {
   const [approvingEmployeeName, setApprovingEmployeeName] =
     useState<string>("");
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">(
+  const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view" | "edit">(
     "submit",
   );
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -277,6 +277,7 @@ export default function ChatScreen() {
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
+  const editReviewMutation = useEditReview();
   const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
@@ -996,6 +997,49 @@ export default function ChatScreen() {
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation) return;
+
+    if (reviewModalMode === "edit") {
+      const myReview =
+        conversation.my_role === "CLIENT"
+          ? conversation.client_review
+          : conversation.worker_review;
+
+      if (!myReview) {
+        Alert.alert("Error", "No review found to edit");
+        return;
+      }
+
+      // Calculate overall rating from multi-criteria
+      const overallRating =
+        (ratingQuality +
+          ratingCommunication +
+          ratingPunctuality +
+          ratingProfessionalism) /
+        4;
+
+      editReviewMutation.mutate(
+        {
+          reviewId: myReview.review_id,
+          rating: overallRating,
+          comment: reviewComment,
+        },
+        {
+          onSuccess: () => {
+            setShowReviewModal(false);
+            setReviewModalMode("view");
+            refetch();
+            Alert.alert("Success", "Review updated successfully");
+          },
+          onError: (error: unknown) => {
+            Alert.alert(
+              "Error",
+              getErrorMessage(error, "Failed to update review"),
+            );
+          },
+        },
+      );
+      return;
+    }
 
     // Check ratings based on role:
     // CLIENT reviewing WORKER: Punctuality, Reliability, Skill, Workmanship
@@ -4262,63 +4306,116 @@ export default function ChatScreen() {
               </View>
             )}
 
-          {/* Request Backjob Banner - Only after both parties reviewed and conversation closed */}
-          {conversation.my_role === "CLIENT" &&
-            (conversation.job.status === "COMPLETED" ||
-              !!conversation.job.clientMarkedComplete) &&
-            !conversation.backjob?.has_backjob &&
-            isConversationClosed && (
-              <TouchableOpacity
-                style={styles.requestBackjobBanner}
-                onPress={() =>
-                  router.push(
-                    `/jobs/request-backjob?jobId=${conversation.job.id}`,
-                  )
-                }
-                activeOpacity={0.8}
-              >
-                <View
-                  style={[
-                    styles.requestBackjobContent,
-                    {
-                      backgroundColor: "#FFF3E0", // Orange background
-                      borderColor: "#FFE0B2", // Orange border
-                    },
-                  ]}
+          {/* Backjob Banners - Request or Edit Feedback */}
+          {isConversationClosed && (
+            <>
+              {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
+              {conversation.my_role === "CLIENT" &&
+                (conversation.job.status === "COMPLETED" ||
+                  !!conversation.job.clientMarkedComplete) &&
+                !conversation.backjob && (
+                  <TouchableOpacity
+                    style={styles.requestBackjobBanner}
+                    onPress={() =>
+                      router.push(
+                        `/jobs/request-backjob?jobId=${conversation.job.id}`,
+                      )
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      style={[
+                        styles.requestBackjobContent,
+                        {
+                          backgroundColor: "#FFF3E0", // Orange background
+                          borderColor: "#FFE0B2", // Orange border
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.requestBackjobIconContainer,
+                          {
+                            backgroundColor: "#FFB74D", // Match orange icon container
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="refresh-circle"
+                          size={24}
+                          color={Colors.white}
+                        />
+                      </View>
+                      <View style={styles.requestBackjobText}>
+                        <Text
+                          style={[styles.requestBackjobTitle, { color: "#E65100" }]}
+                        >
+                          Not satisfied with the work?
+                        </Text>
+                        <Text
+                          style={[
+                            styles.requestBackjobSubtitle,
+                            { color: "#EF6C00" },
+                          ]}
+                        >
+                          Tap here to request a backjob (rework)
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#EF6C00" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+              {/* Edit Feedback Banner - BOTH CLIENT & WORKER - Only after a successful backjob */}
+              {conversation.backjob?.status === "COMPLETED" && (
+                <TouchableOpacity
+                  style={styles.requestBackjobBanner}
+                  onPress={() => {
+                    setReviewModalMode("view");
+                    setShowReviewModal(true);
+                  }}
+                  activeOpacity={0.8}
                 >
                   <View
                     style={[
-                      styles.requestBackjobIconContainer,
+                      styles.requestBackjobContent,
                       {
-                        backgroundColor: "#FFB74D", // Match orange icon container
+                        backgroundColor: "#E8F5E9", // Light green background
+                        borderColor: "#C8E6C9", // Light green border
                       },
                     ]}
                   >
-                    <Ionicons
-                      name="refresh-circle"
-                      size={24}
-                      color={Colors.white}
-                    />
-                  </View>
-                  <View style={styles.requestBackjobText}>
-                    <Text
-                      style={[styles.requestBackjobTitle, { color: "#E65100" }]}
-                    >
-                      Not satisfied with the work?
-                    </Text>
-                    <Text
+                    <View
                       style={[
-                        styles.requestBackjobSubtitle,
-                        { color: "#EF6C00" },
+                        styles.requestBackjobIconContainer,
+                        {
+                          backgroundColor: Colors.success, // Green icon container
+                        },
                       ]}
                     >
-                      Tap here to request a backjob (rework)
-                    </Text>
+                      <Ionicons name="star" size={24} color={Colors.white} />
+                    </View>
+                    <View style={styles.requestBackjobText}>
+                      <Text
+                        style={[styles.requestBackjobTitle, { color: "#1B5E20" }]}
+                      >
+                        Satisfied with the backjob?
+                      </Text>
+                      <Text
+                        style={[
+                          styles.requestBackjobSubtitle,
+                          { color: "#2E7D32" },
+                        ]}
+                      >
+                        Wanna update your feedback?
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#EF6C00" />
-                </View>
-              </TouchableOpacity>
-            )}
+                </TouchableOpacity>
+              )}
+            </>
+          )}
 
           {/* Review Section - Compact Banner that opens modal */}
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
@@ -4431,7 +4528,11 @@ export default function ChatScreen() {
                   />
                 </TouchableOpacity>
                 <Text style={styles.reviewModalTitle}>
-                  {reviewModalMode === "view" ? "Reviews" : "Leave a Review"}
+                  {reviewModalMode === "view"
+                    ? "Reviews"
+                    : reviewModalMode === "edit"
+                      ? "Edit Your Review"
+                      : "Leave a Review"}
                 </Text>
                 <View style={{ width: 40 }} />
               </View>
@@ -4449,9 +4550,69 @@ export default function ChatScreen() {
                     <View style={{ padding: Spacing.md }}>
                       {/* My Review Section */}
                       <View style={styles.reviewSection}>
-                        <Text style={styles.reviewSectionTitle}>
-                          Your Review
-                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: Spacing.sm,
+                          }}
+                        >
+                          <Text
+                            style={[styles.reviewSectionTitle, { marginBottom: 0 }]}
+                          >
+                            Your Review
+                          </Text>
+                          {conversation.backjob?.status === "COMPLETED" && (
+                            <TouchableOpacity
+                              onPress={() => {
+                                const myReview =
+                                  conversation.my_role === "CLIENT"
+                                    ? conversation.client_review
+                                    : conversation.worker_review;
+                                if (myReview) {
+                                  // Pre-fill ratings
+                                  setRatingQuality(myReview.rating_quality || 0);
+                                  setRatingCommunication(
+                                    myReview.rating_communication || 0
+                                  );
+                                  setRatingPunctuality(
+                                    myReview.rating_punctuality || 0
+                                  );
+                                  setRatingProfessionalism(
+                                    myReview.rating_professionalism || 0
+                                  );
+                                  setReviewComment(myReview.comment || "");
+                                  setReviewModalMode("edit");
+                                }
+                              }}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
+                                backgroundColor: Colors.primary + "10",
+                                paddingHorizontal: 10,
+                                paddingVertical: 5,
+                                borderRadius: 6,
+                              }}
+                            >
+                              <Ionicons
+                                name="pencil"
+                                size={14}
+                                color={Colors.primary}
+                              />
+                              <Text
+                                style={{
+                                  color: Colors.primary,
+                                  fontSize: 12,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Edit Review
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                         {(() => {
                           // Add null safety check for conversation
                           if (!conversation) {
@@ -5482,7 +5643,7 @@ export default function ChatScreen() {
                               color={Colors.white}
                             />
                             <Text style={styles.submitReviewButtonText}>
-                              Submit Review
+                              {reviewModalMode === "edit" ? "Update Review" : "Submit Review"}
                             </Text>
                           </>
                         )}
@@ -7727,13 +7888,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   backjobActionButtonsCompact: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    paddingVertical: 6,
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingVertical: 8,
     paddingHorizontal: Spacing.md,
     backgroundColor: "#FFF8E1",
-    gap: 4,
+    gap: 8,
   },
   backjobScheduledNoticeCard: {
     width: "100%",
@@ -7779,7 +7939,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
     borderRadius: BorderRadius.small,
+    width: "100%",
   },
   backjobActionButtonText: {
     ...Typography.body.small,
