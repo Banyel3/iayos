@@ -77,6 +77,8 @@ export type JobMaterialItem = {
 
 export type ConversationDetail = {
   conversation_id: number;
+  status?: string;
+  is_archived?: boolean;
   job: {
     id: number;
     title: string;

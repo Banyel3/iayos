@@ -1667,6 +1667,16 @@ def get_conversation_messages(request, conversation_id: int):
             my_role = "AGENCY"
         else:
             my_role = "WORKER"
+
+        # Compute archive state from the current viewer perspective.
+        if conversation.conversation_type == 'TEAM_GROUP':
+            participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=user_profile,
+            ).first()
+            is_archived = participant.is_archived if participant else False
+        else:
+            is_archived = conversation.archivedByClient if is_client else conversation.archivedByWorker
         
         # Get assigned employee info for agency jobs (legacy single employee)
         assigned_employee_info = None
@@ -2078,6 +2088,8 @@ def get_conversation_messages(request, conversation_id: int):
             "pending_team_worker_reviews": team_workers_pending_review if is_team_job else [],
             "all_team_workers_reviewed": all_team_workers_reviewed if is_team_job else None,
             "my_role": my_role,
+            "status": conversation.status,
+            "is_archived": is_archived,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages),
             "backjob": backjob_info,
