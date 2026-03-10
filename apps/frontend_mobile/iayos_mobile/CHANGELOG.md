@@ -9,21 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-  - Updated worker calendar modal layout to respect safe-area insets and prevent date detail cards from being clipped off-screen on smaller devices
-  - Updated profile performance cards to use live `/api/mobile/profile/metrics` values for worker ratings and completed jobs
-  - **Impact**: Worker profile stats now refresh from backend metrics instead of stale cached values, and calendar job details remain fully visible
+- Updated worker calendar modal layout to respect safe-area insets and prevent date detail cards from being clipped off-screen on smaller devices
+- Changed date tap behavior in worker calendar to open a dedicated job-details popup modal instead of rendering details under the calendar
+- Updated profile performance cards to use live `/api/mobile/profile/metrics` values for worker ratings and completed jobs
+- **Impact**: Worker profile stats now refresh from backend metrics instead of stale cached values, and calendar job details remain fully visible
 
-  - Fixed client→agency direct-hire flow: hidden listing applications for `INVITE` jobs and added agency worker suggestion CTA in job details
-  - Fixed agency payment UX in conversation: replaced per-employee "Approve & Pay" actions with a single agency-level approve-and-pay action
-  - Fixed client-side conversation closure for agency jobs by aligning backend agency review status calculation (supports `assignedAgencyFK` flows and no-employee agency assignments)
-  - **Impact**: Direct agency hires now follow correct B2B payment and closure behavior, with cleaner client job details UX
+- Fixed client→agency direct-hire flow: hidden listing applications for `INVITE` jobs and added agency worker suggestion CTA in job details
+- Fixed agency payment UX in conversation: replaced per-employee "Approve & Pay" actions with a single agency-level approve-and-pay action
+- Fixed client-side conversation closure for agency jobs by aligning backend agency review status calculation (supports `assignedAgencyFK` flows and no-employee agency assignments)
+- **Impact**: Direct agency hires now follow correct B2B payment and closure behavior, with cleaner client job details UX
 
-  - Enabled AI price suggestion card for agency-hire PROJECT jobs even when title/description are still short by using selected-category fallback context
-  - Fixed agency approve-and-pay backend transaction creation using correct `Transaction` model fields (`walletID`, `relatedJobPosting`, `balanceAfter`, `paymentMethod`)
-  - Fixed cash and GCash approval paths to create valid transaction records instead of raising internal server errors
-  - Fixed DAILY attendance payment notification creation to use valid Notification fields (`accountFK`, numeric `relatedJobID`) so client confirm/pay no longer fails with server error
-  - Updated post-application success guidance from "My Applications" to `Jobs > Applied` and deep-linked navigation to the `applications` tab
-  - **Impact**: Clients can complete approve-and-pay flows reliably, agency hires get usable price suggestions, and workers are routed to the correct application status tab
+- Enabled AI price suggestion card for agency-hire PROJECT jobs even when title/description are still short by using selected-category fallback context
+- Fixed agency approve-and-pay backend transaction creation using correct `Transaction` model fields (`walletID`, `relatedJobPosting`, `balanceAfter`, `paymentMethod`)
+- Fixed cash and GCash approval paths to create valid transaction records instead of raising internal server errors
+- Fixed DAILY attendance payment notification creation to use valid Notification fields (`accountFK`, numeric `relatedJobID`) so client confirm/pay no longer fails with server error
+- Updated post-application success guidance from "My Applications" to `Jobs > Applied` and deep-linked navigation to the `applications` tab
+- **Impact**: Clients can complete approve-and-pay flows reliably, agency hires get usable price suggestions, and workers are routed to the correct application status tab
 
 - **KYC Selfie Policy Alignment**
   - Removed "hold ID in selfie" requirement from mobile KYC guidance and capture checklist.
