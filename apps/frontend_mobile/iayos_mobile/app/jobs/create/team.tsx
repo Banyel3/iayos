@@ -153,17 +153,7 @@ export default function CreateTeamJobScreen() {
     Set<string>
   >(new Set());
 
-  // Modal state
-  const [addSkillModalVisible, setAddSkillModalVisible] = useState(false);
-  const [selectedSpecialization, setSelectedSpecialization] =
-    useState<Specialization | null>(null);
-  const [newSlotWorkers, setNewSlotWorkers] = useState(1);
-  const [newSlotLevel, setNewSlotLevel] = useState<
-    "ENTRY" | "INTERMEDIATE" | "EXPERT" | null
-  >(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [specSearchQuery, setSpecSearchQuery] = useState("");
-  const [newSlotNotes, setNewSlotNotes] = useState("");
 
   // Wallet balance
   const {
@@ -473,24 +463,9 @@ export default function CreateTeamJobScreen() {
   });
 
   // Category-based specialization filtering
-  const specCategories = useMemo(() => {
-    if (!specializations) return [];
-    const cats = new Set<string>();
-    (specializations as Specialization[]).forEach(
-      (s) => s.category_name && cats.add(s.category_name),
-    );
-    return Array.from(cats).sort();
-  }, [specializations]);
-
   const filteredSpecs = useMemo(() => {
     if (!specializations) return [];
-    let list = specializations as Specialization[];
-
-    if (selectedCategory) {
-      list = list.filter(
-        (s: Specialization) => s.category_name === selectedCategory,
-      );
-    }
+    const list = specializations as Specialization[];
 
     const search = specSearchQuery.trim().toLowerCase();
     if (!search) return list;
@@ -500,40 +475,7 @@ export default function CreateTeamJobScreen() {
         s.name.toLowerCase().includes(search) ||
         (s.category_name || "").toLowerCase().includes(search),
     );
-  }, [specializations, selectedCategory, specSearchQuery]);
-
-  // Add skill slot
-  const handleAddSkillSlot = () => {
-    if (!selectedSpecialization) {
-      Alert.alert("Error", "Please select a skill/specialization");
-      return;
-    }
-
-    // Allow adding same category multiple times for different worker groups
-    // Each slot can have its own workers_needed count (1-10)
-
-    const newSlot: SkillSlot = {
-      id: Date.now().toString(),
-      specialization_id: selectedSpecialization.id,
-      specialization_name: selectedSpecialization.name,
-      workers_needed: newSlotWorkers,
-      skill_level_required: newSlotLevel,
-      notes: newSlotNotes || undefined,
-    };
-
-    setSkillSlots([...skillSlots, newSlot]);
-    setAddSkillModalVisible(false);
-    resetAddSkillForm();
-  };
-
-  const resetAddSkillForm = () => {
-    setSelectedSpecialization(null);
-    setNewSlotWorkers(1);
-    setNewSlotLevel(null);
-    setNewSlotNotes("");
-    setSelectedCategory(null);
-    setSpecSearchQuery("");
-  };
+  }, [specializations, specSearchQuery]);
 
   // Remove skill slot
   const handleRemoveSkillSlot = (slotId: string) => {
@@ -640,98 +582,6 @@ export default function CreateTeamJobScreen() {
     };
 
     createJobMutation.mutate(payload);
-  };
-
-  const renderSkillSlot = (slot: SkillSlot, index: number) => {
-    const allocation = budgetAllocation.find((a) => a.id === slot.id);
-
-    return (
-      <View key={slot.id} style={styles.skillSlotCard}>
-        <View style={styles.skillSlotHeader}>
-          <View style={styles.skillSlotInfo}>
-            <Text style={styles.skillSlotName}>{slot.specialization_name}</Text>
-            <View style={styles.skillLevelBadge}>
-              <Text style={styles.skillLevelText}>
-                {
-                  SKILL_LEVELS.find(
-                    (l) => l.value === slot.skill_level_required,
-                  )?.label
-                }
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.removeButton}
-            onPress={() => handleRemoveSkillSlot(slot.id)}
-          >
-            <Ionicons name="close-circle" size={24} color={Colors.error} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.workersRow}>
-          <Text style={styles.workersLabel}>Workers Needed:</Text>
-          <View style={styles.workersStepper}>
-            <TouchableOpacity
-              style={styles.stepperButton}
-              onPress={() => updateSlotWorkers(slot.id, -1)}
-              disabled={slot.workers_needed <= 1}
-            >
-              <Ionicons
-                name="remove"
-                size={20}
-                color={
-                  slot.workers_needed <= 1
-                    ? Colors.textSecondary
-                    : Colors.primary
-                }
-              />
-            </TouchableOpacity>
-            <Text style={styles.workersCount}>{slot.workers_needed}</Text>
-            <TouchableOpacity
-              style={styles.stepperButton}
-              onPress={() => updateSlotWorkers(slot.id, 1)}
-              disabled={slot.workers_needed >= 10}
-            >
-              <Ionicons
-                name="add"
-                size={20}
-                color={
-                  slot.workers_needed >= 10
-                    ? Colors.textSecondary
-                    : Colors.primary
-                }
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {allocationMethod === "MANUAL_ALLOCATION" ? (
-          <View style={styles.manualBudgetRow}>
-            <Text style={styles.budgetLabel}>Budget for this slot:</Text>
-            <TextInput
-              style={styles.manualBudgetInput}
-              value={slot.budget_allocated?.toString() || ""}
-              onChangeText={(text) => updateSlotBudget(slot.id, text)}
-              keyboardType="numeric"
-              placeholder="₱0"
-            />
-          </View>
-        ) : (
-          allocation && (
-            <View style={styles.budgetPreview}>
-              <Text style={styles.budgetPreviewLabel}>
-                Allocated: ₱{allocation.calculated_budget.toFixed(2)}
-              </Text>
-              <Text style={styles.perWorkerText}>
-                (₱{allocation.per_worker.toFixed(2)}/worker)
-              </Text>
-            </View>
-          )
-        )}
-
-        {slot.notes && <Text style={styles.slotNotes}>📝 {slot.notes}</Text>}
-      </View>
-    );
   };
 
   return (
@@ -880,58 +730,197 @@ export default function CreateTeamJobScreen() {
                 <View style={styles.sectionTitle}>
                   <Ionicons name="people" size={20} color={Colors.primary} />
                   <Text style={styles.sectionTitleText}>
-                    Team Requirements{" "}
+                    Skill Requirements{" "}
                     <Text style={{ color: Colors.error }}>*</Text>
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.addSkillButton}
-                  onPress={() => {
-                    const selectedCategoryName =
-                      categories.find((c) => c.id === primaryCategoryId)
-                        ?.name || null;
-                    setSelectedCategory(selectedCategoryName);
-                    setSpecSearchQuery(selectedCategoryName || "");
-                    setAddSkillModalVisible(true);
-                  }}
-                >
-                  <Ionicons
-                    name="add-circle"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.addSkillButtonText}>Add Skill</Text>
-                </TouchableOpacity>
               </View>
 
-              <Text style={styles.hintText}>
-                Add skills your team needs. You can add the same skill multiple
-                times for different worker groups (e.g., 2 plumbers for
-                bathroom, 1 plumber for kitchen).
-              </Text>
+              <SearchBar
+                value={specSearchQuery}
+                onChangeText={setSpecSearchQuery}
+                placeholder="Search specializations..."
+                showFilterButton={false}
+                style={{ marginBottom: Spacing.sm }}
+              />
 
-              {skillSlots.length === 0 ? (
-                <View style={styles.emptySkillsCard}>
-                  <Ionicons
-                    name="people-outline"
-                    size={48}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.emptySkillsText}>
-                    No skills added yet. Add the skills you need for your team
-                    job.
-                  </Text>
-                </View>
+              {specsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
               ) : (
-                <View style={styles.skillSlotsList}>
-                  {skillSlots.map(renderSkillSlot)}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.categoryScroll}
+                  contentContainerStyle={styles.categoryScrollContent}
+                >
+                  {filteredSpecs.map((spec) => {
+                    const isSelected = skillSlots.some(
+                      (s) => s.specialization_id === spec.id,
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={spec.id}
+                        style={[
+                          styles.categoryChip,
+                          isSelected && styles.categoryChipActive,
+                        ]}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSkillSlots((prev) =>
+                              prev.filter(
+                                (s) => s.specialization_id !== spec.id,
+                              ),
+                            );
+                          } else {
+                            setSkillSlots((prev) => [
+                              ...prev,
+                              {
+                                id: Date.now().toString(),
+                                specialization_id: spec.id,
+                                specialization_name: spec.name,
+                                workers_needed: 1,
+                                skill_level_required: null,
+                              },
+                            ]);
+                          }
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            isSelected && styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {isSelected ? `✓ ${spec.name}` : spec.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
 
-                  <View style={styles.totalWorkersCard}>
-                    <Ionicons name="people" size={20} color={Colors.primary} />
-                    <Text style={styles.totalWorkersText}>
-                      Total Workers Needed: {totalWorkersNeeded}
-                    </Text>
-                  </View>
+              {skillSlots.length > 0 && (
+                <View style={styles.slotsBreakdown}>
+                  {skillSlots.map((slot, index) => (
+                    <View
+                      key={slot.id}
+                      style={[
+                        styles.slotFlatRow,
+                        index < skillSlots.length - 1 &&
+                          styles.slotFlatRowBorder,
+                      ]}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            flex: 1,
+                          }}
+                        >
+                          <TouchableOpacity
+                            onPress={() => handleRemoveSkillSlot(slot.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={styles.removeSlotXText}>✕</Text>
+                          </TouchableOpacity>
+                          <Text
+                            style={[styles.breakdownTitle, { flex: 1 }]}
+                            numberOfLines={1}
+                          >
+                            {slot.specialization_name}
+                          </Text>
+                        </View>
+                        <View style={styles.workerStepper}>
+                          <TouchableOpacity
+                            style={[
+                              styles.stepperBtn,
+                              slot.workers_needed <= 1 &&
+                                styles.stepperBtnDisabled,
+                            ]}
+                            onPress={() => updateSlotWorkers(slot.id, -1)}
+                            disabled={slot.workers_needed <= 1}
+                          >
+                            <Text
+                              style={[
+                                styles.stepperBtnText,
+                                slot.workers_needed <= 1 &&
+                                  styles.stepperBtnTextDisabled,
+                              ]}
+                            >
+                              −
+                            </Text>
+                          </TouchableOpacity>
+                          <Text style={styles.stepperCount}>
+                            {slot.workers_needed}
+                          </Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.stepperBtn,
+                              slot.workers_needed >= 10 &&
+                                styles.stepperBtnDisabled,
+                            ]}
+                            onPress={() => updateSlotWorkers(slot.id, 1)}
+                            disabled={slot.workers_needed >= 10}
+                          >
+                            <Text
+                              style={[
+                                styles.stepperBtnText,
+                                slot.workers_needed >= 10 &&
+                                  styles.stepperBtnTextDisabled,
+                              ]}
+                            >
+                              +
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      {allocationMethod === "MANUAL_ALLOCATION" && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginTop: Spacing.xs,
+                          }}
+                        >
+                          <Text style={styles.hintText}>Slot budget (₱):</Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                width: 100,
+                                marginBottom: 0,
+                                paddingVertical: Spacing.xs,
+                              },
+                            ]}
+                            value={slot.budget_allocated?.toString() || ""}
+                            onChangeText={(text) =>
+                              updateSlotBudget(slot.id, text)
+                            }
+                            keyboardType="numeric"
+                            placeholder="0"
+                          />
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {skillSlots.length > 0 && (
+                <View style={styles.totalWorkersCard}>
+                  <Ionicons name="people" size={20} color={Colors.primary} />
+                  <Text style={styles.totalWorkersText}>
+                    Total Workers Needed: {totalWorkersNeeded}
+                  </Text>
                 </View>
               )}
             </View>
@@ -1454,233 +1443,6 @@ export default function CreateTeamJobScreen() {
             )}
           </TouchableOpacity>
         </View>
-
-        {/* Add Skill Modal */}
-        <Modal
-          visible={addSkillModalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setAddSkillModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContentCard}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Skill Requirement</Text>
-                <TouchableOpacity
-                  onPress={() => setAddSkillModalVisible(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons
-                    name="close"
-                    size={22}
-                    color={Colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                style={styles.modalContent}
-                contentContainerStyle={styles.modalContentContainer}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={true}
-              >
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Search Skill/Specialization</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={specSearchQuery}
-                    onChangeText={setSpecSearchQuery}
-                    placeholder="e.g., Plumbing, Electrical, Carpentry"
-                  />
-                </View>
-
-                {specCategories.length > 0 && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Filter by Category</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.categoryScroll}
-                      contentContainerStyle={styles.categoryScrollContent}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.categoryChip,
-                          !selectedCategory && styles.categoryChipActive,
-                        ]}
-                        onPress={() => setSelectedCategory(null)}
-                      >
-                        <Text
-                          style={[
-                            styles.categoryChipText,
-                            !selectedCategory && styles.categoryChipTextActive,
-                          ]}
-                        >
-                          All
-                        </Text>
-                      </TouchableOpacity>
-                      {specCategories.map((cat) => (
-                        <TouchableOpacity
-                          key={cat}
-                          style={[
-                            styles.categoryChip,
-                            selectedCategory === cat &&
-                              styles.categoryChipActive,
-                          ]}
-                          onPress={() => setSelectedCategory(cat)}
-                        >
-                          <Text
-                            style={[
-                              styles.categoryChipText,
-                              selectedCategory === cat &&
-                                styles.categoryChipTextActive,
-                            ]}
-                          >
-                            {cat}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                <Text style={styles.label}>Select Specialization</Text>
-                {filteredSpecs.length === 0 ? (
-                  <Text style={styles.emptyListText}>
-                    {specsLoading ? "Loading..." : "No specializations found"}
-                  </Text>
-                ) : (
-                  <View style={styles.specChipGrid}>
-                    {filteredSpecs.map((item) => {
-                      const isSelected = selectedSpecialization?.id === item.id;
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[
-                            styles.categoryChip,
-                            isSelected && styles.categoryChipActive,
-                          ]}
-                          onPress={() => setSelectedSpecialization(item)}
-                          activeOpacity={0.8}
-                        >
-                          <Text
-                            style={[
-                              styles.categoryChipText,
-                              isSelected && styles.categoryChipTextActive,
-                            ]}
-                          >
-                            {item.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-
-                {selectedSpecialization && (
-                  <>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Workers Needed</Text>
-                      <Text style={styles.hintText}>
-                        Set the number of workers (1-10) for this skill. You can
-                        add the same skill multiple times with different
-                        requirements.
-                      </Text>
-                      <View style={styles.workersStepper}>
-                        <TouchableOpacity
-                          style={styles.stepperButton}
-                          onPress={() =>
-                            setNewSlotWorkers(Math.max(1, newSlotWorkers - 1))
-                          }
-                        >
-                          <Ionicons
-                            name="remove"
-                            size={24}
-                            color={Colors.primary}
-                          />
-                        </TouchableOpacity>
-                        <Text style={styles.workersCountLarge}>
-                          {newSlotWorkers}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.stepperButton}
-                          onPress={() =>
-                            setNewSlotWorkers(Math.min(10, newSlotWorkers + 1))
-                          }
-                        >
-                          <Ionicons
-                            name="add"
-                            size={24}
-                            color={Colors.primary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Skill Level Required</Text>
-                      <Text style={styles.hintText}>
-                        Optional · Helps AI pricing and worker matching only,
-                        not a hard filter.
-                      </Text>
-                      <View style={styles.skillLevelOptions}>
-                        {SKILL_LEVELS.map((level) => (
-                          <TouchableOpacity
-                            key={level.value}
-                            style={[
-                              styles.skillLevelOption,
-                              newSlotLevel === level.value &&
-                                styles.skillLevelOptionSelected,
-                            ]}
-                            onPress={() =>
-                              setNewSlotLevel(
-                                newSlotLevel === level.value
-                                  ? null
-                                  : (level.value as any),
-                              )
-                            }
-                          >
-                            <Text style={styles.skillLevelOptionText}>
-                              {level.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Notes (Optional)</Text>
-                      <TextInput
-                        style={[styles.input, styles.textArea]}
-                        value={newSlotNotes}
-                        onChangeText={setNewSlotNotes}
-                        placeholder="Any specific requirements for this role?"
-                        multiline
-                        numberOfLines={2}
-                      />
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.modalAddButton}
-                      onPress={handleAddSkillSlot}
-                    >
-                      <Ionicons
-                        name="add-circle"
-                        size={24}
-                        color={Colors.white}
-                      />
-                      <Text style={styles.modalAddButtonText}>
-                        Add {newSlotWorkers} {selectedSpecialization.name}{" "}
-                        Worker
-                        {newSlotWorkers > 1 ? "s" : ""}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
 
         {/* Barangay Selection Modal */}
         <Modal
@@ -2455,6 +2217,67 @@ const styles = StyleSheet.create({
   barangayName: {
     ...Typography.body.medium,
     color: Colors.textPrimary,
+  },
+  // Skill slots breakdown (inline chip+stepper)
+  slotsBreakdown: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    overflow: "hidden",
+  },
+  slotFlatRow: {
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+  },
+  slotFlatRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  breakdownTitle: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  workerStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  stepperBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  stepperBtnDisabled: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderColor: Colors.border,
+  },
+  stepperBtnText: {
+    ...Typography.body.medium,
+    color: Colors.primary,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  stepperBtnTextDisabled: {
+    color: Colors.textSecondary,
+  },
+  stepperCount: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "700",
+    minWidth: 22,
+    textAlign: "center",
+  },
+  removeSlotXText: {
+    ...Typography.body.medium,
+    color: Colors.error,
+    fontWeight: "700",
   },
   // Job Scope & Work Environment button active styles
   jobScopeActive: {
