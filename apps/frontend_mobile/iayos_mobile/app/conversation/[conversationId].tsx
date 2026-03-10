@@ -308,7 +308,11 @@ export default function ChatScreen() {
 
       // Counterparty is client
       if (conversation.is_team_job) {
-        return !!conversation.all_team_workers_reviewed;
+        // For worker view in team jobs, use per-worker flag from backend.
+        // all_team_workers_reviewed is an aggregate client-side metric.
+        return conversation.my_role === "WORKER"
+          ? !!conversation.job.clientReviewed
+          : !!conversation.all_team_workers_reviewed;
       }
       if (conversation.is_agency_job) {
         return clientHasReviewedAgencyFlow;
@@ -321,7 +325,11 @@ export default function ChatScreen() {
     conversation &&
     (() => {
       if (conversation.is_team_job) {
-        return !!conversation.all_team_workers_reviewed;
+        // CLIENT view: needs aggregate completion for all team workers.
+        // WORKER view: needs only this worker's review from the client.
+        return conversation.my_role === "CLIENT"
+          ? !!conversation.all_team_workers_reviewed
+          : !!conversation.job.clientReviewed;
       }
 
       if (conversation.is_agency_job) {
