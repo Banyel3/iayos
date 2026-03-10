@@ -43,13 +43,6 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore errors (e.g., splash screen already hidden)
 });
 
-// SAFETY NET: Force-hide splash after 8 seconds no matter what.
-// Normally hideAsync() is called in ~100ms when RootLayout mounts.
-// This timeout only fires if something catastrophic prevents mounting.
-setTimeout(() => {
-  SplashScreen.hideAsync().catch(() => { });
-}, 8000);
-
 // DEV-only guard: detect when React.createElement is called with an undefined type.
 // Moved to module scope to prevent re-patching on every render.
 if (__DEV__) {
