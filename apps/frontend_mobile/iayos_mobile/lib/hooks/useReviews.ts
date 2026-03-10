@@ -311,6 +311,11 @@ export function usePendingReviews(enabled = true) {
     queryFn: async () => {
       const response = await apiRequest(ENDPOINTS.PENDING_REVIEWS);
       if (!response.ok) {
+        // Some deployments may not expose this endpoint yet.
+        // Fall back to empty state so app navigation remains stable.
+        if (response.status === 404 || response.status === 405) {
+          return { pending_reviews: [], count: 0 };
+        }
         throw new Error("Failed to fetch pending reviews");
       }
       const json = await response.json();
@@ -319,6 +324,7 @@ export function usePendingReviews(enabled = true) {
     enabled,
     staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: true,
+    retry: 1,
   });
 }
 
