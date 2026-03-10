@@ -284,7 +284,10 @@ export default function JobDetailScreen() {
 
   // Bug 1 fix: detect if the current worker is already assigned to this job
   // Used to hide the Apply button for assigned workers (e.g. coming from Calendar)
-  const isCurrentWorkerAssigned = !!(job?.assignedWorker?.id && user?.profile_data?.id && job.assignedWorker.id === user.profile_data.id);
+  const isCurrentWorkerAssigned =
+    String(job?.assignedWorker?.id ?? "") ===
+      String(user?.profile_data?.id ?? "") &&
+    String(job?.assignedWorker?.id ?? "") !== "";
 
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
@@ -3183,7 +3186,7 @@ export default function JobDetailScreen() {
 
       {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
       {isWorker && job?.jobType !== "INVITE" && job?.status === "ACTIVE" && !isCurrentWorkerAssigned && (
-        <View style={styles.applyButtonContainer}>
+        <View style={styles.applyButtonContainer} pointerEvents="box-none">
           {hasApplied ? (
             <View style={styles.appliedContainer}>
               <View style={styles.appliedRow}>
