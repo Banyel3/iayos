@@ -52,23 +52,40 @@ export default function WorkerCalendarModal({
     ? getJobsForDate(jobs, selectedDate)
     : [];
 
+  const selectedDateLabel = selectedDate
+    ? new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+
   const today = new Date().toISOString().split("T")[0];
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "IN_PROGRESS": return "#10B981";
-      case "ACTIVE": return "#3B82F6";
-      case "COMPLETED": return "#6B7280";
-      default: return Colors.textSecondary;
+      case "IN_PROGRESS":
+        return "#10B981";
+      case "ACTIVE":
+        return "#3B82F6";
+      case "COMPLETED":
+        return "#6B7280";
+      default:
+        return Colors.textSecondary;
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "IN_PROGRESS": return "In Progress";
-      case "ACTIVE": return "Scheduled";
-      case "COMPLETED": return "Completed";
-      default: return status;
+      case "IN_PROGRESS":
+        return "In Progress";
+      case "ACTIVE":
+        return "Scheduled";
+      case "COMPLETED":
+        return "Completed";
+      default:
+        return status;
     }
   };
 
@@ -80,7 +97,12 @@ export default function WorkerCalendarModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.container, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
+        <View
+          style={[
+            styles.container,
+            { paddingBottom: Math.max(16, insets.bottom + 12) },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View>
@@ -106,7 +128,10 @@ export default function WorkerCalendarModal({
             <View style={styles.errorContainer}>
               <Ionicons name="warning-outline" size={40} color={Colors.error} />
               <Text style={styles.errorText}>Failed to load schedule</Text>
-              <TouchableOpacity onPress={() => refetch()} style={styles.retryBtn}>
+              <TouchableOpacity
+                onPress={() => refetch()}
+                style={styles.retryBtn}
+              >
                 <Text style={styles.retryBtnText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -116,9 +141,9 @@ export default function WorkerCalendarModal({
                 markingType="multi-dot"
                 markedDates={markedWithSelected}
                 onDayPress={(day) => {
-                  setSelectedDate(
-                    selectedDate === day.dateString ? null : day.dateString
-                  );
+                  // Open per-date jobs in a dedicated popup to avoid clipping
+                  // inside the main calendar bottom sheet.
+                  setSelectedDate(day.dateString);
                 }}
                 current={today}
                 theme={{
@@ -142,111 +167,143 @@ export default function WorkerCalendarModal({
               {/* Legend */}
               <View style={styles.legend}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: "#3B82F6" }]} />
+                  <View
+                    style={[styles.legendDot, { backgroundColor: "#3B82F6" }]}
+                  />
                   <Text style={styles.legendText}>Scheduled</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: "#10B981" }]} />
+                  <View
+                    style={[styles.legendDot, { backgroundColor: "#10B981" }]}
+                  />
                   <Text style={styles.legendText}>In Progress</Text>
                 </View>
               </View>
-
-              {/* Selected date jobs */}
-              {selectedDate && (
-                <View style={styles.selectedSection}>
-                  <Text style={styles.selectedDateTitle}>
-                    {new Date(selectedDate + "T00:00:00").toLocaleDateString(
-                      undefined,
-                      {
-                        weekday: "long",
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      }
-                    )}
-                  </Text>
-
-                  {selectedJobs.length === 0 ? (
-                    <Text style={styles.noJobsText}>No jobs scheduled for this date</Text>
-                  ) : (
-                    <ScrollView style={styles.jobsList} showsVerticalScrollIndicator={false}>
-                      {selectedJobs.map((job) => (
-                        <TouchableOpacity
-                          key={job.id}
-                          style={styles.jobCard}
-                          onPress={async () => {
-                            try {
-                              const response = await apiRequest(
-                                ENDPOINTS.CONVERSATION_BY_JOB(job.id)
-                              );
-                              const data = await response.json();
-
-                              onClose();
-                              if (data?.success && data?.conversation_id) {
-                                router.push(`/conversation/${data.conversation_id}` as any);
-                              } else {
-                                router.push(`/messages` as any);
-                              }
-                            } catch {
-                              onClose();
-                              router.push(`/messages` as any);
-                            }
-                          }}
-                        >
-                          <View style={styles.jobCardInner}>
-                            <View style={styles.jobCardLeft}>
-                              <Text style={styles.jobTitle} numberOfLines={1}>
-                                {job.title}
-                              </Text>
-                              <Text style={styles.jobLocation} numberOfLines={1}>
-                                <Ionicons
-                                  name="location-outline"
-                                  size={12}
-                                  color={Colors.textSecondary}
-                                />{" "}
-                                {job.location}
-                              </Text>
-                              <Text style={styles.jobDates}>
-                                {new Date(job.preferred_start_date + "T00:00:00").toLocaleDateString(
-                                  undefined, { month: "short", day: "numeric" }
-                                )}{" "}
-                                →{" "}
-                                {new Date(job.scheduled_end_date + "T00:00:00").toLocaleDateString(
-                                  undefined, { month: "short", day: "numeric" }
-                                )}
-                              </Text>
-                            </View>
-                            <View style={styles.jobCardRight}>
-                              <View
-                                style={[
-                                  styles.statusBadge,
-                                  { backgroundColor: getStatusColor(job.status) + "22" },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.statusText,
-                                    { color: getStatusColor(job.status) },
-                                  ]}
-                                >
-                                  {getStatusLabel(job.status)}
-                                </Text>
-                              </View>
-                              <Text style={styles.jobBudget}>
-                                ₱{job.budget.toLocaleString()}
-                              </Text>
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
-                </View>
-              )}
             </>
           )}
         </View>
       </View>
+
+      <Modal
+        visible={!!selectedDate}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setSelectedDate(null)}
+      >
+        <TouchableOpacity
+          style={styles.dateDetailsOverlay}
+          activeOpacity={1}
+          onPress={() => setSelectedDate(null)}
+        >
+          <TouchableOpacity
+            style={styles.dateDetailsCard}
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <View style={styles.dateDetailsHeader}>
+              <View style={styles.dateDetailsHeaderTextWrap}>
+                <Text style={styles.dateDetailsTitle}>Jobs on this date</Text>
+                <Text style={styles.dateDetailsSubtitle}>{selectedDateLabel}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedDate(null)}
+                style={styles.closeBtn}
+              >
+                <Ionicons name="close" size={22} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedJobs.length === 0 ? (
+              <Text style={styles.noJobsText}>No jobs scheduled for this date</Text>
+            ) : (
+              <ScrollView
+                style={styles.dateDetailsList}
+                showsVerticalScrollIndicator={false}
+              >
+                {selectedJobs.map((job) => (
+                  <TouchableOpacity
+                    key={job.id}
+                    style={styles.jobCard}
+                    onPress={async () => {
+                      try {
+                        const response = await apiRequest(
+                          ENDPOINTS.CONVERSATION_BY_JOB(job.id),
+                        );
+                        const data = await response.json();
+
+                        setSelectedDate(null);
+                        onClose();
+                        if (data?.success && data?.conversation_id) {
+                          router.push(`/conversation/${data.conversation_id}` as any);
+                        } else {
+                          router.push(`/messages` as any);
+                        }
+                      } catch {
+                        setSelectedDate(null);
+                        onClose();
+                        router.push(`/messages` as any);
+                      }
+                    }}
+                  >
+                    <View style={styles.jobCardInner}>
+                      <View style={styles.jobCardLeft}>
+                        <Text style={styles.jobTitle} numberOfLines={1}>
+                          {job.title}
+                        </Text>
+                        <Text style={styles.jobLocation} numberOfLines={1}>
+                          <Ionicons
+                            name="location-outline"
+                            size={12}
+                            color={Colors.textSecondary}
+                          />{" "}
+                          {job.location}
+                        </Text>
+                        <Text style={styles.jobDates}>
+                          {new Date(job.preferred_start_date + "T00:00:00").toLocaleDateString(
+                            undefined,
+                            {
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )}{" "}
+                          →{" "}
+                          {new Date(job.scheduled_end_date + "T00:00:00").toLocaleDateString(
+                            undefined,
+                            {
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )}
+                        </Text>
+                      </View>
+                      <View style={styles.jobCardRight}>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            {
+                              backgroundColor: getStatusColor(job.status) + "22",
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              { color: getStatusColor(job.status) },
+                            ]}
+                          >
+                            {getStatusLabel(job.status)}
+                          </Text>
+                        </View>
+                        <Text style={styles.jobBudget}>₱{job.budget.toLocaleString()}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </Modal>
   );
 }
@@ -309,26 +366,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
   },
-  selectedSection: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-    flex: 1,
-  },
-  selectedDateTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
   noJobsText: {
     fontSize: 14,
     color: Colors.textSecondary,
     textAlign: "center",
     paddingVertical: Spacing.lg,
   },
-  jobsList: {
+  dateDetailsOverlay: {
     flex: 1,
-    minHeight: 140,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+  },
+  dateDetailsCard: {
+    width: "100%",
+    maxHeight: "74%",
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingBottom: Spacing.sm,
+  },
+  dateDetailsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  dateDetailsHeaderTextWrap: {
+    flex: 1,
+  },
+  dateDetailsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  dateDetailsSubtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  dateDetailsList: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
   },
   jobCard: {
     backgroundColor: Colors.cardBackground || "#fff",
