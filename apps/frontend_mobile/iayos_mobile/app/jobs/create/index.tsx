@@ -1283,7 +1283,7 @@ export default function CreateJobScreen() {
               />
             </View>
 
-            {/* Location Section */
+            {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
                 <Ionicons name="location" size={20} color={Colors.primary} />
