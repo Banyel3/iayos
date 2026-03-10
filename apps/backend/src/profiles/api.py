@@ -1668,6 +1668,61 @@ def get_conversation_messages(request, conversation_id: int):
         else:
             my_role = "WORKER"
 
+        # Agency review progression contract for mobile clients.
+        agency_next_review_action = None
+        agency_review_progress = None
+        if is_agency_job_for_reviews:
+            total_employees_required = len(all_assigned_ids) if 'all_assigned_ids' in locals() else 0
+            reviewed_employees_count = max(0, total_employees_required - len(employees_pending_review))
+            pending_employees_count = len(employees_pending_review)
+
+            if not client_reviewed:
+                if pending_employees_count > 0:
+                    agency_next_review_action = "EMPLOYEE"
+                elif not agency_review_exists:
+                    agency_next_review_action = "AGENCY"
+
+            agency_review_progress = {
+                "employees_required": total_employees_required,
+                "employees_reviewed": reviewed_employees_count,
+                "employees_pending": pending_employees_count,
+                "agency_reviewed": agency_review_exists,
+            }
+
+        # Compatibility self-heal: stale jobs/conversations that already satisfy closure criteria.
+        if (
+            job.status in ['ACTIVE', 'IN_PROGRESS']
+            and job.workerMarkedComplete
+            and job.clientMarkedComplete
+            and worker_reviewed
+            and client_reviewed
+        ):
+            try:
+                job.status = 'COMPLETED'
+                if not job.completedAt:
+                    job.completedAt = timezone.now()
+                job.save(update_fields=['status', 'completedAt'])
+                print(f"   ✅ [CONVO AUTO-HEAL] Job #{job.jobID} marked COMPLETED")
+            except Exception as heal_err:
+                print(f"   ⚠️ [CONVO AUTO-HEAL] Job heal skipped: {heal_err}")
+
+        if job.status == 'COMPLETED' and conversation.status != Conversation.ConversationStatus.COMPLETED:
+            try:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=['status'])
+                print(f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} marked COMPLETED")
+            except Exception as heal_err:
+                print(f"   ⚠️ [CONVO AUTO-HEAL] Conversation status heal skipped: {heal_err}")
+
+        if job.status == 'COMPLETED':
+            try:
+                from profiles.conversation_service import should_auto_archive, archive_conversation
+                if should_auto_archive(conversation):
+                    archive_result = archive_conversation(conversation)
+                    print(f"   📦 [CONVO AUTO-HEAL] {archive_result.get('message', 'Conversation auto-archived')}")
+            except Exception as heal_err:
+                print(f"   ⚠️ [CONVO AUTO-HEAL] Archive heal skipped: {heal_err}")
+
         # Compute archive state from the current viewer perspective.
         if conversation.conversation_type == 'TEAM_GROUP':
             participant = ConversationParticipant.objects.filter(
@@ -2072,6 +2127,8 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientReviewed": client_reviewed,
                 "employeeReviewed": employee_review_exists if is_agency_job_for_reviews else None,
                 "agencyReviewed": agency_review_exists if is_agency_job_for_reviews else None,
+                "next_review_action": agency_next_review_action,
+                "review_progress": agency_review_progress,
                 "employeesPendingReview": employees_pending_review if is_agency_job_for_reviews else [],
                 "assignedWorkerId": worker_account.accountID if worker_account else None,
                 "clientId": client_account.accountID if client_account else None,

@@ -195,6 +195,16 @@ export default function ChatScreen() {
   // For agency jobs: Auto-set review step based on what's already reviewed
   useEffect(() => {
     if (conversation?.is_agency_job && conversation.job) {
+      const nextAction = conversation.job.next_review_action;
+      if (nextAction === "AGENCY") {
+        setReviewStep("AGENCY");
+        setEmployeeReviewSubmitted(true);
+        return;
+      }
+      if (nextAction === "EMPLOYEE") {
+        setReviewStep("EMPLOYEE");
+      }
+
       // Multi-employee support: check pending_employee_reviews array
       const pendingEmployees = conversation.pending_employee_reviews || [];
       const allEmployeesReviewed = conversation.all_employees_reviewed;
@@ -1155,6 +1165,17 @@ export default function ChatScreen() {
     // For agency jobs (client reviewing), we need reviews for each employee + agency
     if (isAgencyJob && conversation.my_role === "CLIENT") {
       if (reviewStep === "EMPLOYEE") {
+        const backendNextAction = conversation.job.next_review_action;
+        if (backendNextAction === "AGENCY") {
+          setReviewStep("AGENCY");
+          setEmployeeReviewSubmitted(true);
+          Alert.alert(
+            "Next Step",
+            "Employee reviews are complete. Please rate the agency.",
+          );
+          return;
+        }
+
         // Determine which employee is being reviewed
         let currentEmployeeId: number;
         let currentEmployeeName: string;
@@ -1246,11 +1267,22 @@ export default function ChatScreen() {
                 setRatingPunctuality(0);
                 setRatingProfessionalism(0);
                 setReviewComment("");
-                refetch();
-                Alert.alert(
-                  "Already Rated",
-                  "You've already rated this employee. Refreshing...",
-                );
+                refetch().then((result: any) => {
+                  const nextAction = result?.data?.job?.next_review_action;
+                  if (nextAction === "AGENCY") {
+                    setReviewStep("AGENCY");
+                    setEmployeeReviewSubmitted(true);
+                    Alert.alert(
+                      "Employee Already Rated",
+                      "Moving to agency review.",
+                    );
+                    return;
+                  }
+                  Alert.alert(
+                    "Already Rated",
+                    "You've already rated this employee. Refreshing...",
+                  );
+                });
               } else {
                 Alert.alert("Error", errorMessage);
               }

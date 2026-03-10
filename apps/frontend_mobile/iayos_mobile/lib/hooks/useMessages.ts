@@ -95,6 +95,13 @@ export type ConversationDetail = {
     // Agency job review tracking - null for non-agency jobs
     employeeReviewed?: boolean | null;
     agencyReviewed?: boolean | null;
+    next_review_action?: "EMPLOYEE" | "AGENCY" | null;
+    review_progress?: {
+      employees_required: number;
+      employees_reviewed: number;
+      employees_pending: number;
+      agency_reviewed: boolean;
+    } | null;
     assignedWorkerId?: number;
     clientId?: number;
     // ML-predicted estimated completion time
