@@ -1186,6 +1186,53 @@ def mobile_my_jobs(
         job_list = []
         for idx, job in enumerate(jobs):
             print(f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'")
+
+            # Backward-compatibility self-heal for older team jobs:
+            # If all required team reviews are already present but status was never transitioned,
+            # auto-mark the job as COMPLETED when listing jobs.
+            if (
+                job.is_team_job
+                and job.status in ['ACTIVE', 'IN_PROGRESS']
+                and job.workerMarkedComplete
+                and job.clientMarkedComplete
+            ):
+                try:
+                    from .models import JobWorkerAssignment, JobReview
+
+                    assigned_worker_account_ids = set(
+                        JobWorkerAssignment.objects.filter(
+                            jobID=job,
+                            assignment_status__in=['ACTIVE', 'COMPLETED']
+                        ).values_list('workerID__profileID__accountFK_id', flat=True).distinct()
+                    )
+
+                    if assigned_worker_account_ids:
+                        worker_reviewer_ids = set(
+                            JobReview.objects.filter(
+                                jobID=job,
+                                reviewerType='WORKER'
+                            ).values_list('reviewerID_id', flat=True).distinct()
+                        )
+                        client_reviewed_worker_ids = set(
+                            JobReview.objects.filter(
+                                jobID=job,
+                                reviewerType='CLIENT',
+                                revieweeID__isnull=False
+                            ).values_list('revieweeID_id', flat=True).distinct()
+                        )
+
+                        if (
+                            assigned_worker_account_ids.issubset(worker_reviewer_ids)
+                            and assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
+                        ):
+                            job.status = 'COMPLETED'
+                            if not job.completedAt:
+                                job.completedAt = timezone.now()
+                            job.save(update_fields=['status', 'completedAt'])
+                            print(f"      ✅ [AUTO-HEAL] Team job #{job.jobID} status updated to COMPLETED")
+                except Exception as heal_err:
+                    print(f"      ⚠️ [AUTO-HEAL] Skipped for job #{job.jobID}: {heal_err}")
+
             assigned_agency = getattr(job, 'assignedAgencyFK', None)
 
             job_data = {
