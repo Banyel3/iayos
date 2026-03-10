@@ -13,7 +13,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Typography, Spacing } from "../constants/theme";
-import { apiRequest, ENDPOINTS } from "../lib/api/config";
 import {
   useWorkerSchedule,
   buildMarkedDates,
@@ -224,25 +223,10 @@ export default function WorkerCalendarModal({
                   <TouchableOpacity
                     key={job.id}
                     style={styles.jobCard}
-                    onPress={async () => {
-                      try {
-                        const response = await apiRequest(
-                          ENDPOINTS.CONVERSATION_BY_JOB(job.id),
-                        );
-                        const data = await response.json();
-
-                        setSelectedDate(null);
-                        onClose();
-                        if (data?.success && data?.conversation_id) {
-                          router.push(`/conversation/${data.conversation_id}` as any);
-                        } else {
-                          router.push(`/messages` as any);
-                        }
-                      } catch {
-                        setSelectedDate(null);
-                        onClose();
-                        router.push(`/messages` as any);
-                      }
+                    onPress={() => {
+                      setSelectedDate(null);
+                      onClose();
+                      router.push(`/jobs/${job.id}` as any);
                     }}
                   >
                     <View style={styles.jobCardInner}>

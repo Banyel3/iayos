@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency Conversation Review CTA Reopen/Double-Submit Guard**
+  - Fixed mobile conversation review CTA visibility to hide during closure-sync windows and after conversation closure.
+  - Added safe review-modal opener guard to block stale re-open attempts right after review submission.
+  - Added final-step review sync locking for team and regular review flows to prevent duplicate review submissions while refetching status.
+  - Updated messages query stale timing to reduce stale review-state gaps after mutations.
+  - **Impact**: Client-side agency/team conversations no longer allow repeated review submissions after completion and align closer to web closure behavior.
+
 - **Daily Check-in Time Window + Direct-Hire Category/Tab Consistency**
   - Fixed DAILY single-job attendance time-window validation to use Philippine time for 6:00 AM to 8:00 PM checks, preventing false "outside allowed hours" errors during valid morning check-ins.
   - Updated direct-hire category loading to scope categories by selected worker skills, so clients only see valid categories for that worker.

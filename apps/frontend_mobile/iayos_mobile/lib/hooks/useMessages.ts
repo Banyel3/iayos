@@ -312,7 +312,7 @@ export function useMessages(
       };
     },
     enabled: !!conversationId,
-    staleTime: 5000,
+    staleTime: 15000,
     refetchInterval: 15000, // Poll every 15s as fallback when WebSocket events are missed
     refetchOnWindowFocus: true,
     refetchOnMount: true,
