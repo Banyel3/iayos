@@ -51,6 +51,8 @@ export default function SkillsScreen() {
   );
   const [editingSkill, setEditingSkill] = useState<WorkerSkill | null>(null);
   const [experienceYears, setExperienceYears] = useState("0");
+  const [addSkillType, setAddSkillType] = useState<"PRIMARY" | "SECONDARY">("SECONDARY");
+  const [editSkillType, setEditSkillType] = useState<"PRIMARY" | "SECONDARY">("SECONDARY");
 
   // Queries
   const { data: availableSkills = [], isLoading: availableLoading } =
@@ -92,6 +94,7 @@ export default function SkillsScreen() {
       {
         specialization_id: selectedSkill.id,
         experience_years: years,
+        skill_type: addSkillType,
       },
       {
         onSuccess: (data) => {
@@ -100,6 +103,7 @@ export default function SkillsScreen() {
           setJustAddedSkillId(addedSkillId || null);
           setSelectedSkill(null);
           setExperienceYears("0");
+          setAddSkillType("SECONDARY");
 
           // Show custom certification suggestion modal with skill ID
           setShowCertificationSuggestion(true);
@@ -127,6 +131,7 @@ export default function SkillsScreen() {
       {
         skill_id: editingSkill.specializationId,
         experience_years: years,
+        skill_type: editSkillType,
       },
       {
         onSuccess: (data) => {
@@ -134,6 +139,7 @@ export default function SkillsScreen() {
           setShowEditModal(false);
           setEditingSkill(null);
           setExperienceYears("0");
+          setEditSkillType("SECONDARY");
         },
         onError: (error) => {
           Alert.alert("Error", error.message);
@@ -178,6 +184,7 @@ export default function SkillsScreen() {
   const openEditModal = (skill: WorkerSkill) => {
     setEditingSkill(skill);
     setExperienceYears(skill.experienceYears.toString());
+    setEditSkillType(skill.skillType === "PRIMARY" ? "PRIMARY" : "SECONDARY");
     setShowEditModal(true);
   };
 
@@ -256,6 +263,12 @@ export default function SkillsScreen() {
             <View key={skill.id} style={styles.skillCard}>
               <View style={styles.skillInfo}>
                 <Text style={styles.skillName}>{skill.name}</Text>
+                {skill.skillType === "PRIMARY" ? (
+                  <View style={styles.primaryBadge}>
+                    <Ionicons name="star" size={12} color={Colors.warning} />
+                    <Text style={styles.primaryBadgeText}>Primary Skill</Text>
+                  </View>
+                ) : null}
                 <Text style={styles.skillExperience}>
                   {skill.experienceYears} year
                   {skill.experienceYears !== 1 ? "s" : ""} experience
@@ -399,6 +412,42 @@ export default function SkillsScreen() {
                         <Text style={styles.experienceHint}>
                           Tap outside or press Done to close keyboard
                         </Text>
+
+                        <Text style={[styles.modalLabel, { marginTop: Spacing.md }]}>Skill Type</Text>
+                        <View style={styles.skillTypeRow}>
+                          <Pressable
+                            style={[
+                              styles.skillTypeChip,
+                              addSkillType === "PRIMARY" && styles.skillTypeChipActive,
+                            ]}
+                            onPress={() => setAddSkillType("PRIMARY")}
+                          >
+                            <Text
+                              style={[
+                                styles.skillTypeChipText,
+                                addSkillType === "PRIMARY" && styles.skillTypeChipTextActive,
+                              ]}
+                            >
+                              Primary
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[
+                              styles.skillTypeChip,
+                              addSkillType === "SECONDARY" && styles.skillTypeChipActive,
+                            ]}
+                            onPress={() => setAddSkillType("SECONDARY")}
+                          >
+                            <Text
+                              style={[
+                                styles.skillTypeChipText,
+                                addSkillType === "SECONDARY" && styles.skillTypeChipTextActive,
+                              ]}
+                            >
+                              Secondary
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                     )}
 
@@ -480,6 +529,42 @@ export default function SkillsScreen() {
                       <Text style={styles.experienceHint}>
                         Tap outside or press Done to close keyboard
                       </Text>
+
+                      <Text style={[styles.modalLabel, { marginTop: Spacing.md }]}>Skill Type</Text>
+                      <View style={styles.skillTypeRow}>
+                        <Pressable
+                          style={[
+                            styles.skillTypeChip,
+                            editSkillType === "PRIMARY" && styles.skillTypeChipActive,
+                          ]}
+                          onPress={() => setEditSkillType("PRIMARY")}
+                        >
+                          <Text
+                            style={[
+                              styles.skillTypeChipText,
+                              editSkillType === "PRIMARY" && styles.skillTypeChipTextActive,
+                            ]}
+                          >
+                            Primary
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[
+                            styles.skillTypeChip,
+                            editSkillType === "SECONDARY" && styles.skillTypeChipActive,
+                          ]}
+                          onPress={() => setEditSkillType("SECONDARY")}
+                        >
+                          <Text
+                            style={[
+                              styles.skillTypeChipText,
+                              editSkillType === "SECONDARY" && styles.skillTypeChipTextActive,
+                            ]}
+                          >
+                            Secondary
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
 
                     <Pressable
@@ -657,6 +742,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.textPrimary,
   },
+  primaryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+    alignSelf: "flex-start",
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  primaryBadgeText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
   skillExperience: {
     ...Typography.body.small,
     color: Colors.primary,
@@ -778,6 +879,31 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     marginTop: Spacing.xs,
+  },
+  skillTypeRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  skillTypeChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    alignItems: "center",
+  },
+  skillTypeChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+  },
+  skillTypeChipText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  skillTypeChipTextActive: {
+    color: Colors.primary,
   },
   keyboardAvoid: {
     flex: 1,

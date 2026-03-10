@@ -87,7 +87,7 @@ export default function ProfileScreen() {
   ).toUpperCase();
 
   const hasProfileType = Boolean(user?.profile_data?.profileType);
-  const shouldFetchMetrics = hasProfileType && !isWorker;
+  const shouldFetchMetrics = hasProfileType;
   const {
     data: profileMetrics,
     isLoading: isMetricsLoading,

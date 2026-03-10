@@ -45,6 +45,7 @@ import { useJobSuggestions } from "@/lib/hooks/useJobSuggestions";
 import type { JobSuggestion } from "@/lib/hooks/useJobSuggestions";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
 import SuggestionBubbles from "@/components/SuggestionBubbles";
+import SearchBar from "@/components/ui/SearchBar";
 
 interface Specialization {
   id: number;
@@ -54,12 +55,18 @@ interface Specialization {
   category_name?: string;
 }
 
+interface JobCategory {
+  id: number;
+  name: string;
+  minimum_rate?: number;
+}
+
 interface SkillSlot {
   id: string; // Temporary ID for UI
   specialization_id: number;
   specialization_name: string;
   workers_needed: number;
-  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
   budget_allocated?: number;
   notes?: string;
 }
@@ -67,8 +74,7 @@ interface SkillSlot {
 type AllocationMethod =
   | "EQUAL_PER_WORKER"
   | "EQUAL_PER_SKILL"
-  | "MANUAL_ALLOCATION"
-  | "SKILL_WEIGHTED";
+  | "MANUAL_ALLOCATION";
 
 const ALLOCATION_METHODS: {
   value: AllocationMethod;
@@ -84,11 +90,6 @@ const ALLOCATION_METHODS: {
       value: "EQUAL_PER_SKILL",
       label: "Equal Per Skill",
       description: "Split budget equally among skill slots",
-    },
-    {
-      value: "SKILL_WEIGHTED",
-      label: "Skill Weighted",
-      description: "Expert 3x, Intermediate 2x, Entry 1x",
     },
     {
       value: "MANUAL_ALLOCATION",
@@ -137,7 +138,10 @@ export default function CreateTeamJobScreen() {
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [allocationMethod, setAllocationMethod] =
     useState<AllocationMethod>("EQUAL_PER_WORKER");
-  const [teamStartThreshold, setTeamStartThreshold] = useState(100); // Percentage
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<number | null>(
+    null,
+  );
+  const [categorySearch, setCategorySearch] = useState("");
 
   // Database-driven suggestions (same engine as single-job create)
   const { mutate: fetchSuggestions } = useJobSuggestions();
@@ -151,10 +155,11 @@ export default function CreateTeamJobScreen() {
     useState<Specialization | null>(null);
   const [newSlotWorkers, setNewSlotWorkers] = useState(1);
   const [newSlotLevel, setNewSlotLevel] = useState<
-    "ENTRY" | "INTERMEDIATE" | "EXPERT"
-  >("ENTRY");
-  const [newSlotNotes, setNewSlotNotes] = useState("");
+    "ENTRY" | "INTERMEDIATE" | "EXPERT" | null
+  >(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [specSearchQuery, setSpecSearchQuery] = useState("");
+  const [newSlotNotes, setNewSlotNotes] = useState("");
 
   // Wallet balance
   const {
@@ -197,6 +202,23 @@ export default function CreateTeamJobScreen() {
     },
   });
 
+  // Fetch categories (same source used by single-job create)
+  const {
+    data: categories = [],
+    isLoading: categoriesLoading,
+    isError: categoriesLoadError,
+  } = useQuery<JobCategory[]>({
+    queryKey: ["job-categories"],
+    queryFn: async () => {
+      const response = await apiRequest(ENDPOINTS.GET_CATEGORIES);
+      const data = (await response.json()) as {
+        categories?: JobCategory[];
+        data?: JobCategory[];
+      };
+      return data.categories || data.data || [];
+    },
+  });
+
   // Fetch barangays
   const { data: barangays } = useBarangays(1); // Zamboanga City
 
@@ -206,6 +228,13 @@ export default function CreateTeamJobScreen() {
   }, [skillSlots]);
 
   const budgetNum = parseFloat(totalBudget) || 0;
+
+  // Safety fallback for any legacy state hydration with deprecated value.
+  useEffect(() => {
+    if ((allocationMethod as string) === "SKILL_WEIGHTED") {
+      setAllocationMethod("EQUAL_PER_WORKER");
+    }
+  }, [allocationMethod]);
 
   // Calculate budget allocation preview
   const budgetAllocation = useMemo(() => {
@@ -227,26 +256,6 @@ export default function CreateTeamJobScreen() {
         calculated_budget: perSlot,
         per_worker: perSlot / slot.workers_needed,
       }));
-    }
-
-    if (allocationMethod === "SKILL_WEIGHTED") {
-      const weights = { ENTRY: 1, INTERMEDIATE: 2, EXPERT: 3 };
-      const totalWeight = skillSlots.reduce(
-        (sum, slot) =>
-          sum + weights[slot.skill_level_required] * slot.workers_needed,
-        0,
-      );
-      const perWeight = budgetNum / totalWeight;
-
-      return skillSlots.map((slot) => {
-        const slotBudget =
-          perWeight * weights[slot.skill_level_required] * slot.workers_needed;
-        return {
-          ...slot,
-          calculated_budget: slotBudget,
-          per_worker: slotBudget / slot.workers_needed,
-        };
-      });
     }
 
     // MANUAL_ALLOCATION
@@ -283,19 +292,19 @@ export default function CreateTeamJobScreen() {
     const levels = { ENTRY: 1, INTERMEDIATE: 2, EXPERT: 3 };
     let highest: "ENTRY" | "INTERMEDIATE" | "EXPERT" = "ENTRY";
     for (const slot of skillSlots) {
-      if (levels[slot.skill_level_required] > levels[highest]) {
-        highest = slot.skill_level_required;
+      const slotLevel = slot.skill_level_required ?? "ENTRY";
+      if (levels[slotLevel] > levels[highest]) {
+        highest = slotLevel;
       }
     }
     return highest;
   }, [skillSlots]);
 
-  // Get first skill slot's specialization_id as category proxy for prediction
-  const primaryCategoryId = useMemo(() => {
-    if (skillSlots.length === 0) return null;
-    // Use the specialization_id of the first slot as a proxy for category
-    return skillSlots[0].specialization_id;
-  }, [skillSlots]);
+  const filteredCategories = useMemo(() => {
+    const search = categorySearch.trim().toLowerCase();
+    if (!search) return categories;
+    return categories.filter((c) => c.name.toLowerCase().includes(search));
+  }, [categories, categorySearch]);
 
   useEffect(() => {
     if (!primaryCategoryId) {
@@ -459,16 +468,33 @@ export default function CreateTeamJobScreen() {
     },
   });
 
-  // Filter specializations by search
+  // Category-based specialization filtering
+  const specCategories = useMemo(() => {
+    if (!specializations) return [];
+    const cats = new Set<string>();
+    (specializations as Specialization[]).forEach(
+      (s) => s.category_name && cats.add(s.category_name),
+    );
+    return Array.from(cats).sort();
+  }, [specializations]);
+
   const filteredSpecs = useMemo(() => {
     if (!specializations) return [];
-    const query = specSearchQuery.toLowerCase();
-    return specializations.filter(
+    let list = specializations as Specialization[];
+
+    if (selectedCategory) {
+      list = list.filter((s: Specialization) => s.category_name === selectedCategory);
+    }
+
+    const search = specSearchQuery.trim().toLowerCase();
+    if (!search) return list;
+
+    return list.filter(
       (s: Specialization) =>
-        s.name.toLowerCase().includes(query) ||
-        (s.category_name || "").toLowerCase().includes(query),
+        s.name.toLowerCase().includes(search) ||
+        (s.category_name || "").toLowerCase().includes(search),
     );
-  }, [specializations, specSearchQuery]);
+  }, [specializations, selectedCategory, specSearchQuery]);
 
   // Add skill slot
   const handleAddSkillSlot = () => {
@@ -497,8 +523,9 @@ export default function CreateTeamJobScreen() {
   const resetAddSkillForm = () => {
     setSelectedSpecialization(null);
     setNewSlotWorkers(1);
-    setNewSlotLevel("ENTRY");
+    setNewSlotLevel(null);
     setNewSlotNotes("");
+    setSelectedCategory(null);
     setSpecSearchQuery("");
   };
 
@@ -547,6 +574,7 @@ export default function CreateTeamJobScreen() {
   const validateForm = () => {
     if (!title.trim()) return "Please enter a job title";
     if (!description.trim()) return "Please enter a job description";
+    if (!primaryCategoryId) return "Please select a job category";
     if (skillSlots.length === 0)
       return "Please add at least one skill requirement";
     if (totalWorkersNeeded < 2) return "Team jobs require at least 2 workers";
@@ -603,7 +631,6 @@ export default function CreateTeamJobScreen() {
         notes: slot.notes,
       })),
       payment_method: "WALLET",
-      team_start_threshold: teamStartThreshold,
     };
 
     createJobMutation.mutate(payload);
@@ -783,6 +810,62 @@ export default function CreateTeamJobScreen() {
 
             {/* Skill Requirements Section */}
             <View style={styles.section}>
+              <View style={styles.inputGroup}>
+                <View style={styles.sectionTitle}>
+                  <Ionicons name="grid" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitleText}>
+                    Job Category <Text style={{ color: Colors.error }}>*</Text>
+                  </Text>
+                </View>
+
+                <SearchBar
+                  value={categorySearch}
+                  onChangeText={setCategorySearch}
+                  placeholder="Search categories..."
+                  showFilterButton={false}
+                  style={styles.categorySearchBar}
+                />
+
+                {categoriesLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.loadingText}>Loading categories...</Text>
+                  </View>
+                ) : categoriesLoadError ? (
+                  <Text style={styles.emptyListText}>Failed to load categories</Text>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.categoryScroll}
+                    contentContainerStyle={styles.categoryScrollContent}
+                  >
+                    {filteredCategories.map((category) => {
+                      const isSelected = primaryCategoryId === category.id;
+                      return (
+                        <TouchableOpacity
+                          key={category.id}
+                          style={[
+                            styles.categoryChip,
+                            isSelected && styles.categoryChipActive,
+                          ]}
+                          onPress={() => setPrimaryCategoryId(category.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.categoryChipText,
+                              isSelected && styles.categoryChipTextActive,
+                            ]}
+                          >
+                            {category.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </View>
+
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionTitle}>
                   <Ionicons name="people" size={20} color={Colors.primary} />
@@ -793,7 +876,14 @@ export default function CreateTeamJobScreen() {
                 </View>
                 <TouchableOpacity
                   style={styles.addSkillButton}
-                  onPress={() => setAddSkillModalVisible(true)}
+                  onPress={() => {
+                    const selectedCategoryName =
+                      categories.find((c) => c.id === primaryCategoryId)?.name ||
+                      null;
+                    setSelectedCategory(selectedCategoryName);
+                    setSpecSearchQuery(selectedCategoryName || "");
+                    setAddSkillModalVisible(true);
+                  }}
                 >
                   <Ionicons
                     name="add-circle"
@@ -989,50 +1079,6 @@ export default function CreateTeamJobScreen() {
               )}
             </View>
 
-            {/* Team Start Threshold */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="rocket" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Team Start Options{" "}
-                  <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Start When Team is {teamStartThreshold}% Filled
-                </Text>
-                <View style={styles.thresholdSlider}>
-                  {[50, 75, 100].map((value) => (
-                    <TouchableOpacity
-                      key={value}
-                      style={[
-                        styles.thresholdOption,
-                        teamStartThreshold === value &&
-                        styles.thresholdOptionSelected,
-                      ]}
-                      onPress={() => setTeamStartThreshold(value)}
-                    >
-                      <Text
-                        style={[
-                          styles.thresholdText,
-                          teamStartThreshold === value &&
-                          styles.thresholdTextSelected,
-                        ]}
-                      >
-                        {value}%
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={styles.hint}>
-                  {teamStartThreshold === 100
-                    ? "Job will start only when ALL positions are filled."
-                    : `Job can start when ${teamStartThreshold}% of positions are filled.`}
-                </Text>
-              </View>
-            </View>
             {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -1390,23 +1436,27 @@ export default function CreateTeamJobScreen() {
         <Modal
           visible={addSkillModalVisible}
           animationType="slide"
-          presentationStyle="pageSheet"
+          transparent={true}
           onRequestClose={() => setAddSkillModalVisible(false)}
         >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Skill Requirement</Text>
-              <TouchableOpacity onPress={() => setAddSkillModalVisible(false)}>
-                <Ionicons name="close" size={28} color={Colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContentCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Skill Requirement</Text>
+                <TouchableOpacity
+                  onPress={() => setAddSkillModalVisible(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={22} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView
-              style={styles.modalContent}
-              contentContainerStyle={styles.modalContentContainer}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={true}
-            >
+              <ScrollView
+                style={styles.modalContent}
+                contentContainerStyle={styles.modalContentContainer}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
+              >
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Search Skill/Specialization</Text>
                 <TextInput
@@ -1417,52 +1467,85 @@ export default function CreateTeamJobScreen() {
                 />
               </View>
 
+              {specCategories.length > 0 && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Filter by Category</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.categoryScroll}
+                    contentContainerStyle={styles.categoryScrollContent}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.categoryChip,
+                        !selectedCategory && styles.categoryChipActive,
+                      ]}
+                      onPress={() => setSelectedCategory(null)}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          !selectedCategory && styles.categoryChipTextActive,
+                        ]}
+                      >
+                        All
+                      </Text>
+                    </TouchableOpacity>
+                    {specCategories.map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.categoryChip,
+                          selectedCategory === cat && styles.categoryChipActive,
+                        ]}
+                        onPress={() => setSelectedCategory(cat)}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            selectedCategory === cat && styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               <Text style={styles.label}>Select Specialization</Text>
               {filteredSpecs.length === 0 ? (
                 <Text style={styles.emptyListText}>
                   {specsLoading ? "Loading..." : "No specializations found"}
                 </Text>
               ) : (
-                <ScrollView
-                  style={styles.specTagsScroll}
-                  contentContainerStyle={styles.specTagsContainer}
-                  nestedScrollEnabled
-                  keyboardShouldPersistTaps="handled"
-                >
+                <View style={styles.specChipGrid}>
                   {filteredSpecs.map((item) => {
                     const isSelected = selectedSpecialization?.id === item.id;
                     return (
                       <TouchableOpacity
                         key={item.id}
                         style={[
-                          styles.specTag,
-                          isSelected && styles.specTagSelected,
+                          styles.categoryChip,
+                          isSelected && styles.categoryChipActive,
                         ]}
                         onPress={() => setSelectedSpecialization(item)}
                         activeOpacity={0.8}
                       >
                         <Text
                           style={[
-                            styles.specTagText,
-                            isSelected && styles.specTagTextSelected,
+                            styles.categoryChipText,
+                            isSelected && styles.categoryChipTextActive,
                           ]}
                         >
                           {item.name}
                         </Text>
-                        {!!item.category_name && (
-                          <Text
-                            style={[
-                              styles.specTagSubtext,
-                              isSelected && styles.specTagSubtextSelected,
-                            ]}
-                          >
-                            {item.category_name}
-                          </Text>
-                        )}
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </View>
               )}
 
               {selectedSpecialization && (
@@ -1503,6 +1586,9 @@ export default function CreateTeamJobScreen() {
 
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Skill Level Required</Text>
+                    <Text style={styles.hintText}>
+                      Optional · Helps AI pricing and worker matching only, not a hard filter.
+                    </Text>
                     <View style={styles.skillLevelOptions}>
                       {SKILL_LEVELS.map((level) => (
                         <TouchableOpacity
@@ -1512,7 +1598,13 @@ export default function CreateTeamJobScreen() {
                             newSlotLevel === level.value &&
                             styles.skillLevelOptionSelected,
                           ]}
-                          onPress={() => setNewSlotLevel(level.value as any)}
+                          onPress={() =>
+                            setNewSlotLevel(
+                              newSlotLevel === level.value
+                                ? null
+                                : (level.value as any),
+                            )
+                          }
                         >
                           <Text style={styles.skillLevelOptionText}>
                             {level.label}
@@ -1550,8 +1642,9 @@ export default function CreateTeamJobScreen() {
                   </TouchableOpacity>
                 </>
               )}
-            </ScrollView>
-          </SafeAreaView>
+              </ScrollView>
+            </View>
+          </View>
         </Modal>
 
         {/* Barangay Selection Modal */}
@@ -1713,6 +1806,46 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: Spacing.md,
+  },
+  categorySearchBar: {
+    marginBottom: Spacing.sm,
+  },
+  categoryScroll: {
+    marginHorizontal: -Spacing.md,
+  },
+  categoryScrollContent: {
+    paddingHorizontal: Spacing.md,
+    gap: 8,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: Spacing.sm,
+  },
+  loadingText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  categoryChipText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  categoryChipTextActive: {
+    color: Colors.white,
   },
   label: {
     ...Typography.body.medium,
@@ -2160,6 +2293,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContentCard: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: "85%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 0,
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -2172,6 +2317,9 @@ const styles = StyleSheet.create({
     ...Typography.heading.h3,
     color: Colors.textPrimary,
   },
+  modalCloseButton: {
+    padding: 4,
+  },
   modalContent: {
     flex: 1,
   },
@@ -2180,6 +2328,12 @@ const styles = StyleSheet.create({
   },
   specTagsScroll: {
     maxHeight: 240,
+    marginBottom: Spacing.md,
+  },
+  specChipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     marginBottom: Spacing.md,
   },
   specTagsContainer: {

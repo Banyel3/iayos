@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+  - Updated worker calendar modal layout to respect safe-area insets and prevent date detail cards from being clipped off-screen on smaller devices
+  - Updated profile performance cards to use live `/api/mobile/profile/metrics` values for worker ratings and completed jobs
+  - **Impact**: Worker profile stats now refresh from backend metrics instead of stale cached values, and calendar job details remain fully visible
+
   - Fixed client→agency direct-hire flow: hidden listing applications for `INVITE` jobs and added agency worker suggestion CTA in job details
   - Fixed agency payment UX in conversation: replaced per-employee "Approve & Pay" actions with a single agency-level approve-and-pay action
   - Fixed client-side conversation closure for agency jobs by aligning backend agency review status calculation (supports `assignedAgencyFK` flows and no-employee agency assignments)

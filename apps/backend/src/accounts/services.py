@@ -810,7 +810,9 @@ def fetch_currentUser(accountID, profile_type=None):
                             'specializationId': ws.specializationID.specializationID,
                             'name': ws.specializationID.specializationName,
                             'experienceYears': ws.experienceYears,
-                            'certificationCount': cert_count
+                            'certificationCount': cert_count,
+                            'skillType': ws.skillType,
+                            'isPrimary': ws.skillType == 'PRIMARY',
                         })
                     
                     profile_data["skills"] = skills_list

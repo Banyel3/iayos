@@ -11,6 +11,7 @@ import {
 import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Typography, Spacing } from "../constants/theme";
 import { apiRequest, ENDPOINTS } from "../lib/api/config";
 import {
@@ -30,6 +31,7 @@ export default function WorkerCalendarModal({
   onClose,
 }: WorkerCalendarModalProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { data, isLoading, error, refetch } = useWorkerSchedule();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -78,7 +80,7 @@ export default function WorkerCalendarModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
           {/* Header */}
           <View style={styles.header}>
             <View>
@@ -259,8 +261,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 32,
-    maxHeight: "90%",
+    maxHeight: "94%",
   },
   header: {
     flexDirection: "row",
@@ -326,7 +327,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
   jobsList: {
-    maxHeight: 200,
+    flex: 1,
+    minHeight: 140,
   },
   jobCard: {
     backgroundColor: Colors.cardBackground || "#fff",
