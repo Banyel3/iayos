@@ -368,7 +368,11 @@ export default function ChatScreen() {
   // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
   const clientHasFullyReviewed = clientHasReviewed;
-  const isServerMarkedClosed = conversation?.status === "COMPLETED";
+  const normalizedConversationStatus = (conversation?.status || "").toUpperCase();
+  const normalizedJobStatus = (conversation?.job?.status || "").toUpperCase();
+  const isJobCompleted = normalizedJobStatus === "COMPLETED";
+  const isJobInProgress = normalizedJobStatus === "IN_PROGRESS";
+  const isServerMarkedClosed = normalizedConversationStatus === "COMPLETED";
   const isConversationArchived = !!conversation?.is_archived;
   const computedConversationClosed =
     (conversation?.job?.clientMarkedComplete &&
@@ -377,7 +381,7 @@ export default function ChatScreen() {
       !hasApprovedBackjob &&
       !hasActiveNegotiation) ||
     // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
-    (conversation?.job?.status === "COMPLETED" &&
+    (isJobCompleted &&
       viewerHasReviewed &&
       counterpartyHasReviewed &&
       !hasApprovedBackjob &&
@@ -392,7 +396,7 @@ export default function ChatScreen() {
     (conversation.my_role !== "CLIENT" ||
       conversation.job.remainingPaymentPaid) &&
     (conversation.job.clientMarkedComplete ||
-      conversation.job.status === "COMPLETED") &&
+      isJobCompleted) &&
     !isConversationClosed &&
     !hasApprovedBackjob &&
     !viewerHasReviewed
@@ -2337,11 +2341,11 @@ export default function ChatScreen() {
                 {/* ML Estimated Completion Time - Compact mode */}
                 {(isLoading ||
                   (conversation.job.estimatedCompletion &&
-                    conversation.job.status !== "COMPLETED")) && (
+                    !isJobCompleted)) && (
                   <EstimatedTimeCard
                     prediction={conversation?.job?.estimatedCompletion || null}
                     compact={true}
-                    countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                    countdownMode={isJobInProgress}
                     jobStartTime={
                       conversation?.job?.clientConfirmedWorkStarted
                         ? new Date().toISOString()
@@ -2419,7 +2423,7 @@ export default function ChatScreen() {
               )}
 
               {/* View Receipt Button */}
-              {conversation.job.status === "COMPLETED" && (
+              {isJobCompleted && (
                 <TouchableOpacity
                   style={{
                     backgroundColor: "#FFFFFF",
@@ -2467,7 +2471,7 @@ export default function ChatScreen() {
           </View>
 
           {/* Action Buttons (replaces role banner) */}
-          {conversation.job.status === "IN_PROGRESS" &&
+          {isJobInProgress &&
             !conversation.job.clientMarkedComplete && (
               <View style={styles.actionButtonsContainer}>
                 {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
@@ -3669,7 +3673,7 @@ export default function ChatScreen() {
                 {/* Shows BEFORE "Confirm Worker Has Arrived" when materials are needed */}
                 {/* ============================================================ */}
                 {!conversation.is_team_job &&
-                  conversation.job.status === "IN_PROGRESS" &&
+                  isJobInProgress &&
                   conversation.job.materials_status &&
                   conversation.job.materials_status !== "NONE" &&
                   conversation.job.materials_status !== "APPROVED" &&
@@ -4698,7 +4702,7 @@ export default function ChatScreen() {
           {/* Backjob Banners - Request or Edit Feedback */}
           {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
           {conversation.my_role === "CLIENT" &&
-            (conversation.job.status === "COMPLETED" ||
+            (isJobCompleted ||
               !!conversation.job.clientMarkedComplete) &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed && (
@@ -4806,7 +4810,7 @@ export default function ChatScreen() {
           {/* Review Section - Compact Banner that opens modal */}
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
           {(conversation.job.clientMarkedComplete ||
-            conversation.job.status === "COMPLETED") &&
+            isJobCompleted) &&
             !isConversationClosed &&
             !reviewStatusSyncing && (
               <>
@@ -4868,7 +4872,7 @@ export default function ChatScreen() {
                 {conversation.is_team_job &&
                   conversation.my_role === "CLIENT" &&
                   (conversation.job.clientMarkedComplete ||
-                    conversation.job.status === "COMPLETED") &&
+                    isJobCompleted) &&
                   !isConversationClosed &&
                   (conversation.team_worker_assignments?.length || 0) > 1 && (
                     <View style={styles.teamReviewChecklist}>
