@@ -4098,10 +4098,12 @@ export default function ChatScreen() {
                   )}
 
                 {/* CLIENT: Optional early pay-now while job is ongoing (Regular Jobs Only) */}
+                {/* Bug 6 fix: hide when worker has marked complete — show Approve & Pay instead */}
                 {!conversation.is_team_job &&
                   !conversation.is_agency_job &&
                   conversation.job?.payment_model !== "DAILY" &&
                   conversation.my_role === "CLIENT" &&
+                  !conversation.job.workerMarkedComplete &&
                   !conversation.job.clientMarkedComplete &&
                   !conversation.job.remainingPaymentPaid && (
                     <TouchableOpacity

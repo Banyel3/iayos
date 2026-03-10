@@ -242,9 +242,14 @@ export default function JobsScreen() {
 
   const applications = applicationsData?.applications || [];
 
-  // Applied tab should only show pending applications.
+  // Applied tab should only show pending applications that haven't moved forward
+  // (i.e. job not yet IN_PROGRESS, COMPLETED, or CANCELLED — those belong in other tabs).
   const filteredApplications = applications.filter(
-    (app) => app.application_status === "PENDING",
+    (app) =>
+      app.application_status === "PENDING" &&
+      app.job_status !== "IN_PROGRESS" &&
+      app.job_status !== "COMPLETED" &&
+      app.job_status !== "CANCELLED",
   );
 
   if (__DEV__) {
