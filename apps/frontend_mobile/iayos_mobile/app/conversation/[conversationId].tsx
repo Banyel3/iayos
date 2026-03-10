@@ -203,6 +203,13 @@ export default function ChatScreen() {
       }
       if (nextAction === "EMPLOYEE") {
         setReviewStep("EMPLOYEE");
+        setEmployeeReviewSubmitted(false);
+        return;
+      }
+
+      if (nextAction === null && conversation.job.agencyReviewed) {
+        setEmployeeReviewSubmitted(true);
+        return;
       }
 
       // Multi-employee support: check pending_employee_reviews array
@@ -226,6 +233,8 @@ export default function ChatScreen() {
     }
   }, [
     conversation?.is_agency_job,
+    conversation?.job?.next_review_action,
+    conversation?.job?.review_progress,
     conversation?.job?.employeeReviewed,
     conversation?.job?.agencyReviewed,
     conversation?.pending_employee_reviews,
@@ -282,11 +291,24 @@ export default function ChatScreen() {
       (conversation?.pending_employee_reviews?.length ?? 0) === 0)
   );
 
+  const agencyNextReviewAction =
+    conversation?.is_agency_job && conversation?.my_role === "CLIENT"
+      ? conversation?.job?.next_review_action ?? null
+      : null;
+
+  const effectiveAgencyReviewStep: "EMPLOYEE" | "AGENCY" =
+    agencyNextReviewAction === "AGENCY"
+      ? "AGENCY"
+      : agencyNextReviewAction === "EMPLOYEE"
+        ? "EMPLOYEE"
+        : reviewStep;
+
   const clientHasReviewedAgencyFlow = !!(
     conversation?.is_agency_job &&
     // Use API aggregate first; fallback to split flags for safety.
     (conversation?.job?.clientReviewed ||
       (hasAgencyEmployeeReviewsCompleted &&
+        agencyNextReviewAction === null &&
         !!conversation?.job?.agencyReviewed))
   );
 
@@ -1164,9 +1186,30 @@ export default function ChatScreen() {
 
     // For agency jobs (client reviewing), we need reviews for each employee + agency
     if (isAgencyJob && conversation.my_role === "CLIENT") {
-      if (reviewStep === "EMPLOYEE") {
-        const backendNextAction = conversation.job.next_review_action;
+      const backendNextAction = conversation.job.next_review_action;
+      const submissionStep: "EMPLOYEE" | "AGENCY" =
+        backendNextAction === "AGENCY"
+          ? "AGENCY"
+          : backendNextAction === "EMPLOYEE"
+            ? "EMPLOYEE"
+            : reviewStep;
+
+      if (submissionStep !== reviewStep) {
+        setReviewStep(submissionStep);
+      }
+
+      if (submissionStep === "EMPLOYEE") {
         if (backendNextAction === "AGENCY") {
+          setReviewStep("AGENCY");
+          setEmployeeReviewSubmitted(true);
+          Alert.alert(
+            "Next Step",
+            "Employee reviews are complete. Please rate the agency.",
+          );
+          return;
+        }
+
+        if (pendingEmployees.length === 0 && !conversation.assigned_employee) {
           setReviewStep("AGENCY");
           setEmployeeReviewSubmitted(true);
           Alert.alert(
@@ -1291,6 +1334,16 @@ export default function ChatScreen() {
         );
       } else {
         // Agency review step
+        if (backendNextAction === "EMPLOYEE") {
+          setReviewStep("EMPLOYEE");
+          setEmployeeReviewSubmitted(false);
+          Alert.alert(
+            "Rate Employee First",
+            "Please rate assigned employee(s) before rating the agency.",
+          );
+          return;
+        }
+
         submitReviewMutation.mutate(
           {
             job_id: conversation.job.id,
@@ -2322,6 +2375,14 @@ export default function ChatScreen() {
                         ? clientHasReviewed
                         : conversation.job.workerReviewed;
 
+                    if (
+                      !hasReviewed &&
+                      conversation.my_role === "CLIENT" &&
+                      conversation.is_agency_job
+                    ) {
+                      setReviewStep(effectiveAgencyReviewStep);
+                    }
+
                     openReviewModalSafely(hasReviewed ? "view" : "submit");
                   }}
                 >
@@ -2345,7 +2406,9 @@ export default function ChatScreen() {
 
                       return conversation.my_role === "CLIENT"
                         ? conversation.is_agency_job
-                          ? "Rate Agency"
+                          ? effectiveAgencyReviewStep === "EMPLOYEE"
+                            ? "Rate Employee"
+                            : "Rate Agency"
                           : "Rate Worker"
                         : "Rate Client";
                     })()}
